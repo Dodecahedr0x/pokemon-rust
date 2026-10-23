@@ -3258,6 +3258,143 @@ The importer numbered them 804–806; they were renumbered by hand.
 - the Phare: Oscar, from the mat to the lamp;
 - Manga-Square: with the controleur hidden, `MangaSquare_Sc03` cannot be avoided on the way to the exit (37, 0).
 
+#### SIL4 Ch7 scripts as built (Reverse-City)
+
+The Chapter 7 scripts, from `contenu-jeu/chapitres/07-reverse-city.md`, in `crates/content/src/silice/scripts/`. Every text is a `text/fr.ron` id (or a Gen 3 `gText_*` for the nurse). Every script name the eight Chapter 7 maps use is written, and the eight maps are strict.
+
+**Files.**
+- `ch07_route_s07.rs` claims `RouteS07`. It also holds the shared silica-block script `bloc` (`pub(super)`), used by Reverse-City's alley block.
+- `ch07_reverse_city.rs` claims `ReverseCity`, `ReverseCity_PokemonCenter`, `ReverseCity_Mart` and `ReverseCity_House1`. It holds `set_input_inverted` (`pub(super)`), the inverted-controls fallback the other Ch7 files call.
+- `ch07_phare.rs` claims `ReverseCity_Phare` and `ReverseCity_Coffre`.
+- `ch07_gym.rs` claims `ReverseCity_Gym`.
+- `ch12_stubs.rs` (Ch12's file): `ReverseCity_Phare_PG_Sc04` and `ReverseCity_Phare_PG_Thomas`, as `// fallback:` stubs (the obligation in "SIL6 Ch12 maps: review").
+
+No prelude or driver change.
+
+**Ids.**
+- Flags: `FLAG_SIL_REVERSE_PLAQUE_1` to `_4` = 1180–1183 (the Ch7 scripts' block 1180–1199), in `ids/flags.ron` and `ids.golden`. They record that each mirror sign's plaque has been read, for the vault's fallback.
+- Vars: none.
+- Heal location: `HEAL_LOCATION_SIL_REVERSE_CITY` was appended to `game.ron`, at (4, 21) on `ReverseCity`, in front of the Centre door. `ReverseCity_PokemonCenter_OnTransition` sets it.
+- The silica blocks use Gen3's temp flags `FLAG_TEMP_11`–`_14`, as Gen3's breakable rocks do (Route 111). These are engine flags (0x11–0x14, cleared on every map load), not Silice ids.
+
+**Map fixes** (`06_ch7_scripts.ron` on `RouteS07`, `ReverseCity` and `ReverseCity_Gym`; maps rebuilt, the studio build is byte-identical):
+- The six hidden items become `Script` signs running `hidden_item`, the engine gap noted in Ch0–Ch5. Each original `HiddenItem` op is kept in a comment, to restore later:
+  - Route S7: the Ether;
+  - Reverse-City: the PP Up, the HP Up and the second Poudre Silice;
+  - the gym: the Lum Berry and the Alakazite.
+- The five silica blocks (four on Route S7, the alley block) get a temp flag. Without one, `removeobject` set no flag, and the view spawn (Gen3 `TrySpawnObjectEvents`) brought a block back on the next step. Found by the e2e, which was trapped behind C2. A broken block stays gone while the player is on the map and is back on the next load, as Gen3's rocks are. The e2e breaks the alley block again on the way out of the vault.
+
+**Map scripts.**
+- `ReverseCity_OnLoad` repaints the opened north gate (27, 0) from `FLAG_SIL_REVERSE_PORTE_NORD_OUVERTE`.
+- `ReverseCity_OnTransition`:
+  - turns the inverted controls on (the fallback) from story 72 until `FLAG_SIL_REVERSE_BATTU`;
+  - hides Gogo, Romain and the Palais guard from 73;
+  - always hides the welcoming resident and Benou at the gate (their scenes show them).
+- Normal controls in every interior (`OnTransition`): the Centre, the Mart, the house, the Phare, the vault.
+- `ReverseCity_Phare_OnTransition` shows Chapter 12's Thomas only at story 122. It writes `FLAG_SIL_HIDE_THOMAS_PHARE` both ways.
+- `ReverseCity_Gym_OnTransition`:
+  - inverted controls until Reverse is beaten;
+  - Reverse's hide flag from `FLAG_SIL_REVERSE_BATTU`;
+  - Benou always hidden;
+  - the black pixels only at story 74.
+
+**Scenes.**
+
+| Scene | Script | Story |
+|---|---|---|
+| Route Sc01 | `RouteS07_Sc01`: the route's first frame (on-frame at 68) | 68 → 70 |
+| Route Sc02 | `RouteS07_Sc02`: Adrien's holographic call, coord row (13–15, 34); `FLAG_SIL_ADRIEN_TRADUCTION_NZ` | 70 → 71 |
+| City Sc01 | `ReverseCity_Sc01`: the welcome at the south gate. The flash, the resident walks down backwards (`LockFacing`) and back | 71 → 72 |
+| City Sc02 | `ReverseCity_Sc02`: Gogo then Romain (two single battles, no heal between), the Multi Exp V2; Gogo, Romain and the guard leave | 72 → 73 |
+| City Sc03 | the three emitters, as trainer objects (the source's fallback); `FLAG_SIL_REVERSE_EMETTEUR_n` | |
+| City Sc04 | `ReverseCity_Coffre_Sc04`: the vault, locked until Reverse is beaten; the code dial (fallback below); the Master Ball | |
+| City Sc05 | `ReverseCity_EventScript_ItemPoudreSilice`: the pickup, then the sachet's label | |
+| Phare Sc06 | `ReverseCity_Phare_Sc06`: the lamp, TM11 ("CT Zénith"); Oscar on the ramp | |
+| City Sc07 | `ReverseCity_Sc07`: Benou hacks the Porte Êta-Nord; the gate repainted | 75 → 76 |
+| Gym Sc01 | `ReverseCity_Gym_Sc01`: Reverse, the battle, the flash and his flight; `FLAG_SIL_REVERSE_BATTU`; then Sc02 is called at once | 73 → 74 |
+| Gym Sc02 | `ReverseCity_Gym_Sc02` (also on-frame at 74): Benou; the corrupted badge (`BADGE_07`, `BADGE_07_CORROMPU`); the Flux Turbine (`MODULE_CASCADE`); sync 70; `LOG_07` | 74 → 75 |
+
+Every on-frame script and coord is guarded on its story value, and every lock is released, including on a lost battle (Gym Sc01 releases and returns; the story stays at 73).
+
+**Fallbacks** (each marked `// fallback:` and reported through `fallback()`):
+
+| Engine gap | Fallback | Reported as |
+|---|---|---|
+| Inverted controls | none | `set_input_inverted` (only when turned on) |
+| Residents walking backwards (wander) | they wander facing their way | `walk_backwards` |
+| Hologram | text boxes only | `show_hologram`, `hide_hologram` |
+| SE_APPEL, SE_HACK, SE_COFFRE | the decomp's `SE_POKENAV_CALL`, `SE_PC_LOGIN`, `SE_UNLOCK` | `play_se` |
+| NEGATIF and PIXELS_NOIRS flashes | a fade out and in | `screen_flash` |
+| Battle music | the map's music | `play_music` |
+| The Data Injectors' mutation | the berries already in `trainers.ron`; the `Injecteur_*` texts are not shown | `injector_mutation` |
+| Double battle | two single battles (prelude) | `battle_two_trainers` |
+| The emitters' idle timer | trainer objects (sight 2) | `idle_timer` |
+| Dark map, the lamp's black light | the ramp is drawn lit, no beam | `dark_map`, `black_light` |
+| Four-code multichoice | one yes/no that dials the plaques' code | `multichoice` |
+| Ice (`MB_ICE`) | plain floor | `ice` |
+| Inverse battle chart | the normal chart; `Gym07_Inverse_Debut` is not shown | `set_inverse_battle` |
+| Fanfares, sync gauge, log menu | text only (as Ch3–Ch5) | `play_fanfare`, `show_sync`, `log_menu` |
+| Shop screen | greeting only | `mart` |
+| Hidden items | signs | `hidden item` |
+
+**Deviations.**
+- **Route S7's five trainers have no lines** in the source. Each one says a line of its own zone, as both intro and defeat:
+  - the Technicians: `Route_S07_Npc_Ouvrier`;
+  - Pascal: `Route_S07_Sign_Premisses`;
+  - Sélène: `Route_S07_Npc_Philosophe`;
+  - Mira: `Route_S07_Npc_Touriste`.
+- **The grunts on the quays** use `Reverse_Npc_Sbire_Promo`.
+- **The emitters.** Talking to one fights it, so the Scanner's `Emetteur_T2` is never offered.
+- **Reverse's moonwalk** (`WalkBackwardsFast(Up) x6`) would go into the wall above (6, 3). The flash fallback stands in.
+- **Benou's walks are shortened**, so he does not walk into the pixels or the player:
+  - Gym Sc02: two steps left, out the same way;
+  - Sc07: one step down, then four steps left.
+- **The bins** (`ReverseCity_EventScript_Poubelle`) are empty scripts. The source gives them no text, and the build has no Gen3 `Text_EmptyTrashCan`.
+- **Unused texts:** `Injecteur_Active`, `_Grille`, `_Mute`, `Gym07_Inverse_Debut`, `Emetteur_T2` and `Reverse_Mart_Caissier_Bonus` (the bulk bonus needs a shop screen).
+
+**Gates checked.** For each scene gate, `bypass` reports "no": every path crosses the gate. Checked:
+- `RouteS07_Sc02`;
+- `ReverseCity_Sc01`, `_Sc02` and `_Sc07`;
+- `ReverseCity_Gym_Sc01`;
+- Technician 2, Oscar, Anna, Xela and Nomis.
+
+`lint-reach` on the eight maps: 0 warnings (5 allowed, from the map phase).
+
+**E2E.** `crates/content/tests/sil8_ch7.rs` and `silice_spine/ch07.rs` (`start`, `steps`, `check_end`). Buttons only, no hook, no `Train`. The run starts on Route S7 (14, 70) at story 68 with Chapter 6's end state set directly, and ends on Route S8 at story 76.
+
+On the way, the run plays:
+- every scene, trainer, block, item and sign above;
+- the four plaques, then the vault's Master Ball;
+- the Phare;
+- the Centre heals: between the city's fights, before Gogo and Romain, and before Reverse (back out of room 3).
+
+`check_end` asserts:
+- the story, the badge, the module, `LOG_07` and sync 70;
+- 15 items;
+- no dropped event;
+- 20 fallback names.
+
+The run takes about 121 000 frames (limit 160 000).
+
+The party is ALAKAZAM 50, TYPHLOSION 53, AGGRON 49, LANTURN 46, AMPHAROS 42. That is Chapter 5's end plus Chapter 4's KADABRA line (an ALAKAZAM via Ch5's Link Stone, leading as it did in Ch4 and Ch6), after Chapter 6.
+
+Measured:
+- **Neighbour levels.** Each member at ±1, one at a time, wins.
+- **TYPHLOSION leading** (Chapter 5's order) is a coin flip. Gogo's Donphan sweeps it in the no-heal double, and Reverse's Porygon2 (Leftovers) outlasts the team at some levels. Training the lead in the blue grass did not stabilise it: 57 lost while 56 and 58 won.
+- **A lower party** (TYPHLOSION 48–50, AGGRON 46, LANTURN 44, AMPHAROS 40) lost at 50.
+
+**Questions for the author.**
+1. **Route S7's trainers** have teams but no lines. Should they get intros and defeats, or are the zone lines reused here acceptable?
+2. **The bins:** should they say something (a Silice "empty" line), or hide an item as bins 2 and 4 do?
+3. **The vault** has a multichoice of four codes. Its own fallback ("four yes/nos") has no texts. Is one yes/no that dials the code once the four plaques are read acceptable? Or should there be four `Coffre_Code_n` texts?
+4. **Reverse's moonwalk** goes up into the great mirror (the wall above (6, 3)). Should he leave another way (sideways, or through the mirror with a flash), or should the map give him a corridor?
+5. **Benou's walks** in Gym Sc02 and Sc07 are shortened (see Deviations). Are the new paths acceptable?
+6. **The emitters:** should the Scanner's `Emetteur_T2` (switch it off without a battle) be offered before the fight, as a yes/no?
+7. **Unused texts:** `Injecteur_*` (the mutation's messages, they need the battle engine), `Gym07_Inverse_Debut` (it would be false on the normal chart), and `Reverse_Mart_Caissier_Bonus`. Should they be kept for later?
+8. **The heal cell** is (4, 21), the cell in front of the Centre. Is that right?
+9. **The controls invert from story 72** (from the welcome, Sc01). Before that, the player has not met the distortion. Or should they invert on the first entry?
+10. **The Gogo–Romain double** (two singles without a heal) is the hardest fight of the chapter for a realistic party. Should a nurse or a heal follow Gogo in the fallback?
+
 #### SIL4 Ch8 maps as built (Évalon)
 
 The 12 maps of Chapter 8 (le Bourg d'Évalon) are in `games/silice/{maps,layouts}/`. They were made with the studio map editor only; their edit scripts are under `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`). A scratch generator drew each grid as one `Ascii` op with a legend comment (char: metatile/collision/elevation, what). No map needed a `03_allow.ron`.
