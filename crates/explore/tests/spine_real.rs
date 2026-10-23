@@ -13,7 +13,7 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 109_851;
 
 /// The whole Emerald spine's frame count (to its last checkpoint, [`EMERALD_LABELS`]'s last).
-const EMERALD_FRAMES: u64 = 436_613;
+const EMERALD_FRAMES: u64 = 442_067;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -41,7 +41,6 @@ const SPINE_BLOCKERS: &[&str] = &[
     "new-game-map-flags",
     "briney-sail-camera",
     "briney-sail-camera-slateport",
-    "mauville-gym-barriers",
 ];
 
 /// The Silice spine's frame count to the end of Chapter 0.

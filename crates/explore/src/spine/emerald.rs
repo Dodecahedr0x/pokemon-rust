@@ -238,19 +238,16 @@ mod list {
         warp: Some((MAP_ROUTE109, 21, 23)),
     };
 
-    /// Mauville's gym: its floor switches run `special MauvilleGymSetDefaultBarriers` and
-    /// `MauvilleGymPressSwitch` (unsupported), which toggle every beam barrier; without them
-    /// the barriers never move and Wattson's dais is walled off. The bypass stands the player
-    /// below Wattson (the gym's trainers are optional).
-    static MAUVILLE_GYM_BARRIERS: Bypass = Bypass {
-        issue: "mauville-gym-barriers",
-        features: &[
-            "SPECIAL_MauvilleGymSetDefaultBarriers",
-            "SPECIAL_MauvilleGymPressSwitch",
-        ],
-        warp: Some((MAP_MAUVILLE_CITY_GYM, 5, 3)),
-        ..Bypass::NONE
-    };
+    /// A walk in Mauville's gym to (x, y) around the floor switches (`sMauvilleGymSwitchCoords`)
+    /// in `avoid`.
+    const fn gym_switch(x: i16, y: i16, avoid: &'static [(i16, i16)]) -> Step {
+        Step::GotoAvoiding {
+            map: MAP_MAUVILLE_CITY_GYM,
+            x,
+            y,
+            avoid,
+        }
+    }
 
     pub static STEPS: &[Step] = &[
         Step::Battle(BattlePlan::Best),
@@ -797,8 +794,22 @@ mod list {
         use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
         enter(MAP_MAUVILLE_CITY, 8, 5, Up),
-        // The switches never open the barriers (`mauville-gym-barriers`).
-        Step::Bypass(&MAUVILLE_GYM_BARRIERS),
+        // The floor switches (`MauvilleGymSetDefaultBarriers` flips every beam), stepping on
+        // no other and round Kirk's and Vivian's sight lines (1,14), (1,15). The first (0,15)
+        // opens the way north, but Ben (5,10) spots the player at (3,10) and walks to (4,10),
+        // the only way on, where he stays (`OverrideTemplateCoordsForObjectEvent`). Out to
+        // heal: Mauville resets the puzzle (`MauvilleCity_OnTransition`), and from the default
+        // barriers the third switch (3,9) alone opens the way past him.
+        gym_switch(0, 15, &[(4, 12), (3, 9), (8, 9), (1, 14), (1, 15)]),
+        gym_switch(3, 10, &[(4, 12), (3, 9), (8, 9), (1, 14), (1, 15)]),
+        gym_switch(5, 19, &[(0, 15), (4, 12), (3, 9), (8, 9), (1, 14), (1, 15)]),
+        enter(MAP_MAUVILLE_CITY_GYM, 5, 20, Down),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        enter(MAP_MAUVILLE_CITY, 8, 5, Up),
+        gym_switch(3, 9, &[(0, 15), (4, 12), (8, 9), (1, 14), (1, 15)]),
+        gym_switch(5, 3, &[(0, 15), (4, 12), (3, 9), (8, 9)]),
         talk(MAP_MAUVILLE_CITY_GYM, 1),
         Step::Expect("wattson_defeated"),
         Step::Expect("badge3"),
