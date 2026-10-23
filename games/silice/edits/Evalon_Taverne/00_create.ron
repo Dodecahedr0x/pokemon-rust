@@ -1,0 +1,6 @@
+// Silice Ch8, MAP_EVALON_TAVERNE: la Taverne du De a Vingt Faces (healing, respawn), with the
+// Pigeonnier as a side room up a short stair (the source's 'escalier vers le Pigeonnier'; it has
+// no map id of its own). Building + GenericBuilding (Emerald tilesets by name): Pacifidlog's
+// wood-cabin pieces (plank walls and floor, jars, barrels, tables) for the beams-and-ale hall.
+// Out-of-map border: the void, blocked.
+(name: "Evalon_Taverne", width: 23, height: 12, primary: "Building", secondary: "GenericBuilding", fill: 513, fill_collision: 1, fill_elevation: 0, border: [1537, 1537, 1537, 1537])

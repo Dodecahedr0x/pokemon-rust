@@ -1,0 +1,21 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_SEALED_CHAMBER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnTransition: moves the Scribe aside once the epreuve is passed (cosmetic).
+    Scripts((on_load: None, on_transition: Some("Evalon_TourScribe_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warps 0-1: the exit mat, to Evalon's warp 3 (the tower's door); warp 2: the stairs to 2F.
+    Warp(x: 6, y: 12, dest_map: "Evalon", dest_warp: 3),
+    Warp(x: 7, y: 12, dest_map: "Evalon", dest_warp: 3),
+    Warp(x: 11, y: 1, dest_map: "Evalon_TourScribe_2F", dest_warp: 0),
+    // Sc03: the Scribe at the foot of the stacks (gives the rule; validates the epreuve with the Chronique).
+    Object(x: 7, y: 8, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_TOUR_SCRIBE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Sc03"),
+    // The three iron-bound bookcases (Champ Magnetique pushes; the engine's Strength push, gated on
+    // FLAG_SIL_MODULE_FORCE). 1st: pushed left into its niche (4, 7) opens (5, 7) up to the inner corridor.
+    // 2nd: pushed up into its niche (8, 3) opens (8, 4) east to the stairs. 3rd: the decoy, against the
+    // wall at (4, 5): pushing it left does nothing.
+    Object(x: 5, y: 7, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_TOUR_RAYONNAGE_1", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN"),
+    Object(x: 8, y: 4, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_TOUR_RAYONNAGE_2", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN"),
+    Object(x: 4, y: 5, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_TOUR_RAYONNAGE_3", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN"),
+    // The lectern with the hint (Evalon_Sc03_Lutrin_T1).
+    Sign(x: 3, y: 8, script: "Evalon_TourScribe_EventScript_Lutrin"),
+]

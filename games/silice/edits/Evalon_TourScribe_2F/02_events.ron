@@ -1,0 +1,28 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_SEALED_CHAMBER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnLoad: once FLAG_SIL_EVALON_TOUR_TRAPPE is set (the four crates on the four slabs), draws the
+    // ladder stairs at (9-11, 0-1) (691-693 / 699-701; 700 is the warp cell) over the shut wall.
+    Scripts((on_load: Some("Evalon_TourScribe_2F_OnLoad"), on_transition: None, on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warp 0: the stairs down to 1F; warp 1: the trapdoor stairs to 3F (behind the wall until open).
+    Warp(x: 2, y: 1, dest_map: "Evalon_TourScribe", dest_warp: 2),
+    Warp(x: 10, y: 1, dest_map: "Evalon_TourScribe_3F", dest_warp: 0),
+    // The four iron crates on the 7 x 7 grid at (3-9, 3-9) (source coordinates + (3, 3)): A (5, 5),
+    // B (7, 5), C (5, 7), D (8, 8); the copper slabs at (4, 5), (7, 4), (5, 8), (9, 8). Solution: A left,
+    // B up, C down, D right, one push each. The scripts check the four slab cells and set the trapdoor
+    // flag (contract: a per-step or on-talk check; Gen3 has no plate trigger for pushed boulders).
+    Object(x: 5, y: 5, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_TOUR2_CAISSE_A", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN"),
+    Object(x: 7, y: 5, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_TOUR2_CAISSE_B", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN"),
+    Object(x: 5, y: 7, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_TOUR2_CAISSE_C", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN"),
+    Object(x: 8, y: 8, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_TOUR2_CAISSE_D", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN"),
+    // The Copiste (optional trainer, TRAINER_SIL_EVALON_COPISTE): his TM30 after the battle; talking
+    // to him resets the crates.
+    Object(x: 11, y: 10, gfx: "OBJ_EVENT_GFX_MAN_5", id: "LOCALID_TOUR2_COPISTE", local_id: 5, movement: "MOVEMENT_TYPE_FACE_UP", script: "Evalon_TourScribe_2F_EventScript_Copiste", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
+    // Lecterns I to IV.
+    Sign(x: 0, y: 4, script: "Evalon_TourScribe_2F_EventScript_LutrinI"),
+    Sign(x: 12, y: 4, script: "Evalon_TourScribe_2F_EventScript_LutrinII"),
+    Sign(x: 0, y: 8, script: "Evalon_TourScribe_2F_EventScript_LutrinIII"),
+    Sign(x: 12, y: 8, script: "Evalon_TourScribe_2F_EventScript_LutrinIV"),
+    // The step-ladder in the corner (points at the Copiste).
+    Sign(x: 0, y: 11, script: "Evalon_TourScribe_2F_EventScript_Escabeau"),
+]
