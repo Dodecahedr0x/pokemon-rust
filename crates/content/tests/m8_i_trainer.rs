@@ -4,7 +4,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use content::prelude::{TrainerBattle, kind, trainer_battle, trainer_flag};
+use content::prelude::{MATCH_CALL_FLAG, TrainerBattle, kind, trainer_battle, trainer_flag};
 use engine::battle::BattleOutcome;
 use engine::data::{ScriptId, TextId, TrainerId};
 use engine::script::{Report, Request, Response, Runner, ScriptHost};
@@ -95,6 +95,12 @@ fn flag() -> Request {
 fn set_flag() -> Request {
     Request::SetFlag(trainer_flag(TrainerId(TRAINER)), true)
 }
+/// A won battle: the trainer's flag, then `RegisterTrainerInMatchCall`'s check.
+fn won() -> Vec<Request> {
+    let mut v = vec![set_flag()];
+    v.extend(MATCH_CALL_FLAG.map(Request::GetFlag));
+    v
+}
 fn fight() -> Request {
     Request::BattleTrainer {
         trainer: TrainerId(TRAINER),
@@ -113,7 +119,8 @@ fn intro() -> [Request; 3] {
 /// The regular battle path after the checks: intro, battle, flag.
 fn battled() -> Vec<Request> {
     let mut v = intro().to_vec();
-    v.extend([fight(), set_flag()]);
+    v.push(fight());
+    v.extend(won());
     v
 }
 
@@ -159,7 +166,10 @@ fn a_lost_battle_leaves_the_flag_unset() {
 #[test]
 fn no_intro_battles_without_checks_and_continues() {
     let (cont, log) = run(battle(kind::SINGLE_NO_INTRO_TEXT), TALKED_ONE, false);
-    assert_eq!((cont, log), (true, vec![approach(), fight(), set_flag()]));
+    assert_eq!(
+        (cont, log),
+        (true, [vec![approach(), fight()], won()].concat())
+    );
 }
 
 #[test]

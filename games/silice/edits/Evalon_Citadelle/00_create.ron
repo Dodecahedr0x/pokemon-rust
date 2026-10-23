@@ -1,4 +1,5 @@
 // Silice Ch8, MAP_EVALON_CITADELLE: the gym, le Donjon de la Coordination (11 x 55): five rooms
-// from the south door north to the throne-room stairs. General + Pacifidlog (Emerald tilesets by
-// name): Sky Pillar's flagstones, slabs, pits and rubble are the dungeon. Out-of-map border: the void.
-(name: "Evalon_Citadelle", width: 11, height: 55, primary: "General", secondary: "Pacifidlog", fill: 513, fill_collision: 1, fill_elevation: 0, border: [1537, 1537, 1537, 1537])
+// from the south door north to the throne-room stairs. Building (Emerald, by name) +
+// SilEvalonCitadelle (original, games/silice/gfx/SilEvalonCitadelle.ron, shared with the 2F).
+// Out-of-map border: the void.
+(name: "Evalon_Citadelle", width: 11, height: 55, primary: "Building", secondary: "SilEvalonCitadelle", fill: 1, fill_collision: 1, fill_elevation: 0, border: [1025, 1025, 1025, 1025])

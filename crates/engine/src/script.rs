@@ -455,6 +455,69 @@ pub enum Request {
     ShowObjectAt(u8, MapId),
     /// Gen3 `hideobjectat`.
     HideObjectAt(u8, MapId),
+    // ---- Wave C: specials' reads (`world/host/query.rs`) ----
+    /// A read of the world a special needs: answers `Value` at once.
+    Query(Query),
+}
+
+/// Gen3 `PARTY_SIZE`: [`Query::PartyMoveSlot`]'s answer when no party mon knows the move.
+pub const PARTY_SIZE: u16 = 6;
+
+/// What [`Request::Query`] reads (Wave C: the specials of `field_specials.c`, `pokedex.c`,
+/// `berry.c`, … that only read the player's state).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Query {
+    /// Gen3 `GetHoennPokedexCount` / `GetNationalPokedexCount`: how many species of `among`
+    /// (every species when empty) have the seen (or caught) flag.
+    DexCount {
+        caught: bool,
+        among: &'static [SpeciesId],
+    },
+    /// The species in party slot `slot` (Gen3 `GetMonData(MON_DATA_SPECIES)`), 0 for an empty
+    /// slot.
+    PartySpecies(u8),
+    /// The first party slot whose mon knows the move (Gen3 `checkpartymove`'s
+    /// `MonKnowsMove`), else [`PARTY_SIZE`].
+    PartyMoveSlot(MoveId),
+    /// The EV total of party slot `slot` (Gen3 `GetMonEVCount`), 0 for an empty slot.
+    PartyEvTotal(u8),
+    /// The friendship of party slot `slot` (Gen3 `MON_DATA_FRIENDSHIP`), 0 for an empty slot.
+    PartyFriendship(u8),
+    /// The current HP of party slot `slot` (Gen3 `MON_DATA_HP`), 0 for an empty slot.
+    PartyHp(u8),
+    /// The low half of party slot `slot`'s personality, 0 for an empty slot.
+    PartyPersonalityLow(u8),
+    /// The low half of the player's trainer id (Gen3 `playerTrainerId[0] | [1] << 8`).
+    PlayerIdLow,
+    /// 1 when the bag's `pocket` holds an item (Gen3 `IsBagPocketNonEmpty`), else 0.
+    PocketNonEmpty(crate::data::Pocket),
+    /// The metatile of cell (`x`, `y`) of the current map, with `setmetatile`'s changes (Gen3
+    /// `MapGridGetMetatileIdAt`).
+    Metatile { x: i16, y: i16 },
+}
+
+impl Query {
+    /// (kind, a, b) for [`Request::hash_into`]; `DexCount`'s list by length and digest.
+    fn key(self) -> (u16, u16, u16) {
+        match self {
+            Query::DexCount { caught, among } => {
+                let mut h = Fnv64::new();
+                for s in among {
+                    h.write_u16(s.0);
+                }
+                (caught as u16, among.len() as u16, h.finish() as u16)
+            }
+            Query::PartySpecies(slot) => (2, slot as u16, 0),
+            Query::PartyMoveSlot(m) => (3, m.0, 0),
+            Query::PartyEvTotal(slot) => (4, slot as u16, 0),
+            Query::PlayerIdLow => (5, 0, 0),
+            Query::PocketNonEmpty(p) => (6, p as u16, 0),
+            Query::PartyFriendship(slot) => (7, slot as u16, 0),
+            Query::PartyHp(slot) => (8, slot as u16, 0),
+            Query::PartyPersonalityLow(slot) => (9, slot as u16, 0),
+            Query::Metatile { x, y } => (10, x as u16, y as u16),
+        }
+    }
 }
 
 /// Gen3 `PARTY_NOTHING_CHOSEN`: [`Request::ChoosePartyMon`]'s answer to B.
@@ -672,6 +735,10 @@ impl Request {
             Request::WaitMoveAt(obj, map) => (148, obj as u16, map.0, 0, 0),
             Request::ShowObjectAt(obj, map) => (149, obj as u16, map.0, 0, 0),
             Request::HideObjectAt(obj, map) => (150, obj as u16, map.0, 0, 0),
+            Request::Query(q) => {
+                let (k, a, b) = q.key();
+                (121, k, a, b, 0)
+            }
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -1325,6 +1392,11 @@ impl Ctx {
     /// Gen3 `ScriptGetPartyMonSpecies` (0 for an empty slot).
     pub fn party_mon_species(&self, slot: u8) -> Req<u16> {
         self.req(Request::PartyMonSpecies(slot), Response::value)
+    }
+
+    /// A read of the world ([`Query`]).
+    pub fn query(&self, q: Query) -> Req<u16> {
+        self.req(Request::Query(q), Response::value)
     }
 
     /// Gen3 `CreateInGameTradePokemon`.

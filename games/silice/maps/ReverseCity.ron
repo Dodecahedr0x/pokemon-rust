@@ -152,7 +152,7 @@
         (
             local_id: 10,
             id: Some("LOCALID_REVERSE_EMETTEUR1"),
-            gfx: "OBJ_EVENT_GFX_TRICK_HOUSE_STATUE",
+            gfx: "OBJ_EVENT_GFX_SIL_EMETTEUR",
             x: 3,
             y: 12,
             elevation: 3,
@@ -167,7 +167,7 @@
         (
             local_id: 11,
             id: Some("LOCALID_REVERSE_EMETTEUR2"),
-            gfx: "OBJ_EVENT_GFX_TRICK_HOUSE_STATUE",
+            gfx: "OBJ_EVENT_GFX_SIL_EMETTEUR",
             x: 36,
             y: 12,
             elevation: 3,
@@ -182,7 +182,7 @@
         (
             local_id: 12,
             id: Some("LOCALID_REVERSE_EMETTEUR3"),
-            gfx: "OBJ_EVENT_GFX_TRICK_HOUSE_STATUE",
+            gfx: "OBJ_EVENT_GFX_SIL_EMETTEUR",
             x: 12,
             y: 34,
             elevation: 3,

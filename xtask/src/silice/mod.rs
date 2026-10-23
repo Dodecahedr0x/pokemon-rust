@@ -17,13 +17,13 @@
 mod check;
 mod derive;
 pub mod gfx;
-mod sprites;
 mod ids;
 mod import;
 mod maps;
 mod md;
 mod names;
 pub mod schema;
+mod sprites;
 
 use anyhow::{Context, Result, bail};
 use std::collections::BTreeMap;

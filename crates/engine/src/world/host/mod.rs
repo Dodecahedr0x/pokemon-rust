@@ -18,6 +18,7 @@ mod fx;
 mod items;
 mod menu;
 mod party;
+mod query;
 mod save;
 mod screens;
 mod trainer;
@@ -410,6 +411,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::SetMapLayout(_)
             | Request::CreateVirtualObject { .. }
             | Request::TurnVirtualObject { .. } => field::begin(self, r),
+            Request::Query(q) => Some(Response::Value(query::answer(self, q))),
             Request::Report(rep) => {
                 s.log(match rep {
                     crate::script::Report::Unsupported(what)

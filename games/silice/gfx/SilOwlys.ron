@@ -1,0 +1,151 @@
+// Owlys, the City under the Abyss (Ch5, MAP_OWLYS): contenu-jeu/chapitres/05-owlys.md §2.
+// A monumental neo-gothic city dug into a huge cavern: Hoothoot gargoyles, dark stained glass,
+// cathedral spires rising toward an unseen vault, hanging metal walkways over the void, permanent
+// darkness pierced only by yellow steam projectors and the red neons of the Cocket warehouses.
+// Footprints keep the first build's collision cell for cell (the e2e path and its encounters do
+// not move): the Sanctuaire 7x6 (door (30, 12), a non-animated door the feather lock keeps solid,
+// METATILE_PORTE_GYM in ch05_owlys.rs), the Pilgrims' Elevator 3x4 (door (30, 3)), the orphanage
+// and the warehouse 5x4 (doors (12, 8) and (47, 8)), the Centre 4x4 (animated door (15, 29)), the
+// Gray Market 3x2 (door (14, 39)), the East Cave tunnel 3x2 (door (54, 28)), the iron gate 4x1 under its two arrows (`seuil`)
+// (arrows (29, 45) and (30, 45)). Floors and walkways are MB_CAVE (the cavern's encounters).
+// No connections (warps only): no seams.
+(
+    name: "SilOwlys",
+    primary: "General",
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance), in a dark underground neo-gothic city. Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no glow halos, no tiny decorations, no anti-aliasing. Palette: dark slate blue-greys and charcoal stone, near-black shadows, with a few flat accents of warm sodium yellow light and red neon.",
+    features: [
+        (
+            name: "pave",
+            cells: ["c"],
+            legend: {'c': (behavior: "MB_CAVE", collision: 0)},
+            key: Some("none"),
+            prompt: Some("Dark old cobblestones of an underground city seen from above: four irregular rounded dark charcoal slate cobbles (#363a48 with a lighter top edge #444a5a) separated by thick near-black gaps (#1a1c24), no straight grid lines. Only 16x16 pixels, chunky."),
+        ),
+        (
+            name: "passerelle",
+            cells: ["c", "c"],
+            legend: {'c': (behavior: "MB_CAVE", collision: 0)},
+            key: Some("none"),
+            prompt: Some("A suspended iron catwalk crossing a black chasm, seen from straight above, running left to right and tiling left-right: a thick rusty dark iron handrail along the very top edge, then a floor of dark grey riveted iron grating plates with black gaps between them, then a thick rusty dark iron handrail along the very bottom edge. Chunky, very few details."),
+        ),
+        (
+            name: "vide",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A bottomless chasm seen from above: almost entirely flat near-black (#0c0c14), with two or three tiny very dark navy blue (#1c2034) specks of mist. Only 16x16 pixels."),
+        ),
+        (
+            name: "roche",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("The dark rock of a huge cavern seen from above: flat charcoal blue-grey rock (#2e323e) with two chunky darker cracks (#1c1e26) and one slightly lighter lump. It tiles seamlessly. Only 16x16 pixels."),
+        ),
+        (
+            name: "falaise",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A cavern wall face seen from the front, carved by masons into a gothic wall, tiling left to right: the top quarter is dark rough rock (#2e323e), below it dark slate blue-grey stone blocks (#465062) with one narrow pointed-arch blind niche in the middle, and a near-black shadow line along the bottom edge. Only 16x16 pixels."),
+        ),
+        (
+            name: "bord_g",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("The left rim of a raised rock mass seen from above, tiling top to bottom: the left three quarters are flat charcoal blue-grey rock (#2e323e) with a chunky crack, the right quarter is a vertical carved slate stone ledge (#5a6474) with a near-black outline on its right side. Only 16x16 pixels."),
+        ),
+        (
+            name: "bord_d",
+            cells: ["#"],
+            mirror: Some("bord_g"),
+        ),
+        (
+            name: "bord_b",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("The top rim of a raised rock mass seen from above, tiling left to right: the bottom three quarters are flat charcoal blue-grey rock (#2e323e) with a chunky crack, the top quarter is a horizontal carved slate stone ledge (#5a6474) with a near-black outline along its top edge. Only 16x16 pixels."),
+        ),
+        (
+            name: "sanctuaire",
+            under: Some("roche"),
+            cells: ["#######", "#######", "#######", "#######", "#######", "###W###"],
+            legend: {'W': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+            key: Some("00FF00"),
+            prompt: Some("The Owl Sanctuary, a neo-gothic cathedral facade of dark slate blue-grey stone filling the whole width: three tall sharp pointed spires (the middle one tallest) with black slate tips, a big round rose window of dark violet and deep blue stained glass shaped like an owl's face with two round eyes in the middle of the facade, two small round stone owl gargoyles on the upper corners, two tall narrow dark stained-glass windows, and a tall pointed-arch black wooden double door exactly in the middle of the bottom edge with a small golden feather emblem on it."),
+        ),
+        (
+            name: "ascenseur",
+            under: Some("roche"),
+            cells: ["###", "###", "###", "#W#"],
+            legend: {'W': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+            prompt: Some("The Pilgrims' Elevator: a tall narrow black wrought-iron elevator cage inside a dark slate stone gothic frame with a pointed arch top, a big iron pulley wheel and two thick chains going up out of the top edge, one small yellow lamp on the frame, and the open cage doorway (dark inside) exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "orphelinat",
+            under: Some("roche"),
+            cells: ["#####", "#####", "#####", "##W##"],
+            legend: {'W': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+            prompt: Some("A poor little gothic orphanage of dark grey stone: a steep dark slate roof with one small bell turret, two small warm yellow lit windows with pointed tops, a patched brown wooden door exactly in the middle of the bottom edge, a small chalk drawing of a round owl next to the door."),
+        ),
+        (
+            name: "entrepot",
+            under: Some("roche"),
+            cells: ["#####", "#####", "#####", "##W##"],
+            legend: {'W': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+            prompt: Some("A grim gang warehouse of dark corrugated iron: a flat dark roof, a tall black round silo tank on its right side, two long bright red neon tube strips along the front wall (no letters), stacked grey crates on the left, a big black sliding cargo door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "centre",
+            under: Some("pave"),
+            cells: ["####", "####", "####", "#D##"],
+            prompt: Some("A Pokemon Center for a dark gothic underground city: a dark stone building with a steep red slate roof, a big white-and-red Poke Ball emblem in a round gothic window on the front, warm yellow lit windows, and glass sliding doors in the bottom edge placed in the LEFT half (centred at 3/8 of the width from the left); on the right quarter, a tall thin black iron lamp post with a yellow lamp, standing beside the building."),
+        ),
+        (
+            name: "marche",
+            under: Some("pave"),
+            cells: ["###", "#W#"],
+            legend: {'W': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+            prompt: Some("The Gray Market, a shady black-market shack, wide and low: a tattered grey cloth awning on top, ramshackle dark wood and tin walls, a few crates, one hanging yellow lantern, a dark curtain doorway exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "tunnel",
+            under: Some("roche"),
+            cells: ["###", "#W#"],
+            legend: {'W': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+            prompt: Some("A convoy tunnel mouth in a dark cavern rock wall: charcoal blue-grey rock all around, a big black arched tunnel opening in the bottom middle braced with rusty iron beams, two rail tracks going into the darkness exactly in the middle of the bottom edge, a small red warning lamp above the arch."),
+        ),
+        (
+            name: "porte",
+            under: Some("roche"),
+            cells: ["####"],
+            prompt: Some("One single massive black iron gate in a low dark slate stone wall, seen from the front, wide and low: the two riveted iron leaves stand open in the middle half with black darkness between them, one small yellow lamp on each stone post beside the gate."),
+        ),
+        (
+            name: "fontaine",
+            under: Some("pave"),
+            cells: ["##", "##"],
+            prompt: Some("A dry gothic fountain: a round dark grey stone basin, its bottom cracked and empty, and in its middle a stone statue of a round owl Pokemon (like Hoothoot: a round body, big round eyes, two ear tufts, standing on one foot) on a short column."),
+        ),
+        (
+            name: "gargouille",
+            under: Some("pave"),
+            cells: ["#"],
+            prompt: Some("A small grey stone gargoyle shaped like a round owl Pokemon (big round eyes, two ear tufts, folded wings) sitting on a square dark stone pedestal."),
+        ),
+        (
+            name: "projecteur",
+            under: Some("falaise"),
+            cells: ["#"],
+            prompt: Some("A wall-mounted steam projector lamp: a black iron bracket holding a round brass lamp with a big flat sodium-yellow (#f8c840) lens, a short steam pipe under it."),
+        ),
+        // Derived (derive.rs): the left rim with a gargoyle perched on it (the Ruelle des
+        // Gargouilles); the flagstones before the iron gate, south arrows to the Sea Rift.
+        (
+            name: "bord_gargouille",
+            cells: ["#"],
+        ),
+        (
+            name: "seuil",
+            cells: ["A"],
+            legend: {'A': (behavior: "MB_SOUTH_ARROW_WARP", collision: 0)},
+        ),
+    ],
+)

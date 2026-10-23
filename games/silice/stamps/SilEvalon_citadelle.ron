@@ -1,0 +1,12 @@
+(
+    primary: "General",
+    secondary: "SilEvalon",
+    width: 5,
+    height: 3,
+    elevation: false,
+    blocks: [
+        (1545, 1546, 1547, 1548, 1549),
+        (1550, 1551, 1552, 1553, 1554),
+        (1555, 1556, 533, 1558, 1559),
+    ],
+)

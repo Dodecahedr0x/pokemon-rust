@@ -1,5 +1,6 @@
 // Silice Ch6, MAP_MANGA_SQUARE_GYM: the Sanctuaire du Bushido, an open-air zen garden behind the Dojo
 // (22 x 30, the source's size; a sub-map ch06 section 4 describes without a heading constant).
-// General + BattleFrontierOutsideEast, as Manga-Square: raked gravel (the Frontier's sand), paving, water,
-// boulders, white fences; the arena's lattice door stands for the closed shoji doors. Border: the forest.
-(name: "MangaSquare_Gym", width: 22, height: 30, primary: "General", secondary: "BattleFrontierOutsideEast", fill: 289, border: [468, 469, 476, 477])
+// General (Emerald, by name) + SilMangaSquareGym (original, games/silice/gfx/SilMangaSquareGym.ron):
+// raked gravel, stepping stones, the shoji walls and doors, the scroll desks, the carp pond and its
+// bridge, cherry trees, the dragon statue, bamboo all round. Border: the bamboo.
+(name: "MangaSquare_Gym", width: 22, height: 30, primary: "General", secondary: "SilMangaSquareGym", fill: 512, border: [543, 544, 545, 546])

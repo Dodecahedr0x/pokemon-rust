@@ -37,7 +37,8 @@
 //!   the bottom layer of the primary tileset's `ground` metatile (transparent pixels show it;
 //!   no `ground`: the art is the bottom layer). Cells are `Covered` (both layers under
 //!   the objects), but the rows listed in `over` are `Normal`: their art is drawn above the
-//!   objects (the player walks behind a roof edge, under an arch).
+//!   objects (the player walks behind a roof edge, under an arch); with `under`, an `over` row has
+//!   the texture as its bottom layer.
 //! - `stamps/<Tileset>_<feature>.ron`: the feature's blocks with the collision of its `cells`
 //!   (the `Stamp` op of `studio map apply` paints it).
 //! - `target/silice-gfx/<Tileset>.png`: every feature as the game draws it (3x), for review.
@@ -111,8 +112,10 @@ pub struct Feature {
     pub align: Option<String>,
     /// The art of another feature (same size), mirrored left to right, instead of a prompt.
     #[serde(default)]
-    pub mirror: Option<String>,    /// Another feature's art (a texture, tiled from the top left) under this one's transparent
+    pub mirror: Option<String>,
+    /// Another feature's art (a texture, tiled from the top left) under this one's transparent
     /// pixels, for a secondary floor the primary has no metatile for (`Building` has no floor).
+    /// In an `over` row the texture is the bottom layer (under the objects), the art the top.
     #[serde(default)]
     pub under: Option<String>,
 }
@@ -718,6 +721,9 @@ struct CellArt {
     /// TL, TR, BL, BR.
     tiles: [ArtTile; 4],
     blank: bool,
+    /// An `over` row of a feature with `under`: the texture, as the bottom layer (the art,
+    /// with its transparency, is the top layer, drawn above the objects).
+    bottom: Option<[ArtTile; 4]>,
 }
 
 pub fn build(games: &Path, extracted: &Path, name: &str) -> Result<()> {
@@ -780,18 +786,33 @@ pub fn build(games: &Path, extracted: &Path, name: &str) -> Result<()> {
             16 * h
         );
         for cy in 0..h {
+            // An `over` row keeps the art's transparency: `under` goes to the bottom layer.
+            let split = under.is_some() && f.over.contains(&cy);
             for cx in 0..w {
+                let px = |t: usize, i: usize| {
+                    let x = (cx * 16 + t % 2 * 8 + i % 8) as u32;
+                    let y = (cy * 16 + t / 2 * 8 + i / 8) as u32;
+                    (x, y)
+                };
                 let tiles: [ArtTile; 4] = core::array::from_fn(|t| {
                     core::array::from_fn(|i| {
-                        let x = (cx * 16 + t % 2 * 8 + i % 8) as u32;
-                        let y = (cy * 16 + t / 2 * 8 + i / 8) as u32;
+                        let (x, y) = px(t, i);
                         let c = match &under {
-                            Some(u) if art.at(x, y)[3] < 128 => u.at(x % u.w, y % u.h),
+                            Some(u) if !split && art.at(x, y)[3] < 128 => u.at(x % u.w, y % u.h),
                             _ => art.at(x, y),
                         };
                         (c[3] >= 128).then(|| rgb555(c))
                     })
                 });
+                let bottom = match &under {
+                    Some(u) if split => Some(core::array::from_fn(|t| {
+                        core::array::from_fn(|i| {
+                            let (x, y) = px(t, i);
+                            Some(rgb555(u.at(x % u.w, y % u.h)))
+                        })
+                    })),
+                    _ => None,
+                };
                 let blank = tiles.iter().flatten().all(Option::is_none);
                 cells.push(CellArt {
                     feature: fi,
@@ -799,6 +820,7 @@ pub fn build(games: &Path, extracted: &Path, name: &str) -> Result<()> {
                     cy,
                     tiles,
                     blank,
+                    bottom,
                 });
             }
         }
@@ -807,8 +829,10 @@ pub fn build(games: &Path, extracted: &Path, name: &str) -> Result<()> {
     // Palettes: cluster the tiles, quantize each cluster.
     let art_tiles: Vec<&ArtTile> = cells
         .iter()
-        .filter(|c| !c.blank)
-        .flat_map(|c| c.tiles.iter())
+        .flat_map(|c| {
+            let top = (!c.blank).then_some(c.tiles.iter()).into_iter().flatten();
+            top.chain(c.bottom.iter().flatten())
+        })
         .collect();
     let (palettes, assign) = quantize(&art_tiles, PAL_COUNT, 15);
 
@@ -831,8 +855,9 @@ pub fn build(games: &Path, extracted: &Path, name: &str) -> Result<()> {
         let ground = f.ground.or(spec.ground);
         let collision = kind.collision as u16;
         let mut entries = [0u16; 8];
-        let top_start = match ground {
-            Some(g) => {
+        let top_start = match (&c.bottom, ground) {
+            (Some(_), _) => 4,
+            (None, Some(g)) => {
                 let gm = primary
                     .metatiles
                     .get(g as usize)
@@ -840,7 +865,7 @@ pub fn build(games: &Path, extracted: &Path, name: &str) -> Result<()> {
                 entries[..4].copy_from_slice(&gm[..4]);
                 4
             }
-            None => 0,
+            (None, None) => 0,
         };
         for t in 0..4 {
             let pal = if c.blank { 0 } else { assign[k] };
@@ -851,6 +876,18 @@ pub fn build(games: &Path, extracted: &Path, name: &str) -> Result<()> {
             });
             let (id, hf, vf) = tile_id(&mut tiles, &mut tile_ids, indexed);
             entries[top_start + t] = (512 + id)
+                | (hf as u16) << 10
+                | (vf as u16) << 11
+                | ((PAL_FIRST + pal) as u16) << 12;
+        }
+        for (t, bt) in c.bottom.iter().flatten().enumerate() {
+            let pal = assign[k];
+            k += 1;
+            let indexed: [u8; 64] = core::array::from_fn(|i| {
+                bt[i].map_or(0, |col| nearest(&palettes[pal], col) as u8 + 1)
+            });
+            let (id, hf, vf) = tile_id(&mut tiles, &mut tile_ids, indexed);
+            entries[t] = (512 + id)
                 | (hf as u16) << 10
                 | (vf as u16) << 11
                 | ((PAL_FIRST + pal) as u16) << 12;
