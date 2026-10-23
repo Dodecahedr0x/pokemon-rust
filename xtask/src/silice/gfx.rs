@@ -378,6 +378,7 @@ fn gen_cmd(args: &[String]) -> Result<()> {
         }
         write_rgba(&art_dir.join(format!("{}.png", f.name)), &m)?;
     }
+    super::derive::run(&name, &games.join("gfx"))?;
     if !missing.is_empty() {
         println!(
             "no raw picture (no prompt, or gen failed): {}",
