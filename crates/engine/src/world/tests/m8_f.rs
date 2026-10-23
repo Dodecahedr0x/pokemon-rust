@@ -112,6 +112,52 @@ fn a_map_dynamic_warp_uses_the_dynamic_slot_and_a_missing_map_is_ignored() {
     assert_eq!((w.map(), pos(&w)), (ROUTE, (4, 6)));
 }
 
+/// Gen3 `SetupWarp`: taking a warp whose destination warp is dynamic stores the warp taken
+/// (`SetDynamicWarp`), which the room's dynamic exit then uses.
+#[test]
+fn entering_a_dynamic_room_stores_the_way_back() {
+    static ENTRY: MapData = MapData {
+        name: "entry",
+        warps: &[WarpEvent {
+            x: 4,
+            y: 4,
+            elevation: 0,
+            dest_map: DYN_ROOM,
+            dest_warp: 0,
+        }],
+        width: 10,
+        height: 10,
+        blocks: &TOWN_BLOCKS,
+        border: [WALL; 4],
+        primary: &TS,
+        secondary: &TS2,
+        objects: &[],
+        coords: &[],
+        bgs: &[],
+        connections: &[],
+        scripts: NO_SCRIPTS,
+        allow_running: false,
+    };
+    let mut w = started();
+    let player = w.objects().player().pos();
+    w.start_warp(&Game, &ENTRY, 0, false);
+    assert_eq!(
+        w.warp_slots().dynamic,
+        Some(WarpDest {
+            map: TOWN,
+            warp: Some(0),
+            x: player.0,
+            y: player.1
+        })
+    );
+    finish_warp(&mut w);
+    assert_eq!(w.map(), DYN_ROOM);
+    w.start_warp(&Game, Game.map(DYN_ROOM), 0, false);
+    finish_warp(&mut w);
+    assert_eq!(w.map(), TOWN);
+    assert_eq!(pos(&w), (3, 3), "out of the town's warp 0 door");
+}
+
 #[test]
 fn the_view_window_follows_a_scripted_walk_from_each_step_start() {
     static UP: [Step; 4] = [Step::Walk(Dir::Up, Speed::Normal); 4];

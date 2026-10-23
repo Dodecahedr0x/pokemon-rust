@@ -126,7 +126,10 @@ const NO_SCRIPTS: MapScripts = MapScripts {
     on_warp_into: &[],
 };
 
-static MAPS: [MapData; 3] = [
+/// A room whose warp 0 leads to [`crate::grid::MAP_DYNAMIC`] (the truck, secret bases).
+pub const DYN_ROOM: MapId = MapId(3);
+
+static MAPS: [MapData; 4] = [
     MapData {
         name: "town",
         width: 10,
@@ -233,6 +236,28 @@ static MAPS: [MapData; 3] = [
             ..NO_SCRIPTS
         },
         allow_running: true,
+    },
+    MapData {
+        name: "dynamic room",
+        width: 10,
+        height: 10,
+        blocks: &TOWN_BLOCKS,
+        border: [WALL; 4],
+        primary: &TS,
+        secondary: &TS2,
+        objects: &[],
+        warps: &[WarpEvent {
+            x: 1,
+            y: 1,
+            elevation: 0,
+            dest_map: crate::grid::MAP_DYNAMIC,
+            dest_warp: 0,
+        }],
+        coords: &[],
+        bgs: &[],
+        connections: &[],
+        scripts: NO_SCRIPTS,
+        allow_running: false,
     },
 ];
 
