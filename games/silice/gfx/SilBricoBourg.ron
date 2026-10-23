@@ -1,0 +1,97 @@
+// Brico-Bourg (Ch0, MAP_BRICO_BOURG): the tinkerers' village. contenu-jeu/chapitres/00-prologue.md §2:
+// patched tin roofs, open workshops, dismantled bikes, giant roots at the north exit, the closed
+// botany Labo overgrown with synthetic brambles, the central fountain.
+// Footprints keep the map's doors: houses 3x4 (door bottom middle), Shaker 3x5, Labo 5x6 (door
+// bottom middle).
+(
+    name: "SilBricoBourg",
+    primary: "General",
+    ground: Some(1),
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance). Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no tiny decorations, no anti-aliasing.",
+    features: [
+        (
+            name: "maison_joueur",
+            cells: ["###", "###", "###", "#D#"],
+            prompt: Some("A small tinkerer's house: a roof of two or three mismatched corrugated tin sheets (blue-grey and rust orange) with a few rivets, light wooden plank walls, a wooden door exactly in the middle of the bottom edge, one window on the right."),
+        ),
+        (
+            name: "maison_adrien",
+            cells: ["###", "###", "###", "#D#"],
+            prompt: Some("A small family house of a tinkerer village: a roof of patched corrugated tin sheets (green and silver), whitewashed brick walls, a green door exactly in the middle of the bottom edge, a window on each side of the door, a small chimney."),
+        ),
+        (
+            name: "shaker",
+            cells: ["###", "###", "###", "###", "#D#"],
+            key: Some("00FF00"),
+            prompt: Some("A small two-storey cocktail bar called the Shaker: a patched corrugated tin roof, dark purple wooden walls, a glowing pink neon sign shaped like a cocktail shaker and glass on the upper wall (no letters), warm yellow windows, a double door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "labo",
+            cells: ["#####", "#####", "#####", "#####", "#####", "##D##"],
+            prompt: Some("An abandoned botany laboratory: a white concrete building with a cracked glass greenhouse roof, a rusty sign plate with no letters, overgrown with black plastic synthetic brambles with sharp grey thorns and faint blue sparks climbing its walls, a closed metal door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "atelier",
+            cells: ["###", "###"],
+            prompt: Some("An open-front wooden workshop shed with a slanted tin roof: inside a workbench with tools, a dismantled bicycle frame and loose bicycle wheels leaning against it."),
+        ),
+        (
+            name: "racines_g",
+            cells: ["##", "##", "##"],
+            prompt: Some("A tangle of giant exposed tree roots bursting out of the soil, thick dark brown bark coils with moss patches, a low wide mound of roots (no trunk, no leaves)."),
+        ),
+        (
+            name: "racines_d",
+            cells: ["##", "##", "##"],
+            mirror: Some("racines_g"),
+        ),
+        (
+            name: "fontaine",
+            cells: ["##", "##"],
+            prompt: Some("A small round stone village fountain built from mismatched recycled parts (a pipe spout, bolts), clear blue water in its basin."),
+        ),
+        (
+            name: "gravier",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Grey-beige gravel path ground: four or five chunky pebbles of two or three pixels each, in two shades, on a flat beige base."),
+        ),
+        (
+            name: "ronces",
+            cells: ["#"],
+            prompt: Some("A tangle of black synthetic plastic brambles with sharp grey thorns and two tiny electric blue sparks, a bush-shaped obstacle."),
+        ),
+        (
+            name: "canal",
+            cells: ["ww"],
+            key: Some("none"),
+            legend: {'w': (behavior: "MB_POND_WATER", collision: 1)},
+            prompt: Some("A straight narrow canal running from top to bottom: calm blue water in the middle with a few light ripples, framed on the left and right edges by a thin grey cut-stone wall. It must tile seamlessly from top to bottom."),
+        ),
+        (
+            name: "canal_haut",
+            cells: ["ww"],
+            key: Some("none"),
+            legend: {'w': (behavior: "MB_POND_WATER", collision: 1)},
+            prompt: Some("The upper end of a narrow canal: a grey cut-stone wall across the top with a round drain pipe pouring water, calm blue water below, thin grey stone walls on the left and right edges."),
+        ),
+        (
+            name: "canal_bas",
+            cells: ["ww"],
+            key: Some("none"),
+            legend: {'w': (behavior: "MB_POND_WATER", collision: 1)},
+            prompt: Some("The lower end of a narrow canal: calm blue water flowing down into a dark iron grate set in a grey cut-stone wall across the bottom, thin grey stone walls on the left and right edges."),
+        ),
+        (
+            name: "velo",
+            cells: ["#"],
+            prompt: Some("A dismantled bicycle lying on the ground: a red frame without its front wheel, the loose wheel and a wrench next to it."),
+        ),
+        (
+            name: "potager",
+            cells: ["...", "...", "..."],
+            key: Some("none"),
+            prompt: Some("A small vegetable garden seen from above: three rows of dark brown tilled soil with green leafy vegetables and orange carrots tops, thin paths of lighter soil between the rows."),
+        ),
+    ],
+)

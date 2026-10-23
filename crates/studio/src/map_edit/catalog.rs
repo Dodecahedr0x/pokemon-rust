@@ -153,6 +153,7 @@ impl Catalog {
                 c.add_tileset(&layout.secondary, m.secondary, true);
                 c.count_uses(&layout, &mut seen);
             }
+            c.add_all_tilesets();
             c.gfx = read_gfx(&dir).unwrap_or_default();
             return Ok(c);
         }
@@ -167,8 +168,19 @@ impl Catalog {
             c.add_tileset(&file.layout.secondary, m.secondary, true);
             c.count_uses(&file.layout, &mut seen);
         }
+        c.add_all_tilesets();
         c.gfx = read_gfx(&dir).unwrap_or_default();
         Ok(c)
+    }
+
+    /// The build's other tilesets (`content::data::TILESETS`), which no map uses yet: a new
+    /// tileset (the games dir's original ones) can be painted with before any map names it.
+    fn add_all_tilesets(&mut self) {
+        for &(name, tileset, secondary) in content::data::TILESETS {
+            if !self.tilesets.contains_key(name) {
+                self.add_tileset(name, tileset, secondary);
+            }
+        }
     }
 
     /// The build's tilesets, graphics and scripts with only the maps of a games dir.
