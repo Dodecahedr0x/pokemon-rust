@@ -26,6 +26,12 @@ mod list {
     const ITEM_HM04: engine::data::ItemId = engine::data::ItemId(342);
     /// Gen3's `ITEM_HM06`, for the same reason.
     const ITEM_HM06: engine::data::ItemId = engine::data::ItemId(344);
+    /// Gen3's `SPECIES_TENTACOOL` (`include/constants/species.h`), for the same reason.
+    const SPECIES_TENTACOOL: u16 = 72;
+    /// Gen3's `SPECIES_WINGULL`, for the same reason.
+    const SPECIES_WINGULL: u16 = 309;
+    /// Gen3's `ITEM_HM07`, for the same reason.
+    const ITEM_HM07: engine::data::ItemId = engine::data::ItemId(345);
     /// Gen3's `ITEM_HM08`, for the same reason.
     const ITEM_HM08: engine::data::ItemId = engine::data::ItemId(346);
     /// Gen3's `ITEM_FULL_RESTORE`, for the same reason.
@@ -200,16 +206,33 @@ mod list {
     const MT57: [Step; 9] = mossdeep_train(57);
     const MT58: [Step; 9] = mossdeep_train(58);
 
-    /// HM08 from the bag on the lead, as [`USE_HM06`]: its other three moves are HMs (Strength,
-    /// Rock Smash, Surf; Gen3 `CanReplaceMove`), so it forgets Earthquake (slot 1).
+    /// HM08 from the bag on the Route 122 Tentacool (party slot 2, after Castform), forgetting
+    /// Poison Sting (slot 0): the lead's four slots are taken (three HMs and Earthquake).
     const USE_HM08: Step = Step::UseItem(UseItem {
         item: ITEM_HM08,
-        mon: 0,
-        forget: 1,
+        mon: 2,
+        forget: 0,
+    });
+    /// HM07 on the Tentacool too, forgetting Constrict (slot 2).
+    const USE_HM07: Step = Step::UseItem(UseItem {
+        item: ITEM_HM07,
+        mon: 2,
+        forget: 2,
     });
 
     /// B (Gen3 `TrySetupDiveEmergeScript`: on an underwater map, surface).
     const PRESS_B: Step = Step::Press(engine::Buttons::B.0, 1);
+
+    /// Sootopolis after the dive in: its `ON_TRANSITION` (`SootopolisCity_EventScript_SetLayout`)
+    /// put `LAYOUT_SOOTOPOLIS_CITY_LEGENDS_BATTLE` in, which the checkpoint does not keep (as
+    /// [`SKY_PILLAR`]): the explorer's round trip diverges on the lake (a restored world surfs
+    /// the city's own layout, pond water for ocean) and the planner reads the city's own
+    /// layout. The bypass restores the position as the checkpoint has it (the own layout).
+    static SOOTOPOLIS_LAYOUT: Bypass = Bypass {
+        issue: "sootopolis-layout",
+        features: &["setmaplayoutindex"],
+        ..Bypass::NONE
+    };
 
     /// Sootopolis Gym 1F's thin ice (`MB_THIN_ICE`, `STEP_CB_SOOTOPOLIS_ICE`): a path over
     /// every cell of a room once, from the cell above its entrance to the one below its stairs.
@@ -226,20 +249,6 @@ mod list {
         Down, Right, Down, Right, Down, Right, Up, Up, Right, Down, Right, Down, Right, Up, Up, Up,
         Left, Left, Left, Left, Left,
     ];
-
-    /// Waterfall up to Ever Grande (`FIELD_MOVE_WATERFALL`, `FLDEFF_USE_WATERFALL`: no field
-    /// effect but Surf, Cut, Rock Smash and Strength): from the foot of the falls (20, 68) to
-    /// the water above them (20, 59), surfing. HM07 is not taught (as HM08).
-    static WATERFALL_EVER_GRANDE: Bypass = Bypass {
-        issue: "waterfall-ever-grande",
-        features: &[
-            "FIELD_MOVE_WATERFALL",
-            "FLDEFF_USE_WATERFALL",
-            "MB_WATERFALL",
-        ],
-        warp: Some((MAP_EVER_GRANDE_CITY, 20, 59)),
-        ..Bypass::NONE
-    };
 
     /// Route 131 and the Sky Pillar: Route 131 (`LAYOUT_ROUTE131_SKY_PILLAR`) and every floor
     /// (`LAYOUT_SKY_PILLAR_*_CLEAN`) are under a `setmaplayoutindex` layout, which the checkpoint
@@ -1467,6 +1476,21 @@ mod list {
         enter(MAP_MT_PYRE_1F, 17, 18, Down),
         Step::Choose(0),
         use_(MAP_ROUTE122, 22, 31, Down),
+        // Two catches on Route 122 with the bag's balls (the battle's degraded BAG): a
+        // Tentacool for Dive and Waterfall, a Wingull for Fly (the lead's four slots end up
+        // Strength, Earthquake, Rock Smash and Surf; Castform learns none of them).
+        Step::Catch {
+            map: MAP_ROUTE122,
+            x: 22,
+            y: 33,
+            species: SPECIES_TENTACOOL,
+        },
+        Step::Catch {
+            map: MAP_ROUTE122,
+            x: 22,
+            y: 33,
+            species: SPECIES_WINGULL,
+        },
         cross(MAP_ROUTE122, 10, 0, Up),
         Step::Walk(Up),
         // The summit's grunts leave the lead weak: Lilycove's Center first.
@@ -1817,11 +1841,9 @@ mod list {
         Step::Choose(0),
         PRESS_B,
         Step::Expect("sootopolis"),
-        // The lake is `LAYOUT_SOOTOPOLIS_CITY_LEGENDS_BATTLE` (`setmaplayoutindex`), which the
-        // planner does not read (`sky-pillar-layouts`): around the legendaries' rock
-        // ((27..35, 43..45)) by its east side.
-        goto(MAP_SOOTOPOLIS_CITY, 36, 46),
-        goto(MAP_SOOTOPOLIS_CITY, 36, 42),
+        // The city is `LAYOUT_SOOTOPOLIS_CITY_LEGENDS_BATTLE` now (`setmaplayoutindex`), which
+        // the checkpoint does not keep: `sootopolis-layout`.
+        Step::Bypass(&SOOTOPOLIS_LAYOUT),
         goto(MAP_SOOTOPOLIS_CITY, 23, 37),
         Step::Walk(Left),
         // Steven leads to the Cave of Origin; Wallace in B1F asks where Rayquaza is: Sky
@@ -1840,6 +1862,7 @@ mod list {
         enter(MAP_CAVE_OF_ORIGIN_B1F, 9, 3, Up),
         enter(MAP_CAVE_OF_ORIGIN_1F, 11, 17, Down),
         enter(MAP_CAVE_OF_ORIGIN_ENTRANCE, 9, 20, Down),
+        Step::Bypass(&SOOTOPOLIS_LAYOUT),
         goto(MAP_SOOTOPOLIS_CITY, 22, 37),
         Step::Choose(0),
         use_(MAP_SOOTOPOLIS_CITY, 22, 37, Right),
@@ -1874,6 +1897,7 @@ mod list {
         Step::WaitScript,
         Step::Expect("hm_waterfall"),
         Step::Checkpoint("hm_waterfall"),
+        USE_HM07,
         // ---- Juan: the gym's three thin-ice rooms, each crossed once per cell (a second
         // step falls through to B1F); each room's last cell opens its stairs ----
         // Healed first (the Center across the lake, by Surf).
@@ -1926,7 +1950,7 @@ mod list {
         Step::Expect("badge8"),
         Step::Checkpoint("badge8"),
         // ---- Ever Grande: out of the gym, Surf and Dive out of the crater, Routes 126-127-128
-        // east; up the waterfall (`waterfall-ever-grande`) ----
+        // east; up the waterfall ----
         // Back down onto the broken ice: a fall to B1F, whose ladder leads to the entrance.
         Step::Path {
             map: MAP_SOOTOPOLIS_CITY_GYM_1F,
@@ -1946,8 +1970,10 @@ mod list {
         cross(MAP_ROUTE126, 79, 40, Right),
         cross(MAP_ROUTE127, 30, 79, Down),
         cross(MAP_ROUTE128, 119, 30, Right),
-        goto(MAP_EVER_GRANDE_CITY, 20, 68),
-        Step::Bypass(&WATERFALL_EVER_GRANDE),
+        // Up the falls (Gen3 `GetInteractedWaterScript`: `MB_WATERFALL` ahead, surfing north,
+        // the eighth badge; `EventScript_UseWaterfall` yes, `FLDEFF_USE_WATERFALL`) to (20, 59).
+        Step::Choose(0),
+        use_(MAP_EVER_GRANDE_CITY, 20, 68, Up),
         Step::Walk(Up),
         Step::Expect("ever_grande"),
         goto(MAP_EVER_GRANDE_CITY, 20, 56),

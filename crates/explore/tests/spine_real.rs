@@ -67,19 +67,13 @@ const SPINE_BLOCKERS: &[&str] = &[
     "fly-mauville",
     "fly-slateport",
     "fly-lilycove",
-    "water-door-in",
-    "water-door-out",
     "mossdeep-gym-puzzle",
     "steven-multi",
-    "dive-seafloor",
     "legendaries-scene",
-    "dive-sootopolis",
-    "dive-out-sootopolis",
+    "sootopolis-layout",
+    "sootopolis-layout",
     "sky-pillar-layouts",
     "rayquaza-scene",
-    "dive-sootopolis",
-    "dive-out-sootopolis",
-    "waterfall-ever-grande",
     "league-mart",
     "game-clear",
 ];
@@ -339,6 +333,9 @@ fn spine_segment() {
         s.frames,
         s.labels(),
     );
+    for m in &last.end.world.party {
+        println!("party {:?} lv {} hp {} moves {:?}", m.species, m.level, m.hp, m.moves);
+    }
     for r in s.reports.iter().take(40) {
         println!("report: {r:?}");
     }
