@@ -158,7 +158,8 @@ games/silice/                      committed, original only (no ROM-derived byte
   battle/encounters.ron            extract EncountersFile v5 (map name -> Vec of headers)
   battle/heal_locations.ron, items.ron (ITEM_SIL_*: name, pocket, price, key, hold effect/clone_of),
   multichoice.ron, marts.ron, species_forms.ron (SIL3), moves.ron (MOVE_SIL_*, SIL6)
-  font/glyphs.ron + .png           ♥ · (R-11) and any approved extra glyph, original drawings
+  font/<name>.ron                  ♥ · (R-11) and any approved extra glyph, original drawings
+                                   (one glyph per file; see "SIL1 Task G as built")
   gfx/…                            original art only (Q3)
 crates/content/src/silice/         cfg(pkr_silice)
   mod.rs                           `impl GameData for Game` (Silice)
@@ -1035,6 +1036,110 @@ The extract has no route secondary other than Petalburg (the M7 slice has 8 tile
 - For the remaining maps: about 20 min per interior and 45 min per town, route or dungeon. Add about 30–45 min the first time each new tileset pair is used.
 - That is roughly 50–60 h for ~109 maps, or about half that with stamp ops, prefabs and labeled palettes.
 
+#### SIL1 Task G as built: the font glyphs
+
+Commits:
+- `feat(silice): author the ♥ and · glyphs and merge them into the Silice font`
+- `feat(xtask): accept the authored glyphs in silice check, add the font-glyph rule`
+- `docs(plan): SIL1 Task G as built`
+
+**Finding: `·` was never missing.** Gen3's `charmap.txt` has `'·' = AF`, and the FR font draws it at 0xAF, 3 px wide. Task B's check never flagged it; §4 item 8 counted it in error. R-11 is still met: the authored `·` redraws 0xAF, so encoding is unchanged and nothing new is reserved for it. Only `♥` takes a new code.
+
+**Files.**
+- `crates/extract/src/games/font.rs` holds the format, the codes, the encoder hook and the metric rules. It is shared by the content build and xtask, like the rest of `extract::games`, and is left out of Emerald's `BUILD_ID`.
+- `games/silice/font/heart.ron` and `games/silice/font/middle_dot.ron` are the authored glyphs: original drawings, no ROM pixels.
+- `crates/content/build/silice/font.rs` is the build side: load, check, merge, and the hook for Task A.
+- Outside the owned files, the task touched:
+  - two lines in `build/silice/mod.rs`: `pub mod font;`, and one `font::merge` call in `world` after `load_assets`;
+  - one line in `extract/src/games/mod.rs`;
+  - `xtask/src/silice/check.rs`;
+  - `xtask/tests/silice_check.rs`;
+  - `games/silice/check-exceptions.ron`.
+
+**Glyph format** (`games/<game>/font/<name>.ron`, one glyph per file, `GlyphFile`):
+- `char` is the character the texts write.
+- `width` is the advance in pixels, shadow column included (1 to 16).
+- `on_baseline` says that the lowest foreground row is the font's baseline.
+- `rows` holds 16 strings, from top to bottom, each exactly `width` characters long:
+  - `.` is the background (2bpp 0);
+  - `#` is the foreground, the text colour (1);
+  - `s` is the shadow (2).
+- Row 15 must be blank, because the printer draws 15 rows.
+- Columns past `width` are background.
+- The drawing sits on the `.latfont` 16x16 cell, so it encodes directly (`Glyph::latfont`).
+
+**Codes** (`extract::games::font::{CODES, RESERVED}`, append-only like the ids).
+- `RESERVED` is 0x37..=0x4F. These bytes have no Western character in `charmap.txt` (only kana share them), and the FR normal font leaves them blank. They come right after `Lv`, `=` and `;` (0x34 to 0x36).
+- `♥` (U+2665) is 0x37, the first reserved code.
+- `·` (U+00B7) is 0xAF, its Gen3 code, redrawn.
+- A new authored character takes the next free reserved code. A character Gen3 already has keeps its own code.
+
+**Metrics, read at build time from the extract** (`problems`, run by `font::merge`, which fails the build on any problem):
+- The cell is 16x16 (`.latfont`).
+- The baseline is the lowest foreground row of `A` (0xBB), row 11 in the FR font.
+- No glyph inks below the baseline. An `on_baseline` glyph ends exactly on it.
+- A redrawn code keeps the extract's width: · is 3 px.
+- A reserved code must be blank in the extract.
+- A code must agree with the charmap: a Gen3 character keeps its byte, and a reserved byte has no Western character.
+- When any glyph file exists, every code in `CODES` must have one.
+- A games dir without `font/`, such as a test fixture, merges nothing.
+
+**The drawings.**
+- **♥:** 7 x 7 foreground on rows 5 to 11, ending on the baseline. The shadow falls right and down, as in the Gen3 font. The advance is 8.
+- **·:** a 2 x 2 dot on rows 8 and 9, centred on the FR x-height (rows 6 to 11), with its shadow. The advance is 3.
+- **Small font:** not touched. `FONT_SMALL` prints only the healthbox nickname, level and HP, so dialogue never uses it.
+
+**Hook for Task A (the text encoder).**
+- Encode every Silice text with `font::encode(text)`, which is `extract::games::font::encode_fr`. It writes each authored character as the decomp byte escape `{0xNN}`, then calls `encode_lang(.., Lang::Fr)`.
+- A per-character encoder calls `font::authored_glyph(ch) -> Option<u8>` first, then falls back on the charmap.
+- `font::GLYPHS` is the `(char, code)` table.
+- The three hooks carry `#[allow(dead_code)]` until A's encoder uses them.
+- The font itself needs nothing from A: `world` merges it.
+
+**Validator** (`cargo xtask silice check`).
+- Texts, trainer names and item names are encoded with `encode_fr`, so `♥` and `·` pass.
+- `text-width` reads the authored glyphs' widths at their codes, merged into the extract's widths.
+- New rule `font-glyph` (error), on subject `font`. It fires when a glyph file:
+  - does not parse;
+  - has no code;
+  - breaks the widths: a redrawn code at another width, or a code outside the reserved block that is not the character's Gen3 byte;
+  - is missing for a code.
+
+  The pixel checks (baseline, blank code) need the font png, so they run in the build only.
+- Without `font/`, the check notes "the authored glyphs encode but nothing draws them".
+- `text-charmap` now reads "no glyph (FR charmap or font/)". It still fires on `—`, `°`, `₽`, `●`, `○`, `♪`, `#`, `*`, `←`, `→`, `[`, `]` and `_`. All 104 remaining `text-charmap` exceptions carry `ruling_needed: true`.
+- Changes to `check-exceptions.ron`:
+  - the 4 heart-only entries are removed (`Nebula_Ecran_1`, `Tour_2F_Chat_08`, `Tour_2F_Sc04_T1`, `Tour_2F_Sc05_T1`);
+  - the heart clause is dropped from 2 reasons (`Gris_Echec_Sc06_T2`, `Owlys_Entrepot_Sc02_T3`).
+
+  With the extract and `PKR_DECOMP`, the check exits 0 with no warnings: 0 errors, 0 warnings, 252 excepted.
+
+**Tests.**
+- `extract` unit tests (`games::font`):
+  - `substitute` and `encode_fr`;
+  - every reserved code lacks a Western character;
+  - the `.latfont` round trip;
+  - parse errors: row length, unknown pixel, ink on row 15, 15 rows, no code;
+  - the metric rules on a synthetic font.
+- `crates/content/tests/sil1_g_font.rs`, in every flavour, on `build/silice/font.rs`:
+  - the committed files draw exactly `CODES` and encode to their bytes;
+  - a merge writes each glyph and width at its code and nothing else;
+  - a merge fails on a missing glyph, on a redrawn code at another width, on a reserved code the font draws, and on another baseline.
+- `crates/content/tests/sil1_g_font.rs`, with `PKR_GAME=silice` only:
+  - `content::data::FONT.widths` holds the authored widths;
+  - `A`, then each authored glyph, then `A`, is encoded with `font::encode` and drawn on the engine's `Canvas` (`MSG_WINDOW`). Every pixel of each glyph's advance equals the RON drawing in foreground, shadow and background colours, and the next glyph starts right after the advance.
+- `xtask/tests/silice_check.rs::authored_glyph_rules`, on the fixture import with the committed glyph files:
+  - the fixture's 6-px 0xAF makes `font-glyph` fire;
+  - `♥` and `·` pass;
+  - 27 hearts fit in 216 px, and 28 measure 224 px;
+  - `—` and `°` still fail;
+  - a missing `heart.ron`, or a glyph without a code, fails;
+  - a games dir without `font/` passes, with the note.
+
+  `text_rules` and the unit test `charmap` now use `—` as their missing glyph.
+
+**Route.** Neutral. Emerald's sources are unchanged apart from `extract/src/games/`, which its `BUILD_ID` excludes. The Silice `BUILD_ID` moves, because `games/silice/font` and `build/silice` are hashed.
+
 ### 3.2 SIL2: Ch1–Ch3 (needs M9 mart, menus and save, and M10 Cut, Strength and Flash)
 **Wave 0 engine contracts** (each new piece of state hashed and snapshotted once, with a SCHEMA bump):
 - `GameData::field_move_enabled`: the module flags gate field moves;
@@ -1193,7 +1298,7 @@ Sequencing: SIL1 can run in parallel with M9 (its files are disjoint except the 
    - 34 Mega stones are listed, but only 4 `SPECIES_*_MEGA` ids appear (Alakazam, Charizard X, Gyarados, Steelix).
    - The canonical forms need the **Fairy type** (Gardevoir, Altaria, Mawile), which Gen3 does not have, and about 14 abilities newer than Gen3 (Tough Claws, Magic Bounce, Pixilate, Refrigerate, Parental Bond, Mold Breaker, Technician, Skill Link, Sand Force, Solar Power, Filter, Prankster, Steadfast, Lightning Rod as reworked, and others). `bible/besoins-moteur.md` names only 3 new abilities. This blocks SIL3 (Q5).
    - The set is uneven (Venusaurite and Charizardite but no Blastoisinite; Latiosite but no Latiasite). That is a design note, not an error.
-8. **Glyphs missing from the FR charmap** (`crates/extract/src/text/charmap.rs`), counted in text blocks: `—` 71, `·` 24 (R-11), `°` 18, `♥` 14 (R-11), `●` 8, `○` 8, `♪` 4, `₽` 4, `#` 3, `*` 2, `←`/`→` 1 each, and `[`, `]`, `_` in the `[LOG_xx]` titles. R-11 covers only ♥ and ·; the others need a ruling (new glyphs or rewording).
+8. **Glyphs missing from the FR charmap** (`crates/extract/src/text/charmap.rs`), counted in text blocks: `—` 71, `·` 24 (R-11), `°` 18, `♥` 14 (R-11), `●` 8, `○` 8, `♪` 4, `₽` 4, `#` 3, `*` 2, `←`/`→` 1 each, and `[`, `]`, `_` in the `[LOG_xx]` titles. R-11 covers only ♥ and ·; the others need a ruling (new glyphs or rewording). (SIL1 Task G: `·` is in fact Gen3 0xAF and always encoded; the count above was wrong. Both are now authored glyphs.)
 9. **Duplicate text ids.** `Tour_Sbire1_Intro` and `Tour_Sbire2_Intro` are defined in both ch02 (line 747) and ch09 (line 1223).
 10. **Non-literal references.** Scripts compose text ids dynamically (`msgbox(Bar_Sc02_T1 | T2 | T3)`, `Gym2_…`, `Nocturne_Sc01_T…`, `Tour_2F_Chat_NN`, `PG_Legendaire_…`, `Evalon_Sc07_Partner_T…`) and use flag families (`FLAG_SIL_FRAGMENT_`, `FLAG_SIL_ITEM_PG_`, `FLAG_SIL_HIDE_GAZ_`, `FLAG_SIL_GYM06_PORTE_`, `FLAG_SIL_PARDON_`). They must be expanded to concrete ids before typed Rust can reference them.
 11. **Format drift the importer must handle.** Several `[Id]` texts are grouped in one fenced block in ch03 (38 blocks), ch04 (21) and ch05 (18). Speaker headers carry parenthetical notes. ch03, ch08 and ch09 number their map headings (`### 2.n MAP_…`). The suggested map size ("Taille") is missing for every map in ch03, ch04, ch05 and ch12.
