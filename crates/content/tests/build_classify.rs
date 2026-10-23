@@ -18,15 +18,23 @@ fn behaviors_by_name() {
     assert_eq!(behavior("MB_ANIMATED_DOOR"), "Door");
     assert_eq!(behavior("MB_PETALBURG_GYM_DOOR"), "Normal");
     assert_eq!(behavior("MB_BRIDGE_OVER_OCEAN"), "Warp");
-    assert_eq!(behavior("MB_DEEP_SOUTH_WARP"), "Warp");
+    assert_eq!(behavior("MB_DEEP_SOUTH_WARP"), "NonAnimDoor(Dir::Up)");
     assert_eq!(behavior("MB_CRACKED_FLOOR_HOLE"), "Normal");
     assert_eq!(behavior("MB_BATTLE_PYRAMID_WARP"), "Normal");
     assert_eq!(behavior("MB_WATER_DOOR"), "Blocked");
     assert_eq!(behavior("MB_WATER_SOUTH_ARROW_WARP"), "Blocked");
-    assert_eq!(behavior("MB_NON_ANIMATED_DOOR"), "Warp");
-    assert_eq!(behavior("MB_LADDER"), "Warp");
+    assert_eq!(behavior("MB_NON_ANIMATED_DOOR"), "NonAnimDoor(Dir::Down)");
+    assert_eq!(behavior("MB_LADDER"), "Ladder");
+    assert_eq!(behavior("MB_UP_ESCALATOR"), "Escalator(Dir::Right)");
+    assert_eq!(behavior("MB_DOWN_ESCALATOR"), "Escalator(Dir::Right)");
+    assert_eq!(behavior("MB_MT_PYRE_HOLE"), "Warp");
     assert_eq!(behavior("MB_SOUTH_ARROW_WARP"), "ArrowWarp(Dir::Down)");
     assert_eq!(behavior("MB_EAST_ARROW_WARP"), "ArrowWarp(Dir::Right)");
+    assert_eq!(
+        behavior("MB_STAIRS_OUTSIDE_ABANDONED_SHIP"),
+        "ArrowWarp(Dir::Up)"
+    );
+    assert_eq!(behavior("MB_SHOAL_CAVE_ENTRANCE"), "ArrowWarp(Dir::Down)");
     assert_eq!(behavior("MB_COUNTER"), "Counter");
     assert_eq!(behavior("MB_POND_WATER"), "Blocked");
     assert_eq!(behavior("MB_DEEP_WATER"), "Blocked");

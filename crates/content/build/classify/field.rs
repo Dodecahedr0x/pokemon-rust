@@ -50,7 +50,8 @@ fn walls(name: &str) -> Option<&'static [&'static str]> {
 /// `Door`) and `MB_WATER_DOOR` (surfable, `Blocked`): ladders, escalators, non-animated doors
 /// (stairs), `MB_DEEP_SOUTH_WARP` (both in `IsNonAnimDoor`), the gym and hideout warps, Mt.
 /// Pyre holes, and `MB_BRIDGE_OVER_OCEAN`, which Gen3 reuses as the Union Room exit
-/// (`MetatileBehavior_IsUnionRoomWarp`; there is no `MB_UNION_ROOM_WARP`).
+/// (`MetatileBehavior_IsUnionRoomWarp`; there is no `MB_UNION_ROOM_WARP`). [`behavior`] tells
+/// them apart by their arrival (`NonAnimDoor`, `Ladder`, `Escalator`, else `Warp`).
 pub const WARPS: &[&str] = &[
     "MB_NON_ANIMATED_DOOR",
     "MB_DEEP_SOUTH_WARP",
@@ -81,7 +82,15 @@ pub fn behavior(name: &str) -> String {
         return "Blocked".into();
     }
     if WARPS.contains(&name) {
-        return "Warp".into();
+        // The arrival per kind (Gen3 `GetAdjustedInitialDirection`, `SetUpWarpExitTask`).
+        return match name {
+            "MB_NON_ANIMATED_DOOR" => "NonAnimDoor(Dir::Down)",
+            "MB_DEEP_SOUTH_WARP" => "NonAnimDoor(Dir::Up)",
+            "MB_LADDER" => "Ladder",
+            "MB_UP_ESCALATOR" | "MB_DOWN_ESCALATOR" => "Escalator(Dir::Right)",
+            _ => "Warp",
+        }
+        .into();
     }
     if let Some(sides) = walls(name) {
         return format!("Impassable(Sides::of(&[{}]))", sides.join(", "));
@@ -101,6 +110,9 @@ pub fn behavior(name: &str) -> String {
         // (`MB_PETALBURG_GYM_DOOR` is only in `IsDoor`, for the door animation of the gym's
         // scripted room changes; it starts no warp, so it stays `Normal`.)
         "MB_ANIMATED_DOOR" => "Door",
+        // Gen3 `MetatileBehavior_Is{North,South}ArrowWarp` also take these.
+        "MB_STAIRS_OUTSIDE_ABANDONED_SHIP" => "ArrowWarp(Dir::Up)",
+        "MB_SHOAL_CAVE_ENTRANCE" => "ArrowWarp(Dir::Down)",
         "MB_COUNTER" => "Counter",
         "MB_TALL_GRASS" => "TallGrass",
         _ => "Normal",

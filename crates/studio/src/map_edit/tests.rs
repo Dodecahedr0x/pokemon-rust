@@ -1205,8 +1205,8 @@ fn validation_warns_on_collision_against_behaviour() {
          it (AutoCollision sets it)",
         "warning: cell (1, 0): solid (collision 1), but metatile 9 is walkable in 20 of 21 \
          extracted cells using it (AutoCollision sets it)",
-        "warning: cell (3, 0): solid (collision 1), but metatile 7 is walkable as a warp \
-         metatile (MB_NON_ANIMATED_DOOR) with a warp (AutoCollision sets it)",
+        "warning: cell (3, 0): solid (collision 1), but metatile 7 is walkable as a \
+         non-animated door metatile (MB_NON_ANIMATED_DOOR) with a warp (AutoCollision sets it)",
         "warning: cell (4, 0): walkable, but metatile 3 is solid as a counter metatile \
          (MB_COUNTER) (AutoCollision sets it)",
         "warning: cell (2, 0): walkable door metatile 1 (MB_ANIMATED_DOOR) has no warp event \
