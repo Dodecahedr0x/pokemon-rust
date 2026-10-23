@@ -1,0 +1,11 @@
+// Header, map scripts, warps and objects.
+[
+    Header((music: "MUS_POKE_MART", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnTransition: set_input_inverted(false).
+    Scripts((on_load: None, on_transition: Some("ReverseCity_Mart_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warps 0-1: the entrance mat, to Reverse-City's warp 4 (the Mart's door).
+    Warp(x: 2, y: 8, dest_map: "ReverseCity", dest_warp: 4),
+    Warp(x: 3, y: 8, dest_map: "ReverseCity", dest_warp: 4),
+    Object(x: 1, y: 3, gfx: "OBJ_EVENT_GFX_MART_EMPLOYEE", id: "LOCALID_REVERSE_MART_CLERK", local_id: 1, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "ReverseCity_Mart_EventScript_Clerk"),
+    Object(x: 10, y: 7, gfx: "OBJ_EVENT_GFX_FAT_MAN", id: "LOCALID_REVERSE_MART_CLIENT", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "ReverseCity_Mart_EventScript_Client"),
+]

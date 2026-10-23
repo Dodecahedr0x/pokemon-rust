@@ -1,0 +1,91 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_RG_SEVII_DUNGEON", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnLoad: lowers the drawbridge (5, 32-33) once FLAG_SIL_EVALON_GYM_PONT is set (both golems on
+    // their plates), and opens the Sphinge's door (5, 9-10) once FLAG_SIL_EVALON_GYM_SPHINGE_PASSE is set.
+    // OnTransition: moves the Sphinge off the door (setobjectxyperm (6, 11)) once she has let the player by.
+    // Sc08 runs on arrival (VAR_TEMP_1 0 on every load): it checks VAR_SIL_STORY 84 and sets VAR_TEMP_1 1.
+    Scripts((on_load: Some("Evalon_Citadelle_OnLoad"), on_transition: Some("Evalon_Citadelle_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_TEMP_1", value: 0, script: "Evalon_Citadelle_Sc08")], on_warp_into: [])),
+    // Warps 0-1: the exit mat, to Evalon's warp 6 (the Citadelle's door); warp 2: the stairs to 2F.
+    Warp(x: 5, y: 54, dest_map: "Evalon", dest_warp: 6),
+    Warp(x: 6, y: 54, dest_map: "Evalon", dest_warp: 6),
+    Warp(x: 5, y: 1, dest_map: "Evalon_Citadelle_2F", dest_warp: 0),
+    // The dungeon's innkeeper (the gym guide; Sc08).
+    Object(x: 3, y: 52, gfx: "OBJ_EVENT_GFX_FAT_MAN", id: "LOCALID_GYM8_AUBERGISTE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Evalon_Citadelle_EventScript_Aubergiste"),
+    // Salle 1: Barde Tristan on a safe slab mid-grid, facing the path ((6, 46) is on it). The safe way
+    // alternates sword and shield from (5, 49) to (5, 41); the false trails are (6, 48) and (2, 46).
+    Object(x: 6, y: 45, gfx: "OBJ_EVENT_GFX_ARTIST", id: "LOCALID_GYM8_TRISTAN", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Citadelle_EventScript_Tristan", trainer_type: "TRAINER_TYPE_NORMAL", sight: 1),
+    // Salle 2: Voleur Renard in his niche behind the fallen pillar; his sight covers the whole
+    // narrow way north of the bridge (4-6, 30).
+    Object(x: 3, y: 30, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_GYM8_RENARD", local_id: 3, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Evalon_Citadelle_EventScript_Renard", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    // The two iron golems (placeholder boulders; Champ Magnetique pushes): each goes up twice onto
+    // its plate, (3, 34) and (7, 34). The scripts set FLAG_SIL_EVALON_GYM_PONT when both are on.
+    Object(x: 3, y: 36, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_GYM8_GOLEM_GAUCHE", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN"),
+    Object(x: 7, y: 36, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_GYM8_GOLEM_DROITE", local_id: 5, movement: "MOVEMENT_TYPE_FACE_DOWN"),
+    // The guard at the Crypte's door (advises coming back without the Surcharge Optique).
+    Object(x: 4, y: 29, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_GYM8_GARDE_CRYPTE", local_id: 6, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Evalon_Citadelle_EventScript_GardeCrypte"),
+    // Salle 3: Mage Noire Morgane mid-crypt; the runes run up column 5 between the pits, under her sight.
+    Object(x: 5, y: 21, gfx: "OBJ_EVENT_GFX_HEX_MANIAC", id: "LOCALID_GYM8_MORGANE", local_id: 7, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Citadelle_EventScript_Morgane", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    // Salle 4: the Sphinge on the door's threshold (riddles; a wrong answer: one battle).
+    Object(x: 5, y: 11, gfx: "OBJ_EVENT_GFX_LASS", id: "LOCALID_GYM8_SPHINGE", local_id: 8, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Citadelle_EventScript_Sphinge"),
+    // Salle 5: Clerc Elise beside the stairs' only approach (5, 3), in her sight.
+    Object(x: 6, y: 3, gfx: "OBJ_EVENT_GFX_WOMAN_3", id: "LOCALID_GYM8_ELISE", local_id: 9, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Evalon_Citadelle_EventScript_Elise", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
+    // The two chests (placeholder item balls): the left one is the Electrode (battle_wild, then hidden),
+    // the right one holds the Orbe d'Eveil.
+    Object(x: 2, y: 5, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_GYM8_COFFRE_GAUCHE", local_id: 10, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Citadelle_EventScript_CoffreGauche", flag: "FLAG_SIL_HIDE_GYM8_COFFRE_GAUCHE"),
+    Object(x: 8, y: 5, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_GYM8_COFFRE_DROITE", local_id: 11, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Citadelle_EventScript_CoffreDroite", flag: "FLAG_SIL_ITEM_EVALON_ORBE"),
+    // The skull slabs: always fire (VAR_TEMP_3 0; no Citadelle script writes VAR_TEMP_3). The trap text,
+    // then a warp back to the room's start (5, 52).
+    Coord(x: 2, y: 41, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 3, y: 41, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 4, y: 41, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 6, y: 41, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 7, y: 41, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 8, y: 41, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 2, y: 42, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 3, y: 42, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 4, y: 42, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 6, y: 42, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 7, y: 42, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 8, y: 42, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 2, y: 43, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 3, y: 43, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 4, y: 43, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 6, y: 43, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 7, y: 43, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 8, y: 43, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 2, y: 44, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 3, y: 44, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 4, y: 44, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 8, y: 44, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 2, y: 45, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 3, y: 45, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 4, y: 45, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 5, y: 45, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 8, y: 45, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 8, y: 46, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 2, y: 47, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 4, y: 47, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 5, y: 47, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 6, y: 47, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 7, y: 47, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 8, y: 47, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 2, y: 48, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 7, y: 48, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 8, y: 48, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 2, y: 49, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 3, y: 49, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 4, y: 49, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 6, y: 49, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 7, y: 49, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    Coord(x: 8, y: 49, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Piege"),
+    // The Crypte's door (5, 28): without FLAG_SIL_MODULE_FLASH the guard turns the player back (the
+    // per-area darkness fallback).
+    Coord(x: 5, y: 28, var: "VAR_TEMP_3", value: 0, script: "Evalon_Citadelle_EventScript_Crypte"),
+    // The Game Master's plaques, one per room (Salle 1 to 5).
+    Sign(x: 1, y: 50, script: "Evalon_Citadelle_EventScript_Salle1"),
+    Sign(x: 1, y: 37, script: "Evalon_Citadelle_EventScript_Salle2"),
+    Sign(x: 1, y: 26, script: "Evalon_Citadelle_EventScript_Salle3"),
+    Sign(x: 1, y: 14, script: "Evalon_Citadelle_EventScript_Salle4"),
+    Sign(x: 1, y: 7, script: "Evalon_Citadelle_EventScript_Salle5"),
+]

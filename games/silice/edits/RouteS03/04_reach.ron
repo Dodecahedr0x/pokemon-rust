@@ -1,0 +1,12 @@
+// Reachability lint fixes (lint-reach).
+[
+    // The depot's north portal (10, 17) is reached from the north, and the container wall (10, 18) is
+    // below it. On General 167 (a non-animated door) Gen3's exit walk sends an arriving player south into
+    // that wall (Task_ExitNonAnimDoor), so the portal is a south arrow mat instead (General 36, gravel, as
+    // Route S6's elevator landing): the player arrives facing north and leaves by pushing south on it.
+    Paint(x: 10, y: 17, metatile: 36, collision: 0),
+    // ROGER stood on (16, 35), the only way onto his ledge, and a trainer never leaves his cell: the Super
+    // Potion (17, 34) could never be picked up. He stands inside the ledge at (17, 35), still facing west
+    // (sight 4: (13-16, 35)), and the potion is taken from (16, 34) after his battle.
+    Move(kind: Object, index: 4, x: 17, y: 35),
+]

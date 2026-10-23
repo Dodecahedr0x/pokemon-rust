@@ -1,0 +1,7 @@
+// Reachability lint fixes (lint-reach).
+[
+    // The Monks' shortcut (1, 25) is General 167: arriving on it, Gen3's exit walk takes the player one
+    // step south, onto (1, 26), a tree. That cell is opened (grass), as Emerald's cave mouths always have a
+    // free cell below; the player then walks east. The tunnel stays a step-on warp from (2, 25) or (1, 26).
+    Paint(x: 1, y: 26, metatile: 1, collision: 0),
+]

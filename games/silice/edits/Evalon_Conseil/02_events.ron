@@ -1,0 +1,17 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_FALLARBOR", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warps 0-1: the entrance mat, to Evalon's warp 5 (the Anciens' door).
+    Warp(x: 6, y: 9, dest_map: "Evalon", dest_warp: 5),
+    Warp(x: 7, y: 9, dest_map: "Evalon", dest_warp: 5),
+    // The three Anciens round the table: Doyenne Aldegonde (Sc05, the Epreuve de l'Esprit; the Fiche
+    // fallback; the PP Max at Legende rank), Vieux Bohort, Soeur Melisende.
+    Object(x: 3, y: 5, gfx: "OBJ_EVENT_GFX_OLD_WOMAN", id: "LOCALID_CONSEIL_ALDEGONDE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Evalon_Sc05"),
+    Object(x: 6, y: 3, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_CONSEIL_BOHORT", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Conseil_EventScript_Bohort"),
+    Object(x: 9, y: 5, gfx: "OBJ_EVENT_GFX_HOT_SPRINGS_OLD_WOMAN", id: "LOCALID_CONSEIL_MELISENDE", local_id: 3, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Evalon_Conseil_EventScript_Melisende"),
+    // The wall map without the Dome (Evalon_Conseil_Carte).
+    Sign(x: 4, y: 1, script: "Evalon_Conseil_EventScript_Carte"),
+    Sign(x: 5, y: 1, script: "Evalon_Conseil_EventScript_Carte"),
+    Sign(x: 6, y: 1, script: "Evalon_Conseil_EventScript_Carte"),
+    Sign(x: 7, y: 1, script: "Evalon_Conseil_EventScript_Carte"),
+]

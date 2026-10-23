@@ -9,7 +9,7 @@ pub const MAPS: &[&str] = &["BricoBourg"];
 
 // ---- map scripts ----
 
-/// The Labo's brambles (4, 8), cut in Chapter 1 ([`BricoBourg_EventScript_Ronces`]): repainted
+/// The Labo's brambles (4, 9), cut in Chapter 1 ([`BricoBourg_EventScript_Ronces`]): repainted
 /// on every load once `FLAG_SIL_BRICO_LABO_RONCES_CUT` is set ("SIL2 Ch1 maps as built").
 pub async fn BricoBourg_OnLoad(ctx: Ctx) {
     repaint_if(
@@ -279,10 +279,10 @@ pub async fn BricoBourg_EventScript_SignLabo(ctx: Ctx) {
     msgbox(&ctx, Brico_Bourg_Sign_Labo, MsgBox::Sign).await;
 }
 
-/// The synthetic brambles in front of the Labo door.
-const RONCES: (i16, i16) = (4, 8);
+/// The synthetic brambles closing the Labo door's porch (4, 8).
+const RONCES: (i16, i16) = (4, 9);
 
-/// The synthetic brambles in front of the Labo (4, 8): Ch0's sign until Chapter 1's
+/// The synthetic brambles closing the Labo's porch (4, 9): Ch0's sign until Chapter 1's
 /// Lame-Frequence (`FLAG_SIL_MODULE_COUPE`) cuts them, the generic obstacle
 /// (`FLAG_SIL_BRICO_LABO_RONCES_CUT`; [`BricoBourg_OnLoad`] keeps them cut).
 pub async fn BricoBourg_EventScript_Ronces(ctx: Ctx) {
@@ -330,8 +330,17 @@ pub async fn BricoBourg_EventScript_Pecheur(ctx: Ctx) {
     msgbox(&ctx, Brico_Bourg_Npc_Pecheur, MsgBox::Npc).await;
 }
 
+/// The handywoman; once Gogo and Romain gave the Labo away (Ch1 §8: `FLAG_SIL_LABO_HINT`) and
+/// until the Chimiste is beaten (`VAR_SIL_BRICO_LABO_STATE` < 2), her line about its music.
 pub async fn BricoBourg_EventScript_Bricoleuse(ctx: Ctx) {
-    msgbox(&ctx, Brico_Bourg_Npc_Bricoleuse, MsgBox::Npc).await;
+    let hint = ctx.flag(FLAG_SIL_LABO_HINT).await
+        && ctx.var(VAR_SIL_BRICO_LABO_STATE).await < 2;
+    let text = if hint {
+        Brico_Bourg_Npc_Bricoleuse_2
+    } else {
+        Brico_Bourg_Npc_Bricoleuse
+    };
+    msgbox(&ctx, text, MsgBox::Npc).await;
 }
 
 /// The friends in front of the house (story 3–4). Brico_Bourg_Sc02 starts as the player steps

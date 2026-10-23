@@ -1,0 +1,4 @@
+// Silice Ch7, MAP_REVERSE_CITY_PHARE: le Phare a lumiere noire (14 x 20, the source's size), dark (Flash).
+// General + Pacifidlog (the extract's name for Sky Pillar's set; Emerald tilesets by name): a tower
+// floor around a central block, which is the lamp's shaft on both levels. Border: black, blocked.
+(name: "ReverseCity_Phare", width: 14, height: 20, primary: "General", secondary: "Pacifidlog", fill: 551, fill_collision: 1, border: [513, 513, 513, 513])

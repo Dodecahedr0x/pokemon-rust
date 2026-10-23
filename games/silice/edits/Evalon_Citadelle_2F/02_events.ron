@@ -1,0 +1,10 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_RG_SEVII_DUNGEON", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warps 0-1: the mat down to the Citadelle's stairs (its warp 2).
+    Warp(x: 5, y: 11, dest_map: "Evalon_Citadelle", dest_warp: 2),
+    Warp(x: 6, y: 11, dest_map: "Evalon_Citadelle", dest_warp: 2),
+    // Sc09: Loulpix (obj 1) and Doris (obj 2) side by side at the carpet's head; the player comes up from the south.
+    Object(x: 5, y: 5, gfx: "OBJ_EVENT_GFX_PSYCHIC_M", id: "LOCALID_GYM8_LOULPIX", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Sc09"),
+    Object(x: 6, y: 5, gfx: "OBJ_EVENT_GFX_EXPERT_F", id: "LOCALID_GYM8_DORIS", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Citadelle_2F_EventScript_Doris"),
+]

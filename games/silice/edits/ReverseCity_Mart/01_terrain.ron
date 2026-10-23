@@ -1,0 +1,14 @@
+// Cells: walls, the counter, the shelves, the drinks machines, the mat.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "!#$%%%%&(&()",
+        "*+,----././0",
+        "123422256768",
+        "9:;<=>?=>?<@",
+        "ABC<DEFDEF<>",
+        "G<<<DHIDHI<E",
+        "G<<<<<<<<<<H",
+        "G<<<<<<<<<<H",
+        "J<KL<<<<<<<M",
+    ], legend: {'!': (metatile: 528, collision: 1), '#': (metatile: 546, collision: 1), '$': (metatile: 530, collision: 1), '%': (metatile: 531, collision: 1), '&': (metatile: 547, collision: 1), '(': (metatile: 548, collision: 1), ')': (metatile: 533, collision: 1), '*': (metatile: 536, collision: 1), '+': (metatile: 580, collision: 1), ',': (metatile: 554, collision: 1), '-': (metatile: 539, collision: 1), '.': (metatile: 552, collision: 1), '/': (metatile: 553, collision: 1), '0': (metatile: 541, collision: 1), '1': (metatile: 544, collision: 0), '2': (metatile: 520, collision: 0), '3': (metatile: 562, collision: 1), '4': (metatile: 523, collision: 0), '5': (metatile: 560, collision: 0), '6': (metatile: 561, collision: 0), '7': (metatile: 545, collision: 0), '8': (metatile: 549, collision: 0), '9': (metatile: 792, collision: 0), ':': (metatile: 569, collision: 0), ';': (metatile: 570, collision: 1), '<': (metatile: 513, collision: 0), '=': (metatile: 516, collision: 0), '>': (metatile: 555, collision: 1), '?': (metatile: 556, collision: 1), '@': (metatile: 557, collision: 1), 'A': (metatile: 800, collision: 1), 'B': (metatile: 577, collision: 1), 'C': (metatile: 578, collision: 1), 'D': (metatile: 518, collision: 0), 'E': (metatile: 563, collision: 1), 'F': (metatile: 564, collision: 1), 'G': (metatile: 522, collision: 0), 'H': (metatile: 571, collision: 1), 'I': (metatile: 572, collision: 1), 'J': (metatile: 532, collision: 0), 'K': (metatile: 534, collision: 0), 'L': (metatile: 535, collision: 0), 'M': (metatile: 540, collision: 0)}),
+]

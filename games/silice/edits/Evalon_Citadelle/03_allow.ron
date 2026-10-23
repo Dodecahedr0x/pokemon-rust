@@ -1,0 +1,7 @@
+// Reachability warnings accepted on purpose (lint-reach honours these; see the SIL4 Ch8 maps in
+// docs/plans/2026-10-23-silice-content.md).
+[
+    AllowReach(subject: "warp 2", reason: "the stairs to the throne room are past salle 2's drawbridge (5, 32-33) and salle 4's door (5, 9-10), which Evalon_Citadelle_OnLoad opens once both golems are on their plates and the Sphinge lets the player pass"),
+    AllowReach(subject: "bg 2", reason: "salle 3's MJ sign is past salle 2's drawbridge (5, 32-33), which Evalon_Citadelle_OnLoad lowers once both golems are on their plates"),
+    AllowReach(subject: "bg 3", reason: "salle 4's MJ sign is past salle 2's drawbridge (5, 32-33), which Evalon_Citadelle_OnLoad lowers once both golems are on their plates"),
+]
