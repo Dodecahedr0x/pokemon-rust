@@ -473,9 +473,16 @@ fn each_flavour_hashes_only_its_own_sources() {
     assert_eq!(id(Some(&games)), ids2);
     assert_eq!((emerald(), id(None)), (e0, ide0));
     // An Emerald-only source: only the Emerald digests move.
-    put(&tmp, "content/src/overrides/X.rs", "o");
+    put(&tmp, "content/src/new_game.rs", "n");
     assert_eq!((silice(), id(Some(&games))), (s1, ids2));
     assert_ne!(emerald(), e0);
+    // An override: Emerald's BUILD_ID only (its source is in its script's SCRIPT_DIGESTS
+    // entry, so not in GLOBAL_DIGEST: Task N).
+    let (e1, ide1) = (emerald(), id(None));
+    put(&tmp, "content/src/overrides/X.rs", "o");
+    assert_eq!((silice(), id(Some(&games))), (s1, ids2));
+    assert_eq!(emerald(), e1);
+    assert_ne!(id(None), ide1);
 
     // The extracted dir: Silice hashes its base assets, not the Emerald maps, script IR or
     // previews; Emerald hashes all of it but the previews.
