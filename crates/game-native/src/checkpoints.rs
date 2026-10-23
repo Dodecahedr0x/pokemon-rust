@@ -23,6 +23,15 @@ pub fn replayer<'g, G: GameData>(
     move |parent: Option<&Checkpoint>, trace: &Trace| replay_from(game, parent, trace)
 }
 
+/// [`replayer`] for [`Store::verify_nodes_par`]'s threads.
+///
+/// [`Store::verify_nodes_par`]: crate::store::Store::verify_nodes_par
+pub fn par_replayer<'g, G: GameData + Sync>(
+    game: &'g G,
+) -> impl Fn(Option<&Checkpoint>, &Trace) -> Result<Replayed, String> + Sync + 'g {
+    move |parent: Option<&Checkpoint>, trace: &Trace| replay_from(game, parent, trace)
+}
+
 fn replay_from<G: GameData>(
     game: &G,
     parent: Option<&Checkpoint>,

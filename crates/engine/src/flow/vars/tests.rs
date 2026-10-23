@@ -143,3 +143,32 @@ fn hash_covers_flags_and_both_var_ranges() {
         }
     }
 }
+
+#[test]
+fn snapshot_lists_every_set_flag_and_non_zero_var_as_a_flag_by_flag_walk_does() {
+    let mut v = Vars::new();
+    let mut x = 0x2545_F491_4F6C_DD1Du64;
+    for _ in 0..3000 {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        v.set_flag(FlagId((x % u64::from(FLAG_COUNT)) as u16), true);
+        let slot = (x >> 20) as u16 % 0x200;
+        let id = if slot < 0x100 {
+            VARS_START + slot
+        } else {
+            SPECIAL_VARS_START + slot - 0x100
+        };
+        v.set_var(VarId(id), (x >> 40) as u16 % 4);
+    }
+    let s = v.snapshot();
+    let flags: Vec<FlagId> = (1..FLAG_COUNT).map(FlagId).filter(|&f| v.flag(f)).collect();
+    let ids = (VARS_START..VARS_END).chain(SPECIAL_VARS_START..SPECIAL_VARS_END);
+    let vars: Vec<(VarId, u16)> = ids
+        .map(|i| (VarId(i), v.var(VarId(i))))
+        .filter(|&(_, x)| x != 0)
+        .collect();
+    assert!(flags.len() > 1000 && vars.len() > 100);
+    assert_eq!(s.flags, flags);
+    assert_eq!(s.vars, vars);
+}

@@ -14,7 +14,7 @@ mod silice_spine;
 use silice_spine::{Run, ch04};
 
 /// Every frame of the run, at most (the training is most of it).
-const FRAME_LIMIT: u64 = 600_000;
+const FRAME_LIMIT: u64 = 450_000;
 
 #[test]
 fn chapter_4_plays_from_the_glass_tunnel_to_julien_s_call() {

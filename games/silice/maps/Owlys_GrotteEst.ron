@@ -301,9 +301,9 @@
             x: 37,
             y: 21,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_ULTRA_BALL",
-                flag: "FLAG_SIL_ITEM_OWLYS_GROTTE_HYPER_BALL",
+            kind: Script(
+                facing: 0,
+                script: Some("Owlys_GrotteEst_EventScript_HiddenUltraBall"),
             ),
         ),
     ],

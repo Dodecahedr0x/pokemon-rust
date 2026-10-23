@@ -597,20 +597,47 @@ impl Printer {
     /// and digest (the canvas follows from them). The field `TextBox` hash embeds these bytes.
     #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
-        h.write(&[
+        let len = self.text.len() as u32;
+        let at = (self.x, self.y);
+        hash_state(
             self.delay,
-            self.sped_up as u8,
-            self.pen.colors.fg,
-            self.pen.colors.shadow,
-            self.pen.colors.bg,
-        ]);
-        h.write(&self.state.tag());
-        h.write_u32(self.pos as u32);
-        h.write_u16(self.x as u16);
-        h.write_u16(self.y as u16);
-        h.write_u32(self.text.len() as u32);
-        h.write(&self.text_digest.to_le_bytes());
+            self.sped_up,
+            self.pen.colors,
+            self.state,
+            self.pos as u32,
+            at,
+            len,
+            self.text_digest,
+            h,
+        );
     }
+
+    /// [`Printer::hash`] of `Printer::new(_, _, origin, _)`, without building one (its canvas).
+    pub(crate) fn hash_new(origin: (i16, i16), h: &mut Fnv64) {
+        hash_state(0, false, Colors::default(), State::Idle, 0, origin, 0, 0, h);
+    }
+}
+
+/// [`Printer::hash`]'s bytes.
+#[allow(clippy::too_many_arguments)]
+fn hash_state(
+    delay: u8,
+    sped_up: bool,
+    colors: Colors,
+    state: State,
+    pos: u32,
+    (x, y): (i16, i16),
+    len: u32,
+    digest: u64,
+    h: &mut Fnv64,
+) {
+    h.write(&[delay, sped_up as u8, colors.fg, colors.shadow, colors.bg]);
+    h.write(&state.tag());
+    h.write_u32(pos);
+    h.write_u16(x as u16);
+    h.write_u16(y as u16);
+    h.write_u32(len);
+    h.write(&digest.to_le_bytes());
 }
 
 #[cfg(test)]

@@ -2376,6 +2376,12 @@
             name: "FLAG_SIL_USINE_CABLE_CUT",
             num: 1050,
         ),
+        // SIL3 Ch5 scripts (script block 1060-1079): the Silo Chief's hide flag
+        // (Owlys_Entrepot_B1F_Sc02 hides him after his battle; the source gives him none).
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_SILO_CHEF",
+            num: 1060,
+        ),
         // SIL6 Ch12 maps (1100-1179).
         (
             name: "FLAG_SIL_HIDE_NML_DRONE",
