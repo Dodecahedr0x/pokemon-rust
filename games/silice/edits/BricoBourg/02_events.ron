@@ -18,9 +18,9 @@
     Object(x: 18, y: 6, gfx: "OBJ_EVENT_GFX_FISHERMAN", id: "LOCALID_BRICO_PECHEUR", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "BricoBourg_EventScript_Pecheur"),
     Object(x: 7, y: 6, gfx: "OBJ_EVENT_GFX_POKEFAN_F", id: "LOCALID_BRICO_BRICOLEUSE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BricoBourg_EventScript_Bricoleuse", flag: "FLAG_SIL_HIDE_BRICO_BRICOLEUSE"),
     Object(x: 18, y: 14, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_BRICO_SBIRE", movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_BRICO_SBIRE"),
-    Object(x: 4, y: 16, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_BRICO_MATHIEU", movement: "MOVEMENT_TYPE_FACE_UP", script: "BricoBourg_EventScript_Mathieu", flag: "FLAG_SIL_HIDE_BRICO_MATHIEU"),
-    Object(x: 5, y: 16, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_BRICO_GWADA", movement: "MOVEMENT_TYPE_FACE_UP", script: "BricoBourg_EventScript_Gwada", flag: "FLAG_SIL_HIDE_BRICO_GWADA"),
-    Object(x: 6, y: 16, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_BRICO_ADRIEN", movement: "MOVEMENT_TYPE_FACE_UP", script: "BricoBourg_EventScript_Adrien", flag: "FLAG_SIL_HIDE_BRICO_ADRIEN"),
+    Object(x: 4, y: 16, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_BRICO_MATHIEU", movement: "MOVEMENT_TYPE_FACE_UP", script: "BricoBourg_EventScript_Mathieu", flag: "FLAG_SIL_HIDE_BRICO_MATHIEU"),
+    Object(x: 5, y: 16, gfx: "OBJ_EVENT_GFX_SIL_GWADA", id: "LOCALID_BRICO_GWADA", movement: "MOVEMENT_TYPE_FACE_UP", script: "BricoBourg_EventScript_Gwada", flag: "FLAG_SIL_HIDE_BRICO_GWADA"),
+    Object(x: 6, y: 16, gfx: "OBJ_EVENT_GFX_SIL_ADRIEN", id: "LOCALID_BRICO_ADRIEN", movement: "MOVEMENT_TYPE_FACE_UP", script: "BricoBourg_EventScript_Adrien", flag: "FLAG_SIL_HIDE_BRICO_ADRIEN"),
     // Brico_Bourg_Sc01, VAR_SIL_STORY 1: the three cells around (14, 14), the Shaker's exit cell (the
     // scripted exit step onto (14, 14) itself fires no coord event). The scene checks FLAG_SIL_BRICO_CHASE.
     Coord(x: 13, y: 14, var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_Sc01"),

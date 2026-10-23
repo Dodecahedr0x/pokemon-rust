@@ -32,7 +32,7 @@
         (
             local_id: 2,
             id: Some("LOCALID_APEX_JULIEN"),
-            gfx: "OBJ_EVENT_GFX_MANIAC",
+            gfx: "OBJ_EVENT_GFX_SIL_JULIEN",
             x: 14,
             y: 3,
             elevation: 3,

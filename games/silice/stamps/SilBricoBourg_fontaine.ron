@@ -1,0 +1,11 @@
+(
+    primary: "General",
+    secondary: "SilBricoBourg",
+    width: 2,
+    height: 2,
+    elevation: false,
+    blocks: [
+        (1623, 1624),
+        (1625, 1626),
+    ],
+)

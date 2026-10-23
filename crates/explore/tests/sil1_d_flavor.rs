@@ -59,7 +59,7 @@ fn each_build_explores_its_own_acts() {
             assert!(goals::goals_of(act).is_empty(), "{act:?} has no goals here");
         }
     }
-    assert!(Act::parse_in_build("act2").is_err());
+    assert!(Act::parse_in_build("act99").is_err());
     // The Prologue's goals (the Silice spine's `Expect`s) end at the Bois-Éther edge.
     if content::FLAVOR == Flavor::Silice {
         let ch0 = goals::goals_of(Act::SilCh0);

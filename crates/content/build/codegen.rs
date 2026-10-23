@@ -330,6 +330,16 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         );
         writeln!(o, "{line}")?;
     }
+    // By name, for the host tools (the studio paints with tilesets no map uses yet); not on the
+    // GBA, where it would keep every tileset in the ROM.
+    o.push_str(
+        "/// Every tileset by name, with whether it is a secondary one (host builds only).\n\
+         #[cfg(not(target_arch = \"arm\"))]\npub static TILESETS: &[(&str, &Tileset, bool)] = &[",
+    );
+    for t in &w.tilesets {
+        write!(o, "(\"{0}\", &TS_{0}, {1}),", t.file.name, t.file.secondary)?;
+    }
+    o.push_str("];\n");
 
     // ---- maps ----
     let mut map_arms = String::new();

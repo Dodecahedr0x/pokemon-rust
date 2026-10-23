@@ -25,6 +25,17 @@ struct Synth(&'static MapData);
 
 fn synth(width: u16, rows: &[&[u16]]) -> Synth {
     let blocks: Vec<u16> = rows.iter().flat_map(|r| r.iter().copied()).collect();
+    // A warp event on every door and warp cell (a warp behaviour without one is a floor).
+    let warps: Vec<engine::data::WarpEvent> = (blocks.iter().enumerate())
+        .filter(|(_, b)| matches!(**b, DOOR | WARP))
+        .map(|(i, _)| engine::data::WarpEvent {
+            x: (i % width as usize) as i16,
+            y: (i / width as usize) as i16,
+            elevation: 0,
+            dest_map: MapId(0),
+            dest_warp: 0,
+        })
+        .collect();
     let ts: &'static Tileset = Box::leak(Box::new(Tileset {
         tiles: &[],
         palettes: &[],
@@ -40,7 +51,7 @@ fn synth(width: u16, rows: &[&[u16]]) -> Synth {
         primary: ts,
         secondary: ts,
         objects: &[],
-        warps: &[],
+        warps: Box::leak(warps.into_boxed_slice()),
         coords: &[],
         bgs: &[],
         connections: &[],
@@ -190,11 +201,11 @@ fn tall_grass_only_when_needed() {
 /// edge): the reference [`Terrain`] answers like.
 fn ref_step<G: GameData>(
     g: &Grid<'_, G>,
-    c: (i16, i16),
+    (c, e): ((i16, i16), u8),
     d: Dir,
     avoid_grass: bool,
     target: Option<(i16, i16)>,
-) -> Option<(i16, i16)> {
+) -> Option<((i16, i16), u8)> {
     if g.behavior(c) == Behavior::ArrowWarp(d) {
         return None;
     }
@@ -209,7 +220,23 @@ fn ref_step<G: GameData>(
         }
         n = (n.0 + dx, n.1 + dy);
     }
-    (g.in_bounds(n) && (Some(n) == target || g.walkable(n, avoid_grass))).then_some(n)
+    if !g.in_bounds(n) {
+        return None;
+    }
+    let (ec, en) = (block_elevation(g.block(c)), block_elevation(g.block(n)));
+    if Some(n) != target && e != 0 && en != 0 && en != 15 && en != e {
+        return None;
+    }
+    let e2 = if ec == 15 || en == 15 { e } else { en };
+    (Some(n) == target || g.walkable(n, avoid_grass)).then_some((n, e2))
+}
+
+/// The elevation a reference search starts with: the start cell's (0 on a 15).
+fn ref_start<G: GameData>(g: &Grid<'_, G>, from: (i16, i16)) -> u8 {
+    match block_elevation(g.block(from)) {
+        15 => 0,
+        e => e,
+    }
 }
 
 /// `Grid::distances` before the terrain table.
@@ -220,16 +247,19 @@ fn ref_distances<G: GameData>(g: &Grid<'_, G>, from: (i16, i16), avoid_grass: bo
         return dist;
     }
     let idx = |(x, y): (i16, i16)| y as usize * w + x as usize;
+    let mut seen = std::collections::HashSet::new();
+    let start = (from, ref_start(g, from));
+    seen.insert(start);
     dist[idx(from)] = 0;
-    let mut queue = VecDeque::from([from]);
-    while let Some(c) = queue.pop_front() {
-        let dc = dist[idx(c)];
+    let mut queue = VecDeque::from([(start, 0u16)]);
+    while let Some((c, dc)) = queue.pop_front() {
         for d in Dir::ALL {
             if let Some(n) = ref_step(g, c, d, avoid_grass, None)
-                && dist[idx(n)] == u16::MAX
+                && seen.insert(n)
             {
-                dist[idx(n)] = dc.saturating_add(1).min(u16::MAX - 1);
-                queue.push_back(n);
+                let dn = dc.saturating_add(1).min(u16::MAX - 1);
+                dist[idx(n.0)] = dist[idx(n.0)].min(dn);
+                queue.push_back((n, dn));
             }
         }
     }
@@ -246,20 +276,18 @@ fn ref_first_dir<G: GameData>(
     if !g.in_bounds(from) || !g.in_bounds(to) || from == to {
         return None;
     }
-    let w = g.map.width as usize;
-    let idx = |(x, y): (i16, i16)| y as usize * w + x as usize;
-    let mut seen = vec![false; w * g.map.height as usize];
-    seen[idx(from)] = true;
-    let mut queue = VecDeque::from([(from, None::<Dir>)]);
+    let mut seen = std::collections::HashSet::new();
+    let start = (from, ref_start(g, from));
+    seen.insert(start);
+    let mut queue = VecDeque::from([(start, None::<Dir>)]);
     while let Some((c, d0)) = queue.pop_front() {
-        if c == to {
+        if c.0 == to {
             return d0;
         }
         for d in Dir::ALL {
             if let Some(n) = ref_step(g, c, d, avoid_grass, Some(to))
-                && !seen[idx(n)]
+                && seen.insert(n)
             {
-                seen[idx(n)] = true;
                 queue.push_back((n, Some(d0.unwrap_or(d))));
             }
         }

@@ -137,7 +137,7 @@
         (
             local_id: 9,
             id: Some("LOCALID_GYM2_GWADA"),
-            gfx: "OBJ_EVENT_GFX_BOY_2",
+            gfx: "OBJ_EVENT_GFX_SIL_GWADA",
             x: 7,
             y: 21,
             elevation: 3,
