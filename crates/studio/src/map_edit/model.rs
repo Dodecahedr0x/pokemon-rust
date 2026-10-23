@@ -488,10 +488,15 @@ pub enum Op {
     },
     /// Rows of characters from (x, y), each character painted with its legend brush (every
     /// character must be in the legend). For drafting from an ASCII plan.
+    ///
+    /// Any character is a key, written as a RON char (`'#'`, `'"'`, `' '`, `'é'`; escapes
+    /// `'\''` and `'\\'`) or a one-character string (`"\""`). In the rows, `"` and `\` are
+    /// escaped (`"\"\\"`), or the rows are raw strings (`r#"say "hi""#`).
     Ascii {
         x: i32,
         y: i32,
         rows: Vec<String>,
+        #[serde(deserialize_with = "legend")]
         legend: BTreeMap<char, Brush>,
     },
     /// Copies a `w x h` block of raw cells to the editor's clipboard (not an undo step).
@@ -629,6 +634,38 @@ pub enum Op {
     },
     Undo,
     Redo,
+}
+
+/// An `Ascii` legend key: a char or a one-character string.
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct LegendKey(char);
+
+impl<'de> Deserialize<'de> for LegendKey {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<LegendKey, D::Error> {
+        struct V;
+        impl serde::de::Visitor<'_> for V {
+            type Value = LegendKey;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("one character ('x' or \"x\")")
+            }
+            fn visit_char<E: serde::de::Error>(self, c: char) -> Result<LegendKey, E> {
+                Ok(LegendKey(c))
+            }
+            fn visit_str<E: serde::de::Error>(self, s: &str) -> Result<LegendKey, E> {
+                let mut it = s.chars();
+                match (it.next(), it.next()) {
+                    (Some(c), None) => Ok(LegendKey(c)),
+                    _ => Err(E::custom(format!("legend key {s:?} is not one character"))),
+                }
+            }
+        }
+        d.deserialize_any(V)
+    }
+}
+
+fn legend<'de, D: serde::Deserializer<'de>>(d: D) -> Result<BTreeMap<char, Brush>, D::Error> {
+    let m = BTreeMap::<LegendKey, Brush>::deserialize(d)?;
+    Ok(m.into_iter().map(|(k, v)| (k.0, v)).collect())
 }
 
 fn face_down() -> String {

@@ -1029,3 +1029,28 @@ fn renumbered_named_objects_are_warned_about() {
     e.undo();
     assert!(id_changes(e.saved().unwrap(), e.doc()).is_empty());
 }
+
+/// Any character is a legend key: quotes, backslashes, spaces and non-ASCII, as RON char
+/// literals (`'"'`, `'\''`, `'\\'`) or one-character strings (`"\""`).
+#[test]
+fn ascii_legends_take_any_char() {
+    let ops: Vec<Op> = from_script_ron(
+        r#"[Ascii(x: 0, y: 0, rows: ["\"'\\ é"], legend: {
+            '"': (metatile: 2), '\'': (metatile: 3), '\\': (metatile: 4), ' ': (metatile: 5),
+            "é": (metatile: 6),
+        })]"#,
+    )
+    .unwrap();
+    let mut e = editor(5, 1);
+    e.apply_all(&ops).unwrap();
+    assert_eq!(
+        (0..5).map(|x| mt(&e, x, 0)).collect::<Vec<_>>(),
+        [2, 3, 4, 5, 6]
+    );
+    let bad: anyhow::Result<Vec<Op>> =
+        from_script_ron(r#"[Ascii(x: 0, y: 0, rows: ["a"], legend: {"ab": (metatile: 2)})]"#);
+    assert!(
+        format!("{:#}", bad.unwrap_err()).contains("one character"),
+        "a key is one character"
+    );
+}
