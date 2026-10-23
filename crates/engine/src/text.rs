@@ -600,12 +600,20 @@ impl TextBox {
 
     /// Same hash as `TextBox::new()` (what `close` leaves): nothing on BG0 needs restoring.
     pub fn is_pristine(&self) -> bool {
-        let digest = |t: &TextBox| {
-            let mut h = Fnv64::new();
-            t.hash(&mut h);
-            h.finish()
-        };
-        digest(self) == digest(&TextBox::new())
+        let mut h = Fnv64::new();
+        self.hash(&mut h);
+        h.finish() == Self::pristine_digest()
+    }
+
+    /// The digest of [`TextBox::new`]'s hash, without building one (its canvases: `is_pristine`
+    /// runs on every frame of the explorer's detectors).
+    fn pristine_digest() -> u64 {
+        let mut h = Fnv64::new();
+        // `bg_on`, `open`, the printer, no yes/no cursor or result, no menu or menu result.
+        h.write(&[false as u8, false as u8]);
+        Printer::hash_new((TEXT_X, TEXT_Y), &mut h);
+        h.write(&[0xFF, 0xFF]);
+        h.finish()
     }
 
     /// Feeds all state into `h` (parity contract).

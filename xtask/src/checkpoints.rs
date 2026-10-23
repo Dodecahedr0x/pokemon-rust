@@ -8,7 +8,7 @@
 //! committed parent), and `promote`, which moves a verified local node into it.
 
 use anyhow::{Context, Result, anyhow, bail};
-use game_native::checkpoints::{materialize, replayer, seed};
+use game_native::checkpoints::{materialize, par_replayer, replayer, seed};
 use game_native::store::{Node, Status, Store};
 use game_native::trace::{CheckpointId, Parent};
 use std::collections::{BTreeMap, BTreeSet};
@@ -178,7 +178,9 @@ fn verify_store(store: &Store, accept: bool) -> Result<VerifySummary> {
 /// [`verify`] without the verdict: every node's status.
 fn replay_all(store: &Store, accept: bool) -> Result<VerifySummary> {
     let game = content::Emerald::for_shells();
-    let verdicts = store.verify_nodes(replayer(&game), accept)?;
+    // In parallel; the verdicts are the serial pass's (`Store::verify_nodes_par`).
+    let jobs = std::thread::available_parallelism().map_or(1, |n| n.get());
+    let verdicts = store.verify_nodes_par(par_replayer(&game), accept, jobs)?;
     let summary = VerifySummary {
         rehash: verdicts.iter().filter(|v| v.rehash).map(|v| v.id).collect(),
         nodes: verdicts.into_iter().map(|v| (v.id, v.status)).collect(),

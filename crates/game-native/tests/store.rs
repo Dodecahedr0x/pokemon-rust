@@ -252,6 +252,15 @@ fn replayer(
     salt_at: Option<u32>,
     hint: Option<HashMismatch>,
 ) -> impl FnMut(Option<&Checkpoint>, &Trace) -> Result<Replayed, String> {
+    par_replayer(build, salt_at, hint)
+}
+
+/// [`replayer`] for `Store::verify_nodes_par`.
+fn par_replayer(
+    build: BuildHash,
+    salt_at: Option<u32>,
+    hint: Option<HashMismatch>,
+) -> impl Fn(Option<&Checkpoint>, &Trace) -> Result<Replayed, String> + Sync {
     move |parent, trace| {
         let salt = u32::from(salt_at == Some(trace.start_frame + trace.frames()));
         let start = parent.map_or(0, |p| p.header.frame);
@@ -1192,4 +1201,76 @@ fn replay_requires_the_world_at_the_start_frame() {
     let mut t = trace(Parent::NewGame, 0, &[(Buttons::NONE, 1)]);
     t.start_frame = 5;
     replay(&game, &mut World::new(&game), &t, |_, _| {});
+}
+
+/// Every file of a store dir, by relative path.
+fn files(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
+    let mut out = BTreeMap::new();
+    let mut dirs = vec![root.to_path_buf()];
+    while let Some(d) = dirs.pop() {
+        for e in fs::read_dir(&d).unwrap() {
+            let p = e.unwrap().path();
+            if p.is_dir() {
+                dirs.push(p);
+            } else {
+                out.insert(
+                    p.strip_prefix(root).unwrap().to_path_buf(),
+                    fs::read(&p).unwrap(),
+                );
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn verify_in_parallel_gives_the_serial_verdicts_and_writes() {
+    let hint = HashMismatch {
+        frame: 60,
+        want: 1,
+        got: 2,
+    };
+    let cases = [
+        (BUILD, None, None, false),
+        (OTHER_BUILD, None, None, true),
+        (OTHER_BUILD, Some(30), Some(hint), false),
+        (OTHER_BUILD, Some(30), Some(hint), true),
+        // b replays to another state on its own build: broken, and so is its child.
+        (BUILD, Some(30), None, false),
+    ];
+    for (i, (build, salt, hint, accept)) in cases.into_iter().enumerate() {
+        let (r1, s1, _) = tree(&format!("par-serial-{i}"));
+        let (r2, s2, _) = tree(&format!("par-par-{i}"));
+        // Twice: the second pass starts from the snapshots the first one cached.
+        for pass in 0..2 {
+            let serial = s1
+                .verify_nodes(replayer(build, salt, hint), accept)
+                .unwrap();
+            let replays = std::sync::atomic::AtomicU32::new(0);
+            let counted = |p: Option<&Checkpoint>, t: &Trace| {
+                replays.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                par_replayer(build, salt, hint)(p, t)
+            };
+            let par = s2.verify_nodes_par(counted, accept, 4).unwrap();
+            assert_eq!(par, serial, "case {i} pass {pass}");
+            let (f1, f2) = (files(&r1), files(&r2));
+            assert_eq!(
+                f1.keys().collect::<Vec<_>>(),
+                f2.keys().collect::<Vec<_>>(),
+                "case {i}"
+            );
+            for (k, v) in &f1 {
+                assert_eq!(v, &f2[k], "case {i} pass {pass}: {}", k.display());
+            }
+            let replays = replays.into_inner();
+            // At most one speculative and one checked replay per node.
+            assert!(replays <= 8, "case {i}: {replays} replays");
+            if pass == 1 && i == 0 {
+                // Every parent's snapshot is cached and right: one replay per node.
+                assert_eq!(replays, 4, "case {i}");
+            }
+        }
+        fs::remove_dir_all(r1).unwrap();
+        fs::remove_dir_all(r2).unwrap();
+    }
 }
