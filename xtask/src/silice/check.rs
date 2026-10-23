@@ -24,7 +24,7 @@
 //! | `id-unknown` | error | a Gen3 name (species, class, pic, AI) the decomp does not have |
 //! | `sil-prefix` | error | an unknown constant of a kind Silice may invent, or a registry name, without `_SIL_` |
 //! | `map-undefined` | error | a map neither in `ids/maps.ron` nor in `maps/` (constants, warp and connection targets, placement maps) |
-//! | `placement-map` | error | a ball or hidden-item placement whose map exists but lacks its flag (or hides another item under it); a given item's flag once scene scripts name flags, in neither the map nor a script |
+//! | `placement-map` | error | a ball or hidden-item placement whose map exists but lacks its flag (or hides another item under it); a given item's flag, once a script file claims its map (`pub const MAPS`), in neither the map nor a script |
 //! | `trainer-undefined` | error | a `TRAINER_SIL_*` no trainer defines |
 //! | `trainer-duplicate` | error | a trainer id defined twice |
 //! | `trainer-name` | error | a name over 10 bytes (`TRAINER_NAME_LENGTH`) |
@@ -108,6 +108,9 @@ pub struct Inputs {
     pub maps: Vec<MapRefs>,
     /// Scene scripts: file stem -> constants named.
     pub scripts: BTreeMap<String, Vec<String>>,
+    /// The maps the scene scripts claim (`pub const MAPS`), by file stem: their scenes are
+    /// written ([`maps::scan_claims`]).
+    pub claimed: BTreeSet<String>,
     pub exceptions: ExceptionsFile,
     /// The extract's FR font widths, with the authored glyphs' widths at their codes.
     pub widths: Option<Vec<u8>>,
@@ -158,6 +161,7 @@ pub fn load(o: &Options) -> Result<Inputs> {
     }
     let maps = maps::scan_dir(&g.join("maps"))?;
     let scripts = maps::scan_scripts(&o.scripts)?;
+    let claimed = maps::scan_claims(&o.scripts)?;
     if scripts.is_empty() {
         notes.push(format!(
             "no scene scripts at {}: names checked from ids/refs.ron and maps/",
@@ -303,6 +307,7 @@ pub fn load(o: &Options) -> Result<Inputs> {
         refs,
         maps,
         scripts,
+        claimed,
         exceptions,
         widths,
         glyph_problems,
@@ -880,10 +885,9 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
     // Item placements against the authored maps (the maps are authoritative for positions; the
     // flag must be there, and a hidden item with that flag must be the same item). Balls and
     // hidden items are map objects; a given item's flag is set by a scene script, so it is looked
-    // for in the maps and the scripts, once scripts name flags.
+    // for in the maps and the scripts once the map's scenes are written: once a script file
+    // claims the map (`pub const MAPS`, SIL1 Task F), as the build's per-map strictness.
     let script_names: BTreeSet<&str> = i.scripts.values().flatten().map(String::as_str).collect();
-    // A placeholder script naming no flag (SIL1 Wave 0) does not count as the scene scripts.
-    let scripts_name_flags = script_names.iter().any(|n| n.starts_with("FLAG_"));
     if let Some(it) = &i.items {
         for p in &it.placements {
             let Some(flag) = &p.flag else { continue };
@@ -895,7 +899,9 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
                 continue;
             };
             let object = matches!(p.method, PlacementMethod::Ball | PlacementMethod::Hidden);
-            if !object && (!scripts_name_flags || script_names.contains(flag.as_str())) {
+            if !object
+                && (!i.claimed.contains(name.as_str()) || script_names.contains(flag.as_str()))
+            {
                 continue;
             }
             let hidden = m.hidden.iter().find(|(_, f)| f == flag);
