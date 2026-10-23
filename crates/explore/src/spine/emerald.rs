@@ -13,17 +13,17 @@ pub static STEPS: &[Step] = &[];
 
 #[cfg(not(pkr_silice))]
 mod list {
-    use super::super::{BattlePlan, Bypass, Step};
+    use super::super::{BattlePlan, Bypass, Step, UseItem};
     use content::consts::*;
     use engine::data::Dir::{Down, Left, Right, Up};
 
     use engine::data::{Dir, MapId};
 
-    /// Gen3's `MOVE_ROCK_SMASH` (`include/constants/moves.h`), named here because the stub
-    /// build's `content::consts` has no Emerald moves (this local item shadows the glob import).
-    const MOVE_ROCK_SMASH: engine::data::MoveId = engine::data::MoveId(249);
-    /// Gen3's `MOVE_SURF`, for the same reason.
-    const MOVE_SURF: engine::data::MoveId = engine::data::MoveId(57);
+    /// Gen3's `ITEM_HM03` (`include/constants/items.h`), named here because the stub build's
+    /// `content::consts` has no Emerald items (this local item shadows the glob import).
+    const ITEM_HM03: engine::data::ItemId = engine::data::ItemId(341);
+    /// Gen3's `ITEM_HM06`, for the same reason.
+    const ITEM_HM06: engine::data::ItemId = engine::data::ItemId(344);
 
     const fn goto(map: MapId, x: i16, y: i16) -> Step {
         Step::Goto { map, x, y }
@@ -64,22 +64,30 @@ mod list {
         Step::TrainFresh { map, x, y, level }
     }
 
-    /// Teaching HM06 needs the bag and the party menu (Milestone 9): the bypass writes Rock
-    /// Smash over the lead's Mud-Slap, so `EventScript_RockSmash`'s `checkpartymove` finds it.
-    static TEACH_ROCK_SMASH: Bypass = Bypass {
-        issue: "teach-hm-rock-smash",
-        features: &["party menu: teach an HM"],
-        teach: &[(2, MOVE_ROCK_SMASH)],
+    /// HM06 from the bag on the lead (the bag screen is Task B: `World::use_item` stands for
+    /// its USE); the party menu teaches it with inputs, forgetting Mud-Slap (slot 2), so
+    /// `EventScript_RockSmash`'s `checkpartymove` finds it.
+    static USE_HM06: Bypass = Bypass {
+        issue: "bag-use-hm06",
+        features: &["bag: use a TM/HM"],
+        use_item: Some(UseItem {
+            item: ITEM_HM06,
+            mon: 0,
+            forget: 2,
+        }),
         ..Bypass::NONE
     };
 
-    /// Teaching HM03 needs the party menu, as HM06 (`teach-hm-rock-smash`): the bypass writes
-    /// Surf over the lead's Water Gun (slot 3), so `EventScript_UseSurf`'s `checkpartymove`
-    /// finds it.
-    static TEACH_SURF: Bypass = Bypass {
-        issue: "teach-hm-surf",
-        features: &["party menu: teach an HM"],
-        teach: &[(3, MOVE_SURF)],
+    /// HM03 from the bag on the lead, as [`USE_HM06`], forgetting Water Gun (slot 3), so
+    /// `EventScript_UseSurf`'s `checkpartymove` finds it.
+    static USE_HM03: Bypass = Bypass {
+        issue: "bag-use-hm03",
+        features: &["bag: use a TM/HM"],
+        use_item: Some(UseItem {
+            item: ITEM_HM03,
+            mon: 0,
+            forget: 3,
+        }),
         ..Bypass::NONE
     };
 
@@ -843,11 +851,11 @@ mod list {
         enter(MAP_MAUVILLE_CITY, 22, 5, Up),
         use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
-        // HM06 from the Rock Smash dude; teach it (blocked: `teach-hm-rock-smash`).
+        // HM06 from the Rock Smash dude; teach it from the bag (`bag-use-hm06`).
         enter(MAP_MAUVILLE_CITY, 32, 14, Up),
         talk(MAP_MAUVILLE_CITY_HOUSE1, 1),
         enter(MAP_MAUVILLE_CITY_HOUSE1, 3, 7, Down),
-        Step::Bypass(&TEACH_ROCK_SMASH),
+        Step::Bypass(&USE_HM06),
         // ---- Route 111: smash the rock north of the Winstrates', on to Route 113 ----
         cross(MAP_MAUVILLE_CITY, 16, 0, Up),
         // The rock: `EventScript_RockSmash` (yes).
@@ -1023,8 +1031,8 @@ mod list {
         enter(MAP_PETALBURG_CITY, 7, 5, Up),
         Step::WaitScript,
         Step::Expect("hm_surf"),
-        // Teach it (blocked: `teach-hm-surf`).
-        Step::Bypass(&TEACH_SURF),
+        // Teach it from the bag (`bag-use-hm03`).
+        Step::Bypass(&USE_HM03),
         // ================= Act 6 (Wave C, M10's field moves): back east to Mauville by the
         // woods, Rustboro and the tunnel, then Surf across Route 118 to Route 119 =================
         enter(MAP_PETALBURG_CITY_WALLYS_HOUSE, 3, 7, Down),

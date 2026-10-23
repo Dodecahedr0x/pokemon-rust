@@ -18,6 +18,9 @@ pub const FILES: [&str; 5] = [
     "tables/field_strings.ron",
 ];
 
+/// The TM/HM file [`export_tmhm`] writes (format minor 7).
+pub const TMHM_FILE: &str = "tables/tmhm.ron";
+
 /// Writes the item, multichoice, std-string, map-section and field-string tables, and records the table
 /// offsets in `provenance` (`tables/items` = `gItems`, …).
 pub fn export_tables(
@@ -41,5 +44,15 @@ pub fn export_tables(
     ] {
         provenance.insert(key.to_string(), Hex(off));
     }
+    Ok(())
+}
+
+/// `tables/tmhm.ron` ([`crate::ui_text::extract_tmhm`]); offsets in `provenance` as
+/// `tables/tmhm_moves` (`sTMHMMoves`) and `tables/tmhm_learnsets` (`gTMHMLearnsets`).
+pub fn export_tmhm(rom: &Rom, out: &mut Out, provenance: &mut BTreeMap<String, Hex>) -> Result<()> {
+    let (file, moves, learnsets) = crate::ui_text::extract_tmhm(rom)?;
+    out.ron(TMHM_FILE, &file)?;
+    provenance.insert("tables/tmhm_moves".to_string(), Hex(moves));
+    provenance.insert("tables/tmhm_learnsets".to_string(), Hex(learnsets));
     Ok(())
 }

@@ -604,7 +604,8 @@ impl World {
             }
             // Gen3 `ProcessPlayerFieldInput`: START (`ShowStartMenu`), then SELECT
             // (`UseRegisteredKeyItemOnField`), after the A interaction and the door warp.
-            if self.s.input.is_pressed(Buttons::START) && screens::start_pressed(&mut self.s, game)
+            if self.s.input.is_pressed(Buttons::START)
+                && screens::start_pressed(&mut self.s, game, f)
             {
                 return false;
             }

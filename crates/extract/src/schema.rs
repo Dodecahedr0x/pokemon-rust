@@ -54,6 +54,7 @@
 //!   battle/dex.ron               DexFile (minor 6: the Hoenn Pokédex order, from
 //!                                sSpeciesToHoennPokedexNum)
 //!   battle/rematches.ron         RematchesFile (minor 6: gRematchTable)
+//!   tables/tmhm.ron              TmHmFile (minor 7: sTMHMMoves, gTMHMLearnsets)
 //! ```
 //!
 //! **Versions.** [`FORMAT_VERSION`] is the major version: an extract of another major builds the
@@ -101,7 +102,8 @@ pub const FORMAT_VERSION: u32 = 5;
 ///   `GetRivalSonDaughterString` and `GetMomOrDadStringForTVMessage`).
 /// - 6: Wave C (specials) adds `battle/dex.ron` and `battle/rematches.ron`, and exports the C-only
 ///   texts of `labels::C_TEXT_RUNS` (the Pokédex ratings).
-pub const FORMAT_MINOR: u32 = 6;
+/// - 7: Tasks K/PT add `tables/tmhm.ron` (`sTMHMMoves`, `gTMHMLearnsets`).
+pub const FORMAT_MINOR: u32 = 7;
 /// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
 /// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
 /// ones when an extract is older ([`missing_since`]). Only paths every extract has are listed:
@@ -125,6 +127,7 @@ pub const MINOR_FILES: &[(u32, &str)] = &[
     (5, "tables/field_strings.ron"),
     (6, "battle/dex.ron"),
     (6, "battle/rematches.ron"),
+    (7, "tables/tmhm.ron"),
 ];
 
 /// The [`MINOR_FILES`] paths added after `minor` that `exists` reports missing.

@@ -48,6 +48,7 @@ impl Colors {
 /// Text colors plus a lookup like Gen3 `sFontHalfRowLookupTable`, by nibble: two font pixels
 /// (2bpp, leftmost in bits 3-2) -> two canvas nibbles (leftmost in the low one). A font byte
 /// (4 pixels, leftmost in bits 7-6) is two lookups. Small, as a pen is made per menu text.
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Pen {
     pub(crate) colors: Colors,
     two: [u16; 16],
@@ -86,6 +87,7 @@ const fn fill_word(c: u8) -> u32 {
 
 /// A window's pixels as 4bpp tiles, row-major, with per-tile dirty flags. `flush` uploads the
 /// dirty tiles to `char_block` from tile `win.base()` on.
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Canvas {
     pub(crate) win: Window,
     char_block: u8,
@@ -146,6 +148,11 @@ impl Canvas {
         let (x, y) = (x as usize, y as usize);
         let t = self.tiles[(y / 8) * self.win.width as usize + x / 8];
         ((t[y % 8] >> ((x % 8) * 4)) & 0xF) as u8
+    }
+
+    /// Marks every tile for upload (the canvas' VRAM was overwritten: a screen over it).
+    pub fn touch(&mut self) {
+        self.dirty.fill(true);
     }
 
     pub fn fill(&mut self, c: u8) {
@@ -335,6 +342,25 @@ impl Canvas {
     }
 
     /// Uploads the dirty tiles (`Cmd::BgTile`) and clears their flags.
+    /// Uploads the changed tiles while `budget` (bytes) lasts; the rest stay changed for the
+    /// next frame.
+    pub fn flush_within(&mut self, f: &mut Frame, budget: &mut usize) {
+        for (i, d) in self.dirty.iter_mut().enumerate() {
+            if *d {
+                if *budget < 32 {
+                    return;
+                }
+                *budget -= 32;
+                *d = false;
+                f.cmds.push(Cmd::BgTile {
+                    char_block: self.char_block,
+                    index: self.win.base + i as u16,
+                    tile: self.tiles[i],
+                });
+            }
+        }
+    }
+
     pub fn flush(&mut self, f: &mut Frame) {
         for (i, d) in self.dirty.iter_mut().enumerate() {
             if core::mem::take(d) {
@@ -387,6 +413,7 @@ const fn ab(pressed: Buttons) -> bool {
 /// color codes, with `frames_per_char` frames per drawn glyph (control codes cost nothing) and
 /// A/B speed-up (`hasPrintBeenSpedUp`: a new press skips the current delay, then one glyph per
 /// frame while A or B stays held).
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Printer {
     pub(crate) canvas: Canvas,
     pub(crate) state: State,
@@ -589,6 +616,11 @@ impl Printer {
     }
 
     /// True while a message is being printed, including its `\p`/`\l`/pause waits.
+    /// [`Canvas::touch`] on the printer's canvas.
+    pub fn touch(&mut self) {
+        self.canvas.touch();
+    }
+
     pub fn is_printing(&self) -> bool {
         self.state != State::Idle
     }
@@ -596,6 +628,11 @@ impl Printer {
     /// Uploads the canvas tiles changed since the last flush.
     pub fn flush(&mut self, f: &mut Frame) {
         self.canvas.flush(f);
+    }
+
+    /// [`Canvas::flush_within`].
+    pub fn flush_within(&mut self, f: &mut Frame, budget: &mut usize) {
+        self.canvas.flush_within(f, budget);
     }
 
     /// Feeds the printer state into `h`: delay, speed-up, colors, state, position, text length
