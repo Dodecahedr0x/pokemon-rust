@@ -212,6 +212,32 @@ fn behaviors_follow_the_names_table() {
     assert_eq!(Emerald.behavior(mb("MB_TALL_GRASS")), Behavior::TallGrass);
     assert_eq!(Emerald.behavior(mb("MB_POND_WATER")), Behavior::Blocked);
     assert_eq!(Emerald.behavior(mb("MB_NORMAL")), Behavior::Normal);
+    // Forced movement (Gen3 `sForcedMovementTestFuncs`) and the per-step puzzles.
+    assert_eq!(Emerald.behavior(mb("MB_ICE")), Behavior::Ice);
+    assert_eq!(
+        Emerald.behavior(mb("MB_TRICK_HOUSE_PUZZLE_8_FLOOR")),
+        Behavior::Ice
+    );
+    for (walk, slide, d) in [
+        ("MB_WALK_EAST", "MB_SLIDE_EAST", Dir::Right),
+        ("MB_WALK_WEST", "MB_SLIDE_WEST", Dir::Left),
+        ("MB_WALK_NORTH", "MB_SLIDE_NORTH", Dir::Up),
+        ("MB_WALK_SOUTH", "MB_SLIDE_SOUTH", Dir::Down),
+    ] {
+        assert_eq!(Emerald.behavior(mb(walk)), Behavior::ForcedWalk(d));
+        assert_eq!(Emerald.behavior(mb(slide)), Behavior::Slide(d));
+    }
+    assert_eq!(Emerald.behavior(mb("MB_MUDDY_SLOPE")), Behavior::MuddySlope);
+    assert_eq!(Emerald.behavior(mb("MB_THIN_ICE")), Behavior::ThinIce);
+    assert_eq!(Emerald.behavior(mb("MB_CRACKED_ICE")), Behavior::CrackedIce);
+    assert_eq!(
+        Emerald.behavior(mb("MB_CRACKED_FLOOR")),
+        Behavior::CrackedFloor
+    );
+    assert_eq!(
+        Emerald.behavior(mb("MB_CRACKED_FLOOR_HOLE")),
+        Behavior::CrackedFloorHole
+    );
 }
 
 #[test]

@@ -393,6 +393,12 @@ pub enum Request {
         slot: u8,
         trade: u8,
     },
+    // ---- forced movement ----
+    /// Gen3 `warphole`: drops the player to `map` (`None`: the current map's
+    /// [`GameData::hole_warp`](crate::data::GameData::hole_warp), Gen3 `MAP_UNDEFINED`), onto
+    /// the cell they stand on. Never answered, as `Warp`; logged and answered at once when there
+    /// is no such map.
+    WarpHole(Option<MapId>),
 }
 
 /// Gen3 `PARTY_NOTHING_CHOSEN`: [`Request::ChoosePartyMon`]'s answer to B.
@@ -572,6 +578,8 @@ impl Request {
             Request::AddFriendship { slot, n } => (69, slot as u16, n as u8 as u16, 0, 0),
             Request::PartyMonSpecies(slot) => (70, slot as u16, 0, 0, 0),
             Request::InGameTrade { slot, trade } => (71, slot as u16, trade as u16, 0, 0),
+            // Tag 120: clear of the Milestone 9 requests' 56 and up.
+            Request::WarpHole(map) => (120, map.map_or(0xFFFF, |m| m.0), 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -845,6 +853,11 @@ impl Ctx {
 
     pub fn warp(&self, map: MapId, warp: Option<u8>, x: i16, y: i16) -> Req<()> {
         self.req(Request::Warp { map, warp, x, y }, unit)
+    }
+
+    /// Gen3 `warphole` (see [`Request::WarpHole`]).
+    pub fn warp_hole(&self, map: Option<MapId>) -> Req<()> {
+        self.req(Request::WarpHole(map), unit)
     }
 
     pub fn set_metatile(&self, x: i16, y: i16, metatile: u16, blocked: bool) -> Req<()> {

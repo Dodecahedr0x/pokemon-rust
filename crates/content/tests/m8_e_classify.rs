@@ -42,8 +42,14 @@ fn behavior_exactness() {
         ("MB_IMPASSABLE_WEST_AND_EAST", true),
         // Walls only: breaking the door is missing.
         ("MB_SECRET_BASE_BREAKABLE_DOOR", false),
-        // Slides the player.
-        ("MB_ICE", false),
+        // Forced movement (M9, forced-movement agent): exact on foot.
+        ("MB_ICE", true),
+        ("MB_WALK_EAST", true),
+        ("MB_SLIDE_NORTH", true),
+        // The Mach Bike climb and the per-step puzzles' Emerald hooks are missing.
+        ("MB_MUDDY_SLOPE", false),
+        ("MB_THIN_ICE", false),
+        ("MB_CRACKED_FLOOR", false),
         ("MB_LONG_GRASS", false),
     ] {
         assert_eq!(behavior_class(name).1, exact, "{name}");

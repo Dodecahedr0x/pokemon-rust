@@ -1222,6 +1222,56 @@ fn validation_warns_on_collision_against_behaviour() {
     assert_eq!(all.len(), 6, "{all:#?}");
 }
 
+/// Forced-movement, ice and cracked-floor metatiles (Silice Ch5 and Ch7 use them) have their
+/// codes, are walkable, trigger no warp, and a map painting them walkable validates cleanly.
+#[test]
+fn forced_movement_behaviours_validate_cleanly() {
+    let names = [
+        ("MB_WALK_EAST", 'F', "walk arrow"),
+        ("MB_SLIDE_NORTH", 'F', "slide arrow"),
+        ("MB_MUDDY_SLOPE", 'F', "muddy slope"),
+        ("MB_ICE", 'K', "ice"),
+        ("MB_THIN_ICE", 'K', "thin ice"),
+        ("MB_CRACKED_ICE", 'K', "cracked ice"),
+        ("MB_CRACKED_FLOOR", 'H', "cracked floor"),
+        ("MB_CRACKED_FLOOR_HOLE", 'H', "hole"),
+    ];
+    for (n, code, what) in names {
+        let b = super::behavior::MetatileBehavior::from_raw(mb(n) as u8);
+        assert_eq!((b.code(), b.what()), (Some(code), what), "{n}");
+        assert_eq!((b.collision(false), b.collision(true)), (Some(0), Some(0)));
+        assert!(!b.triggers_warp(), "{n}");
+    }
+    let mut c = catalog();
+    let attrs: Vec<u16> = names.iter().map(|(n, ..)| mb(n)).collect();
+    let t = Box::leak(Box::new(Tileset {
+        tiles: &[],
+        palettes: &[],
+        metatiles: Box::leak(vec![[0u16; 8]; names.len()].into_boxed_slice()),
+        attributes: Box::leak(attrs.into_boxed_slice()),
+    }));
+    c.add_tileset("P", t, false);
+    let mut e = Editor::new(
+        Doc::new(&NewMap {
+            fill: 0,
+            ..spec(names.len() as u16, 1)
+        })
+        .unwrap(),
+    );
+    for x in 0..names.len() as i32 {
+        e.apply(&Op::Paint {
+            x,
+            y: 0,
+            metatile: Some(x as u16),
+            collision: Some(0),
+            elevation: None,
+        })
+        .unwrap();
+    }
+    let issues = validate(e.doc(), &c);
+    assert!(issues.is_empty(), "{issues:#?}");
+}
+
 #[test]
 fn auto_collision_follows_usual_collisions() {
     let env = Arc::new(TestEnv {

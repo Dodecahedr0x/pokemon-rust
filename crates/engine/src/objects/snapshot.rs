@@ -1,7 +1,8 @@
 //! [`Objects`] to and from its checkpoint DTO (Milestone 5 Task B).
 
 use super::{
-    Action, ActionKind, Idle, JUMP_Y_HIGH, JUMP_Y_NORMAL, Object, Objects, RunState, anim::Anim,
+    Action, ActionKind, ForcedState, Idle, JUMP_Y_HIGH, JUMP_Y_NORMAL, Object, Objects, RunState,
+    anim::Anim,
 };
 use crate::checkpoint::{
     ActionKindSnap, ActionSnap, IdleSnap, ObjectSnap, ObjectsSnap, RunStateSnap,
@@ -55,10 +56,22 @@ impl Objects {
         );
         ObjectsSnap {
             map: self.map,
-            run_state: match self.run_state {
-                RunState::NotMoving => RunStateSnap::NotMoving,
-                RunState::TurnDirection => RunStateSnap::TurnDirection,
-                RunState::Moving => RunStateSnap::Moving,
+            run_state: match (self.run_state, self.forced) {
+                (RunState::NotMoving, ForcedState::Free) => RunStateSnap::NotMoving,
+                (RunState::TurnDirection, ForcedState::Free) => RunStateSnap::TurnDirection,
+                (RunState::Moving, ForcedState::Free) => RunStateSnap::Moving,
+                (RunState::NotMoving, ForcedState::Held) => RunStateSnap::NotMovingHeld,
+                (RunState::TurnDirection, ForcedState::Held) => RunStateSnap::TurnDirectionHeld,
+                // Unreachable (a hold lifts on `MOVING`).
+                (RunState::Moving, ForcedState::Held) => {
+                    debug_assert!(false, "forced movement held while moving");
+                    RunStateSnap::Moving
+                }
+                (RunState::NotMoving, ForcedState::Centered) => RunStateSnap::NotMovingCentered,
+                (RunState::TurnDirection, ForcedState::Centered) => {
+                    RunStateSnap::TurnDirectionCentered
+                }
+                (RunState::Moving, ForcedState::Centered) => RunStateSnap::MovingCentered,
             },
             objs: self.objs.iter().map(Object::snapshot).collect(),
         }
@@ -87,13 +100,26 @@ impl Objects {
             objs: s.objs.iter().map(Object::from_snapshot).collect(),
             map: s.map,
             run_state: match s.run_state {
-                RunStateSnap::NotMoving => RunState::NotMoving,
-                RunStateSnap::TurnDirection => RunState::TurnDirection,
-                RunStateSnap::Moving => RunState::Moving,
+                RunStateSnap::NotMoving
+                | RunStateSnap::NotMovingHeld
+                | RunStateSnap::NotMovingCentered => RunState::NotMoving,
+                RunStateSnap::TurnDirection
+                | RunStateSnap::TurnDirectionHeld
+                | RunStateSnap::TurnDirectionCentered => RunState::TurnDirection,
+                RunStateSnap::Moving | RunStateSnap::MovingCentered => RunState::Moving,
             },
             banks: [None; 16],
             emotes: alloc::vec::Vec::new(),
             approach: None,
+            forced: match s.run_state {
+                RunStateSnap::NotMoving | RunStateSnap::TurnDirection | RunStateSnap::Moving => {
+                    ForcedState::Free
+                }
+                RunStateSnap::NotMovingHeld | RunStateSnap::TurnDirectionHeld => ForcedState::Held,
+                RunStateSnap::NotMovingCentered
+                | RunStateSnap::TurnDirectionCentered
+                | RunStateSnap::MovingCentered => ForcedState::Centered,
+            },
         }
     }
 

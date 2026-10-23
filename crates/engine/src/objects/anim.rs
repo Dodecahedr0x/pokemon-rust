@@ -75,6 +75,12 @@ impl Anim {
         self.timer = 0;
     }
 
+    /// Gen3 `disableAnim` (`animPaused`): the frame shown stays until the next animation
+    /// starts. A go table whose commands never end.
+    pub(super) fn pause(&mut self) {
+        self.table = Table::Go(u8::MAX);
+    }
+
     /// Gen3 `ObjectEventTurn`: restart on the face animation.
     pub(super) fn turn(&mut self) {
         *self = Self::new();

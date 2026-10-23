@@ -16,6 +16,9 @@
 //! | `S` | water (blocked without Surf) | `MB_POND_WATER`, `MB_OCEAN_WATER`… (`*WATER*`) |
 //! | `I` | directional wall (walkable; some sides cannot be crossed) | `MB_IMPASSABLE_*` |
 //! | `B` | other blocked behaviour | `MB_*_CURRENT`… |
+//! | `F` | forced movement (walkable; pushes the player on) | `MB_WALK_*`, `MB_SLIDE_*`, `MB_MUDDY_SLOPE` |
+//! | `K` | ice (walkable; slides, or cracks under a map's ice puzzle) | `MB_ICE`, `MB_THIN_ICE`, `MB_CRACKED_ICE` |
+//! | `H` | cracked floor or hole (walkable; a hole drops to the map's hole warp) | `MB_CRACKED_FLOOR`, `MB_CRACKED_FLOOR_HOLE` |
 //!
 //! Normal metatiles (and the other behaviours the engine treats as normal) have no code.
 //!
@@ -26,7 +29,8 @@
 //!    [`MIN_AGREEMENT`] percent walkable (collision 0) gives 0, as many solid (1..=3) gives 1,
 //!    and anything less clear gives none (the metatile is used both ways, e.g. water at a
 //!    map's edge);
-//! 2. the behaviour: tall grass and water are walkable (the game steps on them); ledges and
+//! 2. the behaviour: tall grass, water, forced-movement cells (arrows, slides, muddy slopes),
+//!    ice and cracked floors and holes are walkable (the game steps on them); ledges and
 //!    counters are solid (Gen3 jumps a ledge before it checks collision, and every Emerald
 //!    ledge cell is solid); warp cells and arrow warps are walkable when a warp event is on the
 //!    cell, and have no usual collision without one; doors have none (Emerald's are walkable
@@ -90,6 +94,9 @@ impl MetatileBehavior {
             Behavior::Blocked if self.is_water() => 'S',
             Behavior::Blocked => 'B',
             Behavior::Impassable(_) => 'I',
+            Behavior::ForcedWalk(_) | Behavior::Slide(_) | Behavior::MuddySlope => 'F',
+            Behavior::Ice | Behavior::ThinIce | Behavior::CrackedIce => 'K',
+            Behavior::CrackedFloor | Behavior::CrackedFloorHole => 'H',
             Behavior::Normal => return None,
         })
     }
@@ -118,6 +125,14 @@ impl MetatileBehavior {
             Behavior::Blocked if self.is_water() => "water",
             Behavior::Blocked => "blocked",
             Behavior::Impassable(_) => "directional wall",
+            Behavior::ForcedWalk(_) => "walk arrow",
+            Behavior::Slide(_) => "slide arrow",
+            Behavior::MuddySlope => "muddy slope",
+            Behavior::Ice => "ice",
+            Behavior::ThinIce => "thin ice",
+            Behavior::CrackedIce => "cracked ice",
+            Behavior::CrackedFloor => "cracked floor",
+            Behavior::CrackedFloorHole => "hole",
             Behavior::Normal => "normal",
         }
     }
@@ -135,6 +150,15 @@ impl MetatileBehavior {
             | Behavior::Escalator(_)
             | Behavior::ArrowWarp(_) => warp.then_some(0),
             Behavior::TallGrass => Some(0),
+            // The game moves the player across them.
+            Behavior::ForcedWalk(_)
+            | Behavior::Slide(_)
+            | Behavior::MuddySlope
+            | Behavior::Ice
+            | Behavior::ThinIce
+            | Behavior::CrackedIce
+            | Behavior::CrackedFloor
+            | Behavior::CrackedFloorHole => Some(0),
             Behavior::Ledge(_) => Some(1),
             Behavior::Blocked if self.is_water() => Some(0),
             Behavior::Counter => Some(1),
@@ -145,7 +169,7 @@ impl MetatileBehavior {
 }
 
 /// The legend of the codes, one line each.
-pub const LEGEND: [(char, &str); 9] = [
+pub const LEGEND: [(char, &str); 12] = [
     (
         'D',
         "door: entering warps (needs a warp event; a decorative door is solid)",
@@ -161,6 +185,12 @@ pub const LEGEND: [(char, &str); 9] = [
     ('S', "water (needs Surf)"),
     ('I', "directional wall (walkable; some sides blocked)"),
     ('B', "blocked behaviour"),
+    ('F', "forced movement (walk or slide arrow, muddy slope)"),
+    (
+        'K',
+        "ice (slides; thin and cracked ice crack under an ice puzzle)",
+    ),
+    ('H', "cracked floor or hole (drops to the map's hole warp)"),
 ];
 
 /// The tileset owning `metatile` (by name) and its index in it.
