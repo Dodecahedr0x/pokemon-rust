@@ -125,9 +125,9 @@ const MAZE_PATH: &[(i16, i16)] = &[
     (7, 23),
     (7, 22),
 ];
-/// The maze floor (MossdeepGym 513) and the lit path: the binary tiles' green panel (612).
-const METATILE_SOL_NORMAL: u16 = 513;
-const METATILE_SOL_ALLUME: u16 = 612;
+/// The maze floor and the lit path: SilGrisEchecGym's `sol` and `sol_allume`.
+const METATILE_SOL_NORMAL: u16 = 512;
+const METATILE_SOL_ALLUME: u16 = 526;
 
 /// Gym2_S2's terminal (6, 28): on yes, the path lights up for 3 seconds (180 frames), then
 /// goes out. Reusable at will.
