@@ -787,6 +787,27 @@ impl<'a> Low<'a> {
                 };
                 out.push(format!("field_effect_arg(&ctx, {n}, {v}).await;"));
             }
+            ("createvobject", [gfx, id, x, y, elevation, d]) => {
+                let (Some(gfx), Some(id), Some(x), Some(y), Some(elevation), Some(d)) = (
+                    u16_expr(gfx, false),
+                    u8_lit(id),
+                    coord(x),
+                    coord(y),
+                    u8_lit(elevation),
+                    u8_lit(d).and_then(dir),
+                ) else {
+                    return Ok(false);
+                };
+                out.push(format!(
+                    "ctx.create_virtual_object({gfx}, {id}, ({x}, {y}), {elevation}, {d}).await;"
+                ));
+            }
+            ("turnvobject", [id, d]) => {
+                let (Some(id), Some(d)) = (u8_lit(id), u8_lit(d).and_then(dir)) else {
+                    return Ok(false);
+                };
+                out.push(format!("ctx.turn_virtual_object({id}, {d}).await;"));
+            }
             ("setmaplayoutindex", [l]) => {
                 let Some(e) = u16_expr(l, true) else {
                     return Ok(false);

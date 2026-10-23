@@ -1,6 +1,6 @@
 //! Field effects and object commands (Wave C): `FieldEffectArg`, `FieldEffect`,
 //! `WaitFieldEffect` (Gen3 `field_effect.c`'s argument array and active list),
-//! `CopyObjectPosToTemplate` and `SetMapLayout`.
+//! `CopyObjectPosToTemplate`, `SetMapLayout` and the virtual objects.
 //!
 //! Only the timing of a field effect is modelled: the content gives each effect's Gen3 length
 //! in frames, and `WaitFieldEffect` waits until it has run out. The effect's sprites are not
@@ -67,6 +67,21 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
             if let Some(pos) = s.objects.get(obj).map(|o| o.pos()) {
                 s.edit_template(obj, |t| (t.x, t.y) = pos);
             }
+            UNIT
+        }
+        Request::CreateVirtualObject {
+            gfx,
+            id,
+            x,
+            y,
+            elevation,
+            dir,
+        } => {
+            (s.objects).create_virtual(crate::data::GfxId(gfx), id, x, y, elevation, dir);
+            UNIT
+        }
+        Request::TurnVirtualObject { id, dir } => {
+            s.objects.turn_virtual(id, dir);
             UNIT
         }
         Request::SetMapLayout(layout) => {

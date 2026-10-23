@@ -15,6 +15,7 @@ use forced::ForcedState;
 mod movement;
 mod snapshot;
 mod spawn;
+mod virtual_obj;
 pub use spawn::OBJECT_EVENTS_COUNT;
 #[cfg(test)]
 mod tests;
@@ -551,7 +552,12 @@ pub struct Objects {
     /// [`ForcedState::Held`] (Gen3 `PLAYER_AVATAR_FLAG_CONTROLLABLE`) or
     /// [`ForcedState::Centered`] (Gen3 `T_TILE_CENTER` on a forced cell); see [`ForcedState`].
     forced: ForcedState,
+    // ---- Wave C ----
+    /// Virtual objects (`createvobject`; [`virtual_obj`]).
+    virtuals: Vec<virtual_obj::VirtualObject>,
 }
+
+pub use virtual_obj::{VIRTUAL_MAX, VirtualObject};
 
 impl Default for Objects {
     fn default() -> Self {
@@ -571,6 +577,7 @@ impl Objects {
             emotes: Vec::new(),
             approach: None,
             forced: ForcedState::Free,
+            virtuals: Vec::new(),
         }
     }
 

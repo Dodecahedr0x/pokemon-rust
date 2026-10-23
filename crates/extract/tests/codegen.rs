@@ -1253,6 +1253,18 @@ mod lowering {
             i("waitfieldeffect", vec![Half(25)]),
             i("copyobjectxytoperm", vec![Half(2)]),
             i("setmaplayoutindex", vec![Half(0x105)]),
+            i(
+                "createvobject",
+                vec![
+                    c("OBJ_EVENT_GFX_RIVAL_MAY_NORMAL"),
+                    Byte(3),
+                    Half(4),
+                    v("VAR_0x8004"),
+                    Byte(3),
+                    Byte(4),
+                ],
+            ),
+            i("turnvobject", vec![Byte(3), Byte(2)]),
             i("goto_if", vec![Byte(5), s("N_Tail")]),
             i("gotostd_if", vec![Byte(0), c("STD_OBTAIN_ITEM")]),
             i("call", vec![s("N_Sub")]),
@@ -1368,6 +1380,8 @@ mod lowering {
             "ctx.wait_field_effect(25).await;",
             "ctx.copy_object_pos_to_template(2).await;",
             "ctx.set_map_layout(261).await;",
+            "ctx.create_virtual_object(OBJ_EVENT_GFX_RIVAL_MAY_NORMAL, 3, (4, ctx.var(VAR_0x8004).await as i16), 3, Dir::Right).await;",
+            "ctx.turn_virtual_object(3, Dir::Up).await;",
             "if let Some((s, l)) = wild { ctx.battle_wild(s, l, false).await; }",
             "return Flow::Continue;",
         ] {

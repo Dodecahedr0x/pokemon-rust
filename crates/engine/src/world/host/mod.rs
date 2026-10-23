@@ -390,7 +390,9 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::FieldEffect { .. }
             | Request::WaitFieldEffect(_)
             | Request::CopyObjectPosToTemplate(_)
-            | Request::SetMapLayout(_) => field::begin(self, r),
+            | Request::SetMapLayout(_)
+            | Request::CreateVirtualObject { .. }
+            | Request::TurnVirtualObject { .. } => field::begin(self, r),
             Request::Report(rep) => {
                 s.log(match rep {
                     crate::script::Report::Unsupported(what)

@@ -10,7 +10,7 @@
 //   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
 // Only Unsupported commands report.
 //
-// Counts: 107 Native, 42 Ignore, 14 Default, 64 Unsupported.
+// Counts: 109 Native, 42 Ignore, 14 Default, 62 Unsupported.
 //
 // Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
 {
@@ -184,8 +184,8 @@
     "setmaplayoutindex": Native,
     "setobjectsubpriority": Ignore,                 // sprite draw order only
     "resetobjectsubpriority": Ignore,               // sprite draw order only
-    "createvobject": Unsupported,
-    "turnvobject": Unsupported,
+    "createvobject": Native,
+    "turnvobject": Native,
     "opendoor": Native,
     "closedoor": Native,
     "waitdooranim": Native,

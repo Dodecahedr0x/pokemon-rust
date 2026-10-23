@@ -206,6 +206,8 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "setfieldeffectargument",
     "copyobjectxytoperm",
     "setmaplayoutindex",
+    "createvobject",
+    "turnvobject",
 ];
 
 /// Commands after which execution never reaches the next instruction.

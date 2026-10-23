@@ -91,6 +91,26 @@ fn field_requests_hash_apart() {
         h(Request::WaitFieldEffect(1)),
         h(Request::CopyObjectPosToTemplate(1)),
         h(Request::SetMapLayout(1)),
+        h(Request::CreateVirtualObject {
+            gfx: 1,
+            id: 1,
+            x: 0,
+            y: 0,
+            elevation: 0,
+            dir: Dir::Down,
+        }),
+        h(Request::CreateVirtualObject {
+            gfx: 1,
+            id: 1,
+            x: 0,
+            y: 0,
+            elevation: 0,
+            dir: Dir::Up,
+        }),
+        h(Request::TurnVirtualObject {
+            id: 1,
+            dir: Dir::Down,
+        }),
     ];
     for (i, a) in all.iter().enumerate() {
         for b in &all[i + 1..] {
@@ -240,4 +260,44 @@ fn set_map_layout_in_on_transition_loads_the_variant_until_the_next_map() {
     w.s.vars.set_var(VAR_HOUSE, 0);
     warp_l(&mut w, TOWN);
     assert_eq!(w.s.field.layout(), None);
+}
+
+#[test]
+fn virtual_objects_are_drawn_turned_and_gone_after_a_warp() {
+    let mut w = started();
+    let objs = |f: &Frame| f.objs.len();
+    let before = objs(&run(&mut w, Buttons::NONE, 1));
+    let occupant = w.objects().at(6, 5, 3);
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.create_virtual_object(NPC_GFX.0, 7, (6, 5), 3, Dir::Left)
+                .await;
+            // A graphics id the game has no sprite for is kept but not drawn.
+            ctx.create_virtual_object(0x7F, 8, (4, 5), 3, Dir::Down)
+                .await;
+        })
+    });
+    let f = run(&mut w, Buttons::NONE, 2);
+    assert_eq!(objs(&f), before + 1);
+    let v = w.objects().virtuals();
+    assert_eq!(v.len(), 2);
+    assert_eq!((v[0].id, v[0].x, v[0].y, v[0].facing), (7, 6, 5, Dir::Left));
+    // No collision: the cell's occupant is unchanged.
+    assert_eq!(w.objects().at(6, 5, 3), occupant);
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.turn_virtual_object(7, Dir::Right).await;
+            ctx.turn_virtual_object(99, Dir::Up).await;
+        })
+    });
+    run(&mut w, Buttons::NONE, 2);
+    assert_eq!(w.objects().virtuals()[0].facing, Dir::Right);
+    // A warp load clears them (Gen3 resets the sprites).
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.warp(HOUSE, Some(0), -1, -1).await;
+        })
+    });
+    run(&mut w, Buttons::NONE, 120);
+    assert!(w.objects().virtuals().is_empty());
 }

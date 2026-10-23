@@ -422,6 +422,21 @@ pub enum Request {
     /// `layout` ([`GameData::map_layout`](crate::data::GameData::map_layout)); scripts set it in
     /// `on_transition`, before the layout loads.
     SetMapLayout(u16),
+    /// Gen3 `createvobject` (`CreateVirtualObject`): a sprite of object graphics `gfx` standing
+    /// on map cell (x, y) facing `dir`, known to scripts by `id` (not a local id).
+    CreateVirtualObject {
+        gfx: u16,
+        id: u8,
+        x: i16,
+        y: i16,
+        elevation: u8,
+        dir: Dir,
+    },
+    /// Gen3 `turnvobject` (`TurnVirtualObject`).
+    TurnVirtualObject {
+        id: u8,
+        dir: Dir,
+    },
 }
 
 /// Gen3 `PARTY_NOTHING_CHOSEN`: [`Request::ChoosePartyMon`]'s answer to B.
@@ -609,6 +624,21 @@ impl Request {
             Request::WaitFieldEffect(id) => (142, id, 0, 0, 0),
             Request::CopyObjectPosToTemplate(obj) => (143, obj as u16, 0, 0, 0),
             Request::SetMapLayout(layout) => (144, layout, 0, 0, 0),
+            Request::CreateVirtualObject {
+                gfx,
+                id,
+                x,
+                y,
+                elevation,
+                dir,
+            } => (
+                145,
+                gfx,
+                id as u16 | (elevation as u16 & 0xF) << 8 | (dir as u16) << 12,
+                i(x),
+                i(y),
+            ),
+            Request::TurnVirtualObject { id, dir } => (146, id as u16, dir as u16, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -912,6 +942,33 @@ impl Ctx {
     /// Gen3 `copyobjectxytoperm` (see [`Request::CopyObjectPosToTemplate`]).
     pub fn copy_object_pos_to_template(&self, obj: u8) -> Req<()> {
         self.req(Request::CopyObjectPosToTemplate(obj), unit)
+    }
+
+    /// Gen3 `createvobject` (see [`Request::CreateVirtualObject`]).
+    pub fn create_virtual_object(
+        &self,
+        gfx: u16,
+        id: u8,
+        (x, y): (i16, i16),
+        elevation: u8,
+        dir: Dir,
+    ) -> Req<()> {
+        self.req(
+            Request::CreateVirtualObject {
+                gfx,
+                id,
+                x,
+                y,
+                elevation,
+                dir,
+            },
+            unit,
+        )
+    }
+
+    /// Gen3 `turnvobject` (see [`Request::TurnVirtualObject`]).
+    pub fn turn_virtual_object(&self, id: u8, dir: Dir) -> Req<()> {
+        self.req(Request::TurnVirtualObject { id, dir }, unit)
     }
 
     /// Gen3 `setmaplayoutindex` (see [`Request::SetMapLayout`]).
