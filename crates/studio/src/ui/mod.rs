@@ -13,8 +13,8 @@
 //! cache), spawned once at launch. The [`Shell`] polls their statuses at about 15 Hz into
 //! signals ([`Live`]) and keeps the checkpoint tree ([`tree::TreeState`]) fresh. Store work,
 //! verifies and ROM builds run on worker threads ([`off_thread`]); the UI thread only sends
-//! commands and renders. The Explorer tab's `explore run` lives in the [`Studio`] too
-//! ([`Studio::explorer`]), and the shell polls the explorer db
+//! commands and renders. The Explorer tab's `explore spine`/`branch` process lives in the
+//! [`Studio`] too ([`Studio::explorer`]), and the shell polls the explorer db
 //! ([`explorer::use_explorer_state`]).
 
 pub mod data;
@@ -68,8 +68,9 @@ pub struct Studio {
     panes: Option<Arc<Panes>>,
     /// The tree read at start-up, or why it could not be read.
     tree: Result<TreeModel, String>,
-    /// The Explorer tab's `explore run` (M7 S2). Kept here, in the app state, so that leaving
-    /// the tab keeps the run; quitting stops it ([`on_quit`]), and so does dropping the studio.
+    /// The Explorer tab's `explore spine` or `explore branch` process. Kept here, in the app
+    /// state, so that leaving the tab keeps the run; quitting stops it ([`on_quit`]), and so
+    /// does dropping the studio.
     pub explorer: RunSlot,
     /// The Explorer tab's exports (`explore export`), stopped at quit too.
     pub exports: Children,

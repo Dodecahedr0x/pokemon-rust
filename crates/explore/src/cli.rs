@@ -1,45 +1,56 @@
-//! The `explore` command line (Task G, Wave 2): `run`, `status`, `findings`, `show`, `export`,
-//! `repro`, `revalidate`, `coverage`, `digest`, `reset`.
+//! The `explore` command line (`docs/plans/2026-10-23-explorer-spine.md` §5): `spine`,
+//! `branch`, `branches`, `status`, `findings`, `show`, `export`, `repro`, `coverage`,
+//! `digest`, `reset`.
 //!
-//! Every command takes `--db <path>` (default `target/explore/{stub|emerald}/explore.db`, after
-//! the content flavor) and `--config <path>` (a RON `Config`; default: the built-in defaults).
+//! Every command takes `--db <path>` (default `target/explore/{stub|emerald|silice}/explore.db`,
+//! after the content flavour) and `--config <path>` (a RON `Config`; default: the built-in
+//! defaults).
 
-use crate::config::{Budget, Config};
-use crate::db::{Db, DbStats, FindingRow};
+use crate::branch::{self, Action, Outcome, Target, TargetKind};
+use crate::config::Config;
+use crate::db::{BranchRow, Db, FindingRow, RunRow};
 use crate::goals::Act;
-use crate::model::NodeId;
+use crate::model::{FindingKind, SeenKind};
 use crate::path::Grid;
-use crate::wire::{self, Explore};
-use crate::{findings, goals};
+use crate::softlock::Trap;
+use crate::spine::{self, SpineRun};
+use crate::{findings, macros, path, sim, store};
 use anyhow::{Context, anyhow, bail};
 use content::Emerald;
+use engine::checkpoint::build_hash;
 use engine::data::{GameData, MapId, block_collision};
 use game_native::store::Store;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 const USAGE: &str = "\
 usage: explore <command> [--db <path>] [--config <path>]
-  run [--nodes N | --frames N | --generations N | --secs N] [--threads N] [--seed S]
-      [--cache N] [--from <checkpoint id|label>] [--act slice|act1|sil_ch0]
-      explore (default budget: --generations 10); one line per 10 generations;
-      --cache N: snapshots kept in memory (default 65536; 16384 is about 10% slower);
-      --from: a fresh db explores from that checkpoint node (the committed tree with the
-      local saves over it); an existing db keeps its own root and refuses another;
-      --act: the goal list (default act1, which begins with the slice's; a db keeps its own)
-  status                      db totals, goals, seed and build
-  findings [--all] [--bugs]   open findings (--all: stale and gone ones too; --bugs: without
-                              the report-only ones, `Unsupported`)
+  spine [--export] [--label L] [--trace]
+                              plays the flavour's spine from a new game: positions, frames,
+                              coverage; compares its checkpoints with the committed <act>:<label>
+                              nodes; --export writes them to the local checkpoint store as
+                              spine:<act>:<label> (promote with `cargo xtask checkpoints promote`);
+                              --trace: every step's end (map, cell, frame, vars and flags changed)
+  branch [--from L] [--budget F] [--jobs N] [--every N] [--min-novelty N] [--max-steps N]
+         [--limit N]
+                              plays the spine, then branches from its positions (--from: the
+                              segment of checkpoint L) toward what it never touched; each branch
+                              explores until its budget (frames) or its steps run out, then
+                              returns to the spine and plays the next steps; it is aborted
+                              instead when its novelty rate (points per 1000 frames) falls under
+                              --min-novelty past its target; --limit: at most N branches
+  branches [--outcome O]      the db's branches (O: rejoined, diverged_expected, diverged,
+                              stranded, aborted, bug, unplayable)
+  status                      db totals: the spine, the branches, novelty, findings, build
+  findings [--all] [--bugs]   open findings (--all: stale ones too; --bugs: without the
+                              report-only ones, `Unsupported`)
   show <id>                   one finding in full
   export <id> [--before N] [--out <path>]
-                              the finding as a trace (RON) from the db's root start, N frames
-                              before its end
-  export --to-store <node> [--label L]
-                              the node as a local checkpoint node (its inputs from the db's
-                              root start; default label explore:<MAP_*>:n<node>); promote it
-                              with `cargo xtask checkpoints promote <id> --label L`
-  repro <id>                  replays the finding from the db's root start; exit 0 iff it reproduces
-  revalidate                  replays every node on this build (repairs or breaks them)
-  coverage <map>              ASCII heat grid of the cells stood on (map id or name)
+                              the finding as a trace (RON) from a new game, N frames before its end
+  repro <id>                  replays the finding (a divergence: plays its branch again); exit 0
+                              iff it reproduces
+  coverage <map>              ASCII grid of the cells stood on (map id or name): `s` by the
+                              spine, `1`..`4` by branches only
   digest                      content digest of the db (determinism checks)
   reset --yes                 deletes the db";
 
@@ -59,29 +70,53 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
         Some(p) => Config::load_or_default(Path::new(&p))?,
         None => Config::default(),
     };
+    // The spine's `Expect`s are the goals of the build's act: a config naming another act
+    // (another flavour's, or the Emerald slice) would fail them.
+    if cfg.act != Act::default() {
+        let why = match Act::parse_in_build(cfg.act.name()) {
+            Err(e) => e,
+            Ok(_) => format!("the spine plays {}", Act::default().name()),
+        };
+        bail!("config act {:?}: {why}", cfg.act.name());
+    }
     match cmd.as_str() {
-        "run" => {
-            if let Some(t) = a.take_num("--threads")? {
-                cfg.threads = t as usize;
-            }
-            if let Some(n) = a.take_num("--cache")? {
-                cfg.cache_capacity = n as usize;
-            }
-            let seed = a.take_num("--seed")?;
-            if let Some(s) = seed {
-                cfg.seed = s;
-            }
-            let act = a
-                .take("--act")
-                .map(|s| Act::parse_in_build(&s).map_err(|e| anyhow!("--act: {e}")))
-                .transpose()?;
-            if let Some(act) = act {
-                cfg.act = act;
-            }
-            let from = a.take("--from");
-            let budget = budget(&mut a)?;
+        "spine" => {
+            let export = a.flag("--export");
+            let trace = a.flag("--trace");
+            let label = a.take("--label");
             a.done()?;
-            run(&db_path, cfg, Asked { seed, act, from }, budget)
+            spine_cmd(&db_path, &cfg, export, trace, label.as_deref())
+        }
+        "branch" => {
+            if let Some(n) = a.take_num("--jobs")? {
+                cfg.jobs = n as usize;
+            }
+            if let Some(n) = a.take_num("--budget")? {
+                cfg.branch.budget_frames = n as u32;
+            }
+            if let Some(n) = a.take_num("--every")? {
+                cfg.branch.every = n as u32;
+            }
+            if let Some(n) = a.take_num("--min-novelty")? {
+                cfg.branch.min_novelty = n as u32;
+            }
+            if let Some(n) = a.take_num("--max-steps")? {
+                cfg.branch.max_steps = n as u32;
+            }
+            let limit = a.take_num("--limit")?.map(|n| n as usize);
+            let from = a.take("--from");
+            a.done()?;
+            branch_cmd(&db_path, &cfg, from.as_deref(), limit)
+        }
+        "branches" => {
+            let outcome = a.take("--outcome");
+            a.done()?;
+            if let Some(o) = &outcome
+                && !Outcome::NAMES.contains(&o.as_str())
+            {
+                bail!("unknown outcome {o:?} (one of {:?})", Outcome::NAMES);
+            }
+            list_branches(&db_path, outcome.as_deref())
         }
         "status" => {
             a.done()?;
@@ -98,30 +133,9 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
             a.done()?;
             show(&db_path, id)
         }
-        "export" if a.options.iter().any(|(n, _)| n == "--to-store") => {
-            let node = a.take_num("--to-store")?.expect("present") as NodeId;
-            let label = a.take("--label");
-            a.done()?;
-            let game = Emerald::for_shells();
-            let db = Db::open_read_only(&db_path)?;
-            let root = wire::db_root(&game, &db)?;
-            let store = match &root {
-                Some(root) => root.store()?,
-                None => default_store()?,
-            };
-            let id =
-                wire::export_to_store(&game, &db, root.as_ref(), node, &store, label.as_deref())?;
-            let n = store.find(&id.to_string())?;
-            println!(
-                "node {node} -> {id} {:?} in {}",
-                n.meta.label,
-                store.root().display()
-            );
-            Ok(())
-        }
         "export" => {
             let id = a.id()?;
-            let before = a.take_num("--before")?.unwrap_or(0) as u32;
+            let before = a.take_num("--before")?.unwrap_or(0);
             let out = a.take("--out").map(PathBuf::from);
             a.done()?;
             export(&db_path, id, before, out)
@@ -130,7 +144,7 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
             let id = a.id()?;
             a.done()?;
             let db = Db::open_read_only(&db_path)?;
-            match wire::reproduce(&Emerald::for_shells(), &db, id, &cfg)? {
+            match reproduce(&Emerald::for_shells(), &db, id, &cfg)? {
                 Ok(()) => {
                     println!("finding {id} reproduces");
                     Ok(())
@@ -139,25 +153,6 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
                     "finding {id} does not reproduce: {why}"
                 )))?,
             }
-        }
-        "revalidate" => {
-            a.done()?;
-            let t = std::time::Instant::now();
-            let mut ex = Explore::open(Emerald::for_shells(), &db_path, cfg)?;
-            // A build change (or an interrupted revalidation) is revalidated by `open` already.
-            let r = match ex.revalidated {
-                Some(r) => r,
-                None => ex.revalidate()?,
-            };
-            println!(
-                "revalidated in {:.1} s: {} valid, {} repaired, {} broken, {} kept without a replay",
-                t.elapsed().as_secs_f64(),
-                r.valid,
-                r.repaired,
-                r.broken,
-                r.kept
-            );
-            Ok(())
         }
         "coverage" => {
             let map = a
@@ -230,12 +225,17 @@ pub fn exit_code(args: &[String], r: &anyhow::Result<()>) -> i32 {
 }
 
 /// Proves `path` is an explore db no one is writing: it opens read-only (schema checked), then
-/// takes the write lock (`BEGIN IMMEDIATE`, no busy wait) and releases it.
+/// takes the write lock (`BEGIN IMMEDIATE`, no busy wait) and releases it. A db of an older
+/// schema is deleted too (the reset hint of `DbError::Schema` sends here).
 fn lock_for_reset(path: &Path) -> anyhow::Result<()> {
-    drop(
-        Db::open_read_only(path)
-            .with_context(|| format!("{} is not an explore db", path.display()))?,
-    );
+    match Db::open_read_only(path) {
+        Ok(db) => drop(db),
+        Err(crate::db::DbError::Schema { .. } | crate::db::DbError::KeyVersion { .. }) => {}
+        Err(e) => {
+            return Err(anyhow!(e))
+                .with_context(|| format!("{} is not an explore db", path.display()));
+        }
+    }
     let conn =
         rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)?;
     conn.busy_timeout(std::time::Duration::ZERO)?;
@@ -258,7 +258,8 @@ struct Args {
 
 impl Args {
     fn parse(args: Vec<String>) -> anyhow::Result<Args> {
-        const SWITCHES: [&str; 3] = ["--all", "--bugs", "--yes"];
+        const SWITCHES: [&str; 5] = ["--all", "--bugs", "--yes", "--export", "--trace"];
+        const HELP: [&str; 2] = ["--help", "-h"];
         let mut a = Args {
             positional: Vec::new(),
             options: Vec::new(),
@@ -267,6 +268,8 @@ impl Args {
         while let Some(s) = it.next() {
             if SWITCHES.contains(&s.as_str()) {
                 a.options.push((s, None));
+            } else if HELP.contains(&s.as_str()) {
+                a.positional.push(s);
             } else if s.starts_with("--") {
                 let v = it.next().ok_or_else(|| anyhow!("{s} needs a value"))?;
                 a.options.push((s, Some(v)));
@@ -296,7 +299,7 @@ impl Args {
         had
     }
 
-    /// The finding id after the command.
+    /// The id after the command.
     fn id(&mut self) -> anyhow::Result<i64> {
         let v = self
             .positional
@@ -327,41 +330,6 @@ fn parse_u64(s: &str) -> Option<u64> {
     }
 }
 
-fn budget(a: &mut Args) -> anyhow::Result<Budget> {
-    let mut b = None;
-    for (name, make) in [
-        ("--nodes", Budget::Nodes as fn(u64) -> Budget),
-        ("--frames", Budget::Frames),
-        ("--generations", |n| Budget::Generations(n as u32)),
-        ("--secs", Budget::Secs),
-    ] {
-        if let Some(n) = a.take_num(name)? {
-            if b.is_some() {
-                bail!("give one budget (--nodes, --frames, --generations or --secs)");
-            }
-            b = Some(make(n));
-        }
-    }
-    Ok(b.unwrap_or(Budget::Generations(10)))
-}
-
-/// "goal i/n (name)" of a progress on `act`'s list.
-fn goal_text(act: Act, progress: u32) -> String {
-    let n = goals::goals_of(act).len();
-    match progress.checked_sub(1).and_then(|i| goals::name_of(act, i)) {
-        Some(name) => format!("{progress}/{n} ({name})"),
-        None => format!("0/{n}"),
-    }
-}
-
-/// The db's act (`meta.act`; a db without one is the default act).
-fn db_act(db: &Db) -> anyhow::Result<Act> {
-    match db.meta("act")? {
-        Some(a) => Act::parse(&a).ok_or_else(|| anyhow!("meta act = {a:?}")),
-        None => Ok(Act::default()),
-    }
-}
-
 /// The committed checkpoint tree with the local saves over it (`play`'s store).
 fn default_store() -> anyhow::Result<Store> {
     Ok(Store::layered(
@@ -370,123 +338,332 @@ fn default_store() -> anyhow::Result<Store> {
     )?)
 }
 
-/// What `run` was asked for, beyond the config.
-struct Asked {
-    seed: Option<u64>,
-    act: Option<Act>,
-    from: Option<String>,
+fn now_text() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    format!("unix {secs}")
 }
 
-fn run(db_path: &Path, cfg: Config, asked: Asked, budget: Budget) -> anyhow::Result<()> {
-    let game = Emerald::for_shells();
-    let mut ex = match &asked.from {
-        Some(from) => Explore::open_from(game, db_path, cfg, &default_store()?, from)?,
-        None => Explore::open(game, db_path, cfg)?,
-    };
-    if let Some(s) = asked.seed
-        && s != ex.cfg.seed
-    {
-        println!(
-            "note: the db explores with seed {:#x} (its own), not {s:#x}",
-            ex.cfg.seed
-        );
+fn open_db(path: &Path, game: &Emerald, cfg: &Config) -> anyhow::Result<Db> {
+    let (mut db, state) = Db::open(path, build_hash(game), content::FLAVOR)?;
+    if state.build_changed {
+        println!("note: the db was made on another build: the spine replaces its own");
     }
-    if let Some(a) = asked.act
-        && a != ex.cfg.act
-    {
-        println!(
-            "note: the db explores act {} (its own), not {}",
-            ex.cfg.act.name(),
-            a.name()
-        );
-    }
-    let act = ex.cfg.act;
-    if ex.config_changed {
-        println!("note: the config differs from the last run's (see the db's run table)");
-    }
-    if let Some(r) = ex.revalidated {
-        println!(
-            "revalidated: {} valid, {} repaired, {} broken, {} kept without a replay",
-            r.valid, r.repaired, r.broken, r.kept
-        );
-    }
+    db.set_meta("act", cfg.act.name())?;
+    Ok(db)
+}
+
+/// Plays the spine and stores it; prints it.
+fn play_spine(db: &mut Db, game: &Emerald, cfg: &Config) -> anyhow::Result<SpineRun> {
+    let t = Instant::now();
+    let s = spine::run(game, spine::steps(), cfg);
+    let wall = t.elapsed();
+    let run = db.record_run(&RunRow {
+        started: now_text(),
+        command: "spine".into(),
+        config: cfg.to_ron(),
+        threads: 1,
+        branches: 0,
+        frames: s.frames,
+        wall_ms: wall.as_millis() as u64,
+    })?;
+    db.put_spine(&s, wall.as_millis() as u64, run)?;
     println!(
-        "exploring {} ({} threads, seed {:#x}, act {}, from {}, {budget:?})",
-        db_path.display(),
-        ex.threads(),
-        ex.cfg.seed,
-        act.name(),
-        ex.root
-            .as_ref()
-            .map_or("a new game".into(), |r| format!("{} {:?}", r.id, r.label)),
+        "spine ({} {}): {} of {} steps, {} frames in {:.1} s ({:.0} frames/s); {} maps, {} \
+         cells, {} scripts, {} spine flags",
+        content::FLAVOR.name(),
+        cfg.act.name(),
+        s.positions.len().saturating_sub(1),
+        s.steps.len(),
+        s.frames,
+        wall.as_secs_f64(),
+        s.frames as f64 / wall.as_secs_f64().max(1e-9),
+        s.coverage.maps.len(),
+        s.coverage.cells.len(),
+        s.coverage.scripts.len(),
+        s.spine_flags.len(),
     );
-    // `gens` counts the db's generations (1-based); inserted/s and frames/s are this run's
-    // (frames include the softlock probes').
-    // Findings are the bugs; the report-only ones (`Unsupported`) are counted apart.
-    let line = |s: &DbStats, reports: u64, sum: &wire::RunSummary| {
-        let secs = sum.wall.as_secs_f64().max(1e-9);
+    for p in s.positions.iter().filter(|p| p.label.is_some()) {
+        let (x, y) = p.pos();
         println!(
-            "gens {:>5}  valid nodes {:>7}  inserted/s {:>7.1}  frames/s {:>9.0}  goals {}  maps {}  \
-             cells {}  findings {}  reports {reports}",
-            s.generation + 1,
-            s.valid,
-            sum.nodes as f64 / secs,
-            sum.frames as f64 / secs,
-            goal_text(act, s.max_progress),
-            s.maps,
-            s.cells,
-            s.findings - reports
+            "  {:<20} step {:>3}  frame {:>7}  map {:#06x} ({x},{y})",
+            p.label.unwrap_or_default(),
+            p.index,
+            p.frame,
+            p.map().0
         );
+    }
+    if !s.reports.is_empty() {
+        println!("  {} report-only findings (Unsupported)", s.reports.len());
+    }
+    if let Some(e) = &s.error {
+        println!("spine stopped at step {}: {}", e.step, e.message);
+        dump(game, &s, e.step, cfg);
+    }
+    Ok(s)
+}
+
+/// Every position: the step, where it ended, and what it changed.
+/// Emerald's decomp names (`extract::names`); hex ids on other flavours (Silice's ids name
+/// other things).
+fn var_label(v: u16) -> String {
+    match content::FLAVOR {
+        content::Flavor::Silice => format!("var {v:#06x}"),
+        _ => extract::names::var_name(v),
+    }
+}
+
+fn flag_label(f: u16) -> String {
+    match content::FLAVOR {
+        content::Flavor::Silice => format!("flag {f:#06x}"),
+        _ => extract::names::flag_name(f),
+    }
+}
+
+fn print_trace(s: &SpineRun) {
+    for w in s.positions.windows(2) {
+        let (a, b) = (&w[0].end.world, &w[1].end.world);
+        let step = &s.steps[w[1].index - 1];
+        let mut changes = Vec::new();
+        for (v, x) in &b.vars.vars {
+            let old = a.vars.vars.iter().find(|(u, _)| u == v).map_or(0, |p| p.1);
+            if old != *x {
+                changes.push(format!("{}={x}", var_label(v.0)));
+            }
+        }
+        for (v, _) in &a.vars.vars {
+            if !b.vars.vars.iter().any(|(u, _)| u == v) {
+                changes.push(format!("{}=0", var_label(v.0)));
+            }
+        }
+        for f in &b.vars.flags {
+            if a.vars.flags.binary_search(f).is_err() {
+                changes.push(format!("+{}", flag_label(f.0)));
+            }
+        }
+        for f in &a.vars.flags {
+            if b.vars.flags.binary_search(f).is_err() {
+                changes.push(format!("-{}", flag_label(f.0)));
+            }
+        }
+        let p = &w[1];
+        let party: Vec<String> = b
+            .party
+            .iter()
+            .map(|m| format!("L{} {}hp", m.level, m.hp))
+            .collect();
+        println!(
+            "  {:>3} {:>7} {:#06x} {:?} {:?} [{}]  {step:?}  {}",
+            p.index,
+            p.frame,
+            p.map().0,
+            p.pos(),
+            p.facing(),
+            party.join(", "),
+            changes.join(" ")
+        );
+    }
+}
+
+/// What a failed spine step's author needs: the last position and its candidates.
+fn dump(game: &Emerald, s: &SpineRun, step: usize, cfg: &Config) {
+    let Some(p) = s.positions.last() else {
+        return;
     };
-    // Goals first reached in this run, with the generation and the run's wall time.
-    let mut best = ex.stats()?.max_progress;
-    let sum = ex.run(budget, |p| {
-        // Every goal passed this generation, in order (a lineage can pass several at once).
-        while best < p.last.max_progress {
-            best += 1;
+    let w = &p.end.world;
+    println!(
+        "  last position {} (after step {}): map {:#06x} {:?} facing {:?}, frame {}",
+        p.index,
+        p.index as i64 - 1,
+        p.map().0,
+        p.pos(),
+        p.facing(),
+        p.frame
+    );
+    if let Ok(sess) = game_native::Session::restore(*game, &p.end) {
+        let w = sess.world();
+        println!(
+            "  script running {}, in battle {}, transition {}, capturable {:?}",
+            w.script_running(),
+            w.in_battle(),
+            w.transition_active(),
+            w.capturable().err()
+        );
+    }
+    let played: Vec<_> = s.played.iter().filter(|(i, _)| *i + 3 >= step).collect();
+    for m in played {
+        println!("  played: {m:?}");
+    }
+    let reach = path::reach(game, w);
+    for m in macros::candidates_with(game, w, &reach, cfg.key.cell_shift) {
+        println!("  candidate {:?}", m.kind);
+    }
+}
+
+fn spine_cmd(
+    db_path: &Path,
+    cfg: &Config,
+    export: bool,
+    trace: bool,
+    label: Option<&str>,
+) -> anyhow::Result<()> {
+    let game = Emerald::for_shells();
+    let mut db = open_db(db_path, &game, cfg)?;
+    let s = play_spine(&mut db, &game, cfg)?;
+    if trace {
+        print_trace(&s);
+    }
+    let store = default_store()?;
+    for c in store::compare(&s, cfg.act, &store)? {
+        println!(
+            "  {} {} {}: {}",
+            if c.equal {
+                "same progress as"
+            } else {
+                "DIFFERS from"
+            },
+            c.node,
+            c.label,
+            c.detail
+        );
+    }
+    if export {
+        for (name, id, new) in store::export(&game, &s, cfg.act, &store, label)? {
             println!(
-                "goal {} first reached in generation {} at {:.1} s",
-                goal_text(act, best),
-                p.last.generation + 1,
-                p.summary.wall.as_secs_f64()
+                "  {} {name} {id} in {}",
+                if new { "exported" } else { "kept" },
+                store.root().display()
             );
         }
-        if p.summary.generations.is_multiple_of(10)
-            && let Ok(s) = p.db.stats()
-            && let Ok(reports) = p.db.report_count()
-        {
-            line(&s, reports, p.summary);
-        }
-    })?;
-    if !sum.generations.is_multiple_of(10) {
-        line(&ex.stats()?, ex.db.report_count()?, &sum);
     }
+    if let Some(e) = &s.error {
+        bail!("the spine stopped at step {}: {}", e.step, e.message);
+    }
+    Ok(())
+}
+
+fn branch_cmd(
+    db_path: &Path,
+    cfg: &Config,
+    from: Option<&str>,
+    limit: Option<usize>,
+) -> anyhow::Result<()> {
+    let game = Emerald::for_shells();
+    let mut db = open_db(db_path, &game, cfg)?;
+    let s = play_spine(&mut db, &game, cfg)?;
+    if let Some(f) = from
+        && s.labelled(f).is_none()
+    {
+        bail!(
+            "the spine has no checkpoint {f:?} (it has {:?})",
+            s.labels()
+        );
+    }
+    let origins = branch::origins(&s, &cfg.branch, from);
+    let t = Instant::now();
+    let mut targets = branch::all_targets(&game, &s, &origins, cfg);
+    if let Some(n) = limit {
+        targets.truncate(n);
+    }
+    let plan = t.elapsed();
     println!(
-        "{} generations, {} nodes inserted, {} frames ({} in {} softlock probes) in {:.1} s; {} \
-         findings raised ({} report-only), {} slow frames, {} notes{}",
-        sum.generations,
-        sum.nodes,
-        sum.frames,
-        sum.probe_frames,
-        sum.probes,
-        sum.wall.as_secs_f64(),
-        sum.findings,
-        sum.reports,
-        sum.slow_frames,
-        sum.notes,
-        if sum.stalled { " (stalled)" } else { "" }
+        "{} branches from {} origins (targets in {:.1} s), {} jobs, budget {} frames",
+        targets.len(),
+        origins.len(),
+        plan.as_secs_f64(),
+        crate::workers::threads_or_default(cfg.jobs),
+        cfg.branch.budget_frames
     );
-    let ph = sum.phases;
+    let seen_before = db.stats()?.seen.values().sum::<u64>();
+    let t = Instant::now();
+    let results = branch::run_all(&game, &s, &targets, cfg);
+    let wall = t.elapsed();
+    let frames: u64 = results.iter().map(|r| r.frames()).sum();
+    let run = db.record_run(&RunRow {
+        started: now_text(),
+        command: "branch".into(),
+        config: cfg.to_ron(),
+        threads: crate::workers::threads_or_default(cfg.jobs) as u32,
+        branches: results.len() as u64,
+        frames,
+        wall_ms: wall.as_millis() as u64,
+    })?;
+    db.put_branches(&s, &results, run)?;
+    let stats = db.stats()?;
+    let novel = stats.seen.values().sum::<u64>() - seen_before;
+    let mins = wall.as_secs_f64() / 60.0;
     println!(
-        "host time: plan + reach {:.1} s, jobs {:.1} s, merge {:.1} s, db {:.1} s; cache hits {}, \
-         misses {}",
-        ph.plan.as_secs_f64(),
-        ph.jobs.as_secs_f64(),
-        ph.merge.as_secs_f64(),
-        ph.apply.as_secs_f64(),
-        ex.cache.hit_stats().0,
-        ex.cache.hit_stats().1,
+        "{} branches, {frames} frames in {:.1} s ({:.0} frames/s): {novel} new things ({:.1} per \
+         minute)",
+        results.len(),
+        wall.as_secs_f64(),
+        frames as f64 / wall.as_secs_f64().max(1e-9),
+        novel as f64 / mins.max(1e-9),
     );
+    for name in Outcome::NAMES {
+        let n = results.iter().filter(|r| r.outcome.name() == name).count();
+        if n > 0 {
+            println!("  {name:<18} {n}");
+        }
+    }
+    let bugs: Vec<_> = results.iter().flat_map(|r| &r.findings).collect();
+    println!(
+        "  findings {} ({} divergences), reports {}",
+        bugs.len(),
+        bugs.iter()
+            .filter(|f| f.kind == FindingKind::Divergence)
+            .count(),
+        results.iter().map(|r| r.reports.len()).sum::<usize>()
+    );
+    let names = [
+        (SeenKind::Map, "maps"),
+        (SeenKind::Script, "scripts"),
+        (SeenKind::Flag, "flags"),
+        (SeenKind::VarValue, "var values"),
+        (SeenKind::Cell, "cells"),
+    ];
+    let parts: Vec<String> = names
+        .iter()
+        .map(|(k, n)| format!("{} {n}", stats.seen.get(&(*k as i64)).copied().unwrap_or(0)))
+        .collect();
+    println!("  beyond the spine (db): {}", parts.join(", "));
+    Ok(())
+}
+
+fn branch_line(b: &BranchRow) -> String {
+    format!(
+        "{:>5}  pos {:>3}  {:<6} {:<18} {:>6}+{:>5}+{:>5} f  +{}m +{}s +{}f +{}v +{}c  {}  {}",
+        b.id,
+        b.origin,
+        b.kind,
+        b.outcome,
+        b.explore_frames,
+        b.recover_frames,
+        b.window_frames,
+        b.new_maps,
+        b.new_scripts,
+        b.new_flags,
+        b.new_vars,
+        b.new_cells,
+        b.action,
+        b.message
+    )
+}
+
+fn list_branches(db_path: &Path, outcome: Option<&str>) -> anyhow::Result<()> {
+    let db = Db::open_read_only(db_path)?;
+    let bs: Vec<BranchRow> = db
+        .branches()?
+        .into_iter()
+        .filter(|b| outcome.is_none_or(|o| b.outcome == o))
+        .collect();
+    if bs.is_empty() {
+        println!("no branches");
+    }
+    for b in &bs {
+        println!("{}", branch_line(b));
+    }
     Ok(())
 }
 
@@ -494,48 +671,46 @@ fn status(db_path: &Path) -> anyhow::Result<()> {
     let db = Db::open_read_only(db_path)?;
     let s = db.stats()?;
     println!("db        {}", db_path.display());
-    println!(
-        "nodes     {} ({} valid, {} stale, {} merged, {} broken)",
-        s.nodes, s.valid, s.stale, s.merged, s.broken
-    );
-    // `meta.generation` is the last applied one (0-based); count them like `run` does.
-    let generations = match db.meta("generation")? {
-        Some(_) => s.generation + 1,
-        None => 0,
-    };
-    println!("generations {generations}");
-    let act = db_act(&db)?;
-    println!(
-        "goals     {} (act {})",
-        goal_text(act, s.max_progress),
-        act.name()
-    );
-    if let Some(root) = db.meta("root")? {
-        println!("from      {root}");
+    println!("act       {}", db.meta("act")?.unwrap_or_default());
+    match db.spine()? {
+        None => println!("spine     not played (`explore spine`)"),
+        Some(sp) => println!(
+            "spine     {} of {} steps, {} frames, {:.1} s{}",
+            sp.done,
+            sp.steps,
+            sp.frames,
+            sp.wall_ms as f64 / 1000.0,
+            sp.error
+                .map_or(String::new(), |e| format!(" (stopped: {e})"))
+        ),
     }
-    let names = content::data::SCRIPT_NAMES.len();
-    // The stub has no named scripts: no share to give.
-    let scripts = if names == 0 {
-        format!("{}", s.scripts)
-    } else {
-        format!(
-            "{} of {names} ({:.1}%)",
-            s.scripts,
-            100.0 * f64::from(s.scripts) / names as f64
-        )
-    };
+    let labels: Vec<String> = db
+        .positions()?
+        .into_iter()
+        .filter_map(|p| p.label.map(|l| format!("{l}@{}", p.idx)))
+        .collect();
+    println!("checkpoints {}", labels.join(" "));
+    let outcomes: Vec<String> = s
+        .outcomes
+        .iter()
+        .filter(|(_, n)| **n > 0)
+        .map(|(o, n)| format!("{o} {n}"))
+        .collect();
+    println!("branches  {} ({})", s.branches, outcomes.join(", "));
+    let seen: Vec<String> = s.seen.iter().map(|(k, n)| format!("{k}:{n}")).collect();
+    println!(
+        "novelty   {} ({})",
+        s.seen.values().sum::<u64>(),
+        seen.join(" ")
+    );
     let reports = db.report_count()?;
     println!(
-        "maps {}  cells {}  scripts {scripts}  findings {}  reports {reports}",
-        s.maps,
+        "cells {} ({} by the spine)  findings {}  reports {reports}",
         s.cells,
+        s.spine_cells,
         s.findings - reports
     );
-    println!(
-        "seed {}  build {:?}",
-        db.meta("seed")?.unwrap_or_default(),
-        db.build()
-    );
+    println!("build {:?}", db.build());
     Ok(())
 }
 
@@ -575,22 +750,23 @@ fn show(db_path: &Path, id: i64) -> anyhow::Result<()> {
     let db = Db::open_read_only(db_path)?;
     let f = db.finding(id)?.ok_or_else(|| anyhow!("no finding {id}"))?;
     println!("{}", finding_line(&f));
-    println!(
-        "node      {}",
-        f.node
-            .map_or("the root start".into(), |n: NodeId| n.to_string())
-    );
+    match f.branch.and_then(|b| db.branch(b).ok().flatten()) {
+        Some(b) => println!("branch    {}", branch_line(&b)),
+        None => println!("branch    - (the spine)"),
+    }
     println!("macro     {:?}", f.macro_);
     println!("location  {}", f.location.as_deref().unwrap_or("-"));
     println!("script    {:?}", f.script.map(|s| s.0));
     println!(
-        "frame     {} (tail {} frames)",
+        "frame     {} (tail {} frames from {})",
         f.total_frame,
-        crate::runs::frames(&f.tail)
+        f.tail_frames,
+        f.origin
+            .map_or("a new game".into(), |o| format!("spine position {o}"))
     );
     println!(
-        "build     {:?}  generations {}..{}",
-        f.build, f.first_generation, f.last_generation
+        "build     {:?}  runs {}..{}",
+        f.build, f.first_run, f.last_run
     );
     if !f.log.is_empty() {
         println!("log:");
@@ -602,9 +778,14 @@ fn show(db_path: &Path, id: i64) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn export(db_path: &Path, id: i64, before: u32, out: Option<PathBuf>) -> anyhow::Result<()> {
+fn export(db_path: &Path, id: i64, before: u64, out: Option<PathBuf>) -> anyhow::Result<()> {
     let db = Db::open_read_only(db_path)?;
-    let (_, trace) = wire::finding_trace(&Emerald::for_shells(), &db, id, before)?;
+    let f = db.finding(id)?.ok_or_else(|| anyhow!("no finding {id}"))?;
+    let total = u64::from(crate::runs::frames(&f.inputs));
+    let inputs = crate::runs::split_at(&f.inputs, total.saturating_sub(before)).0;
+    let trace = match findings::repro_trace(&Emerald::for_shells(), &[], &inputs) {
+        Ok(t) | Err((t, _)) => t,
+    };
     let out = out.unwrap_or_else(|| {
         // Always under `target/` (never next to a `--db` elsewhere).
         let default = Db::default_path(content::FLAVOR);
@@ -625,6 +806,91 @@ fn export(db_path: &Path, id: i64, before: u32, out: Option<PathBuf>) -> anyhow:
     Ok(())
 }
 
+/// Whether finding `id` reproduces on `game`: `Ok(Ok(()))` when it does, `Ok(Err(why))` when
+/// it does not, `Err` when it cannot be tried.
+///
+/// - A divergence: the spine again, then its branch again (same origin and action), which
+///   must raise a divergence of the same signature.
+/// - A softlock: the probe again from the inputs' end state, trapped on the same map and place.
+/// - Any other: `findings::reproduce` on the inputs from a new game.
+pub fn reproduce<G: GameData + Clone + Send + Sync + 'static>(
+    game: &G,
+    db: &Db,
+    id: i64,
+    cfg: &Config,
+) -> anyhow::Result<Result<(), String>> {
+    let f = db.finding(id)?.ok_or_else(|| anyhow!("no finding {id}"))?;
+    let want = f.draft();
+    match f.kind {
+        FindingKind::Divergence => {
+            let b = f
+                .branch
+                .and_then(|b| db.branch(b).ok().flatten())
+                .ok_or_else(|| anyhow!("finding {id} has no branch row"))?;
+            let action = Action::from_text(&b.action)
+                .ok_or_else(|| anyhow!("branch {}: bad action {:?}", b.id, b.action))?;
+            let kind = TargetKind::parse(&b.kind)
+                .ok_or_else(|| anyhow!("branch {}: bad kind {:?}", b.id, b.kind))?;
+            let s = spine::run(game, spine::steps(), cfg);
+            if s.positions.len() <= b.origin as usize {
+                return Ok(Err(format!(
+                    "the spine no longer reaches position {}",
+                    b.origin
+                )));
+            }
+            let t = Target {
+                origin: b.origin as usize,
+                action,
+                kind,
+            };
+            let r = branch::run(game, &s, &t, cfg);
+            let sig = findings::signature(&want);
+            Ok(
+                if r.findings.iter().any(|g| findings::signature(g) == sig) {
+                    Ok(())
+                } else {
+                    Err(format!(
+                        "the branch now ends {}: {}",
+                        r.outcome.name(),
+                        r.message
+                    ))
+                },
+            )
+        }
+        FindingKind::Softlock => {
+            let trace = match findings::repro_trace(game, &[], &f.inputs) {
+                Ok(t) => t,
+                Err((_, at)) => return Ok(Err(format!("a panic at frame {at}"))),
+            };
+            let end = match findings::end_state(game, &trace) {
+                Ok(end) => end,
+                Err(e) => return Ok(Err(e)),
+            };
+            let map = end.world.field.map;
+            let k = sim::softlock_k(cfg, map);
+            let probed = sim::trap(game, &end, k, cfg.detect.softlock_breadth, cfg);
+            Ok(match probed.trap {
+                Trap::Trapped { .. }
+                    if findings::softlock_signature(map, probed.place) == f.signature =>
+                {
+                    Ok(())
+                }
+                Trap::Trapped { .. } => Err(format!(
+                    "trapped again, but elsewhere (place {}, map {:#06x})",
+                    probed.place, map.0
+                )),
+                t => Err(format!("not trapped any more: {t:?}")),
+            })
+        }
+        _ => {
+            let trace = match findings::repro_trace(game, &[], &f.inputs) {
+                Ok(t) | Err((t, _)) => t,
+            };
+            Ok(findings::reproduce(game, &trace, &want, &cfg.detect))
+        }
+    }
+}
+
 /// The map named `s`: an id (decimal or `0x`) or a map name (`MapData::name`).
 fn parse_map<G: GameData>(game: &G, s: &str) -> anyhow::Result<MapId> {
     if let Some(n) = parse_u64(s) {
@@ -641,8 +907,8 @@ fn parse_map<G: GameData>(game: &G, s: &str) -> anyhow::Result<MapId> {
         .ok_or_else(|| anyhow!("no map named {s:?}"))
 }
 
-/// One character per cell: `#` blocked, `.` open and never stood on, then `1`..`4` for
-/// 1, 2-9, 10-99 and 100+ hits.
+/// One character per cell: `#` blocked, `.` open and never stood on, `s` stood on by the
+/// spine, then `1`..`4` for 1, 2-9, 10-99 and 100+ branches.
 fn coverage(db_path: &Path, map: &str) -> anyhow::Result<()> {
     let game = Emerald::for_shells();
     let id = parse_map(&game, map)?;
@@ -650,9 +916,12 @@ fn coverage(db_path: &Path, map: &str) -> anyhow::Result<()> {
     let m = game.map(id);
     let (w, h) = (usize::from(m.width), usize::from(m.height));
     let mut hits = vec![0u32; w * h];
-    for (_, x, y, n) in db.coverage(Some(id))? {
+    let mut spine = vec![false; w * h];
+    for (_, x, y, s, n) in db.coverage(Some(id))? {
         if (0..w as i16).contains(&x) && (0..h as i16).contains(&y) {
-            hits[y as usize * w + x as usize] = n;
+            let i = y as usize * w + x as usize;
+            hits[i] = n;
+            spine[i] = s;
         }
     }
     let (mut open, mut seen) = (0, 0);
@@ -665,8 +934,11 @@ fn coverage(db_path: &Path, map: &str) -> anyhow::Result<()> {
                 if !blocked {
                     open += 1;
                 }
-                if hits[i] > 0 {
+                if hits[i] > 0 || spine[i] {
                     seen += 1;
+                }
+                if spine[i] {
+                    return 's';
                 }
                 match findings::heat_bucket(hits[i]) {
                     0 if blocked => '#',
@@ -677,12 +949,12 @@ fn coverage(db_path: &Path, map: &str) -> anyhow::Result<()> {
             .collect();
         println!("{row}");
     }
-    // Reachable: the planner's walkable cells (terrain only: no objects, no overrides) a walk
-    // from a cell stood on can reach.
+    // Reachable: the planner's walkable cells (terrain only) a walk from a cell stood on can
+    // reach.
     let grid = Grid::new(&game, id, &[], Vec::new());
     let mut reachable = vec![false; w * h];
     for i in 0..w * h {
-        if hits[i] == 0 || reachable[i] {
+        if (hits[i] == 0 && !spine[i]) || reachable[i] {
             continue;
         }
         let from = ((i % w) as i16, (i / w) as i16);
@@ -691,7 +963,9 @@ fn coverage(db_path: &Path, map: &str) -> anyhow::Result<()> {
         }
     }
     let reach = reachable.iter().filter(|r| **r).count();
-    let on = (0..w * h).filter(|&i| reachable[i] && hits[i] > 0).count();
+    let on = (0..w * h)
+        .filter(|&i| reachable[i] && (hits[i] > 0 || spine[i]))
+        .count();
     println!(
         "{seen} cells stood on, {open} without collision; {on} of the {reach} cells reachable \
          from them ({:.1}%)",

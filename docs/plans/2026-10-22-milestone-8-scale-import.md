@@ -698,6 +698,7 @@ D1 is tested on **hand-written IR** only; it does not touch the content build, s
 5. **Route delta:** route-changing (the clock fade after `StartWallClock` in Brendan's house, and any slice special that becomes `Native`); stated in the report, refreshed on master per the rules.
 
 ### Task K — explorer at scale (headless)
+> **Superseded (2026-10-23):** the evolutionary search below (generations, selection, the node tree, revalidation) is replaced by the spine-and-branch explorer (`2026-10-23-explorer-spine.md`): one authored main path per flavour, and branches off it that recover to it. The play half (macros, planner, policy, detectors, softlock probe, findings, repro) stays.
 
 **Owns:** `crates/explore/**`, `xtask/src/checkpoints.rs` (`promote` only).
 
@@ -876,6 +877,7 @@ Route-changing (it is the first of the ordered merges): the slice's scripts now 
 6. **Contingency (only if `hash_lines_max` exceeds 65 on an Act 1 lane):** battle sub-digests maintained on write (M5 finding 1b), so the battle state hashes in O(1) as `Vars` does. It changes hash bytes, so it follows the route-changing merge rule (no tree refresh on the branch; a `chore(checkpoints)` on master).
 
 ### Task N — explorer on the full import: incremental revalidation and Act 1 tuning
+> **Superseded (2026-10-23):** the evolutionary search below (generations, selection, the node tree, revalidation) is replaced by the spine-and-branch explorer (`2026-10-23-explorer-spine.md`): one authored main path per flavour, and branches off it that recover to it. The play half (macros, planner, policy, detectors, softlock probe, findings, repro) stays.
 
 **Owns:** `crates/explore/**`.
 
@@ -910,6 +912,7 @@ Items sub-tab, water/fishing encounter views, trainer lists and new overlays (dy
 ## Wave 3 — Act 1 route, parity, close-out
 
 ### Task P — Act 1 end to end
+> **Since the spine rework (2026-10-23):** the Emerald spine (`crates/explore/src/spine/emerald.rs`) plays the route Task P found, cleaned of its detours, from a new game to badge 1 in 109,851 frames (since the spine review; about 0.1 s in release, against 81 min of evolutionary search). The committed `act1:*` nodes stay; `explore spine` compares its checkpoints with them.
 
 **Owns:** the `act1:*` nodes in `checkpoints/emerald/nodes/`, `crates/game-native/tests/act1.rs`, `crates/emu/tests/parity.rs` (the Act 1 lanes), and this doc's "Wave 3 as built".
 

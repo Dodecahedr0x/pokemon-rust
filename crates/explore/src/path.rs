@@ -12,7 +12,9 @@ use engine::checkpoint::WorldSnapshot;
 use engine::data::{Behavior, Dir, GameData, MapData, MapId, PLAYER, block_collision};
 use engine::flow::block_behavior;
 use engine::grid::in_bounds;
+use std::cell::OnceCell;
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 /// Walkable cells reachable from the player, from a capturable snapshot (collision bits with
 /// `FieldSnap.overrides`, ledges one-way, objects' pos and prev occupied; elevation ignored).
@@ -66,6 +68,83 @@ pub(crate) struct Grid<'a, G: GameData> {
     pub map: &'static MapData,
     overrides: &'a [((i16, i16), u16)],
     occupied: Vec<(i16, i16)>,
+    /// The map's [`Terrain`] under `overrides`: built by the first search, or handed over by
+    /// [`Grid::with_terrain`].
+    terrain: OnceCell<Arc<Terrain>>,
+}
+
+/// A map's cells under a set of `setmetatile` overrides, classified once for the searches
+/// (row-major): a search looks each cell up instead of classifying its block at every edge.
+/// Objects are not in it (they move; [`Grid`] masks them per search).
+pub(crate) struct Terrain {
+    map: &'static MapData,
+    behavior: Vec<Behavior>,
+    /// [`Grid::open`].
+    open: Vec<bool>,
+    /// Per cell, per direction in `Dir::ALL` order: the cell index a step lands on as far as
+    /// the terrain decides (arrow warps, walls, ledges jumped), or [`NO_STEP`].
+    land: Vec<[u32; 4]>,
+}
+
+/// No landing cell in [`Terrain::land`].
+const NO_STEP: u32 = u32::MAX;
+
+impl Terrain {
+    fn new<G: GameData>(game: &G, map: &'static MapData, overrides: &[((i16, i16), u16)]) -> Self {
+        let (w, h) = (map.width as usize, map.height as usize);
+        let cell = |i: usize| ((i % w) as i16, (i / w) as i16);
+        let mut behavior = Vec::with_capacity(w * h);
+        let mut open = Vec::with_capacity(w * h);
+        for i in 0..w * h {
+            let block = block_of(map, overrides, cell(i));
+            let b = block_behavior(game, map, block);
+            behavior.push(b);
+            open.push(block_collision(block) == 0 && b != Behavior::Blocked && !b.enters_warp());
+        }
+        let index = |(x, y): (i16, i16)| in_bounds(map, x, y).then(|| y as usize * w + x as usize);
+        let land = (0..w * h)
+            .map(|i| {
+                let c = cell(i);
+                Dir::ALL.map(|d| {
+                    // As the planner's step rules (module docs), objects and grass aside.
+                    if behavior[i] == Behavior::ArrowWarp(d) {
+                        return NO_STEP;
+                    }
+                    let (dx, dy) = d.delta();
+                    let Some(mut n) = index((c.0 + dx, c.1 + dy)) else {
+                        return NO_STEP;
+                    };
+                    if Behavior::walled(behavior[i], behavior[n], d) {
+                        return NO_STEP;
+                    }
+                    if let Behavior::Ledge(ld) = behavior[n] {
+                        if ld != d {
+                            return NO_STEP;
+                        }
+                        match index((c.0 + 2 * dx, c.1 + 2 * dy)) {
+                            Some(j) => n = j,
+                            None => return NO_STEP,
+                        }
+                    }
+                    n as u32
+                })
+            })
+            .collect();
+        Terrain {
+            map,
+            behavior,
+            open,
+            land,
+        }
+    }
+}
+
+/// The block at an in-bounds cell, overrides (sorted by cell) first.
+fn block_of(map: &MapData, overrides: &[((i16, i16), u16)], (x, y): (i16, i16)) -> u16 {
+    match overrides.binary_search_by_key(&(x, y), |&(c, _)| c) {
+        Ok(i) => overrides[i].1,
+        Err(_) => map.blocks[y as usize * map.width as usize + x as usize],
+    }
 }
 
 impl<'a, G: GameData> Grid<'a, G> {
@@ -80,7 +159,33 @@ impl<'a, G: GameData> Grid<'a, G> {
             map: game.map(map),
             overrides,
             occupied,
+            terrain: OnceCell::new(),
         }
+    }
+
+    /// This grid with `terrain`, which the caller built for the same map and overrides
+    /// ([`Grid::terrain`] of an earlier grid); a table of another map is ignored.
+    pub fn with_terrain(self, terrain: Option<Arc<Terrain>>) -> Self {
+        if let Some(t) = terrain
+            && std::ptr::eq(t.map, self.map)
+        {
+            let _ = self.terrain.set(t);
+        }
+        self
+    }
+
+    /// The terrain table, built on the first call.
+    pub fn terrain(&self) -> &Arc<Terrain> {
+        (self.terrain).get_or_init(|| Arc::new(Terrain::new(self.game, self.map, self.overrides)))
+    }
+
+    /// The cells objects other than the player occupy (`pos` and `prev`).
+    pub fn occupied_cells(&self) -> &[(i16, i16)] {
+        &self.occupied
+    }
+
+    fn index(&self, (x, y): (i16, i16)) -> usize {
+        y as usize * self.map.width as usize + x as usize
     }
 
     /// The planner's view of a capturable snapshot.
@@ -97,11 +202,8 @@ impl<'a, G: GameData> Grid<'a, G> {
     }
 
     /// The block at an in-bounds cell, overrides first.
-    pub fn block(&self, (x, y): (i16, i16)) -> u16 {
-        match self.overrides.binary_search_by_key(&(x, y), |&(c, _)| c) {
-            Ok(i) => self.overrides[i].1,
-            Err(_) => self.map.blocks[y as usize * self.map.width as usize + x as usize],
-        }
+    pub fn block(&self, c: (i16, i16)) -> u16 {
+        block_of(self.map, self.overrides, c)
     }
 
     /// Behavior of an in-bounds cell (`Blocked` out of bounds).
@@ -109,7 +211,10 @@ impl<'a, G: GameData> Grid<'a, G> {
         if !self.in_bounds(c) {
             return Behavior::Blocked;
         }
-        block_behavior(self.game, self.map, self.block(c))
+        match self.terrain.get() {
+            Some(t) => t.behavior[self.index(c)],
+            None => block_behavior(self.game, self.map, self.block(c)),
+        }
     }
 
     pub fn occupied(&self, c: (i16, i16)) -> bool {
@@ -118,6 +223,9 @@ impl<'a, G: GameData> Grid<'a, G> {
 
     /// Terrain only (no objects): collision 0 and a passable behavior.
     pub fn open(&self, c: (i16, i16)) -> bool {
+        if let (true, Some(t)) = (self.in_bounds(c), self.terrain.get()) {
+            return t.open[self.index(c)];
+        }
         self.in_bounds(c)
             && block_collision(self.block(c)) == 0
             && self.behavior(c) != Behavior::Blocked
@@ -130,31 +238,21 @@ impl<'a, G: GameData> Grid<'a, G> {
             && !(avoid_grass && self.behavior(c) == Behavior::TallGrass)
     }
 
-    /// Where a step from `c` toward `d` lands, if the planner allows it: a ledge toward `d` is
-    /// jumped (two cells); `target` may be entered whatever it is (doors, objects' cells).
-    fn step(
-        &self,
-        c: (i16, i16),
-        d: Dir,
-        avoid_grass: bool,
-        target: Option<(i16, i16)>,
-    ) -> Option<(i16, i16)> {
-        // Holding `d` on an `ArrowWarp(d)` cell warps: never leave it that way.
-        if self.behavior(c) == Behavior::ArrowWarp(d) {
-            return None;
-        }
-        let (dx, dy) = d.delta();
-        let mut n = (c.0 + dx, c.1 + dy);
-        if !self.in_bounds(n) || Behavior::walled(self.behavior(c), self.behavior(n), d) {
-            return None;
-        }
-        if let Behavior::Ledge(ld) = self.behavior(n) {
-            if ld != d {
-                return None;
+    /// Per cell: whether a search may land there ([`Grid::walkable`]); `target` always may
+    /// (doors, objects' cells).
+    fn landable(&self, t: &Terrain, avoid_grass: bool, target: Option<(i16, i16)>) -> Vec<bool> {
+        let mut ok: Vec<bool> = (t.open.iter().zip(&t.behavior))
+            .map(|(&open, &b)| open && !(avoid_grass && b == Behavior::TallGrass))
+            .collect();
+        for &c in &self.occupied {
+            if self.in_bounds(c) {
+                ok[self.index(c)] = false;
             }
-            n = (n.0 + dx, n.1 + dy);
         }
-        (self.in_bounds(n) && (Some(n) == target || self.walkable(n, avoid_grass))).then_some(n)
+        if let Some(c) = target.filter(|&c| self.in_bounds(c)) {
+            ok[self.index(c)] = true;
+        }
+        ok
     }
 
     /// BFS distances from `from` (row-major, `u16::MAX` = unreachable).
@@ -164,16 +262,16 @@ impl<'a, G: GameData> Grid<'a, G> {
         if !self.in_bounds(from) {
             return dist;
         }
-        let idx = |(x, y): (i16, i16)| y as usize * w + x as usize;
-        dist[idx(from)] = 0;
-        let mut queue = VecDeque::from([from]);
+        let t = self.terrain();
+        let ok = self.landable(t, avoid_grass, None);
+        let start = self.index(from);
+        dist[start] = 0;
+        let mut queue = VecDeque::from([start as u32]);
         while let Some(c) = queue.pop_front() {
-            let dc = dist[idx(c)];
-            for d in Dir::ALL {
-                if let Some(n) = self.step(c, d, avoid_grass, None)
-                    && dist[idx(n)] == u16::MAX
-                {
-                    dist[idx(n)] = dc.saturating_add(1).min(u16::MAX - 1);
+            let dc = dist[c as usize];
+            for n in t.land[c as usize] {
+                if n != NO_STEP && ok[n as usize] && dist[n as usize] == u16::MAX {
+                    dist[n as usize] = dc.saturating_add(1).min(u16::MAX - 1);
                     queue.push_back(n);
                 }
             }
@@ -182,26 +280,32 @@ impl<'a, G: GameData> Grid<'a, G> {
     }
 
     /// The first direction of a shortest path from `from` to `to` (`to` itself may be any
-    /// in-bounds cell).
+    /// in-bounds cell); ties go to the first direction in `Dir::ALL` order.
     pub fn first_dir(&self, from: (i16, i16), to: (i16, i16), avoid_grass: bool) -> Option<Dir> {
         if !self.in_bounds(from) || !self.in_bounds(to) || from == to {
             return None;
         }
-        let w = self.map.width as usize;
-        let idx = |(x, y): (i16, i16)| y as usize * w + x as usize;
-        let mut seen = vec![false; w * self.map.height as usize];
-        seen[idx(from)] = true;
-        let mut queue = VecDeque::from([(from, None::<Dir>)]);
-        while let Some((c, d0)) = queue.pop_front() {
-            if c == to {
-                return d0;
+        let t = self.terrain();
+        let ok = self.landable(t, avoid_grass, Some(to));
+        let (start, goal) = (self.index(from) as u32, self.index(to) as u32);
+        let mut seen = vec![false; ok.len()];
+        seen[start as usize] = true;
+        // (cell, the index in `Dir::ALL` of the path's first step).
+        let mut queue: VecDeque<(u32, usize)> = VecDeque::new();
+        for (d, n) in t.land[start as usize].into_iter().enumerate() {
+            if n != NO_STEP && ok[n as usize] && !seen[n as usize] {
+                seen[n as usize] = true;
+                queue.push_back((n, d));
             }
-            for d in Dir::ALL {
-                if let Some(n) = self.step(c, d, avoid_grass, Some(to))
-                    && !seen[idx(n)]
-                {
-                    seen[idx(n)] = true;
-                    queue.push_back((n, Some(d0.unwrap_or(d))));
+        }
+        while let Some((c, d0)) = queue.pop_front() {
+            if c == goal {
+                return Some(Dir::ALL[d0]);
+            }
+            for n in t.land[c as usize] {
+                if n != NO_STEP && ok[n as usize] && !seen[n as usize] {
+                    seen[n as usize] = true;
+                    queue.push_back((n, d0));
                 }
             }
         }

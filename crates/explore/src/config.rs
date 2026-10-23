@@ -1,38 +1,29 @@
 //! Explorer configuration: defaults and RON loading.
 //!
-//! Every struct is `#[serde(default)]`, so a config file only lists what it changes.
+//! Every struct is `#[serde(default)]`, so a config file only lists what it changes; fields a
+//! file has that the config no longer knows (the evolutionary explorer's `seed`, `batch` …)
+//! are ignored.
 
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
-    pub seed: u64,
-    /// 0 = rayon default.
-    pub threads: usize,
-    /// Jobs per generation; 0 = `runner::DEFAULT_BATCH` (32), never the thread count.
-    pub batch: usize,
-    pub max_plan_len: u8,
-    pub tournament: usize,
-    /// Per generation since creation.
-    pub age_penalty: i64,
-    /// Per child already tried.
-    pub expanded_penalty: i64,
+    /// Worker threads for branches; 0 = `workers::default_threads` (three quarters of the CPUs).
+    pub jobs: usize,
     pub weights: Weights,
     pub key: KeyConfig,
     pub limits: Limits,
     pub detect: DetectConfig,
-    /// Snapshots kept in memory.
-    pub cache_capacity: usize,
-    /// Also store a snapshot in the db every N depths.
-    pub snapshot_every_depth: u32,
-    /// The goal list (Milestone 8). A db keeps the act it was created with (`meta.act`).
+    pub branch: BranchConfig,
+    /// The goal list the spine's `Expect` steps and the stats name.
     pub act: crate::goals::Act,
 }
 
+/// Novelty weights: what one new thing (against the spine and the branch so far) is worth.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Weights {
@@ -41,17 +32,12 @@ pub struct Weights {
     pub map: i64,
     pub script: i64,
     pub cell: i64,
-    pub new_key: i64,
-    pub goal: i64,
-    pub bug: i64,
-    /// 0 in v0.
-    pub balance: i64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct KeyConfig {
-    /// 2 = 4x4 cells.
+    /// 2 = 4x4 cells (the coarse blocks of `WalkTo` targets).
     pub cell_shift: u8,
     pub level_step: u16,
     pub ignore_flags: Vec<u16>,
@@ -82,52 +68,41 @@ pub struct DetectConfig {
     pub softlock_k_per_map: BTreeMap<u16, u32>,
     /// Expansions per probe.
     pub softlock_breadth: u32,
-    /// How often the probe resumes a walk that a battle interrupted before its target (Task H;
-    /// 0 = never). Each resume can cost another full macro, so one probe's worst case is
+    /// How often the probe resumes a walk that a battle interrupted before its target (0 =
+    /// never). Each resume can cost another full macro, so one probe's worst case is
     /// `(1 + probe_resumes) x softlock_breadth` expansions.
     pub probe_resumes: u32,
     /// How often a start found trapped while an object of its map walks by itself is probed
-    /// again, each after a wait of `reprobe_wait_frames` (Task N; 0 = never). With the
-    /// re-probes, a softlock check's worst case is `(1 + reprobes) x (1 + probe_resumes) x
-    /// softlock_breadth` expansions (5 x 5 x 64 = 1,600 by default) plus `reprobes x
-    /// reprobe_wait_frames` frames of waits.
+    /// again, each after a wait of `reprobe_wait_frames` (0 = never).
     pub reprobes: u32,
-    /// Frames of each wait before a re-probe (the lab aide's corridor cleared after about
-    /// 1,100, so the default 4 x 600 covers it).
+    /// Frames of each wait before a re-probe.
     pub reprobe_wait_frames: u16,
-    /// Report-only; 0 = off (the default in debug builds, 4000 in release). Left out of the
-    /// config-change note ([`Config::differs_from_ron`]).
+    /// Report-only; 0 = off (the default in debug builds, 4000 in release).
     pub slow_step_us: u32,
 }
 
-/// How long `explore run` goes on.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Budget {
-    Nodes(u64),
-    Frames(u64),
-    Generations(u32),
-    Secs(u64),
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Config {
-            seed: 0x005E_EDE7,
-            threads: 0,
-            batch: 128,
-            max_plan_len: 3,
-            tournament: 4,
-            age_penalty: 1,
-            expanded_penalty: 4,
-            weights: Weights::default(),
-            key: KeyConfig::default(),
-            limits: Limits::default(),
-            detect: DetectConfig::default(),
-            cache_capacity: 65536,
-            snapshot_every_depth: 8,
-            act: crate::goals::Act::default(),
-        }
-    }
+/// The branches (`docs/plans/2026-10-23-explorer-spine.md` §3).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BranchConfig {
+    /// Branch from every `every`-th spine step's end, besides every checkpoint (0: checkpoints
+    /// only).
+    pub every: u32,
+    /// Exploration frames past which a branch stops exploring and recovers.
+    pub budget_frames: u32,
+    /// Novelty points (`Weights`) per 1,000 frames below which a branch that chained past its
+    /// target is aborted (no recovery).
+    pub min_novelty: u32,
+    /// Macros a branch plays at most (its target included).
+    pub max_steps: u32,
+    /// Spine steps resumed after the recovery (the verification window).
+    pub window: u32,
+    /// Targets per origin, at most.
+    pub max_targets: u32,
+    /// Frames the recovery may take before the branch is stranded.
+    pub recover_frames: u32,
+    /// Warps and crossings the recovery may take on the way back.
+    pub recover_hops: u32,
 }
 
 impl Default for Weights {
@@ -138,16 +113,12 @@ impl Default for Weights {
             map: 100,
             script: 30,
             cell: 2,
-            new_key: 10,
-            goal: 1000,
-            bug: 500,
-            balance: 0,
         }
     }
 }
 
 impl Default for KeyConfig {
-    /// Content-free defaults; `key::default_key_config` adds the content's exclusions.
+    /// Content-free defaults; `key::story_flag`/`story_var` add the content's exclusions.
     fn default() -> Self {
         KeyConfig {
             cell_shift: 2,
@@ -187,6 +158,21 @@ impl Default for DetectConfig {
     }
 }
 
+impl Default for BranchConfig {
+    fn default() -> Self {
+        BranchConfig {
+            every: 8,
+            budget_frames: 6000,
+            min_novelty: 20,
+            max_steps: 16,
+            window: 3,
+            max_targets: 48,
+            recover_frames: 6000,
+            recover_hops: 8,
+        }
+    }
+}
+
 impl Config {
     /// The RON config at `path` (missing fields take their defaults), or the defaults when
     /// there is no file.
@@ -199,19 +185,7 @@ impl Config {
         ron::from_str(&text).with_context(|| format!("parsing {}", path.display()))
     }
 
-    /// Whether this config differs from `last` (a `run` row's RON) in anything but the
-    /// report-only `detect.slow_step_us`, whose default differs between debug and release.
-    /// Fields that `last` has and this config no longer knows (`softlock_sample`, removed at
-    /// the M7 close-out) are ignored; RON that does not parse counts as a change.
-    pub fn differs_from_ron(&self, last: &str) -> bool {
-        let Ok(mut last) = ron::from_str::<Config>(last) else {
-            return true;
-        };
-        last.detect.slow_step_us = self.detect.slow_step_us;
-        last != *self
-    }
-
-    /// Pretty RON of the config (the `run` table, `explore status`).
+    /// Pretty RON of the config (the `run` table).
     pub fn to_ron(&self) -> String {
         ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::default())
             .expect("a Config always serializes")
@@ -225,14 +199,7 @@ mod tests {
     #[test]
     fn defaults_match_the_plan() {
         let c = Config::default();
-        assert_eq!(c.seed, 0x005E_EDE7);
-        assert_eq!((c.max_plan_len, c.tournament), (3, 4));
-        // Task H: 128 jobs per generation and 65,536 cached snapshots (see the plan's "Wave 2
-        // as built").
-        assert_eq!(c.batch, 128);
-        assert_eq!((c.cache_capacity, c.snapshot_every_depth), (65536, 8));
         assert_eq!((c.key.cell_shift, c.key.level_step), (2, 3));
-        assert_eq!(c.weights.balance, 0);
         assert_eq!(
             c.limits,
             Limits {
@@ -249,7 +216,9 @@ mod tests {
             (600, 60, 600)
         );
         assert_eq!((d.softlock_k, d.softlock_breadth), (3, 64));
-        assert_eq!(d.probe_resumes, 4);
+        let b = &c.branch;
+        assert_eq!((b.every, b.budget_frames, b.min_novelty), (8, 6000, 20));
+        assert_eq!((b.window, b.recover_frames, b.recover_hops), (3, 6000, 8));
     }
 
     #[test]
@@ -260,70 +229,28 @@ mod tests {
     }
 
     #[test]
-    fn ron_round_trip_and_partial_files() {
+    fn ron_round_trip_partial_and_old_files() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("explore.ron");
         let mut c = Config {
-            seed: 42,
+            jobs: 3,
             ..Config::default()
         };
         c.detect.softlock_k_per_map.insert(9, 5);
         std::fs::write(&path, c.to_ron()).unwrap();
         assert_eq!(Config::load_or_default(&path).unwrap(), c);
 
+        // An evolutionary-explorer file (`seed`, `batch`, `weights.goal`) still loads.
         std::fs::write(
             &path,
-            "(seed: 7, weights: (goal: 5), limits: (enter_frames: 9))",
+            "(seed: 7, batch: 3, weights: (goal: 5, map: 9), branch: (window: 2))",
         )
         .unwrap();
         let p = Config::load_or_default(&path).unwrap();
-        assert_eq!((p.seed, p.weights.goal, p.limits.enter_frames), (7, 5, 9));
-        assert_eq!(p.weights.map, Weights::default().map);
+        assert_eq!((p.weights.map, p.branch.window), (9, 2));
         assert_eq!(p.limits.macro_frames, 3000);
 
-        std::fs::write(&path, "(seed: \"x\")").unwrap();
+        std::fs::write(&path, "(jobs: \"x\")").unwrap();
         assert!(Config::load_or_default(&path).is_err());
-    }
-
-    #[test]
-    fn old_files_with_softlock_sample_still_load() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("explore.ron");
-        std::fs::write(
-            &path,
-            "(seed: 7, detect: (softlock_k: 2, softlock_sample: 32, softlock_breadth: 16))",
-        )
-        .unwrap();
-        let c = Config::load_or_default(&path).unwrap();
-        assert_eq!(c.seed, 7);
-        assert_eq!((c.detect.softlock_k, c.detect.softlock_breadth), (2, 16));
-        assert_eq!(
-            c.detect.probe_resumes,
-            DetectConfig::default().probe_resumes
-        );
-    }
-
-    #[test]
-    fn config_change_ignores_slow_step_us_and_removed_fields() {
-        let c = Config::default();
-        assert!(!c.differs_from_ron(&c.to_ron()));
-
-        let mut slow = c.clone();
-        slow.detect.slow_step_us = 4000 - slow.detect.slow_step_us + 1;
-        assert!(!c.differs_from_ron(&slow.to_ron()));
-
-        let old = c
-            .to_ron()
-            .replace("softlock_k:", "softlock_sample: 32, softlock_k:");
-        assert_ne!(old, c.to_ron());
-        assert!(!c.differs_from_ron(&old));
-
-        let mut seed = c.clone();
-        seed.seed += 1;
-        assert!(c.differs_from_ron(&seed.to_ron()));
-        let mut breadth = c.clone();
-        breadth.detect.softlock_breadth += 1;
-        assert!(c.differs_from_ron(&breadth.to_ron()));
-        assert!(c.differs_from_ron("not ron"));
     }
 }

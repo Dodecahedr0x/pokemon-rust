@@ -39,7 +39,7 @@ mod tests {
     #[test]
     fn release_unless_debug() {
         assert_eq!(
-            cargo_args(&s(&["run", "--secs", "5"])),
+            cargo_args(&s(&["branch", "--jobs", "4"])),
             s(&[
                 "run",
                 "-p",
@@ -48,9 +48,9 @@ mod tests {
                 "--bin",
                 "explore",
                 "--",
-                "run",
-                "--secs",
-                "5"
+                "branch",
+                "--jobs",
+                "4"
             ])
         );
         assert_eq!(

@@ -17,7 +17,8 @@ use explore::{Macro, MacroKind, Opts, expand, key, macros, path, sim};
 use game_native::Session;
 use std::collections::BTreeSet;
 
-/// The new game's first capturable state (stub).
+/// The new game's first capturable state, settled by the policy (it answers Silice's intro
+/// script).
 fn first_capturable() -> engine::checkpoint::WorldSnapshot {
     let mut s = Session::new(Emerald::for_shells());
     game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
@@ -64,13 +65,12 @@ fn block_mates_are_the_reachable_cells_of_the_target_block() {
 /// (regenerated after Milestone 8 Task G1, whose spread battle return and trainer prize
 /// message shifted the route timing the Task F one relied on).
 ///
-/// To regenerate it (for example after a content or engine change moves that state): run the
-/// explorer with `probe_resumes: 0` until a Route 101 `Softlock` appears, e.g.
-/// `echo "(detect: (probe_resumes: 0))" > /tmp/r0.ron` then
-/// `cargo xtask explore run --secs 300 --config /tmp/r0.ron --db target/explore/r0.db`;
-/// then `cargo xtask explore export <id> --db target/explore/r0.db --out target/explore/f.ron`
-/// and copy the trace's `inputs` runs (joined by spaces, nothing else) into the fixture, and
-/// update the position asserted below.
+/// To regenerate it (for example after a content or engine change moves that state): get a
+/// NewGame trace that ends on Route 101's tall grass after the lab, e.g. a branch finding from
+/// the spine's `lab` position (`cargo xtask explore branch --from lab`, then
+/// `cargo xtask explore export <id> --out target/explore/f.ron`), copy the trace's `inputs`
+/// runs (joined by spaces, nothing else) into the fixture, and update the position asserted
+/// below.
 #[cfg(not(pkr_silice))]
 fn route101_grass() -> engine::checkpoint::Checkpoint {
     let text = include_str!("fixtures/route101_grass.runs");

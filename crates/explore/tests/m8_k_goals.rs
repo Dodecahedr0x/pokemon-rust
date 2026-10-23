@@ -115,6 +115,7 @@ fn act_constants_match_the_decomp_headers() {
     }
 }
 
+/// A new game settled by the policy (it answers Silice's intro script).
 fn settled(game: Emerald) -> WorldSnapshot {
     let mut s = Session::new(game);
     game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));

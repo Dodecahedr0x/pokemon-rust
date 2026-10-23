@@ -198,7 +198,8 @@ fn fade_trap_is_capturable_stuck() {
             if settled && w.objects().player().pos() != at && !w.script_running() {
                 toward
             } else {
-                Buttons::NONE
+                // A on an opening scene's messages (Silice's bar), nothing otherwise.
+                game_native::scenario::opening_key(w)
             }
         },
         &mut keys,
@@ -323,12 +324,9 @@ fn a_load_mid_run_is_a_discontinuity_not_a_round_trip_break() {
         ..quiet()
     };
     let mut s = Session::new(Emerald::for_shells());
-    let early = (0..600)
-        .find_map(|_| {
-            s.step(Buttons::NONE);
-            s.checkpoint().ok()
-        })
-        .expect("capturable");
+    // Through the opening scene (Silice's bar) to the first capturable frame.
+    game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+    let early = s.checkpoint().expect("capturable");
     let mut det = Detectors::<Emerald>::new(&cfg);
     for _ in 0..100 {
         s.step(Buttons::NONE);

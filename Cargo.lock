@@ -1419,7 +1419,6 @@ dependencies = [
  "explore",
  "extract",
  "game-native",
- "rayon",
  "ron",
  "rusqlite",
  "serde",

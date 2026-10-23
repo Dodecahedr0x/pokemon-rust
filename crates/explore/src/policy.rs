@@ -76,6 +76,10 @@ impl Policy {
                     Some(OpenMenu::Action(c)) => toward(c, if run { RUN } else { FIGHT }),
                     // Never fight when running: back out to the action menu.
                     Some(OpenMenu::Move(_)) if run => Buttons::B,
+                    Some(OpenMenu::Move(c)) if opts.best_move => toward(
+                        c,
+                        best_damaging_slot(battle.mon(Side::Player), battle.mon(Side::Opponent), t),
+                    ),
                     Some(OpenMenu::Move(c)) => {
                         toward(c, first_damaging_slot(battle.mon(Side::Player), t))
                     }
@@ -135,6 +139,46 @@ pub fn first_damaging_slot(m: &BattleMon, t: &BattleTables) -> u8 {
         .find(|&i| damaging(i))
         .or_else(|| (0..4).find(|&i| usable(i)))
         .unwrap_or(0) as u8
+}
+
+/// The move slot of the best expected damage on `foe`: power x STAB (1.5) x the type chart's
+/// multipliers on the foe's types, over the usable moves with power; ties go to the lower slot.
+/// Without a damaging move, [`first_damaging_slot`].
+pub fn best_damaging_slot(me: &BattleMon, foe: &BattleMon, t: &BattleTables) -> u8 {
+    let mine = t.species_info(me.species).types;
+    let theirs = t.species_info(foe.species).types;
+    let score = |i: usize| -> Option<u32> {
+        let id = me.moves[i]?;
+        if me.pp[i] == 0 {
+            return None;
+        }
+        let mi = t.moves.get(id.0 as usize)?;
+        if mi.power == 0 {
+            return None;
+        }
+        let mut s = u32::from(mi.power) * if mine.contains(&mi.ty) { 15 } else { 10 };
+        let mut seen = None;
+        for d in theirs {
+            if seen == Some(d) {
+                continue;
+            }
+            seen = Some(d);
+            let m = (t.type_chart.iter())
+                .find(|e| e.attack == mi.ty && e.defend == d)
+                .map_or(10, |e| u32::from(e.multiplier));
+            s = s * m / 10;
+        }
+        Some(s)
+    };
+    let mut best: Option<(u32, usize)> = None;
+    for i in 0..4 {
+        if let Some(s) = score(i)
+            && best.is_none_or(|(b, _)| s > b)
+        {
+            best = Some((s, i));
+        }
+    }
+    best.map_or_else(|| first_damaging_slot(me, t), |(_, i)| i as u8)
 }
 
 #[cfg(test)]

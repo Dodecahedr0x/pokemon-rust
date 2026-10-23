@@ -9,16 +9,12 @@ use explore::testing::{NOWHERE, WallAround};
 use game_native::Session;
 use std::collections::VecDeque;
 
-/// A new game stepped (nothing pressed) to its first capturable frame.
-fn start(game: impl GameData) -> Checkpoint {
-    let mut s = Session::new(game);
-    for _ in 0..600 {
-        if let Ok(cp) = s.checkpoint() {
-            return cp;
-        }
-        s.step(Buttons::NONE);
-    }
-    panic!("never capturable");
+/// A new game settled to its first capturable frame (the policy answers an intro script, as
+/// Silice's bar scene).
+fn start<G: GameData>(game: G) -> Checkpoint {
+    explore::expand::new_game(game)
+        .checkpoint()
+        .expect("a settled new game is capturable")
 }
 
 /// A fake `expand_all` that "walks the reach set": one `WalkTo` per cell reachable from the
@@ -193,17 +189,17 @@ fn probe_bfs_depth_breadth_and_regions() {
 #[test]
 fn end_state_replays_a_trace_to_its_checkpoint() {
     use explore::findings::{end_state, repro_trace};
-    use game_native::trace::Run;
     let game = Emerald::for_shells();
-    let runs = [Run {
-        keys: Buttons::NONE,
-        frames: 150,
-    }];
-    let trace = repro_trace(&game, &[&runs[..]], &[]).unwrap();
+    // A new game through its opening scene (Silice's bar: A on its messages), then 150 idle
+    // frames.
     let mut s = Session::new(game);
+    let mut keys = game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+    keys.extend([Buttons::NONE; 150]);
     for _ in 0..150 {
         s.step(Buttons::NONE);
     }
+    let runs = game_native::trace::rle(keys.iter().copied());
+    let trace = repro_trace(&game, &[&runs[..]], &[]).unwrap();
     assert_eq!(end_state(&game, &trace), Ok(s.checkpoint().unwrap()));
     let mut bad = trace.clone();
     bad.hashes[0].1 ^= 1;

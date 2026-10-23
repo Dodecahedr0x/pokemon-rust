@@ -108,8 +108,8 @@ bit-identical to the run that was never interrupted. Natively they live in a tre
 - `seed`: records the parity route and writes its `route:<name>` nodes (replacing the earlier
   `route:` nodes, never others): `lab`, `after_wild`, `oldale_center`, `route103_after_may`
   (stub: `stub_start`, `stub_after_battle`, `stub_end`)
-- `promote <local id> --label <text>`: moves a local node (for example one the explorer
-  exported with `explore export --to-store`) into the committed tree, after replaying it from
+- `promote <local id> --label <text>`: moves a local node (for example a spine checkpoint
+  exported with `explore spine --export`) into the committed tree, after replaying it from
   its parent on this build; the only way into the committed tree besides `seed`
 - `label <id> <text>`, `rm <id>` (refused for a node with children)
 - `sav <id> [-o <path>]`: writes the node's flash image to `target/game.sav`, which mGBA loads
@@ -165,21 +165,25 @@ the explorer it starts writes `target/explore/`.
   `crates/studio/src/map_edit/cli.rs`). The map's "coverage" layer shades each cell the
   explorer stood on by its hits (1, 2-9, 10-99, 100+, as `explore coverage` prints them),
   read from the explorer db for the shown map, and again every couple of seconds while the db
-  changes (a run from the studio or from `cargo xtask explore run`).
-- **Explorer**: starts and stops `explore run` (`cargo run -p explore --release`, logging to
-  `target/studio/explore.log`) with a budget in generations, seconds or nodes, an optional
-  seed and thread count. The run keeps going when you leave the tab; quitting the studio
-  (closing the window or Cmd+Q) stops it, and any export in flight. The state line says
-  "building explore…" while cargo compiles, and a failed run (a build error, a panic) shows
-  the log's tail. Every 2 s the tab reads `target/explore/<flavor>/explore.db` read-only (also
-  a db written by `cargo xtask explore run`): nodes, nodes/s (averaged over the last 5 polls),
-  the goals reached by name, maps, cells and findings. The findings
-  table (open first, then by hits) gives kind, map, cell, message, hits, status, and "found
-  on another build" when the finding's build is not this one. Per finding: "Open at frame
-  before" (120 by default) replays it into the native pane, paused that many frames before
-  its last frame, and shows the Play tab (the inspector's "last" repeats the other-build
-  warning) (F5 from there saves a local node with a NewGame
-  parent); "Export repro" runs `explore export <id>` (a NewGame trace under
+  changes (a run from the studio or from `cargo xtask explore branch`).
+- **Explorer**: starts and stops `explore spine` or `explore branch` (`cargo run -p explore
+  --release`, logging to `target/studio/explore.log`) with an optional branch budget (frames),
+  job count and `--from` checkpoint (offered from the spine's labels). The run keeps going when
+  you leave the tab; quitting the studio (closing the window or Cmd+Q) stops it, and any export
+  in flight. The state line says "building explore…" while cargo compiles, and a failed run (a
+  build error, a panic) shows the log's tail. Every 2 s the tab reads
+  `target/explore/<flavor>/explore.db` read-only (also a db written by `cargo xtask explore`):
+  the spine (steps played, frames, where it stopped), its checkpoints, the branches by outcome,
+  branches/s (averaged over the last 5 polls), what the branches found beyond the spine (maps,
+  scripts, flags, var values, cells) and the findings. The Spine table lists each checkpoint
+  (step, frame, map, cell); the Branches table lists up to 100 branches, those needing a look
+  first (bugs, unexpected divergences, stranded), with origin, kind, outcome, frames (explore +
+  recover + window), what each found and its message. The findings table (open first, then by
+  hits) gives kind, map, cell, message, hits, status, and "found on another build" when the
+  finding's build is not this one. Per finding: "Open at frame before" (120 by default) replays
+  it into the native pane, paused that many frames before its last frame, and shows the Play
+  tab (the inspector's "last" repeats the other-build warning) (F5 from there saves a local
+  node with a NewGame parent); "Export repro" runs `explore export <id>` (a NewGame trace under
   `target/explore/<flavor>/repro/`); "Copy repro command" copies `cargo xtask explore repro
   <id>`.
 
@@ -378,51 +382,51 @@ identifier tables live in `crates/extract/src/names/generated.rs`, checked again
 `tests/names.rs` (`PKR_BLESS=1 cargo test -p extract --test names` regenerates them).
 
 ## Explorer
-`cargo xtask explore <command>` runs the headless explorer (`crates/explore`, release; put
-`--debug` first for a debug build). It plays the native game from a new game, grows a tree of
-input-only nodes (macro-actions such as walk to a cell, enter a warp, cross a connection, talk,
-inspect, fight in tall grass) in a SQLite db, scores them by novelty and progress along an
-act's goals (state predicates: `--act act1` by default, the 15 goals from the rescue to
-`FLAG_BADGE01_GET`; `slice` keeps the first 7), and records bugs with a trace that reproduces
-them from the db's root: game panics, softlocks (trapped on a map with exits), checkpoint
-round-trip breaks, a field that is idle but never capturable, and planner/engine
-disagreements. `Report` events (unsupported or degraded features) are listed apart as
-report-only findings. Results depend only on the seed, the config and the build: neither the
-thread count nor stopping and resuming changes the db (`explore digest`).
+`cargo xtask [--game silice] explore <command>` runs the headless explorer (`crates/explore`,
+release; put `--debug` first for a debug build). It tests the native game along **one authored
+main path per flavour, the spine** (`crates/explore/src/spine/`: Emerald from a new game to
+Roxanne's badge, Silice's Chapter 0, the stub's route), then **branches** off it toward what the
+spine never touched (warps, crossings, NPCs, signs, coord events, unvisited blocks, wild battles
+fought or run from, the other answer of a yes/no or another starter). A branch explores until
+its frame budget or its step cap runs out (or nothing new is left), walks back to the spine, and
+plays the spine's next steps: it **rejoins**, **diverges** (expected when the branch itself
+changed the story state; otherwise a `Divergence` finding), is **stranded** (no way back; a
+softlock probe runs), is **aborted** (too little novelty for its frames once it chained past its
+target: no recovery), or ends on a **bug**. Findings: game panics, softlocks,
+checkpoint round-trip breaks, a field that is idle but never capturable, planner/engine
+disagreements, divergences, and report-only unsupported script commands, each with a trace that
+reproduces it from a new game. Results depend only on the config and the build: the job count
+does not change the db (`explore digest`). See `docs/plans/2026-10-23-explorer-spine.md`.
 
-The Act 1 route was found in segments: `run --from <node>` roots a fresh db at a checkpoint
-node, `export --to-store <node> --label L` writes the node reaching the next goal into the local
-store, `cargo xtask checkpoints verify --local` checks it and `cargo xtask checkpoints promote`
-commits it. On a new build, `revalidate` replays only the nodes whose scripts or maps changed
-(per-script and per-map content digests) and keeps the rest.
+- `spine [--trace] [--export]`: plays the spine (Emerald: 78 steps, 109,851 frames, about 0.1 s
+  in release) and prints its checkpoints and its coverage; `--trace` prints every step's end
+  (map, cell, party, vars and flags changed). A failing step stops it with the step, the map
+  and cell, the session state and the macros played. `--export` writes the checkpoints to the
+  local checkpoint store as `spine:<act>:<label>` (promote one with `cargo xtask checkpoints
+  promote <id> --label spine:act1:badge1`); the checkpoints shared with the committed
+  `<act>:<label>` nodes are compared (same map and goal progress).
+- `branch [--from L] [--budget F] [--jobs N] [--every N] [--min-novelty N] [--max-steps N]
+  [--limit N]`: plays the spine, then the branches from its checkpoints and every N-th step
+  (`--from`: one checkpoint's segment), on N workers; prints the outcomes, the frames and the
+  new things found per minute.
+- `branches [--outcome O]`, `status`, `findings [--all] [--bugs]`, `show <id>`: the db's
+  branches, totals and findings (kind, map, cell, hits, message; `show` adds the Rust location,
+  macro, script and log).
+- `repro <id>`: replays the finding from a new game (a divergence: the spine and its branch
+  again); exits 0 iff it reproduces.
+- `export <id> [--before N] [--out <path>]`: the finding as a NewGame trace (RON), ending N
+  frames before it, in `target/explore/<flavor>/repro/` by default.
+- `coverage <map>`: an ASCII grid of the cells stood on (map id or name, e.g. `LittlerootTown`):
+  `s` by the spine, `1`..`4` by branches only. Its last line ends with `N of the M cells
+  reachable from them (P%)`.
+- `digest`, `reset --yes`. A db of the evolutionary explorer (schema 3 and older) is refused:
+  `explore reset --yes`.
 
-- `run [--generations N | --secs N | --nodes N | --frames N] [--threads N] [--seed S]
-  [--from <id|label>] [--act slice|act1|sil_ch0]`: explores
-  (default 10 generations), one line per 10 generations (nodes, nodes/s, frames/s, goals, maps,
-  cells, findings). `cargo xtask explore run --secs 600` is a ten-minute run; a db resumes where
-  it stopped, with its own seed. On a new build every node is first replayed (and re-expanded
-  or marked broken where the game changed).
-  - `--cache N` sets how many snapshots stay in memory (default 65536; 16384 uses less memory
-    and runs about 10% slower).
-  - Each goal this run reaches first prints a line `goal i/n (name) first reached in generation
-    G at T s` (G counts the db's generations from 1, T is this run's wall time).
-- `status`, `findings [--all] [--bugs]`, `show <id>`: the db's totals and the findings (kind,
-  map, cell, hits, message; `--bugs` leaves out the report-only ones; `show` adds the Rust
-  location, macro, script and log).
-- `repro <id>`: replays the finding from the db's root; exits 0 iff it reproduces.
-- `export <id> [--before N] [--out <path>]`: the finding as a trace (RON) from the db's root,
-  ending N frames before it, in `target/explore/<flavor>/repro/` by default.
-- `export --to-store <node> [--label L]`: the node as a local checkpoint node (see above).
-- `coverage <map>`: an ASCII grid of the cells stood on (map id or name, e.g. `LittlerootTown`).
-  Its last line ends with `N of the M cells reachable from them (P%)`: M counts the walkable
-  cells (terrain only, no objects) that a walk from a cell stood on can reach, N those stood on.
-- `revalidate`, `digest`, `reset --yes`.
-
-Every command takes `--db <path>` (default `target/explore/emerald/explore.db`, or
-`target/explore/stub/explore.db` in stub mode, both git-ignored) and `--config <path>`, a RON
-file with the fields of `explore::config::Config` to change (e.g. `(key: (cell_shift: 1))`).
-`PKR_EXTRACTED_DIR=/nonexistent cargo xtask explore run --generations 50` explores the stub world.
-The db holds ROM-derived states: never commit it or the exported traces.
+Every command takes `--db <path>` (default `target/explore/<flavor>/explore.db`, git-ignored)
+and `--config <path>`, a RON file with the fields of `explore::config::Config` to change (e.g.
+`(branch: (budget_frames: 20000))`). `PKR_EXTRACTED_DIR=/nonexistent cargo xtask explore branch`
+explores the stub world. The db holds ROM-derived states: never commit it or the exported
+traces.
 
 ## Silice
 Pokémon Silice is a second game on the same engine: authored French content
@@ -432,7 +436,7 @@ Pokémon Silice is a second game on the same engine: authored French content
 or pass `--game silice` to any xtask command, which builds in `target/silice` so the Emerald
 build is kept:
 
-- `cargo xtask --game silice rom`, `parity`, `explore run --act sil_ch0`, `studio`: as for
+- `cargo xtask --game silice rom`, `parity`, `explore spine`, `explore branch`, `studio`: as for
   Emerald, on Silice (its parity lane is a new game left idle; it has no committed nodes yet).
 - `PKR_GAME=silice cargo run -p game-native --features window --bin play`: play it natively.
 - `cargo xtask silice check`: validates `games/silice` (ids, flags and vars, warp and

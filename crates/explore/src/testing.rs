@@ -6,9 +6,9 @@
 //! - [`WallAround`]: a trapped player (`Softlock` findings).
 //! - [`Drifting`]: state the checkpoint does not carry (`RoundTrip` findings).
 //! - [`FadeTrap`]: a script that leaves the screen black (`CapturableStuck` findings).
-//! - [`Rebuilt`]: another build id with the same behaviour (revalidation).
+//! - [`VarTrap`]: a cell that sets a story var (expected divergences).
+//! - [`Rebuilt`]: another build id with the same behaviour (stale findings).
 //! - [`Reporting`]: every script reports first (`Unsupported` findings).
-//! - [`TrainerOn`]: one more trainer on a map (incremental revalidation's sight maps).
 //!
 //! [`same_answers`] checks that a wrapper answers every provided method like its inner game,
 //! with [`Answers`] (a game answering each one on its own) as the inner game.
@@ -16,8 +16,8 @@
 use engine::battle::{self, BattleGfx};
 use engine::data::{
     BLOCK_COLLISION_SHIFT, CoordEvent, Emote, Evolution, FlagId, GameData, ItemId, ItemInfo,
-    MapData, MapId, MapScripts, ObjectEvent, ScriptId, SpecialIds, SpeciesId, SpriteData,
-    TrainerId, VarId, WarpEvent,
+    MapData, MapId, MapScripts, ScriptId, SpecialIds, SpeciesId, SpriteData, TrainerId, VarId,
+    WarpEvent,
 };
 use engine::mon::{BattleTables, LandEncounters, TrainerData};
 use engine::script::{Ctx, Fade, Report, Script};
@@ -353,6 +353,39 @@ impl<G: GameData> GameData for FadeTrap<G> {
     }
 }
 
+/// [`FadeTrap`]'s coord event on `at`, but its script sets the story var [`VAR_TRAP_VAR`] to 1
+/// and ends: a branch that steps there changes the progress state (an expected divergence).
+#[derive(Clone, Copy, Debug)]
+pub struct VarTrap<G> {
+    pub inner: G,
+    pub map: MapId,
+    pub at: (i16, i16),
+}
+
+/// The story var a [`VarTrap`] sets.
+pub const VAR_TRAP_VAR: VarId = VarId(0x40F0);
+
+impl<G: GameData> GameData for VarTrap<G> {
+    forward!(has_map special_ids sprite player_sprite font window text ui_text behavior
+             new_game build_id battle trainer battle_text battle_gfx heal_location
+             wild_encounters m8);
+
+    fn map(&self, id: MapId) -> &'static MapData {
+        let base = self.inner.map(id);
+        if id != self.map {
+            return base;
+        }
+        leaked(Patch::Coord, base, self.at)
+    }
+
+    fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
+        if id != FADE_TRAP_SCRIPT {
+            return self.inner.script(id, ctx);
+        }
+        Box::pin(async move { ctx.set_var(VAR_TRAP_VAR, 1).await })
+    }
+}
+
 /// A different build id, same behaviour.
 #[derive(Clone, Copy, Debug)]
 pub struct Rebuilt<G> {
@@ -367,48 +400,6 @@ impl<G: GameData> GameData for Rebuilt<G> {
 
     fn build_id(&self) -> u64 {
         self.build_id
-    }
-}
-
-/// `map` gets one more object, `trainer` (its `script` and `trainer_type` as given): a trainer
-/// whose script only sight reads on that map (`incremental::sighting_maps`). Not for playing:
-/// the object is leaked once per (map, script) and placed where `trainer` says.
-#[derive(Clone, Copy, Debug)]
-pub struct TrainerOn<G> {
-    pub inner: G,
-    pub map: MapId,
-    pub trainer: ObjectEvent,
-}
-
-impl<G: GameData> GameData for TrainerOn<G> {
-    forward!(has_map special_ids sprite player_sprite font window text ui_text behavior script
-             new_game build_id battle trainer battle_text battle_gfx heal_location
-             wild_encounters m8);
-
-    fn map(&self, id: MapId) -> &'static MapData {
-        let base = self.inner.map(id);
-        if id != self.map {
-            return base;
-        }
-        type Key = (usize, Option<ScriptId>, u8);
-        static ADDED: RwLock<Vec<(Key, &'static MapData)>> = RwLock::new(Vec::new());
-        let key = (
-            std::ptr::from_ref(base) as usize,
-            self.trainer.script,
-            self.trainer.trainer_type,
-        );
-        let mut all = ADDED.write().unwrap_or_else(|e| e.into_inner());
-        if let Some(&(_, m)) = all.iter().find(|(k, _)| *k == key) {
-            return m;
-        }
-        let mut objects = base.objects.to_vec();
-        objects.push(self.trainer);
-        let m: &'static MapData = Box::leak(Box::new(MapData {
-            objects: Box::leak(objects.into_boxed_slice()),
-            ..copy_map(base)
-        }));
-        all.push((key, m));
-        m
     }
 }
 
@@ -792,4 +783,74 @@ fn copy_map(base: &'static MapData) -> MapData {
         },
         allow_running: base.allow_running,
     }
+}
+
+/// The spine of [`fill_db`]: two waits in the walled-in new game.
+pub static FILL_STEPS: &[crate::spine::Step] = &[
+    crate::spine::Step::Checkpoint("start"),
+    crate::spine::Step::Wait(200),
+    crate::spine::Step::Checkpoint("mid"),
+    crate::spine::Step::Wait(200),
+    crate::spine::Step::Checkpoint("end"),
+];
+
+/// Fills the db at `path` through the explore API (the studio's tests): the spine
+/// [`FILL_STEPS`] of `inner` walled in at its new-game cell ([`WallAround`]), its branches, and
+/// one more branch with a `Softlock` finding (the walled-in player). Returns the number of
+/// branches stored.
+pub fn fill_db<G: GameData + Clone + Send + Sync + 'static>(
+    inner: G,
+    path: &std::path::Path,
+) -> anyhow::Result<usize> {
+    use crate::branch::{self, Action, BranchResult, Outcome, Target, TargetKind};
+    use crate::config::Config;
+    use crate::db::{Db, RunRow};
+    use crate::{Macro, MacroKind};
+    let ng = inner.new_game();
+    let game = WallAround {
+        inner,
+        map: ng.map,
+        at: (ng.x, ng.y),
+    };
+    let cfg = Config::default();
+    let s = crate::spine::run(&game, FILL_STEPS, &cfg);
+    anyhow::ensure!(s.complete(), "the fill spine stopped: {:?}", s.error);
+    let (mut db, _) = Db::open(path, engine::checkpoint::build_hash(&game), content::FLAVOR)?;
+    let row = |command: &str, branches: u64| RunRow {
+        started: "test".into(),
+        command: command.into(),
+        config: cfg.to_ron(),
+        threads: 1,
+        branches,
+        frames: s.frames,
+        wall_ms: 1,
+    };
+    let run = db.record_run(&row("spine", 0))?;
+    db.put_spine(&s, 1, run)?;
+    let origins = branch::origins(&s, &cfg.branch, None);
+    let targets = branch::all_targets(&game, &s, &origins, &cfg);
+    let mut results = branch::run_all(&game, &s, &targets, &cfg);
+    let end = s.positions.last().expect("a position");
+    results.push(BranchResult {
+        target: Target {
+            origin: end.index,
+            action: Action::Macro(Macro::of(MacroKind::Wait { frames: 1 })),
+            kind: TargetKind::Cells,
+        },
+        outcome: Outcome::Bug,
+        explored: None,
+        macros: Vec::new(),
+        explore_frames: 1,
+        recover_frames: 0,
+        window_frames: 0,
+        gain: crate::spine::Gain::default(),
+        points: 0,
+        coverage: crate::spine::Coverage::default(),
+        findings: vec![crate::sim::softlock_finding(&end.end, 0, 1, 1)],
+        reports: Vec::new(),
+        message: "walled in".into(),
+    });
+    let run = db.record_run(&row("branch", results.len() as u64))?;
+    db.put_branches(&s, &results, run)?;
+    Ok(results.len())
 }

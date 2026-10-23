@@ -7,7 +7,6 @@ use engine::checkpoint::BuildHash;
 use explore::config::Config;
 use explore::db::{Db, DbError};
 use explore::goals::{self, Act};
-use explore::wire::Explore;
 
 const B: BuildHash = BuildHash {
     engine: 1,
@@ -61,8 +60,12 @@ fn each_build_explores_its_own_acts() {
         }
     }
     assert!(Act::parse_in_build("act2").is_err());
-    // SIL1 Wave 3 fills the Prologue's goals.
-    assert!(goals::goals_of(Act::SilCh0).is_empty());
+    // The Prologue's goals (the Silice spine's `Expect`s) end at the Bois-Éther edge.
+    if content::FLAVOR == Flavor::Silice {
+        let ch0 = goals::goals_of(Act::SilCh0);
+        assert_eq!(ch0.first().map(|g| g.name), Some("intro_done"));
+        assert_eq!(ch0.last().map(|g| g.name), Some("bois_ether_edge"));
+    }
 }
 
 #[test]
@@ -73,15 +76,34 @@ fn explore_refuses_an_act_of_another_flavour() {
         .expect("another flavour has an act");
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("explore.db");
+    // The config's act is checked: the spine's goals are the build's act.
+    let config = dir.path().join("explore.ron");
     let cfg = Config {
         act: foreign,
         ..Config::default()
     };
-    let e = Explore::open(content::Emerald::for_shells(), &path, cfg)
-        .err()
-        .expect("refused");
-    assert!(format!("{e:#}").contains(foreign.name()), "{e:#}");
-    assert!(!path.exists(), "no db is made for a refused act");
+    std::fs::write(&config, cfg.to_ron()).unwrap();
+    for cmd in ["spine", "branch"] {
+        let args = [
+            cmd,
+            "--config",
+            config.to_str().unwrap(),
+            "--db",
+            path.to_str().unwrap(),
+        ];
+        let e = explore::cli::main(args.map(String::from).to_vec()).expect_err("refused");
+        assert!(format!("{e:#}").contains(foreign.name()), "{e:#}");
+        assert!(!path.exists(), "no db is made for a refused act");
+    }
+    // `--act` is gone: the spine is the build's.
+    let e = explore::cli::main(
+        ["spine", "--act", "act1", "--db", path.to_str().unwrap()]
+            .map(String::from)
+            .to_vec(),
+    )
+    .expect_err("no --act");
+    assert!(format!("{e:#}").contains("--act"), "{e:#}");
+    assert!(!cfg.act.in_build());
 }
 
 #[test]

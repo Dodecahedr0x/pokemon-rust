@@ -131,6 +131,32 @@ pub fn frames(runs: &[Run]) -> u32 {
     runs.iter().fold(0u32, |n, r| n.saturating_add(r.frames))
 }
 
+/// The runs of the first `n` frames, and the rest (a run straddling `n` is split).
+pub fn split_at(runs: &[Run], n: u64) -> (Vec<Run>, Vec<Run>) {
+    let (mut head, mut tail) = (Vec::new(), Vec::new());
+    let mut left = n;
+    for r in runs {
+        let f = u64::from(r.frames);
+        if left >= f {
+            head.push(*r);
+            left -= f;
+        } else if left > 0 {
+            head.push(Run {
+                keys: r.keys,
+                frames: left as u32,
+            });
+            tail.push(Run {
+                keys: r.keys,
+                frames: r.frames - left as u32,
+            });
+            left = 0;
+        } else {
+            tail.push(*r);
+        }
+    }
+    (head, tail)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

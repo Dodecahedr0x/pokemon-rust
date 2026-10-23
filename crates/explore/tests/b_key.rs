@@ -3,21 +3,14 @@
 use content::Emerald;
 use engine::checkpoint::WorldSnapshot;
 use engine::data::{FlagId, GameData};
-use engine::input::Buttons;
 use engine::world::World;
 use explore::key::{default_key_config, key, key_parts, place_region};
 use game_native::Session;
 
-/// A new game of `game` settled to its first capturable frame.
+/// A new game of `game` settled to its first capturable frame (the policy answers an intro
+/// script, as Silice's bar scene).
 fn settled<G: GameData>(game: G) -> Session<G> {
-    let mut s = Session::new(game);
-    for _ in 0..2000 {
-        if s.world().capturable().is_ok() {
-            return s;
-        }
-        s.step(Buttons::NONE);
-    }
-    panic!("a new game never settles: {:?}", s.world().capturable());
+    explore::expand::new_game(game)
 }
 
 fn snap() -> WorldSnapshot {

@@ -95,13 +95,9 @@ fn rebuilt_differs_in_build_only() {
         s.step(rec.keys[i]);
         assert_eq!(s.world().hash(), rec.hashes[i], "frame {}", i + 1);
     }
-    // Its checkpoints carry its build.
+    // Its checkpoints carry its build (through the opening scene: Silice's bar).
     let mut s = Session::new(rebuilt);
-    let cp = (0..600)
-        .find_map(|_| {
-            s.step(engine::Buttons::NONE);
-            s.checkpoint().ok()
-        })
-        .expect("capturable");
+    game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+    let cp = s.checkpoint().expect("capturable");
     assert_eq!(cp.header.build, b);
 }
