@@ -160,7 +160,7 @@ After each merge, the spine is extended past the blocker it removed.
 | screens | 26 | 1 | 0 | 0 | 0 | 25 | 4% | 4% |
 | engine reports | 28 | 0 | 13 | 0 | 15 | 0 | 0% | 46% |
 
-Gaps on story maps, by act: act1 113, act2 35, act3 64, act4 61, act5 17, act6 47, act7 68, act8 36, league 17 (the ledger's "Gaps per act" table splits them by category).
+Gaps on story maps, by act: act1 113, act2 35, act3 64, act4 57, act5 17, act6 47, act7 68, act8 36, league 17 (the ledger's "Gaps per act" table splits them by category).
 
 **Top 30 gaps not owned by M9/M10 (feeding Wave C)** — none of them is story-blocking yet: `story::BLOCKING` is empty, and master's spine has no `Bypass` step.
 
