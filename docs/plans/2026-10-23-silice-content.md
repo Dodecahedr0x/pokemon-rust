@@ -661,6 +661,93 @@ studio-map … stamp-from <Map> <x> <y> <w> <h> <name> [--no-elevation] [--force
 - The UI's Edit tab does not offer stamps, `AutoCollision` or the overlays yet. Its editors have no env.
 - The extract's own maps raise a few behaviour warnings, which is expected for heuristics. The fixture was repainted so that it raises none.
 
+#### SIL1 Task C, editor friction fixes as built
+
+These fixes answer the friction the Ch1 maps hit (see "Editor friction" in the Ch1 maps notes). The code is in `crates/studio/src/map_edit/` (`cli.rs`, `model.rs`, `overlay.rs`, `render.rs`, one `pub` in `behavior.rs`). The catalog and the test gating were left alone. Every change is backward compatible: existing edit scripts parse and build to the same bytes. A test rebuilds a copy of the committed `games/silice/edits` and compares it with the committed maps and layouts byte for byte.
+
+**Reference renders of Emerald maps.**
+- `studio-map render <Map> --extract [--events] [--collision] [--margin N] [--scale N] [--out FILE]` renders the extract's map `<Map>` (`<extracted>/maps/<Map>.ron`, loaded with `Doc::from_map_file`) against the build's catalog, so connected Emerald maps are drawn in the margin. The default output is `target/studio/maps/extract-<Map>.png`.
+- `studio-map dump <Map> [--extract] [--out FILE|-]` writes the metatile grid as text. It works on a games dir map, or on an extract map with `--extract`. The default output is `target/studio/maps/[extract-]<Map>.txt`, and `--out -` prints the grid. The format:
+
+  ```text
+  LittlerootTown: 20x20, General + Petalburg; metatile ids, * = solid
+  border (row-major 2x2): 468  469  476  477
+  y\x   0    1    2 ...
+    0 468* 469* 468* ...
+  ```
+
+- Both write only to the scratch dir by default. Extract renders and dumps are ROM-derived and are never committed (copying an extracted layout is also a `hygiene` error).
+- Without the extract (the stub world) `--extract` fails and says so.
+
+**Palette.**
+- `--range A..B` (B excluded) or `--range A..=B` keeps only those metatile ids. The secondary still starts on a new row. A range that holds none of the pair's metatiles is an error. The output lists the first metatile of each row, and the default file name gains `-A-B`.
+- `--labels` now draws each cell's id (left) and behaviour code (right) in a gutter band above the cell, so labels never cover the art. A column is at least as wide as a 4-digit id and a code, and columns and rows are separated by a gutter.
+- `--zoom N` (1..=8) scales the art, and `--scale N` scales the labels. The zoom defaults to the scale, so `--scale 1 --zoom 4` gives small labels over large art. Without labels the zoom alone sets the size.
+- `palette` also prints the pair's void metatiles: the cells drawn all black (`Palette::void_metatiles`).
+
+**`Object(local_id: N)`.** This is an optional field. When given, it must be in 1..64 and not used by another object of the map, or the op fails and changes nothing. Without it, the object gets the highest local id + 1, as before. An object added after an explicit id takes that id + 1 when it is the highest.
+
+**`ScriptsSet`.** `ScriptsSet(on_load: "Map_OnLoad")` sets only the fields it names and keeps the others. The fields are `on_load`, `on_transition`, `on_resume`, `on_return_to_field`, `on_dive_warp`, `on_frame` and `on_warp_into`.
+- A string field set to `""` clears it.
+- `on_frame` and `on_warp_into` replace their whole list.
+- A `ScriptsSet` with no field is an error, since a misspelled field would otherwise do nothing.
+- `Scripts(...)` is unchanged and still replaces the whole record.
+
+**`render --collision` and allowances.** A cell whose collision disagrees with the usual one is still framed yellow and marked `!`. When an `AllowCollision` of the map's edit scripts accepts it (by cell or by metatile), it is framed green and marked `+` instead. The command's legend line says so.
+
+**Building's metatile 1 (investigated).**
+- `Building`'s metatile 1 draws its bottom layer from the primary's tiles and palette 5. The secondary's tiles start at 512 and its palettes at 6, so no secondary can change it.
+- A test renders it with each of the build's secondaries (70 on the full extract) and finds it all black every time.
+- Pictures can mislead, though. Some secondaries also have a black metatile of their own. Emerald's `Lab` and `PokemonCenter` maps use 513 as their border, `GenericBuilding` maps use 513 (46) or 1 (27), and `BrendansMaysHouse` maps mostly use 543. Of Emerald's 267 maps on `Building`, 153 have border metatile 1 and 100 have 513; the rest use 515, 519, 520 or 543.
+- Rather than a warning or a hand-kept table, `palette` now prints the pair's void metatiles, computed from the render (for example `void (all-black) metatiles, for an interior's border: 1 513` for `Building` + `Lab`). Either id is a correct interior border.
+- The Ch1 report that metatile 1 "draws as floor" with `Lab` could not be reproduced in the editor's renders (the game's own field renderer). Out-of-map cells are solid in Gen3 whatever the border's collision bits.
+
+**CLI as built (changes only):**
+
+```text
+studio-map … render <Map> [--extract] [--out FILE] [--margin N] [--events] [--collision] [--scale N]
+studio-map … dump <Map> [--extract] [--out FILE|-]
+studio-map palette <Primary> <Secondary> [--out FILE] [--labels] [--scale N] [--zoom N] [--range A..B | --range A..=B]
+```
+
+```ron
+[
+    Object(x: 4, y: 6, gfx: "OBJ_EVENT_GFX_WALLY", id: "LOCALID_BOIS_LOIC", local_id: 20),
+    ScriptsSet(on_load: "BricoBourg_OnLoad"),
+]
+```
+
+**Tests.**
+- Unit tests (`map_edit/tests.rs`):
+  - `objects_take_an_optional_local_id`: explicit ids, the next automatic id, and refusals for a duplicate, 0 or 64, which leave the document unchanged;
+  - `scripts_set_merges_into_the_map_scripts`: the merge, clearing with `""`, the lists, the empty-op error, and one undo step each;
+  - `allowed_mismatches_render_as_accepted`: yellow `!` against green `+`;
+  - `dump_prints_the_metatile_grid`;
+  - `metatile_ranges_parse`.
+- `tests/map_edit_tools.rs`:
+  - `extract_maps_render_and_dump`: Littleroot's size and grid, the file and stdout outputs, refused names, and the stub's error;
+  - `palette_ranges_zoom_and_gutter_labels`: sizes for range and zoom, labels in the gutter, and art pixels identical to the plain palette's;
+  - `building_metatile_1_is_void_with_every_secondary`;
+  - `local_ids_and_scripts_set_through_build`;
+  - `committed_silice_edits_rebuild_byte_identical`;
+  - `overlays_and_labels` updated for the gutter widths.
+
+**Gates:**
+
+| Gate | Result |
+|---|---|
+| `cargo fmt --all --check` | clean |
+| clippy `-D warnings`, plain and with `game-native/window,studio/ui` | clean |
+| `cargo test -p studio`, real (env as in the brief) | 183 passed, 8 ignored |
+| `cargo test -p studio`, stub (`PKR_EXTRACTED_DIR=/nonexistent`) | 183 passed, 8 ignored |
+| `cargo xtask studio --check` | 208 passed, 8 ignored |
+| `studio-map build` on the committed `games/silice/edits` | byte-identical (no file changed) |
+
+**Limitations.**
+- `dump` has no elevation and no raw blocks. `stamp-from` still reads only games dir maps, on purpose, because an extract stamp would be a copy.
+- `ScriptsSet` cannot append to `on_frame`; it replaces the list.
+- The void list is computed from the render and does not say which void Emerald prefers for a pair. `dump --extract` of a reference map shows its border.
+
 #### SIL1 Task B as built: the importer and the validator
 
 The code is in `xtask/src/silice/`: `mod.rs` (CLI, file writing), `md.rs` (chapter markdown), `names.rs` (constant words, families, map names), `maps.rs` (names in `maps/*.ron` and, later, the scene scripts), `import.rs`, `ids.rs` (allocation), `check.rs` and `schema.rs`. Outside it, the task touched one arm in `xtask/src/main.rs`, `regex` in `xtask/Cargo.toml`, `xtask/tests/silice_{import,check,games}.rs` (with `silice_common/`) and the synthetic fixtures in `xtask/tests/fixtures/silice/`, among them `ids.golden`.
@@ -1178,6 +1265,253 @@ The hidden-item fallback is the one map-event change this task made. It is a scr
    - the player's long departure line is kept as narration;
    - the Route S1 trainers reach level 6 against a level 5 starter. The e2e on the first-move policy needs the heal at home before TÉO; it picks TOTODILE.
 
+#### SIL2 Ch1 maps as built (Bois-Éther)
+
+The six Chapter 1 maps are in `games/silice/{maps,layouts}/`, made only with the studio map editor. Their edit scripts are in `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, plus `03_allow` for Bois-Éther). Two Ch0 maps gain a phase-4 script each:
+- `BricoBourg/04_ch1_labo.ron` adds warp 3 on the Labo door (4, 7) and the `BricoBourg_OnLoad` map script;
+- `RouteS01/04_ch1_connect.ron` adds the north connection to Bois-Éther.
+
+`cargo xtask studio map build` rebuilds all 12 maps and writes the same bytes (checked with everything staged: no diff).
+
+**Names.** The chapter's `MAP_*` constants are `MAP_BOIS_ETHER`, `_GYM`, `_HERBORISTE`, `_MART` and `_POKEMON_CENTER`, plus `MAP_BRICO_BOURG_LABO`. Its other names are `MAP_BRICO_BOURG` and `MAP_ROUTE_S01` (Ch0) and `MAP_ROUTE_S02` (Ch2). None is a fallback or a placeholder, so no name was left without a map. The map names are the ones `ids/maps.ron` already gives (`BoisEther`, `BoisEther_Gym`, `BoisEther_Herboriste`, `BoisEther_Mart`, `BoisEther_PokemonCenter`, `BricoBourg_Labo`). Each layout has its map's name. The §1.2 row says "4 interiors": these are the Center, the Mart, the Herboriste and the Labo.
+
+**Sizes and tilesets** (Emerald tilesets by name; every layout is original, and `hygiene`, which includes `games::copies` with the full extract, is clean):
+
+| Map | Size | Tilesets | Why this pair |
+|---|---|---|---|
+| BoisEther | 36 × 26 (the source's size) | General + Fortree | Fortree is Emerald's forest town: treehouses on stilts, ladders, dense canopy and big trees match "houses in the trunks or on stilts between the roots". General adds the Center, the Mart, tall grass and the rail used as cables. Route 119/120's pair is the same. |
+| BoisEther_Gym | 15 × 40 (the source's size) | Building + PetalburgGym | Petalburg Gym is Emerald's gym of rooms joined by sliding doors, which is what the airlocks need. Its dais serves as Loïc's spot and the workbench, its green mats as the greenhouse beds, and its window wall as the glass dome. Fortree Gym has the greenery but no door. |
+| BoisEther_Herboriste | 8 × 7 (the source's size) | Building + PrettyPetalFlowerShop | Emerald's only plant shop: wooden counter, potted plants, flower beds. |
+| BoisEther_PokemonCenter | 12 × 8 | Building + PokemonCenter | standard |
+| BoisEther_Mart | 10 × 8 | Building + Shop | standard |
+| BricoBourg_Labo | 14 × 12 (the source's size) | Building + Lab | an old lab: jar shelves, desks, machines |
+
+Borders: Bois-Éther uses Fortree's forest (198/199); the interiors use black, blocked (1025), as in Ch0.
+
+**Warnings and allowances.**
+- `validate` reports no errors. Its only warnings are the 194 unwritten scripts: 125 come from the Ch1 maps (Bois-Éther 65, Gym 43, Labo 11, Center 3, Mart 2, Herboriste 1), 69 from Ch0 (68 plus `BricoBourg_OnLoad`). `registry::ALLOW_UNWRITTEN` drops them at build time.
+- `BoisEther/03_allow.ron` keeps two kinds of solid cell on purpose:
+  - the Team Cocket cables (General's rail metatile 241, as on Route S1);
+  - the doors of the two decorative treehouses, (23, 7) and (30, 4), which have no interior.
+- Fixed instead of allowed: the Mart's roof ridge (General 40–43) is walkable, as in Emerald.
+- The Gym raises no behaviour warning. Its workbench (the dais pieces with collision 1) and its closed doors are solid on purpose.
+- `cargo xtask silice check` passes. Every flag, var and item the maps name exists in `ids/` or in Gen3; the ten hide flags were allocated for these maps (see the hide flags below).
+
+**Events per map** (my coordinates; changes from the source are listed after).
+
+- **BoisEther.**
+  - Header: `MUS_FORTREE`, `MAP_TYPE_TOWN`, `WEATHER_NONE` (the red sky is scripted).
+  - Map scripts:
+    - `on_load` is `BoisEther_OnLoad`. It repaints the cut brambles when `FLAG_SIL_BOIS_ETHER_RONCES_CUT` is set, and the open barrier when `VAR_SIL_STORY` ≥ 17;
+    - `on_transition` is `BoisEther_OnTransition`. It sets the hide flags, the red sky and the music.
+  - Warps:
+    - 0: the gym (17, 4);
+    - 1: the Center (27, 12);
+    - 2: the Mart (27, 17);
+    - 3: the Herboriste (5, 12).
+  - Objects:
+
+    | Local id | Who | Cell | Gfx | Script | Hide flag |
+    |---|---|---|---|---|---|
+    | 1 | JARDINIERE | (10, 7) | WOMAN_2 | `_EventScript_Jardiniere` | |
+    | 2 | VIEUX | (14, 12) | OLD_MAN | `_EventScript_Vieux` | |
+    | 3 | FILLETTE | (20, 7), wanders 1 | LITTLE_GIRL | `_EventScript_Fillette` | |
+    | 4 | MARCHAND | (6, 14) | POKEFAN_M | `_EventScript_Marchand` | |
+    | 5 | FAN | (16, 6) | BOY_3 | `_EventScript_Fan` | |
+    | 6 | TECHNICIEN | (24, 3), faces his cable | SCIENTIST_1 | `_EventScript_Technicien` | `_TECHNICIEN` (VAR ≥ 16) |
+    | 7 | TOUX | (22, 14) | WOMAN_4 | `_EventScript_Toux` | |
+    | 8 | GARDIEN | (19, 12) | EXPERT_M | `BoisEther_Sc04` | |
+    | 9 | GARDE | (32, 13) | MAGMA_MEMBER_M | `BoisEther_Sc07` | `_GARDE` (VAR ≥ 17) |
+    | 10 | ADRIEN | (17, 12) | SCHOOL_KID_M | none (Sc02) | `_ADRIEN` (outside VAR 10–11) |
+    | 11 | GOGO | (15, 10) | MAXIE | none | `_GOGO` |
+    | 12 | ROMAIN | (19, 10) | ARCHIE | none | `_ROMAIN` |
+    | 13 | SBIRE_1 | (15, 11) | MAGMA_MEMBER_M | none | `_SBIRE_1` |
+    | 14 | SBIRE_2 | (19, 11) | MAGMA_MEMBER_F | none | `_SBIRE_2` |
+    | 15 | MATHIEU | (22, 11) | BLACK_BELT | none | `_MATHIEU` |
+    | 16 | ITEM_X_DEFEND | (28, 8), behind the Center | item ball | `_EventScript_ItemXDefend` | `FLAG_SIL_ITEM_BOIS_ETHER_X_DEFEND` |
+
+    The hide flags are `FLAG_SIL_HIDE_BOIS_ETHER_<WHO>`. Objects 11–15 are Sc06's actors, hidden outside the scene. The source's obj 16 (reserved) is not drawn, so the item ball takes local id 16.
+  - Coord events:
+    - `BoisEther_Sc01` on (12–15, 24), `VAR_SIL_STORY` 9;
+    - `BoisEther_Sc02` on the whole row y 13 (x 2–31), value 10;
+    - `BoisEther_Sc06` on (13–21, 6), value 15;
+    - `BoisEther_Sc07` on (32, 12–15), value 16.
+  - Signs:
+    - the village sign (11, 20);
+    - the arena sign (12, 5);
+    - the oak's trunk (17, 10);
+    - the barrier sign (30, 11);
+    - the cable sign (22, 2);
+    - `BoisEther_Sc08` on the brambles (8, 6).
+  - Hidden items:
+    - the Super Potion in the market's high-tech pot (4, 14);
+    - the Évoluroc (`ITEM_SIL_EVOLUROC`) in the secret grove (4, 7).
+  - Connection: South to RouteS01, offset 5 (our x 12–15 meet its x 7–10). RouteS01 mirrors it: North, offset −5.
+  - Terrain:
+    - The Grass-Hopper is a 9-wide treehouse (x 13–21, y 1–5) whose deck is at ground level.
+    - Two decorative treehouses stand on stilts (x 21–25, y 5–10, and x 28–32, y 2–7).
+    - The Herboriste is a ground-level treehouse (x 3–7, y 10–13).
+    - The Grand Chêne is Fortree's big tree (x 16–18, y 8–10).
+    - The Center is at x 26–29, y 9–12, and the Mart at x 26–29, y 14–17.
+    - The secret grove is a hedge (x 3–8, y 5–8) closed by the brambles (8, 6).
+    - Tall grass: x 3–7, y 1–4, and x 2–7, y 15–20.
+    - The east corridor (y 12–15) has the barrier (33, 13–14) between trees at (33, 12) and (33, 15). Beyond it, x 34 is walkable and x 35 is forest.
+- **BoisEther_Gym.**
+  - Header: `MUS_GYM`, indoor.
+  - Map scripts:
+    - `on_load` is `BoisEther_Gym_OnLoad`. Once `FLAG_SIL_GYM1_VALVE` is set, it opens both airlock doors, (7, 8–9) and (7, 11–12). Without the second one, a player who reloads the map in the greenhouse would be locked in;
+    - `on_transition` is `BoisEther_Gym_OnTransition`. It hides Loïc (`FLAG_SIL_HIDE_GYM1_LOIC`) once `FLAG_SIL_BADGE_01` is set.
+  - Warps 0–1: the mat (6–7, 39) to Bois-Éther's warp 0.
+  - Zones, bottom to top:
+    - the hall, y 31–39;
+    - zone 1, x 3–11 inside its walls, y 22–30;
+    - zone 2, x 1–13, y 11–20;
+    - zone 3, the chamber (6–8, 10);
+    - zone 4, the greenhouse, y 0–9.
+  - Objects:
+    1. the guide (MAN_2) at (5, 35);
+    2. Iris (PICNICKER) at (6, 23), facing right, sight 3;
+    3. Jules (CAMPER) at (11, 26), facing left, sight 3;
+    4. Milo (HIKER) at (8, 17), facing left, sight 4;
+    5. Rose (LASS) at (11, 13), facing down, sight 4;
+    6. Paul (YOUNGSTER) at (11, 18);
+    7. crate c1's Super Potion, an item object at (2, 15) (`FLAG_SIL_ITEM_GYM1_SUPER_POTION`);
+    8. Loïc (WALLY) at (7, 2) on the dais, script `BoisEther_Gym_Sc10`. The source calls him obj 20, but the `Object` op cannot choose a local id, so he is 8; scripts use `LOCALID_GYM1_LOIC`.
+  - Coord events:
+    - `BoisEther_Gym_Sc01` on (6–7, 38), `VAR_SIL_STORY` 12;
+    - the shower on (7, 30) and (7, 29), and the 20 spore grates, all keyed on `VAR_TEMP_1` 0, so they fire on every step. Their scripts test `FLAG_SIL_GYM1_CONTAMINE`;
+    - the zone-3 scene (`_EventScript_Sas2`) on (7, 10), keyed on `VAR_TEMP_2` 0. It must set `VAR_TEMP_2` to 1, so it plays once per visit.
+  - Signs:
+    - airlock door D (8, 22), any facing, so it also opens from above;
+    - the poster (4, 22);
+    - the workbench (5–7, 14);
+    - crates c2 (4, 15, the fuse) and c3 (6, 15, the spring);
+    - the private greenhouse door (12, 1).
+  - The grates and the walls follow the source's grid exactly (origin (2, 22)), so the safe path and both forced battles are unchanged. A breadth-first search over the layout confirms it: with the grates solid, every path from the shower (7, 30) to the door's front cell (8, 23) crosses Jules's and Iris's lines of sight.
+- **BoisEther_Herboriste.** Header `MUS_FORTREE`, indoor. Warps 0–1: the mat (3–4, 6) to Bois-Éther's warp 3. Object 1: the herbalist (MAN_4) behind the counter at (0, 4), script `BoisEther_Herboriste_Sc05` (the source's Bois_Ether_Sc05 runs here). The player talks across the counter (x 1, y 3–5).
+- **BoisEther_PokemonCenter.** Header `MUS_POKE_CENTER`. `on_transition` is `BoisEther_PokemonCenter_OnTransition`, which sets the respawn point. Warps 0–1: the mat (5–6, 7) to warp 1. Objects:
+  1. the nurse at (6, 2);
+  2. the trainer (YOUNGSTER) at (2, 5).
+- **BoisEther_Mart.** Header `MUS_POKE_MART`. Warps 0–1: the mat (4–5, 7) to warp 2. Objects:
+  1. the clerk at (1, 3), behind the counter;
+  2. the client (MAN_1) at (4, 5).
+- **BricoBourg_Labo.**
+  - Header: `MUS_AQUA_MAGMA_HIDEOUT` (the source's `MUS_TEAM_AQUA_HIDEOUT` does not exist).
+  - `on_transition` is `BricoBourg_Labo_OnTransition`. It hides the Chimiste (`FLAG_SIL_HIDE_LABO_CHIMISTE`) once `VAR_SIL_BRICO_LABO_STATE` is 2.
+  - Warps 0–1: the mat (6–7, 11) to BricoBourg's warp 3.
+  - Objects:
+    1. the Chimiste (SCIENTIST_2) at (2, 1). He is a talked-to boss, not a sight trainer: his script battles;
+    2. sbire 2 (MAGMA_MEMBER_F) at (1, 3), facing right, sight 4;
+    3. sbire 1 (MAGMA_MEMBER_M) at (1, 8), facing right, sight 5;
+    4. the TM chest (12, 3), an item ball;
+    5. the Silice dust on a bench (6, 7), an item ball;
+    6. the Revive (9, 9), an item ball.
+  - Coord events: `BricoBourg_Labo_Sc01` on (6–7, 10), `VAR_SIL_BRICO_LABO_STATE` 0.
+  - Signs: the memo on the desk at (11, 2) and (12, 2).
+  - The crate cordon (x 2–11, y 4) leaves (1, 4) and (12, 4) open, as the source says.
+- **BricoBourg** (Ch0, edited):
+  - warp 3 on the Labo door (4, 7). The door stays solid: it is an animated door, and pushing into it warps;
+  - `on_load` `BricoBourg_OnLoad` repaints the cut brambles (4, 8) when `FLAG_SIL_BRICO_LABO_RONCES_CUT` is set. The `Scripts` op restates Ch0's `on_transition` and `on_frame`.
+
+**Hide flags.** Each scene actor has its own persistent hide flag, as in Ch0: `FLAG_SIL_HIDE_BOIS_ETHER_{TECHNICIEN, GARDE, ADRIEN, GOGO, ROMAIN, SBIRE_1, SBIRE_2, MATHIEU}`, `FLAG_SIL_HIDE_GYM1_LOIC` and `FLAG_SIL_HIDE_LABO_CHIMISTE`. The first build used Gen3's temporary `FLAG_TEMP_11`–`18`, because the ids were owned by another task.
+- They were allocated by `cargo xtask silice import … --force` from `maps/*.ron` (flags 765–774) and appended to `xtask/tests/fixtures/silice/ids.golden`. Only `ids/flags.ron` and `IMPORT-REPORT.md` were taken from the import: it would also undo Task A's provisional `Tour_Sbire{1,2}_Intro_Ch09` rename.
+- Each `_OnTransition` owns its map's flags, as Ch0's do. It sets them from `VAR_SIL_STORY`, `FLAG_SIL_BADGE_01` and `VAR_SIL_BRICO_LABO_STATE` before the objects spawn. A scene that shows or hides an actor (`show`/`hide`) also sets its flag.
+- `game.ron`'s `new_game_flags` sets those hidden at story 0: Adrien (`_ADRIEN`) and Sc06's five actors. The technician, the guard, Loïc and the Chimiste start visible. `game_tests.rs` checks both groups.
+
+No new flags or vars are otherwise needed.
+
+**Metatiles for `set_metatile`** (the source's `METATILE_*` names; each also restores collision 0):
+- `METATILE_RONCES_COUPEES`: Bois-Éther (8, 6) becomes General 1, grass. Brico-Bourg (4, 8) becomes General 1.
+- `METATILE_BARRIERE_OUVERTE`: (33, 13) and (33, 14) become Fortree 609, the path.
+- `METATILE_PORTE_SAS_OUVERTE`: the gym's airlock doors become PetalburgGym 513, the floor:
+  - zone 1, (8, 22);
+  - zone 2, (7, 11) and (7, 12);
+  - zone 3, (7, 8) and (7, 9).
+
+  Each airlock door is two cells tall, so every script that opens or closes one must set both cells. The source's single cells do not suffice:
+  - the workbench's `set_metatile(7, 12)` must also open (7, 11);
+  - the zone-3 scene's `door(7, 11, false)` must also close (7, 12);
+  - its `door(7, 9, true)` must also open (7, 8). Otherwise (7, 8) stays solid and the greenhouse cannot be reached.
+
+**Script names (the contract for `crates/content/src/silice/scripts/ch01_*.rs`)**, following the Ch0 rules (`<Map>_ScNN`, `<Map>_EventScript_<What>`, `<Map>_OnTransition`/`_OnLoad`):
+- BoisEther:
+  - scenes: `BoisEther_Sc01`, `_Sc02` (which calls Sc03), `_Sc04`, `_Sc06`, `_Sc07`, `_Sc08`;
+  - map scripts: `_OnLoad`, `_OnTransition`;
+  - NPCs: `_EventScript_{Jardiniere, Vieux, Fillette, Marchand, Fan, Technicien, Toux}`;
+  - item: `_EventScript_ItemXDefend`;
+  - signs: `_EventScript_{SignVille, SignArene, SignChene, SignBarriere, SignCable}`.
+- BoisEther_Gym:
+  - scenes: `BoisEther_Gym_Sc01`, `_Sc10` (which calls Sc11 and Sc12);
+  - map scripts: `_OnLoad`, `_OnTransition`;
+  - `_EventScript_{Conseiller, Iris, Jules, Milo, Rose, Paul, CaissePotion, Douche, Spores, Sas2, PorteSas1, Affiche, Etabli, CaisseFusible, CaisseRessort, SerrePrivee}`.
+- BoisEther_Herboriste: `BoisEther_Herboriste_Sc05`.
+- BoisEther_PokemonCenter: `_OnTransition`, `_EventScript_Nurse`, `_EventScript_Dresseur`.
+- BoisEther_Mart: `_EventScript_Clerk`, `_EventScript_Client`.
+- BricoBourg_Labo: `BricoBourg_Labo_Sc01`, `_OnTransition`, `_EventScript_{Chimiste, Sbire1, Sbire2, ItemTm, ItemSilice, ItemRevive, Memo}`.
+- BricoBourg: `BricoBourg_OnLoad` (new).
+
+**Pending link to Chapter 2 (not made here; another agent builds Ch2).** Bois-Éther's east exit stays solid. When `RouteS02` exists, add a phase-5 script `games/silice/edits/BoisEther/05_ch2_connect.ron`:
+- `Ascii(x: 35, y: 12, rows: [":", ":", ":", ":"], legend: {':': (metatile: 609, collision: 0)})` opens x 35, y 12–15;
+- `Connect((dir: East, offset: 12 - Y, map: "RouteS02"))`, where Y is the top row of RouteS02's 4-row west exit;
+- RouteS02 mirrors it: `West`, offset `Y - 12`.
+
+`BoisEther_Sc07` and `_OnLoad` open the barrier at (33, 13–14). The connection itself needs no script.
+
+**Coordinate changes from the source.**
+- **Bois-Éther.**
+  - The source's ASCII stops at y 20 for a 36 × 26 map. Rows 21–25 are forest with the south path (x 12–15), so Sc01's row moved from y 19 to y 24, one row inside the edge.
+  - The Mart's door is (27, 17), not (27, 16): a 4-row Mart under the Center's door would block it.
+  - The X Defend is at (28, 8), behind the Center (the source's (28, 9) is inside its roof).
+  - Sc06 fires on the whole row y 6 (x 13–21) rather than on (17, 7). Every step off the gym's deck crosses that row, and the Grand Chêne fills y 8–10 in front of the door.
+  - Sc02 fires on the whole row y 13 (x 2–31) rather than on (16–18, 13). The clearing could be walked around, which skipped Sc02, Sc03 and their story steps. The gym, the Center's and the Herboriste's doors are all north of that row. The scene walks the player to (17, 13) before Adrien turns.
+  - The second treehouse's stamp keeps the gym deck's right end at (21, 5).
+  - The fan stands at (16, 6), off the deck.
+  - The east ponds and the clearing's pond are left out: the extract has no small pond that fits. Flower beds and tall grass take their place.
+  - The cables are at x 9–12, y 1, and x 22–26, y 2.
+  - Sc06's actors start at (15, 10), (19, 10), (15, 11), (19, 11) and (22, 11). Its walking paths (and Sc03's Adrien exit) must be re-derived in Rust.
+- **Gym.**
+  - Zone 1's door D (8, 22) and zone 2's opening (7, 20) are joined by a two-cell corridor (7–8, 21).
+  - The 2-row wall between zones 2 and 3 holds one door: (7, 11) is its top and (7, 12), P, its bottom.
+  - Zone 3's front door is (7, 8–9).
+  - The guide is at (5, 35).
+  - The workbench spans x 4–8, y 13–14 (the source draws it as one row).
+  - Loïc's exit (`Walk(Up) x2, Walk(Right) x3` from (7, 2)) walks into the back wall. It must be re-derived in Rust, towards the private greenhouse door (12, 1).
+- **Labo.**
+  - The memo is read on the desk at (11–12, 2): the source's (12, 1) has no free neighbour once the desk is drawn.
+  - Brico-Bourg's Labo door keeps Ch0's (4, 7) (the source's (5, 3)).
+
+**Placeholders.**
+- Graphics (the full extract now has every sprite):
+
+  | Character | Placeholder gfx |
+  |---|---|
+  | Gogo | MAXIE |
+  | Romain | ARCHIE |
+  | Team Cocket (guard, sbires) | MAGMA_MEMBER_M/F |
+  | Loïc | WALLY |
+  | Botanistes (Iris, Rose) | PICNICKER, LASS |
+  | Herbalist | MAN_4 |
+  | Chimiste | SCIENTIST_2 |
+
+  Ch0's sbires (NINJA_BOY) could switch to MAGMA_MEMBER_M too.
+- Crates are Building's screen metatiles. The cables are rails (as in Ch0). The barrier is General's fence (6).
+- Strobes and a mirror ball cannot be drawn. The Labo's music is Emerald's hideout track.
+
+**Editor friction.**
+1. **No reference render of an Emerald map.** To learn Fortree's and the interiors' metatiles, I copied extracted layouts into a scratch games dir and rendered them, plus a metatile-id grid dump. Suggest `studio-map render --extracted <EmeraldMap>` and a `grid <Map>` command that prints ids and collision.
+2. **`palette --labels` at scale 2** hides small tiles under the labels, and a full pair is too tall to read. Suggest `--range 512..640`, which also saves cropping by hand. On macOS, `sips` crops from the centre when given offset 0.
+3. **`Object` cannot choose a local id.** Loïc is 8, not the source's 20. Suggest `Object(local_id: 20, …)`.
+4. **`Scripts` replaces the whole map-scripts record.** Adding `on_load` to Brico-Bourg meant restating Ch0's `on_transition` and `on_frame`. Suggest field-level ops (`OnLoad("…")`).
+5. **`render --collision` still marks allowed cells with `!`.** It could grey them out.
+6. **Building's metatile 1 is black only with some secondaries.** With Lab it draws as floor; I used Lab 513.
+7. **In the agent worktree, shell loops and variables in a command are refused.** Renders and palettes went through small helper scripts.
+8. **Ids were owned by another task.** New hide flags could not be added at first, hence the temporary `FLAG_TEMP_*` design (replaced since; see the hide flags). A shared "pending ids" file the ids import picks up would help.
+
+**Time.** About 2.5 h:
+- 1 h learning four new tileset pairs (Fortree, PokemonCenter/Shop, PrettyPetalFlowerShop, Lab and PetalburgGym) through reference renders;
+- 1 h drafting the six maps;
+- 0.5 h events, gates and this write-up.
+
 #### SIL1 Task A as built: the authored-data loader
 
 `build/silice/` loads all of `games/silice` into the generator's `World`. The generator sees Silice only through `input::AuthoredIn`, which gained `map_numbers`, `item_bases`, `rules` and `data_rs`.
@@ -1237,6 +1571,95 @@ The hidden-item fallback is the one map-event change this task made. It is a scr
 - A nested `cargo check` with `PKR_SILICE_DIR` fails on a fixture with an unknown tileset.
 - With a real extract, the committed dir loads with one constant per `LOCALID`, trainer, item and text.
 - Under `cfg(pkr_silice)`, every trainer's party and held items, the encounters, the items' prices and hold effects, `MARTS` and the texts are checked against the RON files.
+
+#### SIL1 Task D as built: flavour plumbing in the shells
+
+`PKR_GAME=silice` now builds and tests the whole workspace (game-native, game-gba, explore, studio, xtask), and every xtask command takes `--game`. Route-neutral for Emerald: only `BUILD_ID` moves (`build/main.rs` gained the metadata line), so the Emerald trees still read `valid (rehash)`, and `cargo xtask parity` is identical.
+
+Commits:
+- `feat(content): tell the shells the built flavour (links metadata, cfg(pkr_silice) in their build scripts)`
+- `feat(explore): per-flavour acts and a flavour-keyed db (Db::open takes a Flavor, refuses another flavour's db)`
+- `feat(shells): Silice boot route and lane, gate the Emerald-only shell code and tests by flavour`
+- `feat(xtask): --game emerald|silice for every command, provisional Silice ROM budget`
+- the merge of master (M8 Task M), then `fix(shells): gate Task M's after-starter tour and committed-node ROM test by flavour, re-measure the Silice ROM`
+
+**How the shells see the flavour.**
+- `content` declares `links = "pkr_content"`, and its build script prints `cargo::metadata=flavor=<stub|emerald|silice>` (the flavour actually built, so `PKR_GAME=silice` with an explicit `PKR_EXTRACTED_DIR=/nonexistent` is the stub).
+- `game-native`, `explore`, `studio`, `xtask` and `game-gba` each have a `build.rs` that `include!`s `crates/content/flavor_cfg.rs`: it reads `DEP_PKR_CONTENT_FLAVOR` and sets the crate's own `cfg(pkr_silice)`. Each of the five asserts in a `const` that the cfg agrees with `content::FLAVOR`, so a stale cfg cannot compile.
+- Staleness: cargo cannot watch a `DEP_*` variable with `rerun-if-env-changed`. The shell's script reruns because cargo fingerprints a build-script run with the runs of its `links` dependencies, so it reruns whenever `content`'s does (a `PKR_GAME` change among others). It prints `rerun-if-changed=build.rs` so that it does not rerun on every other file change. Checked by building Emerald, then Silice, then Emerald again: the `const` checks hold each time.
+- `emu` sees `content` only as a dev-dependency (no `DEP_*`), so its tests use runtime checks plus `game_native::scenario::after_starter()`.
+- Rule: Emerald-only code that names Hoenn constants or `Game::after_starter` is `cfg(not(pkr_silice))`. Everything else branches on `content::FLAVOR` at run time. `content::STUB` is left only where the question is "is there a game at all".
+
+**Gated or generic.**
+- `game_native::scenario`:
+  - `route()` matches on `FLAVOR`. `SILICE_ROUTE` is the boot lane: a new game left idle, with moments and nodes `silice_start` (frame 24), `silice_idle` (600) and `silice_end` (1500). The tail makes the last node's trace longer than a seek keyframe interval, so the seek, materialize and restore tests run on Silice too. No Silice node is committed.
+  - `after_starter() -> Option<Game>` is `Some(Game::after_starter())` on Emerald and the stub, `None` on Silice. The sweep, the tour test and the trainer-sighting lane use it.
+  - The Emerald route assertions moved to a `cfg(not(pkr_silice))` helper.
+- `game-gba`: the tour build plays `Game::for_shells()` on Silice (`cfg(any(not(feature = "tour"), pkr_silice))`).
+- `explore`:
+  - `goals::emerald` and `goals::constants` are `cfg(not(pkr_silice))`.
+  - `key::EXCLUDED_VARS` has a Silice list: `VAR_DAYS` and `VAR_OBJ_GFX_ID_0..F`, the shared Gen3 vars that are not story progress. Silice has no Emerald counters; their numbers may be Silice ids.
+  - **Acts per flavour.**
+    - `Act::of(flavor)` gives `EMERALD` for the stub and Emerald, `SILICE` for Silice. `Act::in_build` and `Act::parse_in_build` use it.
+    - `Act::default()` is `Act1` on Emerald and the stub, `SilCh0` on Silice.
+    - `goals_of` gives no goal for another flavour's act.
+    - `run --act`, a config file's `act` and a db's `meta.act` are refused when they belong to another flavour. The message names the flavour and the `--game` to use. `sil_ch0` goals stay empty until Wave 3.
+  - `Db::open(path, build, Flavor)` and `open_in_memory(build, Flavor)` record `Flavor::name()` in `meta.flavor`. Those names are the old `stub` and `emerald`, so dbs made before Task D open as before (`pre_task_d_dbs_still_open`). A db that records no flavour is refused with the `explore reset --yes` hint. A db made by another flavour is refused with `DbError::Flavor`, whose message names both flavours and says how to build the db's (`PKR_GAME=silice` / `--game silice`, `PKR_EXTRACTED_DIR=/nonexistent`, or `PKR_GAME` unset).
+- `studio`:
+  - `Catalog::from_content` pairs Silice's tilesets through `games/silice` layouts (`map_edit::catalog::silice_dir()`, which honours `PKR_SILICE_DIR`).
+  - The map picker's full-import check is Emerald's only.
+- xtask:
+  - The sweep starts on `after_starter()` or the new game.
+  - `parity` and `sweep` require decomp names on Emerald only.
+  - `rom` picks `budget::Content::Silice`.
+- **Tests.**
+  - Whole files that are Emerald's only and now `cfg(not(pkr_silice))`: `explore/tests/{b_goals, m8_k_goals}.rs`.
+  - Single Emerald-only tests that are `cfg(not(pkr_silice))`:
+    - in `explore/tests`, the `real_*` tests in `a_expand`, `h_tuning`'s Route 101 softlock, `b_key`'s after-starter and counter tests, and `f_policy`'s battle and starter tests;
+    - `game-native/tests/seek`'s battle seek;
+    - `studio/tests/native`'s route-event and committed-node tests, and `studio` `rom::tests::node_boots_restored_at_the_node_frame`.
+  - Runtime skips on non-Emerald: `e2e_real`, `m8_i_emote`, `e_panic`'s event-script branch, `b_fitness`'s story-flag check, the map editor's Emerald-map renders (`emerald()` in `studio/tests/map_edit.rs`), and the two-map check in `map_pixels`.
+  - `m8_k_db`'s 40% blob ratio is required on the stub and Emerald only. Silice measured 43%, and there it only has to beat the text codec.
+  - New: `explore/tests/sil1_d_flavor.rs` (acts per flavour, a foreign act refused before any db exists, every flavour pair of dbs refused) and the xtask `game` and `budget` unit tests.
+
+**`--game` (`xtask/src/game.rs`).**
+- `--game emerald|silice` is accepted anywhere on the command line, except after `studio map`, whose own `--game NAME` picks a games dir; there it goes before `studio`.
+- It covers every command: `rom`, `parity` (and `--long`), `sweep`, `checkpoints` (`checkpoints/silice/`), `studio`, `explore`, `shot`, and the budget, which is part of `rom`.
+- **When the running xtask is already that flavour,** it only sets `PKR_GAME` for the child cargo invocations. Silice sets it; Emerald unsets it, so that plain builds keep their fingerprints.
+- **Otherwise it re-runs itself** through `cargo run -p xtask` under the new `PKR_GAME`, once (`PKR_XTASK_GAME`). It fails with a clear message if the content still is not that flavour (Silice without an extract).
+- **Target dirs.** A flavour switch in one target dir rebuilds `content` and everything above it. So the Silice re-run builds in `target/silice` (unless `CARGO_TARGET_DIR` is set), and its child cargo invocations inherit that. The GBA build of a Silice xtask uses `crates/game-gba/target/silice`. Once each side is built, alternating `cargo xtask parity` and `cargo xtask parity --game silice` rebuilds nothing; `rom --game silice` takes about 2 s. A plain `PKR_GAME=silice cargo …` still shares `target/` with Emerald (pass `CARGO_TARGET_DIR=target/silice` to share the xtask's).
+- The re-run clears `PKR_XTASK_GAME` on start, so the commands' own child processes do not inherit it.
+
+**Silice ROM and budget.**
+- `cargo xtask rom --game silice` builds a 3,966,784-byte ROM (3,873 KiB) after the merges of Tasks M, E, N and G; it was 4,103,320 bytes before Task M and 3,965,600 bytes after it. IWRAM is 788 bytes and EWRAM 492 bytes, the shared gates.
+- After the merge of SIL1 Task A (the authored data), the ROM is 4,172,472 bytes (+205,688). `SILICE_ROM_MEASURED` records this figure.
+- `budget::SILICE_ROM_LIMIT` is 8 MiB, provisional; `SILICE_ROM_MEASURED` records the measurement and `check` prints the delta. **SIL1 Wave 2 re-baselines it.**
+- The tour ROM (`parity --game silice --long`) is 3,970,344 bytes (3,969,160 after Task M).
+
+**Boot lane.** `cargo xtask parity --game silice`:
+- `checkpoints/silice` verifies with 0 nodes;
+- `rom_and_native_agree` on `SILICE_ROUTE`: 1,500 hashes and 18 pictures identical, no late frame. Loop 68 lines (gate 217), hash 11 lines, on the Task E new game (the bar). `emu::check_memory`: heap max 27,096 B, stack untouched 11,716 B. 0 reports, 0 events dropped;
+- the probes pass;
+- the resume, save and mid-battle-save lanes print a skip (`boot_lane_only`), and so does the trainer-sighting lane;
+- the studio ROM pane's new-game tests pass (the spawned-pane test walks south on Silice: a customer stands west of the bar start);
+- `--long`: the Silice tour passes, 0 reports and 0 events dropped.
+
+`cargo xtask sweep --game silice`: 6/6 maps pass, with no panic, no round-trip failure and no dropped event.
+
+**Gates as run (after the merges of master with Tasks M, E, N and G).** Emerald parity: 19,176 hashes and 205 pictures identical, ROM 9,294,440 bytes. Task N's new explore tests take `content::FLAVOR` for `Db::open`, and their Emerald-only checks (Littleroot scripts, real trainers, Act 1 progress, Petalburg Woods warps) skip off Emerald.
+- **Stub** (`PKR_EXTRACTED_DIR=/nonexistent`): `cargo test --workspace` is green, and so is clippy `--all-targets`.
+- **Emerald:**
+  - `cargo test --workspace` is green;
+  - clippy is clean plain and with `--features game-native/window,studio/ui`;
+  - `cargo xtask parity` is identical (19,176 hashes and 205 pictures, every lane), and its ROM is 9,293,728 bytes;
+  - the trees read `valid (rehash)`, which was not accepted.
+- **Silice:** `PKR_GAME=silice cargo test --workspace` (the whole workspace) is green, and clippy is clean with `--all-targets` and with `--features game-native/window,studio/ui`. `parity --game silice [--long]`, `rom --game silice` and `checkpoints verify --game silice` pass as above.
+- fmt is clean.
+
+**Left for later tasks.**
+- Wave 3: the Silice goals (`goals::silice::CH0`), the `sil:*` nodes and their resume lanes. Ungate the tests above once Silice's new game has a party and the route has battles.
+- Task E: once the new game sets story flags, `b_fitness` can check them on Silice too.
+- The studio explorer pane names goals of the default act, not the db's `meta.act`. This predates Task D.
 
 #### SIL1 Task E as built: `game.ron`, the Silice root, the new game and the prelude
 

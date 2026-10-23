@@ -11,6 +11,9 @@
 //! [`gift`] (an item given once, behind its `FLAG_SIL_ITEM_*`), [`hidden_item`] (a hidden item
 //! as a sign script, a fallback).
 //!
+//! **Module obstacles:** [`cut_obstacle`] (the generic Lame-Frequence obstacle) and
+//! [`repaint_if`] (its `on_load` repaint), with [`METATILE_RONCES_COUPEES`].
+//!
 //! **Scenes:** [`say`] (a line inside a locked scene), [`ask`] (`msgbox(T, YesNo)` then
 //! `if yes_no`), [`walk`] and the other step builders, [`move_wait`] (`move_obj` then
 //! `wait_move`), [`show`] / [`hide`] (the source's `show_object` / `hide_object`, which keep
@@ -110,6 +113,49 @@ pub async fn hidden_item(ctx: &Ctx, flag: FlagId, item: u16) {
     ctx.lock().await;
     gift(ctx, flag, item, 1, Obtain::Message).await;
     ctx.release().await;
+}
+
+// ---- module obstacles ----
+
+/// `METATILE_RONCES_COUPEES`: synthetic brambles once cut, General's grass (metatile 1), walkable.
+/// The same on every map whose brambles stand on the General primary (Brico-Bourg (4, 8),
+/// Bois-Éther (8, 6); "SIL2 Ch1 maps as built").
+pub const METATILE_RONCES_COUPEES: u16 = 1;
+
+/// The generic Lame-Frequence obstacle (Ch1 `Bois_Ether_Sc08`, "the same script for every
+/// bramble and cable; only the obstacle's flag changes"): nothing once `cut` is set; without
+/// `FLAG_SIL_MODULE_COUPE`, `blocked` as a sign; else `Bois_Ether_Sc08_T2` (yes/no), on yes
+/// `_T3`, the cell `(x, y)` repainted as `metatile` (walkable) and `cut` set. The map's
+/// `on_load` repaints the cell from `cut` on every later load ([`repaint_if`]).
+pub async fn cut_obstacle(
+    ctx: &Ctx,
+    (x, y): (i16, i16),
+    metatile: u16,
+    cut: FlagId,
+    blocked: TextId,
+) {
+    if ctx.flag(cut).await {
+        return;
+    }
+    if !ctx.flag(FLAG_SIL_MODULE_COUPE).await {
+        msgbox(ctx, blocked, MsgBox::Sign).await;
+        return;
+    }
+    ctx.lock().await;
+    if ask(ctx, Bois_Ether_Sc08_T2).await {
+        say(ctx, Bois_Ether_Sc08_T3).await;
+        ctx.set_metatile(x, y, metatile, false).await;
+        ctx.set_flag(cut, true).await;
+    }
+    ctx.release().await;
+}
+
+/// An `on_load` repaint: the cell `(x, y)` as `metatile` (walkable) when `flag` is set (Gen3
+/// `call_if_set FLAG, …_EventScript_SetCutMetatile`; the map loads from its layout every time).
+pub async fn repaint_if(ctx: &Ctx, flag: FlagId, (x, y): (i16, i16), metatile: u16) {
+    if ctx.flag(flag).await {
+        ctx.set_metatile(x, y, metatile, false).await;
+    }
 }
 
 // ---- scenes ----

@@ -97,7 +97,8 @@ fn a_fresh_archive_scores_the_root_and_a_repeat_scores_less() {
     for s in &step.summary.scripts {
         assert!(first.touches.contains(&Touch::Script(*s)));
     }
-    if !content::STUB {
+    // Silice's new game sets none yet (SIL1 Task E writes it).
+    if content::FLAVOR == content::Flavor::Emerald {
         assert!(story_flags > 0, "the new-game script sets story flags");
     }
 

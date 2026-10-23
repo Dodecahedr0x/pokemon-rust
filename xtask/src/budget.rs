@@ -7,7 +7,9 @@
 //! - always: IWRAM and EWRAM statics at most the full-import [`BASELINE`] + [`GROWTH`] (2 KiB
 //!   and 16 KiB);
 //! - on the slice extract (fixtures): engine `.text` at most its Wave 0 baseline + 128 KiB; the
-//!   ROM is reported, not gated.
+//!   ROM is reported, not gated;
+//! - on Silice (SIL1 Task D, provisional until SIL1 Wave 2): the ROM at most
+//!   [`SILICE_ROM_LIMIT`].
 //!
 //! The heap and the IWRAM stack are gated at run time, on the debug region (`emu::HEAP_MAX`,
 //! `emu::STACK_UNTOUCHED_MIN`, by `cargo xtask parity`).
@@ -59,7 +61,18 @@ pub enum Content {
     Slice,
     /// A full import.
     Full,
+    /// The Silice flavour (SIL1 Task D): the ROM at most [`SILICE_ROM_LIMIT`].
+    Silice,
 }
+
+/// The Silice ROM limit, provisional (SIL1 Task D): Task D's Silice ROM (the Wave 0 maps, no
+/// scene written) measured [`SILICE_ROM_MEASURED`]; the limit, about twice Task D's, leaves room for
+/// SIL1 Wave 1's content until Wave 2 re-baselines it on the Prologue. IWRAM and EWRAM keep the
+/// shared gates (Task D measured the slice baseline's 788 and 460 bytes).
+pub const SILICE_ROM_LIMIT: u64 = 8 << 20;
+/// The Silice ROM size `cargo xtask rom --game silice` measured at SIL1 Task D, with Task A's
+/// authored data (3,966,784 bytes before it: Task A added 205,688).
+pub const SILICE_ROM_MEASURED: u64 = 4_172_472;
 
 /// Engine `.text` of the Wave 0 slice build (`cargo xtask rom`, `engine` row of [`sections`]).
 pub const ENGINE_TEXT_BASELINE: u64 = 205_448;
@@ -180,6 +193,7 @@ pub fn check(b: &Budget, secs: &[(String, u64)], content: Content) -> Result<()>
     let mut over = Vec::new();
     let rom_limit = match content {
         Content::Full => Some(FULL_ROM_LIMIT),
+        Content::Silice => Some(SILICE_ROM_LIMIT),
         Content::Slice | Content::Stub => None,
     };
     match rom_limit {
@@ -189,6 +203,13 @@ pub fn check(b: &Budget, secs: &[(String, u64)], content: Content) -> Result<()>
                 b.rom,
                 limit as i64 - b.rom as i64
             );
+            if content == Content::Silice {
+                println!(
+                    "      (Silice: provisional limit; {SILICE_ROM_MEASURED} bytes at SIL1 Task D, \
+                     {:+} since)",
+                    b.rom as i64 - SILICE_ROM_MEASURED as i64
+                );
+            }
             if b.rom > limit {
                 over.push(format!("ROM is {} bytes, over {limit}", b.rom));
             }
@@ -274,6 +295,17 @@ mod tests {
     }
 
     #[test]
+    fn the_silice_rom_has_its_own_limit() {
+        let at = |rom| Budget { rom, ..BASELINE };
+        check(&at(SILICE_ROM_MEASURED), &secs(0), Content::Silice).unwrap();
+        check(&at(SILICE_ROM_LIMIT), &secs(0), Content::Silice).unwrap();
+        assert!(check(&at(SILICE_ROM_LIMIT + 1), &secs(0), Content::Silice).is_err());
+        // Engine `.text` is gated on the slice only.
+        let engine = secs(ENGINE_TEXT_BASELINE + ENGINE_TEXT_GROWTH + 1);
+        check(&at(SILICE_ROM_MEASURED), &engine, Content::Silice).unwrap();
+    }
+
+    #[test]
     fn ram_overruns_always_fail() {
         for b in [
             Budget {
@@ -285,7 +317,12 @@ mod tests {
                 ..BASELINE
             },
         ] {
-            for content in [Content::Stub, Content::Slice, Content::Full] {
+            for content in [
+                Content::Stub,
+                Content::Slice,
+                Content::Full,
+                Content::Silice,
+            ] {
                 assert!(check(&b, &secs(0), content).is_err(), "{b:?} {content:?}");
             }
         }

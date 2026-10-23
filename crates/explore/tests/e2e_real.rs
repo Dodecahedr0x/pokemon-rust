@@ -1,6 +1,7 @@
 //! Task G smoke run on the extracted (real) flavor, debug: ten generations from an empty temp db
 //! reach the first goal (five, the plan's budget, end just before it), and every finding they
-//! raise reproduces from a new game. Returns at once on the stub.
+//! raise reproduces from a new game. Returns at once on the stub and on Silice (no goal yet:
+//! SIL1 Wave 3).
 
 use content::Emerald;
 use explore::config::{Budget, Config};
@@ -8,7 +9,7 @@ use explore::wire::{self, Explore};
 
 #[test]
 fn ten_generations_reach_the_first_goal() {
-    if content::STUB {
+    if content::FLAVOR != content::Flavor::Emerald {
         return;
     }
     let dir = tempfile::tempdir().unwrap();

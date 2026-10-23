@@ -271,6 +271,11 @@
             offset: -3,
             map: "BricoBourg",
         ),
+        (
+            dir: North,
+            offset: -5,
+            map: "BoisEther",
+        ),
     ],
     scripts: (
         on_load: None,

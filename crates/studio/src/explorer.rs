@@ -1174,8 +1174,13 @@ mod tests {
         m.stats.max_progress = 2;
         let rows = stats_rows(&m, Some(12.345));
         assert_eq!(get(&rows, "nodes/s"), "12.3");
-        let names: Vec<_> = (0..2).map(|i| goals::name(i).unwrap()).collect();
-        assert_eq!(get(&rows, "goals"), format!("2: {}", names.join(", ")));
+        let names: Vec<_> = (0..2).filter_map(goals::name).collect();
+        if goals::goals().len() >= 2 {
+            assert_eq!(get(&rows, "goals"), format!("2: {}", names.join(", ")));
+        } else {
+            // Silice's Prologue has no goal yet (SIL1 Wave 3).
+            assert_eq!(get(&rows, "goals"), "none yet");
+        }
 
         let s = Duration::from_secs(2);
         assert_eq!(nodes_per_sec(10, 30, s), Some(10.0));

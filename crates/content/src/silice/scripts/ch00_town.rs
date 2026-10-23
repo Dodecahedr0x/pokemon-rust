@@ -9,6 +9,18 @@ pub const MAPS: &[&str] = &["BricoBourg"];
 
 // ---- map scripts ----
 
+/// The Labo's brambles (4, 8), cut in Chapter 1 ([`BricoBourg_EventScript_Ronces`]): repainted
+/// on every load once `FLAG_SIL_BRICO_LABO_RONCES_CUT` is set ("SIL2 Ch1 maps as built").
+pub async fn BricoBourg_OnLoad(ctx: Ctx) {
+    repaint_if(
+        &ctx,
+        FLAG_SIL_BRICO_LABO_RONCES_CUT,
+        RONCES,
+        METATILE_RONCES_COUPEES,
+    )
+    .await;
+}
+
 /// Object visibility by story step (§8 "Visibilité"): the day NPCs (LINGE, GAMIN, BRICOLEUSE)
 /// from `VAR_SIL_STORY` 3, the friends in front of the house at 3 and 4, the sbire only inside
 /// Brico_Bourg_Sc01. The old man and the fisherman stay. At night (≤ 2) the source darkens the
@@ -265,10 +277,21 @@ pub async fn BricoBourg_EventScript_SignLabo(ctx: Ctx) {
     msgbox(&ctx, Brico_Bourg_Sign_Labo, MsgBox::Sign).await;
 }
 
-/// The synthetic brambles in front of the Labo (4, 8). Cutting them (`FLAG_SIL_MODULE_COUPE`,
-/// `set_metatile`) is Chapter 1's.
+/// The synthetic brambles in front of the Labo door.
+const RONCES: (i16, i16) = (4, 8);
+
+/// The synthetic brambles in front of the Labo (4, 8): Ch0's sign until Chapter 1's
+/// Lame-Frequence (`FLAG_SIL_MODULE_COUPE`) cuts them, the generic obstacle
+/// (`FLAG_SIL_BRICO_LABO_RONCES_CUT`; [`BricoBourg_OnLoad`] keeps them cut).
 pub async fn BricoBourg_EventScript_Ronces(ctx: Ctx) {
-    msgbox(&ctx, Brico_Bourg_Sign_Ronces, MsgBox::Sign).await;
+    cut_obstacle(
+        &ctx,
+        RONCES,
+        METATILE_RONCES_COUPEES,
+        FLAG_SIL_BRICO_LABO_RONCES_CUT,
+        Brico_Bourg_Sign_Ronces,
+    )
+    .await;
 }
 
 /// The hidden Potion behind the fountain (10, 8), once (`FLAG_SIL_ITEM_BRICO_POTION`).

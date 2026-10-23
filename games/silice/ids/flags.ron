@@ -1962,5 +1962,45 @@
             name: "FLAG_SIL_HIDE_BRICO_SBIRE",
             num: 764,
         ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_ADRIEN",
+            num: 765,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_GARDE",
+            num: 766,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_GOGO",
+            num: 767,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_MATHIEU",
+            num: 768,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_ROMAIN",
+            num: 769,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_1",
+            num: 770,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_2",
+            num: 771,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_TECHNICIEN",
+            num: 772,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GYM1_LOIC",
+            num: 773,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_LABO_CHIMISTE",
+            num: 774,
+        ),
     ],
 )

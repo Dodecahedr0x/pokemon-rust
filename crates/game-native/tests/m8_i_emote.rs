@@ -11,8 +11,11 @@ const EMOTE_FIRST_TILE: usize = OBJ_TILES - 16;
 
 #[test]
 fn route_emotes_draw_their_sprite() {
-    if content::STUB {
-        eprintln!("stub world: no emote sprites, nothing to check");
+    if content::FLAVOR != content::Flavor::Emerald {
+        eprintln!(
+            "{} route: no emote, nothing to check",
+            content::FLAVOR.name()
+        );
         return;
     }
     let rec = cached_route();

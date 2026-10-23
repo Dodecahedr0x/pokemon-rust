@@ -380,7 +380,7 @@ mod tests {
             assert!(g.maps.iter().all(|m| group_of(m.id) == g.group));
         }
         assert!(groups.windows(2).all(|w| w[0].group < w[1].group));
-        if !content::STUB && all.len() == extract::names::MAPS.len() {
+        if content::FLAVOR == content::Flavor::Emerald && all.len() == extract::names::MAPS.len() {
             // The full import: every group of `gMapGroups`, every map named.
             assert_eq!(groups.len(), GROUP_NAMES.len());
             assert!(

@@ -956,3 +956,15 @@ vars VAR_SIL_CH0_GATE 16435
 # the shared prelude writes (choose_starter): moved (`cargo xtask silice move`), 16419 is its
 # tombstone.
 vars VAR_SIL_EVALON_PARTENAIRE 16436
+# SIL2 Ch1 maps: the scene actors' hide flags (FLAG_TEMP_* placeholders replaced), appended by
+# `cargo xtask silice import` from maps/*.ron.
+flags FLAG_SIL_HIDE_BOIS_ETHER_ADRIEN 765
+flags FLAG_SIL_HIDE_BOIS_ETHER_GARDE 766
+flags FLAG_SIL_HIDE_BOIS_ETHER_GOGO 767
+flags FLAG_SIL_HIDE_BOIS_ETHER_MATHIEU 768
+flags FLAG_SIL_HIDE_BOIS_ETHER_ROMAIN 769
+flags FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_1 770
+flags FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_2 771
+flags FLAG_SIL_HIDE_BOIS_ETHER_TECHNICIEN 772
+flags FLAG_SIL_HIDE_GYM1_LOIC 773
+flags FLAG_SIL_HIDE_LABO_CHIMISTE 774

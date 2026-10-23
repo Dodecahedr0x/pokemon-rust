@@ -42,6 +42,16 @@
         "FLAG_SIL_HIDE_BRICO_LINGE",
         "FLAG_SIL_HIDE_BRICO_GAMIN",
         "FLAG_SIL_HIDE_BRICO_BRICOLEUSE",
+        // Ch1 Bois-Éther (BoisEther_OnTransition owns them from VAR_SIL_STORY): Adrien waits at
+        // the meeting point at VAR_SIL_STORY 10–11 only; Bois_Ether_Sc06 shows Gogo, Romain, the
+        // two sbires and Mathieu for the ambush, and hides them again. The technician, the
+        // barrier guard, Loïc and the Labo's Chimiste start visible.
+        "FLAG_SIL_HIDE_BOIS_ETHER_ADRIEN",
+        "FLAG_SIL_HIDE_BOIS_ETHER_GOGO",
+        "FLAG_SIL_HIDE_BOIS_ETHER_ROMAIN",
+        "FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_1",
+        "FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_2",
+        "FLAG_SIL_HIDE_BOIS_ETHER_MATHIEU",
     ],
     new_game_vars: [],
 )

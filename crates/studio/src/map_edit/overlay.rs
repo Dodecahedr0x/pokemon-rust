@@ -6,9 +6,9 @@
 //! (`W<index>`), coord events cyan (`C<index>`), signs green (`S<index>`), hidden items orange
 //! (`H<index>`). `render --collision`: solid cells are tinted red, each cell's behaviour code
 //! is drawn bottom-right (`behavior`), and cells whose collision disagrees with the usual one
-//! are outlined yellow and marked `!`.
+//! are outlined yellow and marked `!` (green and `+` when an allowance accepts them).
 
-use super::behavior::{behavior, collision_mismatches};
+use super::behavior::{allowed, behavior, collision_mismatches};
 use super::catalog::Catalog;
 use super::model::Doc;
 use super::render::Palette;
@@ -59,6 +59,7 @@ fn glyph(c: char) -> Option<[u8; 5]> {
         'S' => [3, 4, 2, 1, 6],
         'W' => [5, 5, 5, 7, 5],
         '!' => [2, 2, 2, 0, 2],
+        '+' => [0, 2, 7, 2, 0],
         _ => return None,
     })
 }
@@ -149,28 +150,53 @@ pub fn text_box(t: &str, s: usize) -> (usize, usize) {
     (text_width(t, s) + 2 * s, (GLYPH_H + 2) * s)
 }
 
-/// The palette at scale `s` with each cell's metatile id top-left and, with `codes`, its
-/// behaviour code bottom-right.
+/// Gutter colour of a labelled palette.
+pub const GUTTER: u16 = rgb(4, 4, 6);
+
+/// The labelled palette: each cell's art at `zoom`, under a gutter band holding its metatile
+/// id (left) and, with `codes`, its behaviour code (right), in text at scale `s`. Labels never
+/// cover the art. Columns are at least wide enough for a 4-digit id and a code, and are
+/// separated by an `s`-pixel gutter.
 pub fn label_palette(
     p: &Palette,
     c: &Catalog,
     primary: &str,
     secondary: &str,
     s: usize,
+    zoom: usize,
     codes: bool,
 ) -> MapImage {
-    let mut img = scale(&p.image, s);
-    let cell = 16 * s;
+    let art = scale(&p.image, zoom);
+    let (cell, cols) = (16 * zoom.max(1), p.cols as usize);
+    let rows = p.metatiles.len().div_ceil(cols);
+    let band = text_box("0", s).1;
+    let label_w = text_box("0000", s).0 + s + text_box("D", s).0;
+    let col_w = cell.max(label_w) + s;
+    let row_h = band + cell + s;
+    let (w, h) = (cols * col_w, rows * row_h);
+    let mut img = MapImage {
+        width: w,
+        height: h,
+        rgb555: vec![GUTTER; w * h],
+        margin: 0,
+        ..art
+    };
     for (i, m) in p.metatiles.iter().enumerate() {
         let Some(m) = *m else {
             continue;
         };
-        let (x, y) = ((i % p.cols as usize) * cell, (i / p.cols as usize) * cell);
+        let (cx, cy) = (i % cols, i / cols);
+        let (x, y) = (cx * col_w, cy * row_h);
+        for py in 0..cell {
+            let src = (cy * cell + py) * art.width + cx * cell;
+            let dst = (y + band + py) * w + x;
+            img.rgb555[dst..dst + cell].copy_from_slice(&art.rgb555[src..src + cell]);
+        }
         text(&mut img, x, y, &m.to_string(), s, WHITE);
         if codes && let Some(code) = behavior(c, primary, secondary, m).and_then(|b| b.code()) {
             let t = code.to_string();
-            let (bw, bh) = text_box(&t, s);
-            text(&mut img, x + cell - bw, y + cell - bh, &t, s, YELLOW);
+            let (bw, _) = text_box(&t, s);
+            text(&mut img, x + col_w - s - bw, y, &t, s, YELLOW);
         }
     }
     img
@@ -255,6 +281,9 @@ pub fn draw_events(img: &mut MapImage, d: &Doc, s: usize) {
 
 /// Tints solid cells red, draws each cell's behaviour code and marks the cells whose
 /// collision disagrees with the usual one (`behavior::collision_mismatches`).
+///
+/// A mismatch an allowance accepts (`Op::AllowCollision`, `Doc::allow`) is framed green and
+/// marked `+` instead.
 pub fn draw_collision(img: &mut MapImage, d: &Doc, c: &Catalog, s: usize) {
     let cell = 16 * s;
     for y in 0..d.height as i32 {
@@ -275,10 +304,16 @@ pub fn draw_collision(img: &mut MapImage, d: &Doc, c: &Catalog, s: usize) {
         }
     }
     for (x, y, _, _) in collision_mismatches(d, c) {
-        if let Some((px, py)) = cell_px(img, x, y, s) {
-            outline(img, px, py, cell, cell, s, YELLOW);
-            let (_, bh) = text_box("!", s);
-            text(img, px + s, py + cell - bh - s, "!", s, YELLOW);
-        }
+        let Some((px, py)) = cell_px(img, x, y, s) else {
+            continue;
+        };
+        let mt = d.block(x, y).map_or(0, block_metatile);
+        let (mark, col) = match allowed(&d.allow, x, y, mt) {
+            Some(_) => ("+", GREEN),
+            None => ("!", YELLOW),
+        };
+        outline(img, px, py, cell, cell, s, col);
+        let (_, bh) = text_box(mark, s);
+        text(img, px + s, py + cell - bh - s, mark, s, col);
     }
 }

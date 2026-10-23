@@ -281,7 +281,9 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
         mut cfg: Config,
         from: Option<Root>,
     ) -> anyhow::Result<Explore<G>> {
-        let (mut db, opened) = Db::open(path, build_hash(&game), content::STUB)
+        // An act of another flavour has no goals here (a config file can name any act).
+        Act::parse_in_build(cfg.act.name()).map_err(|e| anyhow!("config: {e}"))?;
+        let (mut db, opened) = Db::open(path, build_hash(&game), content::FLAVOR)
             .with_context(|| format!("opening {}", path.display()))?;
         let root = if opened.fresh {
             set_fresh_meta(&mut db, &cfg, from.as_ref())?;
@@ -293,7 +295,7 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
                     .map_err(|_| anyhow!("meta seed = {seed:?} is not a number"))?;
             }
             if let Some(act) = db.meta("act")? {
-                cfg.act = Act::parse(&act).ok_or_else(|| anyhow!("meta act = {act:?}"))?;
+                cfg.act = Act::parse_in_build(&act).map_err(|e| anyhow!("meta act: {e}"))?;
             }
             let root = db_root(&game, &db)?;
             match (&root, &from) {
