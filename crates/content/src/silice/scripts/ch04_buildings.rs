@@ -31,7 +31,7 @@ pub async fn PortRessac_Taverne_Sc01(ctx: Ctx) {
         say(&ctx, Port_Ressac_Taverne_Sc01_T3).await;
     } else {
         say(&ctx, Port_Ressac_Taverne_Sc01_T1).await;
-        gift(
+        let given = gift(
             &ctx,
             FLAG_SIL_ITEM_PORT_RHUM_PIRATE,
             ITEM_SIL_RHUM_PIRATE,
@@ -40,7 +40,10 @@ pub async fn PortRessac_Taverne_Sc01(ctx: Ctx) {
         )
         .await;
         say(&ctx, Port_Ressac_Taverne_Sc01_T2).await;
-        ctx.set_flag(FLAG_SIL_PORT_GWADA_RHUM, true).await;
+        // A full bag keeps the gift for the next talk (the flags stay clear).
+        if given {
+            ctx.set_flag(FLAG_SIL_PORT_GWADA_RHUM, true).await;
+        }
     }
     ctx.release().await;
 }

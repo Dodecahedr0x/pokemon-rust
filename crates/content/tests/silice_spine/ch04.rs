@@ -62,12 +62,16 @@ pub fn start() -> Start {
 
 /// The start state's party: Chapter 2's end party (`ch02`: QUILAVA 26, MAREEP 12, ARON 30) after
 /// a realistic Chapter 3 (Chapter 3's strongest trainers are at 34): the QUILAVA at 33, the
-/// MAREEP brought up to a FLAAFFY, the ARON evolved at 32, and one more, an ABRA from Route S2's
-/// grass (its encounter table) raised into a KADABRA. The KADABRA leads: the player's answer to
-/// a Fighting gym, and the one [`Step::Train`] raises (it trains the lead). The FLAAFFY comes
-/// second for Samuel's POLIWRATH. With a QUILAVA lead, the battle policy (no items, no switch,
-/// no new moves once four are known) loses to Samuel even at 43: tried, see the plan's Ch4
-/// section.
+/// MAREEP brought up to a FLAAFFY, the ARON evolved at 32, and one more, a KADABRA: Chapter 3's
+/// own Viber-City grass has one at 23–24 (`rencontres.ron`, 5 %; Route S2's ABRA at 11–13 is
+/// the other way in). The KADABRA leads: the player's answer to a Fighting gym, and the one
+/// [`Step::Train`] raises (it trains the lead). The FLAAFFY comes second for Samuel's
+/// POLIWRATH.
+///
+/// The lead ends at 42 against Samuel's ace at 38 because of the battle policy, not the
+/// trainer data: `give_mon` fills the last four level-up moves and the policy never replaces
+/// one, so the KADABRA still fights with Psybeam at 42 (never Psychic, 36), and the FLAAFFY
+/// (an AMPHAROS from 30) with ThunderShock. See the plan's Ch4 review.
 pub const PARTY: &[(SpeciesId, u8)] = &[
     (SPECIES_KADABRA, 32),
     (SPECIES_FLAAFFY, 30),
@@ -81,6 +85,14 @@ pub const PARTY: &[(SpeciesId, u8)] = &[
 /// (CYNDAQUIL's line); the party ([`PARTY`]), a few Potions, the respawn at Gris-Échec's Centre
 /// (the last one on the way).
 async fn end_of_chapter_3(ctx: Ctx) {
+    chapter_3_state(&ctx).await;
+    for &(species, level) in PARTY {
+        ctx.give_mon(species, level).await;
+    }
+}
+
+/// [`end_of_chapter_3`] without the party.
+async fn chapter_3_state(ctx: &Ctx) {
     for f in [
         // Chapter 0.
         FLAG_SIL_INTRO_DONE,
@@ -114,9 +126,142 @@ async fn end_of_chapter_3(ctx: Ctx) {
     ctx.item_add(ItemId(ITEM_SUPER_POTION), 3).await;
     ctx.money_add(6000).await;
     ctx.set_respawn(HEAL_LOCATION_SIL_GRIS_ECHEC).await;
-    for &(species, level) in PARTY {
-        ctx.give_mon(species, level).await;
+}
+
+// ---- Samuel's defeat branch (R-7) ----
+
+/// The money both defeat runs start with: the whiteout halves it, then Samuel takes his fixed
+/// 2000 (the `take_money_percent` fallback).
+const DEFEAT_MONEY: u32 = 6000;
+
+/// In front of Samuel at the helm (13, 4), facing him, the port freed (`VAR_SIL_STORY` 47), with
+/// a party that loses: a MAGIKARP at 5. Before any loss: the breath test runs.
+pub fn samuel_first_loss() -> Start {
+    Start {
+        map: GYM,
+        x: 13,
+        y: 4,
+        facing: Dir::Up,
+        setup: |ctx| Box::pin(at_samuel(ctx, false)),
     }
+}
+
+/// [`samuel_first_loss`] after a first loss and Gwada beaten (`VAR_SIL_STORY` 49): the
+/// rematch prompt, no breath test, the Hydro-Propulseur already given.
+pub fn samuel_rematch() -> Start {
+    Start {
+        map: GYM,
+        x: 13,
+        y: 4,
+        facing: Dir::Up,
+        setup: |ctx| Box::pin(at_samuel(ctx, true)),
+    }
+}
+
+async fn at_samuel(ctx: Ctx, rematch: bool) {
+    chapter_3_state(&ctx).await;
+    for f in [
+        FLAG_SIL_ROUTE_S04_MURS,
+        FLAG_SIL_ROUTE_S04_ADRIEN,
+        FLAG_SIL_PORT_CROW_GUET,
+        FLAG_SIL_PORT_GARDE_DORT,
+        FLAG_SIL_PORT_VIEUX_PATCH,
+        FLAG_SIL_LOG_04,
+        FLAG_SIL_PORT_SAMUEL_ALLIE,
+        FLAG_SIL_HIDE_PORT_CARGO,
+        FLAG_SIL_PORT_LIBERE,
+    ] {
+        ctx.set_flag(f, true).await;
+    }
+    let story = if rematch {
+        for f in [
+            FLAG_SIL_PORT_GYM_ALCOOTEST,
+            FLAG_SIL_SAMUEL_PERDU,
+            FLAG_SIL_MODULE_SURF,
+            FLAG_SIL_PORT_GWADA_BATTU,
+        ] {
+            ctx.set_flag(f, true).await;
+        }
+        49
+    } else {
+        47
+    };
+    ctx.set_var(VAR_SIL_STORY, story).await;
+    ctx.money_remove(u32::MAX).await;
+    ctx.money_add(DEFEAT_MONEY).await;
+    ctx.give_mon(SPECIES_MAGIKARP, 5).await;
+}
+
+/// The first loss: the breath test (yes to every shot: the second is wrong, so the lead would
+/// start confused), the battle lost, the whiteout to the Taverne's door, and the port's
+/// on-frame entry plays the defeat branch there, once.
+pub fn samuel_first_loss_steps() -> Vec<Step> {
+    vec![
+        Step::Interact(Dir::Up),
+        Step::Settle,
+        Step::Check("first_loss", |r| {
+            assert_eq!(r.w.map(), PORT);
+            assert_eq!(r.pos(), (4, 8));
+            assert_eq!(r.w.var(VAR_SIL_STORY), 48);
+            assert_eq!(r.w.var(VAR_SIL_PORT_RESSAC_STATE), 0);
+            assert!(r.w.flag(FLAG_SIL_SAMUEL_PERDU));
+            assert!(r.w.flag(FLAG_SIL_MODULE_SURF));
+            assert!(!r.w.flag(FLAG_SIL_BADGE_04));
+            assert!(!r.w.flag(FLAG_SIL_PORT_GYM_CONFUS));
+            assert!(!r.beaten(TRAINER_SIL_SAMUEL_1));
+            assert_eq!(r.w.money(), DEFEAT_MONEY / 2 - 2000);
+            assert_eq!(r.count(ITEM_TM01), 0);
+            r.printed_in_order(&[
+                Port_Ressac_Gym_Sc01_T1,
+                Port_Ressac_Gym_Sc01_Rate,
+                Port_Ressac_Gym_Sc01_T2,
+                Port_Ressac_Gym_Sc02_Perdu,
+                Port_Ressac_Gym_Sc02_Perdu_Surf,
+                Port_Ressac_Gym_Sc02_Module,
+                Port_Ressac_Gym_Sc02_Perdu_Badge,
+            ]);
+            for f in [
+                "battle_continue_on_loss",
+                "battle_start_status",
+                "take_money_percent",
+                "take_heal_items",
+            ] {
+                assert!(r.degraded.contains(f), "fallback {f} not reported");
+            }
+        }),
+        // Off the door and back: the on-frame entry does not play again.
+        goto(PORT, 6, 9),
+        goto(PORT, 4, 8),
+        Step::Check("first_loss_once", |r| {
+            assert_eq!(r.times(Port_Ressac_Gym_Sc02_Perdu), 1);
+            assert_eq!(r.w.money(), DEFEAT_MONEY / 2 - 2000);
+        }),
+    ]
+}
+
+/// The rematch lost: the prompt, straight to the battle, and the second defeat line; the story
+/// does not go back.
+pub fn samuel_rematch_steps() -> Vec<Step> {
+    vec![
+        Step::Interact(Dir::Up),
+        Step::Settle,
+        Step::Check("rematch_loss", |r| {
+            assert_eq!(r.w.map(), PORT);
+            assert_eq!(r.w.var(VAR_SIL_STORY), 49);
+            assert_eq!(r.w.var(VAR_SIL_PORT_RESSAC_STATE), 0);
+            assert!(!r.w.flag(FLAG_SIL_BADGE_04));
+            assert_eq!(r.w.money(), DEFEAT_MONEY / 2 - 2000);
+            assert!(!r.has_text(Port_Ressac_Gym_Sc01_T1));
+            assert!(!r.has_text(Port_Ressac_Gym_Sc02_Perdu_Surf));
+            assert!(!r.degraded.contains("battle_start_status"));
+            r.printed_in_order(&[
+                Port_Ressac_Gym_Revanche,
+                Port_Ressac_Gym_Sc01_T2,
+                Port_Ressac_Gym_Sc02_Perdu,
+                Port_Ressac_Gym_Sc02_Perdu2,
+            ]);
+        }),
+    ]
 }
 
 /// Chapter 4's steps.
@@ -425,6 +570,7 @@ const FALLBACKS: &[&str] = &[
     "battle_start_stats",
     "log_menu",
     "screen_shake",
+    "screen_flash",
     "play_se",
     "mallette_call",
     "show_sync",

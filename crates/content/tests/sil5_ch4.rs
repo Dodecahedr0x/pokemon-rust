@@ -22,3 +22,18 @@ fn chapter_4_plays_from_the_glass_tunnel_to_julien_s_call() {
     r.play(&ch04::steps());
     ch04::check_end(&r);
 }
+
+/// Samuel's defeat branch (R-7): a first loss, then a lost rematch, each whiting out to the
+/// Taverne's door, where the port's on-frame entry plays the branch once.
+#[test]
+fn losing_to_samuel_plays_the_defeat_branch_at_the_taverne_door() {
+    let mut r = Run::starting_at(DEFEAT_LIMIT, ch04::samuel_first_loss());
+    r.allow_losses = true;
+    r.play(&ch04::samuel_first_loss_steps());
+    let mut r = Run::starting_at(DEFEAT_LIMIT, ch04::samuel_rematch());
+    r.allow_losses = true;
+    r.play(&ch04::samuel_rematch_steps());
+}
+
+/// Every frame of a defeat run, at most.
+const DEFEAT_LIMIT: u64 = 60_000;

@@ -152,7 +152,7 @@ pub async fn PortRessac_OnTransition(ctx: Ctx) {
         .await;
     ctx.set_flag(FLAG_SIL_HIDE_PORT_PIRATE_PASSERELLE, s >= 46)
         .await;
-    for f in QUAY_CAST_FLAGS {
+    for (_, f) in QUAY_CAST {
         ctx.set_flag(f, s != 46).await;
     }
 }
@@ -172,15 +172,6 @@ const QUAY_CAST: [(u8, FlagId); 11] = [
     (LOCALID_PORT_SBIRE_DECOR_2, FLAG_SIL_HIDE_PORT_DECOR_2),
     (LOCALID_PORT_SBIRE_DECOR_3, FLAG_SIL_HIDE_PORT_DECOR_3),
 ];
-const QUAY_CAST_FLAGS: [FlagId; 11] = {
-    let mut f = [FlagId(0); 11];
-    let mut i = 0;
-    while i < 11 {
-        f[i] = QUAY_CAST[i].1;
-        i += 1;
-    }
-    f
-};
 
 // ---- scenes ----
 
@@ -529,6 +520,9 @@ pub async fn PortRessac_Sc06(ctx: Ctx) {
 /// `take_money_percent(20)`: the source's fixed 2000; `take_heal_items(3)`: none.
 pub async fn PortRessac_EventScript_SamuelPerdu(ctx: Ctx) {
     ctx.set_var(VAR_SIL_PORT_RESSAC_STATE, 0).await;
+    // The source's `clear_flag(FLAG_SIL_PORT_GYM_CONFUS)` after the battle, which the whiteout
+    // skipped in Gym_Sc02: a rematch starts without the confusion (§3 Gym_Sc01).
+    ctx.set_flag(FLAG_SIL_PORT_GYM_CONFUS, false).await;
     ctx.lock_all().await;
     say(&ctx, Port_Ressac_Gym_Sc02_Perdu).await;
     fallback(&ctx, "take_money_percent").await;
@@ -752,9 +746,13 @@ pub async fn PortRessac_EventScript_MarinClient(ctx: Ctx) {
     msgbox(&ctx, Port_Ressac_Npc_Docker, MsgBox::Npc).await;
 }
 
-/// Samuel's pirates brawling on the quays (46 only): his order, `Sc04_T6` (none of their own).
+/// Samuel's pirates brawling on the quays (46 only). The source has no line for them, and
+/// every Ch4 line that fits (`Sc04_T5`, `Sc04_T6`) is Samuel's own, with his name: they only
+/// turn to the player (as Ch2's Technicien after his gift).
 pub async fn PortRessac_EventScript_Pirate(ctx: Ctx) {
-    msgbox(&ctx, Port_Ressac_Sc04_T6, MsgBox::Npc).await;
+    ctx.lock().await;
+    ctx.face_player().await;
+    ctx.release().await;
 }
 
 /// The decor grunts brawling with them: the Cocket "move along", `Npc_Sbire`.
