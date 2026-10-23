@@ -140,7 +140,7 @@ impl Rec {
             Request::PartySize => Response::Value(self.party),
             Request::PlayerPos => Response::Pos(0, 0),
             Request::CurrentMap => Response::Value(self.map),
-            Request::YesNo { .. } => Response::Bool(false),
+            Request::YesNo { .. } | Request::RockSmashEncounter => Response::Bool(false),
             Request::Multichoice { .. } => Response::Value(content::MULTI_B_PRESSED),
             Request::BattleWild { .. } | Request::BattleTrainer { .. } => {
                 Response::Value(BattleOutcome::Won as u16)
@@ -764,6 +764,43 @@ fn wave_c_cases(covered: &mut BTreeSet<&'static str>) -> Vec<Case> {
     };
     let species = |s| q(Query::PartySpecies(s));
     let mut cases: Vec<Case> = vec![
+        // Every slot empty (the recording host answers 0): every mon fainted, a whiteout.
+        (
+            "SPECIAL_TryFieldPoisonWhiteOut",
+            1,
+            [
+                vec![degraded("SPECIAL_TryFieldPoisonWhiteOut")],
+                (0..6).map(species).collect(),
+                vec![set(VAR_RESULT, 1)],
+            ]
+            .concat(),
+            0,
+        ),
+        ("SPECIAL_SetCB2WhiteOut", 1, vec![Request::FieldWhiteOut], 0),
+        (
+            "SPECIAL_ShakeCamera",
+            1,
+            vec![
+                degraded("SPECIAL_ShakeCamera"),
+                Request::GetVar(VAR_0x8004),
+                Request::GetVar(VAR_0x8005),
+                Request::GetVar(VAR_0x8006),
+                Request::GetVar(VAR_0x8007),
+                Request::ScreenShake {
+                    magnitude: 0,
+                    frames: 0,
+                },
+                Request::Delay(0),
+            ],
+            0,
+        ),
+        // The recording host answers `false`: no battle.
+        (
+            "SPECIAL_RockSmashWildEncounter",
+            1,
+            vec![Request::RockSmashEncounter, set(VAR_RESULT, 0)],
+            0,
+        ),
         (
             "SPECIAL_ScriptGetPokedexInfo",
             1,
@@ -980,6 +1017,8 @@ fn wave_c_cases(covered: &mut BTreeSet<&'static str>) -> Vec<Case> {
         "SPECIAL_SetMirageTowerVisibility",
         "SPECIAL_IncrementDailyPickedBerries",
         "SPECIAL_IncrementDailyPlantedBerries",
+        "SPECIAL_OpenPokenavForTutorial",
+        "SPECIAL_SetMauvilleOldManObjEventGfx",
     ];
     if cfg!(pkr_silice) {
         covered.extend(story);
@@ -987,6 +1026,22 @@ fn wave_c_cases(covered: &mut BTreeSet<&'static str>) -> Vec<Case> {
     #[cfg(not(pkr_silice))]
     {
         cases.extend([
+            // The tutorial's forced call to Mr. Stone sets his PokéNav flag.
+            (
+                "SPECIAL_OpenPokenavForTutorial",
+                1,
+                vec![
+                    degraded("SPECIAL_OpenPokenavForTutorial"),
+                    Request::SetFlag(FLAG_ENABLE_MR_STONE_POKENAV, true),
+                ],
+                0,
+            ),
+            (
+                "SPECIAL_SetMauvilleOldManObjEventGfx",
+                1,
+                vec![set(VAR_OBJ_GFX_ID_0, OBJ_EVENT_GFX_BARD)],
+                0,
+            ),
             // Received on day 0, today is day 0: a week to wait.
             (
                 "SPECIAL_GetDaysUntilPacifidlogTMAvailable",
@@ -1625,8 +1680,6 @@ const FADE_GUARDS: &[(&str, &str)] = &[
         "SPECIAL_ShowWirelessCommunicationScreen",
         "SPECIAL_IsWirelessAdapterConnected",
     ),
-    // `EventScript_FieldPoison`: `FLDPSN_NONE` releases the player, no whiteout.
-    ("SPECIAL_SetCB2WhiteOut", "SPECIAL_TryFieldPoisonWhiteOut"),
 ];
 
 /// Every special reachable on the Act 1 maps is classified with a reason (no softlock: the
@@ -1676,8 +1729,10 @@ fn act1_specials_are_classified_with_a_reason() {
             // Behaviour, not the reason text: the special fades the field back in itself.
             let mut h = Rec::with_party(1);
             run_special(&mut h, &site.special);
+            // A whiteout's map load fades in by itself.
             assert!(
-                h.log.contains(&Request::Fade(Fade::FromBlack)),
+                h.log.contains(&Request::Fade(Fade::FromBlack))
+                    || h.log.contains(&Request::FieldWhiteOut),
                 "{} in {} leaves the screen black: {:?}",
                 site.special,
                 site.label,

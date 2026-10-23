@@ -88,7 +88,8 @@ impl MetatileBehavior {
             Behavior::Warp
             | Behavior::NonAnimDoor(_)
             | Behavior::Ladder
-            | Behavior::Escalator(_) => 'W',
+            | Behavior::Escalator(_)
+            | Behavior::PopOutWarp(_) => 'W',
             Behavior::ArrowWarp(_) => 'A',
             Behavior::TallGrass => 'G',
             Behavior::Floor(f) if f.has_encounters() => 'E',
@@ -122,6 +123,7 @@ impl MetatileBehavior {
             Behavior::NonAnimDoor(_) => "non-animated door",
             Behavior::Ladder => "ladder",
             Behavior::Escalator(_) => "escalator",
+            Behavior::PopOutWarp(_) => "pop-out warp",
             Behavior::ArrowWarp(_) => "arrow warp",
             Behavior::TallGrass => "tall grass",
             Behavior::Floor(Floor::LongGrass) => "long grass",
@@ -162,6 +164,7 @@ impl MetatileBehavior {
             | Behavior::NonAnimDoor(_)
             | Behavior::Ladder
             | Behavior::Escalator(_)
+            | Behavior::PopOutWarp(_)
             | Behavior::ArrowWarp(_) => warp.then_some(0),
             Behavior::TallGrass => Some(0),
             // The game moves the player across them.

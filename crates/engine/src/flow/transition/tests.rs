@@ -339,3 +339,43 @@ fn each_warp_kind_has_its_gen3_arrival() {
         (Dir::Down, None, false)
     );
 }
+
+/// Gen3 `FieldCB_LavaridgeGymB1FWarpExit`: arriving on a pop-out warp, the player is hidden
+/// during the fade-in, faces `d`, then jumps (not walks) one cell `d`; the transition finishes
+/// once the jump lands, and the jump marker is cleared afterwards.
+#[test]
+fn a_pop_out_warp_arrival_jumps_out_hidden_during_the_fade_in() {
+    let mut t = Transition::new();
+    let mut f = Fader::new();
+    t.start(&Game, HOUSE, Some(1), -1, -1);
+    let (mut facing, mut jump, mut walked) = (None, None, false);
+    let mut moving = 0u32;
+    for _ in 0..300 {
+        let before = t.player_hidden();
+        match t.update(&mut f, moving > 0) {
+            TransitionStep::Load(..) => {
+                facing = Some(t.arrive(Behavior::PopOutWarp(Dir::Right), Dir::Up))
+            }
+            TransitionStep::Jump(d) => {
+                jump = Some((d, before));
+                moving = 16;
+            }
+            TransitionStep::Walk(_) => walked = true,
+            TransitionStep::Done => break,
+            _ => {}
+        }
+        moving = moving.saturating_sub(1);
+    }
+    assert_eq!(facing, Some(Dir::Right));
+    assert_eq!(
+        jump,
+        Some((Dir::Right, true)),
+        "jumps east, hidden until then"
+    );
+    assert!(!walked);
+    assert!(!t.is_active());
+    assert!(
+        !t.exit_jump,
+        "cleared once landed: idle hashes are unchanged"
+    );
+}

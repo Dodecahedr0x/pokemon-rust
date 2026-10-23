@@ -2,7 +2,7 @@
 //! ([`cross_connection`]), warp starts and the warp transition, and the talk target a script
 //! starts with.
 
-use super::{Event, State, WALK, World, camera_for, run_immediate};
+use super::{Event, JUMP, State, WALK, World, camera_for, run_immediate};
 use crate::data::{Dir, GameData, MapData, MapId, PLAYER, SpecialIds};
 use crate::flow::{TransitionStep, on_warp_into};
 use crate::grid::MAP_DYNAMIC;
@@ -95,6 +95,7 @@ impl World {
         let loading = s.field.uploading();
         match s.transition.update_loading(&mut s.fader, moving, loading) {
             TransitionStep::Walk(d) => s.objects.start_moves(PLAYER, &WALK[d as usize]),
+            TransitionStep::Jump(d) => s.objects.start_moves(PLAYER, &JUMP[d as usize]),
             TransitionStep::Load(map, x, y) => {
                 // Gen3 `CB2_LoadMap` restarts the script context: a script that warped ends
                 // here, and the dialogue window goes with the old map.

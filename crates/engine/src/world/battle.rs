@@ -165,6 +165,7 @@ pub(super) fn behavior_code(b: Behavior) -> [u8; 2] {
         Behavior::CrackedFloorHole => [19, 0],
         Behavior::Floor(g) => [20, g as u8],
         Behavior::Water(w) => [21, w.code()],
+        Behavior::PopOutWarp(d) => [22, d as u8],
     }
 }
 
@@ -354,6 +355,53 @@ impl State {
             self.objects.freeze_all();
         }
         self.mode = Mode::Battle(run);
+    }
+
+    /// Gen3 `RockSmashWildEncounter` (`wild_encounter.c`): the current map's rock smash table
+    /// (none: no battle), `wild::try_rock_smash_encounter`, `create_wild`, then
+    /// `BattleSetup_StartWildBattle` (a field battle). Returns whether a battle started.
+    pub(super) fn rock_smash_encounter(&mut self, game: &impl GameData, f: &mut Frame) -> bool {
+        if !self.can_battle() {
+            return false;
+        }
+        let t = game.battle();
+        let map = self.field.map();
+        let wild_set = game
+            .special_ids()
+            .var_wild_set
+            .map_or(0, |v| self.vars.var(v));
+        let Some(table) = game.rock_smash_encounters(map, wild_set) else {
+            return false;
+        };
+        let lead = self.party.get(0).copied();
+        let (vars, party, ids) = (&self.vars, &self.party, game.special_ids());
+        let lead_of = wild::Lead::of(lead.as_ref(), t, |i| game.hold_effect(i));
+        let repel = |level| wild::repel_blocks(level, vars, party, &ids);
+        let Some((species, level)) =
+            wild::try_rock_smash_encounter(table, lead_of, &mut self.rng, repel)
+        else {
+            return false;
+        };
+        let mon = wild::create_wild(
+            t,
+            species,
+            level,
+            lead.as_ref(),
+            self.player_id,
+            &mut self.rng,
+        );
+        let mut opponents = Party::default();
+        let _ = opponents.push(mon);
+        self.start_battle(
+            game,
+            BattleKind::Wild {
+                first_battle: false,
+            },
+            opponents,
+            Origin::Field,
+            f,
+        );
+        true
     }
 
     /// Gen3 `CheckStandardWildEncounter` for a completed player step onto a `cur` cell of
@@ -731,7 +779,7 @@ impl World {
     /// runs at once (`RunScriptImmediately`), the money is halved, the party healed, and the
     /// respawn heal location loaded (black frame), the player facing down.
     /// `Overworld_ResetStateAfterWhiteOut`'s flag and weather resets are not modelled.
-    fn whiteout(&mut self, game: &impl GameData, f: &mut Frame) {
+    pub(super) fn whiteout(&mut self, game: &impl GameData, f: &mut Frame) {
         self.runner.abort();
         let s = &mut self.s;
         if let Some(id) = game.special_ids().script_whiteout {

@@ -65,6 +65,7 @@ impl ScriptHost for Host {
             Request::PlayerPos => Response::Pos(0, 0),
             Request::CurrentMap => Response::Value(0),
             Request::YesNo { .. } => Response::Bool(self.yes),
+            Request::RockSmashEncounter => Response::Bool(false),
             // The bag and money always succeed.
             Request::ItemAdd { .. }
             | Request::ItemCheck { .. }

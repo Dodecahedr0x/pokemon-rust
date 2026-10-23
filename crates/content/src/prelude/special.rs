@@ -402,6 +402,74 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             degraded(ctx, id).await;
             ctx.set_var(VAR_RESULT, START_MENU_POKENAV).await;
         }
+        id if id == SPECIAL_TryFieldPoisonWhiteOut => {
+            // `Task_TryFieldPoisonWhiteOut` (`field_poison.c`): `FaintFromFieldPoison` (status
+            // cleared, `FRIENDSHIP_EVENT_FAINT_FIELD_PSN`) already ran with the step
+            // (`crate::step_count`); its "{STR_VAR_1} fainted…" message
+            // (`gText_PkmnFainted_FldPsn`, a C string) is not shown. Then `AllMonsFainted`.
+            // No battle facility: never `FLDPSN_FRONTIER_WHITEOUT`.
+            degraded(ctx, id).await;
+            let mut all_fainted = true;
+            for slot in 0..PARTY_SIZE as u8 {
+                if ctx.query(Query::PartySpecies(slot)).await != 0
+                    && ctx.query(Query::PartyHp(slot)).await != 0
+                {
+                    all_fainted = false;
+                    break;
+                }
+            }
+            let result = if all_fainted {
+                FLDPSN_WHITEOUT
+            } else {
+                FLDPSN_NO_WHITEOUT
+            };
+            ctx.set_var(VAR_RESULT, result).await;
+        }
+        id if id == SPECIAL_RockSmashWildEncounter => {
+            // `RockSmashWildEncounter` (`wild_encounter.c`): `gSpecialVar_Result`.
+            let started = ctx.rock_smash_encounter().await;
+            ctx.set_var(VAR_RESULT, started as u16).await;
+        }
+        id if id == SPECIAL_SetMauvilleOldManObjEventGfx => {
+            // `mauville_old_man.c`: every old man type shows the bard's sprite.
+            let Some((var, gfx)) = story::MAUVILLE_OLD_MAN_GFX else {
+                return not_in_game(ctx, id).await;
+            };
+            ctx.set_var(var, gfx).await;
+        }
+        id if id == SPECIAL_ShakeCamera => {
+            // `ShakeCamera` (`field_specials.c`): `Task_ShakeCamera` pans the camera by
+            // `VAR_0x8004` (vertical) / `VAR_0x8005` (horizontal), flipping it every
+            // `VAR_0x8007` frames, `VAR_0x8006` times, then `ScriptContext_Enable`. The frames are
+            // kept (a delay), the pan is not drawn (`Request::ScreenShake`).
+            degraded(ctx, id).await;
+            let vertical = ctx.var(VAR_0x8004).await as i16;
+            let horizontal = ctx.var(VAR_0x8005).await as i16;
+            let shakes = ctx.var(VAR_0x8006).await;
+            let delay = ctx.var(VAR_0x8007).await;
+            let frames = shakes.saturating_mul(delay);
+            let magnitude = vertical
+                .unsigned_abs()
+                .max(horizontal.unsigned_abs())
+                .min(255) as u8;
+            ctx.screen_shake(magnitude, frames).await;
+            ctx.delay(frames).await;
+        }
+        id if id == SPECIAL_SetCB2WhiteOut => {
+            // `SetCB2WhiteOut`: `CB2_WhiteOut` then `DoWhiteOut`; the script ends there.
+            ctx.field_whiteout().await;
+        }
+        id if id == SPECIAL_OpenPokenavForTutorial => {
+            // `OpenPokenavForTutorial` (`pokenav.c`, `POKENAV_MODE_FORCE_CALL_READY`): the
+            // tutorial forces the call to Mr. Stone, whose first text
+            // (`sMrStoneTextScripts[0]`, `pokenav_match_call_data.c`) sets
+            // `FLAG_ENABLE_MR_STONE_POKENAV`. No PokéNav screen: the flag only.
+            degraded(ctx, id).await;
+            let Some(flag) = story::MR_STONE_POKENAV else {
+                return not_in_game(ctx, id).await;
+            };
+            ctx.set_flag(flag, true).await;
+        }
         // ---- Wave C: specials that read the player's state (`Request::Query`) ----
         id if id == SPECIAL_ScriptGetPokedexInfo => {
             // `birch_pc.c`: the Hoenn counts for VAR_0x8004 0, else the National ones.
@@ -803,6 +871,9 @@ mod mauville_gym {
 
 /// Gen3 `PARTY_SIZE`.
 const PARTY_SIZE: u16 = engine::script::PARTY_SIZE;
+/// Gen3 `FLDPSN_NO_WHITEOUT` / `FLDPSN_WHITEOUT` (`include/constants/field_poison.h`).
+const FLDPSN_NO_WHITEOUT: u16 = 0;
+const FLDPSN_WHITEOUT: u16 = 1;
 /// Gen3 `MAX_TOTAL_EVS`.
 const MAX_TOTAL_EVS: u16 = 510;
 /// Gen3 `NUM_FRONTIER_FACILITIES`.
@@ -829,6 +900,8 @@ mod story {
     pub const DAILY_PICKED_BERRIES: Option<VarId> = None;
     pub const DAILY_PLANTED_BERRIES: Option<VarId> = None;
     pub const HAS_MATCH_CALL: Option<FlagId> = None;
+    pub const MR_STONE_POKENAV: Option<FlagId> = None;
+    pub const MAUVILLE_OLD_MAN_GFX: Option<(VarId, u16)> = None;
     pub const PACIFIDLOG_TM_DAY: Option<VarId> = None;
     pub const RUSTURF: Option<Rusturf> = None;
 }

@@ -13,7 +13,7 @@
 // The 483 specials named by a `special`/`specialvar` line of the decomp (`data/**/*.inc` and
 // `data/*.s`, `data/specials.inc` excluded) are classified; the other 41 are Unsupported.
 //
-// Counts: 65 Native, 19 Ignore, 83 Default, 357 Unsupported.
+// Counts: 66 Native, 18 Ignore, 83 Default, 357 Unsupported.
 {
     "SPECIAL_AccessHallOfFamePC": Unsupported, // post-game; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_Bag_ChooseBerry": Native, // degraded: no bag screen, nothing chosen; fades back in
@@ -323,7 +323,7 @@
     "SPECIAL_OffsetCameraForBattle": Unsupported,
     "SPECIAL_OpenPokeblockCaseForContestLady": Unsupported,
     "SPECIAL_OpenPokeblockCaseOnFeeder": Unsupported,
-    "SPECIAL_OpenPokenavForTutorial": Ignore, // no PokeNav screen (M9): the script goes on as after closing it
+    "SPECIAL_OpenPokenavForTutorial": Native, // degraded: no PokeNav screen; the forced Mr. Stone call's FLAG_ENABLE_MR_STONE_POKENAV
     "SPECIAL_Overworld_PlaySpecialMapMusic": Unsupported,
     "SPECIAL_PetalburgGymSlideOpenRoomDoors": Native, // room VAR_0x8004's doors slide open (5 metatile frames, 2 frames apart)
     "SPECIAL_PetalburgGymUnlockRoomDoors": Native, // room VAR_0x8004's doors show the open frame
@@ -360,7 +360,7 @@
     "SPECIAL_ResetTrickHouseNuggetFlag": Unsupported,
     "SPECIAL_RetrieveLotteryNumber": Unsupported,
     "SPECIAL_ReturnFromLinkRoom": Unsupported,
-    "SPECIAL_RockSmashWildEncounter": Unsupported,
+    "SPECIAL_RockSmashWildEncounter": Native, // Request::RockSmashEncounter (the map's rock smash table, then a field wild battle)
     "SPECIAL_RotatingGate_InitPuzzle": Unsupported,
     "SPECIAL_RotatingGate_InitPuzzleAndGraphics": Unsupported,
     "SPECIAL_RunUnionRoom": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
@@ -381,7 +381,7 @@
     "SPECIAL_Script_DoRayquazaScene": Unsupported,
     "SPECIAL_Script_DoesFavorLadyLikeItem": Default(0), // the Lilycove ladies are M13
     "SPECIAL_Script_FacePlayer": Unsupported,
-    "SPECIAL_Script_FadeOutMapMusic": Unsupported, // unreachable in Act 1: only the field poison whiteout runs it (TryFieldPoisonWhiteOut is Default(0): FLDPSN_NONE)
+    "SPECIAL_Script_FadeOutMapMusic": Ignore, // audio: the field poison whiteout's music fade
     "SPECIAL_Script_FavorLadyOpenBagMenu": Unsupported,
     "SPECIAL_Script_GetCurrentMauvilleMan": Unsupported,
     "SPECIAL_Script_GetLilycoveLadyId": Unsupported,
@@ -398,7 +398,7 @@
     "SPECIAL_ScrollableMultichoice_TryReturnToList": Unsupported,
     "SPECIAL_SetBattleTowerLinkPlayerGfx": Unsupported,
     "SPECIAL_SetBattledOwnerFromResult": Unsupported,
-    "SPECIAL_SetCB2WhiteOut": Unsupported, // unreachable in Act 1: only the field poison whiteout runs it (TryFieldPoisonWhiteOut is Default(0): FLDPSN_NONE)
+    "SPECIAL_SetCB2WhiteOut": Native, // CB2_WhiteOut: Request::FieldWhiteOut (the field poison whiteout)
     "SPECIAL_SetCableClubWarp": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_SetChampionSaveWarp": Unsupported,
     "SPECIAL_SetContestCategoryStringVarForInterview": Unsupported,
@@ -415,7 +415,7 @@
     "SPECIAL_SetLilycoveLadyGfx": Unsupported,
     "SPECIAL_SetLinkContestPlayerGfx": Unsupported,
     "SPECIAL_SetMatchCallRegisteredFlag": Ignore, // Match Call is M9: IsTrainerRegistered answers 0
-    "SPECIAL_SetMauvilleOldManObjEventGfx": Unsupported,
+    "SPECIAL_SetMauvilleOldManObjEventGfx": Native, // VAR_OBJ_GFX_ID_0 = OBJ_EVENT_GFX_BARD (every old man type uses the bard's sprite)
     "SPECIAL_SetMewAboveGrass": Unsupported,
     "SPECIAL_SetMirageTowerVisibility": Native, // Random() & 1 or FLAG_FORCE_MIRAGE_TOWER_VISIBLE; no pulse blend
     "SPECIAL_SetPacifidlogTMReceivedDay": Unsupported,
@@ -431,7 +431,7 @@
     "SPECIAL_SetTrainerFacingDirection": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
     "SPECIAL_SetTrickHouseNuggetFlag": Unsupported,
     "SPECIAL_SetUnlockedPokedexFlags": Ignore, // GameCube link flags only
-    "SPECIAL_ShakeCamera": Unsupported,
+    "SPECIAL_ShakeCamera": Native, // degraded: Request::ScreenShake for Task_ShakeCamera's frames (VAR_0x8006 shakes every VAR_0x8007 frames), no camera pan yet
     "SPECIAL_ShouldContestLadyShowGoOnAir": Default(0), // the Lilycove ladies are M13: no Pokeblock was given
     "SPECIAL_ShouldDistributeEonTicket": Default(0), // no Mystery Gift
     "SPECIAL_ShouldDoBrailleRegicePuzzle": Unsupported,
@@ -509,7 +509,7 @@
     "SPECIAL_TryContestEModeLinkup": Unsupported,
     "SPECIAL_TryContestGModeLinkup": Unsupported,
     "SPECIAL_TryEnterContestMon": Unsupported,
-    "SPECIAL_TryFieldPoisonWhiteOut": Default(0), // field poison not modelled: FLDPSN_NONE (EventScript_FieldPoison is never started)
+    "SPECIAL_TryFieldPoisonWhiteOut": Native, // degraded: FaintFromFieldPoison runs with the step (step_count), no "fainted" message; FLDPSN_WHITEOUT when every mon fainted
     "SPECIAL_TryGetWallpaperWithWaldaPhrase": Default(0), // FALSE, no wallpaper; unreachable: DoWaldaNamingScreen gives no phrase
     "SPECIAL_TryHideBattleTowerReporter": Unsupported,
     "SPECIAL_TryInitBattleTowerAwardManObjectEvent": Unsupported,

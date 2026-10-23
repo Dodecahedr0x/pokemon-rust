@@ -766,6 +766,12 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         "/// The step-count Match Call registrations (Roxanne, Wally, Scott at Fortree, Scott's SS Tidal\n/// call, the rival's Rayquaza call), when the scripts have them (Wave E).\npub const SCRIPT_STEP_CALLS: [Option<ScriptId>; 5] = [{}];",
         calls.join(", ")
     )?;
+    let poison = s.names.iter().position(|n| n == "EventScript_FieldPoison");
+    writeln!(
+        o,
+        "/// `EventScript_FieldPoison` (`TryStartStepCountScript` after a field poison faint), when the\n/// scripts have it (format 5.10).\npub const SCRIPT_FIELD_POISON: Option<ScriptId> = {};",
+        poison.map_or("None".into(), |i| format!("Some(ScriptId({i}))"))
+    )?;
     // `gBerries` (`tables/berries.ron`, Wave E): by berry type - 1.
     o.push_str("/// Gen3 `gBerries` by berry type - 1: `(item, name, maxYield, minYield, stageDuration)` (Wave E;\n/// empty without `tables/berries.ron`).\npub static BERRIES: &[(u16, &[u8], u8, u8, u8)] = &[");
     for b in &w.tables.berries.berries {

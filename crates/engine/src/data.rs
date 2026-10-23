@@ -332,6 +332,14 @@ pub enum Behavior {
     ///
     /// Appended after [`Behavior::Floor`] (postcard index 21, hash code 21).
     Water(Water),
+    /// A warp cell the player pops out of when a warp from below lands on it (Gen3
+    /// `MB_LAVARIDGE_GYM_1F_WARP`, the B1F geysers' destinations: `DoLavaridgeGymB1FWarp`,
+    /// `FieldCB_LavaridgeGymB1FWarpExit`): entering it triggers its warp; arriving on one, the
+    /// player is hidden during the fade-in, then jumps one cell `Dir`
+    /// (`GetJumpMovementAction`), without the ash puff.
+    ///
+    /// Appended (postcard index 22, hash code 22; Wave E2).
+    PopOutWarp(Dir),
 }
 
 /// The raw Gen3 surfable behaviours behind [`Behavior::Water`], one variant each (the
@@ -480,6 +488,7 @@ impl Behavior {
                 | Behavior::NonAnimDoor(_)
                 | Behavior::Ladder
                 | Behavior::Escalator(_)
+                | Behavior::PopOutWarp(_)
         )
     }
 
