@@ -822,6 +822,12 @@ impl Battle {
         &self.battlers[side as usize].mon
     }
 
+    /// Whether `side`'s move `slot` may be chosen now (Gen3 `TrySetCantSelectMoveBattleScript`:
+    /// not disabled, tormented after its last use, taunted or sealed; PP is not checked).
+    pub fn move_selectable(&self, t: &BattleTables, side: Side, slot: u8) -> bool {
+        super::effects::selection_block(self, t, side, slot).is_none()
+    }
+
     /// The party of `side`. Player: written back to the World at the end.
     pub fn party(&self, side: Side) -> &Party {
         &self.parties[side as usize]

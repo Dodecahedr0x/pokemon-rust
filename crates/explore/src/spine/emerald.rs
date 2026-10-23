@@ -26,6 +26,42 @@ mod list {
     const ITEM_HM04: engine::data::ItemId = engine::data::ItemId(342);
     /// Gen3's `ITEM_HM06`, for the same reason.
     const ITEM_HM06: engine::data::ItemId = engine::data::ItemId(344);
+    /// Gen3's `ITEM_FULL_RESTORE`, for the same reason.
+    const ITEM_FULL_RESTORE: engine::data::ItemId = engine::data::ItemId(19);
+    /// Gen3's `ITEM_MAX_ELIXIR`, for the same reason.
+    const ITEM_MAX_ELIXIR: engine::data::ItemId = engine::data::ItemId(37);
+
+    /// The League's Poké Mart (`EverGrandeCity_PokemonLeague_1F_EventScript_Clerk`'s
+    /// `pokemart`): the mart screen is a stub (Milestone 9 Task M), so the Full Restores the
+    /// lead drinks between the Elite Four's rooms (the policy uses no items in battle, and the
+    /// rooms have no nurse) are bought here, at the mart's price.
+    static LEAGUE_MART: Bypass = Bypass {
+        issue: "league-mart",
+        features: &["pokemart"],
+        buy: &[(ITEM_FULL_RESTORE, 10)],
+        ..Bypass::NONE
+    };
+
+    /// The Hall of Fame (`EverGrandeCity_HallOfFame_EventScript_EnterHallOfFame`): its walk and
+    /// `FLDEFF_HALL_OF_FAME_RECORD` play, but `special GameClear` (the Hall of Fame screen, the
+    /// credits, the save and the reset; `post_battle_event_funcs.c`) does not, which leaves the
+    /// screen faded out and the world never capturable again. So the whole room is bypassed on
+    /// arrival: `SetGameClearFlags`' `FLAG_IS_CHAMPION`, `GameClear`'s `FLAG_SYS_GAME_CLEAR`,
+    /// and the continue warp (`HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F`).
+    static HALL_OF_FAME: Bypass = Bypass {
+        issue: "game-clear",
+        features: &["SPECIAL_GameClear"],
+        set: &[FLAG_IS_CHAMPION, FLAG_SYS_GAME_CLEAR],
+        warp: Some((MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F, 4, 2)),
+        ..Bypass::NONE
+    };
+
+    /// A Full Restore from the bag on the lead, between two Elite Four rooms.
+    const FULL_RESTORE: Step = Step::UseItem(UseItem {
+        item: ITEM_FULL_RESTORE,
+        mon: 0,
+        forget: 0,
+    });
 
     const fn goto(map: MapId, x: i16, y: i16) -> Step {
         Step::Goto { map, x, y }
@@ -93,12 +129,13 @@ mod list {
         }
     }
 
-    /// HM04 from the bag on the lead, as [`USE_HM06`], forgetting Take Down (slot 1), for the
-    /// Magma Hideout's boulders.
+    /// HM04 from the bag on the lead, as [`USE_HM06`], for the Magma Hideout's boulders:
+    /// forgetting Muddy Water (slot 0), which Surf outdoes, over Earthquake (slot 1, learned at
+    /// 52 over Take Down), the lead's one non-Water attack for the League.
     const USE_HM04: Step = Step::UseItem(UseItem {
         item: ITEM_HM04,
         mon: 0,
-        forget: 1,
+        forget: 0,
     });
 
     /// Route 120's ledges are one-way south: back from Mt. Pyre to the Jagged Pass by Fly.
@@ -224,6 +261,20 @@ mod list {
         Down, Right, Down, Right, Down, Right, Up, Up, Right, Down, Right, Down, Right, Up, Up, Up,
         Left, Left, Left, Left, Left,
     ];
+
+    /// Waterfall up to Ever Grande (`FIELD_MOVE_WATERFALL`, `FLDEFF_USE_WATERFALL`: no field
+    /// effect but Surf, Cut, Rock Smash and Strength): from the foot of the falls (20, 68) to
+    /// the water above them (20, 59), surfing. HM07 is not taught (as HM08).
+    static WATERFALL_EVER_GRANDE: Bypass = Bypass {
+        issue: "waterfall-ever-grande",
+        features: &[
+            "FIELD_MOVE_WATERFALL",
+            "FLDEFF_USE_WATERFALL",
+            "MB_WATERFALL",
+        ],
+        warp: Some((MAP_EVER_GRANDE_CITY, 20, 59)),
+        ..Bypass::NONE
+    };
 
     /// Route 131 and the Sky Pillar: Route 131 (`LAYOUT_ROUTE131_SKY_PILLAR`) and every floor
     /// (`LAYOUT_SKY_PILLAR_*_CLEAN`) are under a `setmaplayoutindex` layout, which the checkpoint
@@ -1875,5 +1926,315 @@ mod list {
         Step::Expect("juan_defeated"),
         Step::Expect("badge8"),
         Step::Checkpoint("badge8"),
+        // ---- Ever Grande: out of the gym, Surf and Dive out of the crater, Routes 126-127-128
+        // east; up the waterfall (`waterfall-ever-grande`) ----
+        // Back down onto the broken ice: a fall to B1F, whose ladder leads to the entrance.
+        Step::Path {
+            map: MAP_SOOTOPOLIS_CITY_GYM_1F,
+            dirs: &[Down, Down, Down],
+        },
+        enter(MAP_SOOTOPOLIS_CITY_GYM_B1F, 11, 22, Right),
+        enter(MAP_SOOTOPOLIS_CITY_GYM_1F, 8, 25, Down),
+        goto(MAP_SOOTOPOLIS_CITY, 34, 35),
+        Step::Choose(0),
+        use_(MAP_SOOTOPOLIS_CITY, 34, 35, Right),
+        Step::Bypass(&DIVE_OUT_SOOTOPOLIS),
+        cross(MAP_ROUTE126, 79, 40, Right),
+        cross(MAP_ROUTE127, 30, 79, Down),
+        cross(MAP_ROUTE128, 119, 30, Right),
+        goto(MAP_EVER_GRANDE_CITY, 20, 68),
+        Step::Bypass(&WATERFALL_EVER_GRANDE),
+        Step::Walk(Up),
+        Step::Expect("ever_grande"),
+        goto(MAP_EVER_GRANDE_CITY, 20, 56),
+        Step::Walk(Up),
+        Step::Checkpoint("ever_grande"),
+        // ---- Victory Road (healed first: the PP the routes since Juan spent) ----
+        enter(MAP_EVER_GRANDE_CITY, 27, 48, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 41, Up),
+        // The Max Elixir east of the entrance: the lead's PP for Wallace.
+        talk(MAP_VICTORY_ROAD_1F, 5),
+        Step::WaitScript,
+        enter(MAP_VICTORY_ROAD_1F, 9, 14, Up),
+        // B1F: Strength the boulder (4, 7) west and (9, 10) east, Rock Smash (18, 12), down
+        // to B2F.
+        goto(MAP_VICTORY_ROAD_B1F, 5, 7),
+        Step::Choose(0),
+        use_(MAP_VICTORY_ROAD_B1F, 5, 7, Left),
+        Step::Walk(Left),
+        goto(MAP_VICTORY_ROAD_B1F, 8, 10),
+        Step::Walk(Right),
+        goto(MAP_VICTORY_ROAD_B1F, 17, 12),
+        Step::Choose(0),
+        use_(MAP_VICTORY_ROAD_B1F, 17, 12, Right),
+        enter(MAP_VICTORY_ROAD_B1F, 30, 25, Up),
+        // B2F: Surf the east pool north, round the west, Surf down the falls (9, 11) and east
+        // to the ladder (19, 12).
+        goto(MAP_VICTORY_ROAD_B2F, 34, 17),
+        Step::Choose(0),
+        use_(MAP_VICTORY_ROAD_B2F, 34, 17, Up),
+        goto(MAP_VICTORY_ROAD_B2F, 34, 14),
+        Step::Walk(Up),
+        goto(MAP_VICTORY_ROAD_B2F, 6, 10),
+        Step::Choose(0),
+        use_(MAP_VICTORY_ROAD_B2F, 6, 10, Right),
+        Step::Path {
+            map: MAP_VICTORY_ROAD_B2F,
+            dirs: &[Right, Right, Down, Down, Down, Down],
+        },
+        goto(MAP_VICTORY_ROAD_B2F, 19, 14),
+        Step::Walk(Up),
+        enter(MAP_VICTORY_ROAD_B2F, 19, 12, Up),
+        // B1F's south room: smash (20, 25), push (20, 26) down, smash (21, 26).
+        goto(MAP_VICTORY_ROAD_B1F, 19, 25),
+        Step::Choose(0),
+        use_(MAP_VICTORY_ROAD_B1F, 19, 25, Right),
+        goto(MAP_VICTORY_ROAD_B1F, 20, 25),
+        Step::Choose(0),
+        use_(MAP_VICTORY_ROAD_B1F, 20, 25, Down),
+        Step::Walk(Down),
+        Step::Choose(0),
+        use_(MAP_VICTORY_ROAD_B1F, 20, 26, Right),
+        enter(MAP_VICTORY_ROAD_B1F, 20, 21, Left),
+        goto(MAP_VICTORY_ROAD_1F, 33, 28),
+        goto(MAP_VICTORY_ROAD_1F, 36, 25),
+        // North over the bridge's east cell (Quincy stands on (32, 17)).
+        goto(MAP_VICTORY_ROAD_1F, 33, 19),
+        goto(MAP_VICTORY_ROAD_1F, 33, 16),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        Step::Checkpoint("victory_road"),
+        // ---- Training for the League on Victory Road's last cave (level-40 wild mons), healed
+        // at the League's counter: the lead fights the Elite Four and Wallace alone, with its
+        // one non-HM attack (Earthquake) and no items ----
+        Step::Battle(BattlePlan::BestLearn),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        // ---- The League: past the badge guards; each Elite Four room walks the player in,
+        // then the trainer's talk is the battle ----
+        Step::Bypass(&LEAGUE_MART),
+        talk(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3),
+        Step::WaitScript,
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 1, Up),
+        enter(MAP_EVER_GRANDE_CITY_HALL5, 5, 2, Up),
+        Step::WaitScript,
+        talk(MAP_EVER_GRANDE_CITY_SIDNEYS_ROOM, 1),
+        Step::WaitScript,
+        Step::Expect("sidney_defeated"),
+        FULL_RESTORE,
+        enter(MAP_EVER_GRANDE_CITY_SIDNEYS_ROOM, 6, 2, Up),
+        enter(MAP_EVER_GRANDE_CITY_HALL1, 5, 2, Up),
+        Step::WaitScript,
+        talk(MAP_EVER_GRANDE_CITY_PHOEBES_ROOM, 1),
+        Step::WaitScript,
+        Step::Expect("phoebe_defeated"),
+        FULL_RESTORE,
+        enter(MAP_EVER_GRANDE_CITY_PHOEBES_ROOM, 6, 2, Up),
+        enter(MAP_EVER_GRANDE_CITY_HALL2, 5, 2, Up),
+        Step::WaitScript,
+        talk(MAP_EVER_GRANDE_CITY_GLACIAS_ROOM, 1),
+        Step::WaitScript,
+        Step::Expect("glacia_defeated"),
+        FULL_RESTORE,
+        enter(MAP_EVER_GRANDE_CITY_GLACIAS_ROOM, 6, 2, Up),
+        enter(MAP_EVER_GRANDE_CITY_HALL3, 5, 2, Up),
+        Step::WaitScript,
+        talk(MAP_EVER_GRANDE_CITY_DRAKES_ROOM, 1),
+        Step::WaitScript,
+        Step::Expect("drake_defeated"),
+        FULL_RESTORE,
+        // The Max Elixir from Victory Road: four rooms leave the lead's PP near empty.
+        Step::UseItem(UseItem {
+            item: ITEM_MAX_ELIXIR,
+            mon: 0,
+            forget: 0,
+        }),
+        enter(MAP_EVER_GRANDE_CITY_DRAKES_ROOM, 6, 2, Up),
+        // Wallace's room plays itself: the walk in, the battle, the walk to the Hall of Fame.
+        enter(MAP_EVER_GRANDE_CITY_HALL4, 5, 2, Up),
+        Step::WaitScript,
+        Step::Expect("wallace_defeated"),
+        Step::Bypass(&HALL_OF_FAME),
+        Step::Expect("champion"),
+        Step::Expect("hall_of_fame"),
+        Step::Checkpoint("hall_of_fame"),
     ];
 }

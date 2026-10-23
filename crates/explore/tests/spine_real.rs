@@ -13,7 +13,7 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 104_879;
 
 /// The whole Emerald spine's frame count (to its last step, to its last checkpoint).
-const EMERALD_FRAMES: u64 = 1_387_262;
+const EMERALD_FRAMES: u64 = 2_850_424;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -55,6 +55,9 @@ const EMERALD_LABELS: &[&str] = &[
     "rayquaza_awakened",
     "hm_waterfall",
     "badge8",
+    "ever_grande",
+    "victory_road",
+    "hall_of_fame",
 ];
 
 /// The engine gaps the Emerald spine steps over with `Step::Bypass`, in spine order: the
@@ -75,6 +78,10 @@ const SPINE_BLOCKERS: &[&str] = &[
     "sky-pillar-layouts",
     "rayquaza-scene",
     "dive-sootopolis",
+    "dive-out-sootopolis",
+    "waterfall-ever-grande",
+    "league-mart",
+    "game-clear",
 ];
 
 /// The Silice spine's frame count to the end of Chapter 0.
@@ -123,7 +130,7 @@ fn spine_reaches_badge1() {
 }
 
 #[test]
-fn spine_reaches_badge8() {
+fn spine_reaches_hall_of_fame() {
     if content::FLAVOR != content::Flavor::Emerald {
         return;
     }

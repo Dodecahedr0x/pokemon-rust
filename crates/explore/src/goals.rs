@@ -532,7 +532,7 @@ mod emerald {
     ];
 
     /// The League: Ever Grande, the Elite Four, the Champion, the Hall of Fame.
-    pub static LEAGUE: [Goal; 7] = [
+    pub static LEAGUE: [Goal; 8] = [
         Goal {
             name: "ever_grande",
             reached: |s| flag(s, FLAG_VISITED_EVER_GRANDE_CITY),
@@ -554,8 +554,14 @@ mod emerald {
             reached: |s| flag(s, FLAG_DEFEATED_ELITE_4_DRAKE),
         },
         Goal {
+            name: "wallace_defeated",
+            // `EverGrandeCity_ChampionsRoom_EventScript_Battle`: `trainerbattle_no_intro
+            // TRAINER_WALLACE` sets its trainer flag; the Hall of Fame sets the rest.
+            reached: |s| flag(s, trainer_flag(wallace())),
+        },
+        Goal {
             name: "champion",
-            // `EverGrandeCity_ChampionsRoom`: Wallace beaten (`FLAG_IS_CHAMPION`).
+            // `EverGrandeCity_HallOfFame_EventScript_SetGameClearFlags` (`FLAG_IS_CHAMPION`).
             reached: |s| flag(s, FLAG_IS_CHAMPION),
         },
         Goal {
@@ -691,12 +697,18 @@ mod emerald {
     /// (`extract::names::TRAINERS`); `tests/m8_k_goals.rs` checks it against both.
     pub fn woods_grunt() -> TrainerId {
         static ID: OnceLock<TrainerId> = OnceLock::new();
-        *ID.get_or_init(|| {
-            let v = extract::names::TRAINERS
-                .value("TRAINER_GRUNT_PETALBURG_WOODS")
-                .expect("a decomp trainer name");
-            TrainerId(u16::try_from(v).expect("a trainer id"))
-        })
+        *ID.get_or_init(|| decomp_trainer("TRAINER_GRUNT_PETALBURG_WOODS"))
+    }
+
+    /// `TRAINER_WALLACE` (the Champion), as [`woods_grunt`].
+    pub fn wallace() -> TrainerId {
+        static ID: OnceLock<TrainerId> = OnceLock::new();
+        *ID.get_or_init(|| decomp_trainer("TRAINER_WALLACE"))
+    }
+
+    fn decomp_trainer(name: &str) -> TrainerId {
+        let v = (extract::names::TRAINERS.value(name)).expect("a decomp trainer name");
+        TrainerId(u16::try_from(v).expect("a trainer id"))
     }
 }
 
@@ -866,6 +878,7 @@ pub fn goals() -> &'static [Goal] {
 pub fn constants() -> Vec<(&'static str, u16)> {
     let mut c = emerald::CONSTANTS.to_vec();
     c.push(("TRAINER_GRUNT_PETALBURG_WOODS", emerald::woods_grunt().0));
+    c.push(("TRAINER_WALLACE", emerald::wallace().0));
     c
 }
 

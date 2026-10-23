@@ -164,6 +164,9 @@ fn selection_limits() {
     });
     assert!(starts(&l, "PkmnMoveWasDisabled"), "{l:?}");
     assert_eq!(r.b.battler(P).fx.disabled, Some(POUND));
+    let t = crate::data::GameData::battle(&Game);
+    assert!(!r.b.move_selectable(t, P, 0));
+    assert!(r.b.move_selectable(t, P, 1));
     let l = r.choose(Choice::Move(0));
     assert_eq!(l, ["PkmnMoveIsDisabled@P"]);
     assert_eq!(r.b.need, Need::Action);
@@ -184,6 +187,9 @@ fn selection_limits() {
     });
     assert!(starts(&l, "PkmnSubjectedToTorment"), "{l:?}");
     r.choose(Choice::Move(0));
+    let t = crate::data::GameData::battle(&Game);
+    assert!(!r.b.move_selectable(t, P, 0), "Pound, used last");
+    assert!(r.b.move_selectable(t, P, 1));
     assert_eq!(r.choose(Choice::Move(0)), ["PkmnCantUseMoveTorment@P"]);
 
     // Encore: the encored move is used whatever the choice.
