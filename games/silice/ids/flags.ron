@@ -2118,5 +2118,17 @@
             name: "FLAG_SIL_HIDE_VIBER_TAUBER",
             num: 803,
         ),
+        (
+            name: "FLAG_SIL_HIDE_GYM07_PIXELS",
+            num: 900,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_REVERSE_HABITANT_ACCUEIL",
+            num: 901,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_REVERSE_ROMAIN",
+            num: 902,
+        ),
     ],
 )
