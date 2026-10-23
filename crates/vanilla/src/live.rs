@@ -7,7 +7,9 @@
 //!   policy (FIGHT, the first damaging move or `Best`, RUN from wild battles), read from
 //!   `gBattleMons` and the cursors ([`Vanilla::settle`]);
 //! - `Train` paces on the grass until the lead's level holds;
-//! - `Expect` is our engine's goal check: not played on vanilla (the diff covers it).
+//! - `Expect` is our engine's goal check: not played on vanilla (the diff covers it);
+//! - `Bypass` steps over an engine gap on our side: vanilla plays the feature natively
+//!   ([`Live::bypass`]), and [`Live::note`] says what it did.
 
 use crate::drive::Walk;
 use crate::state::Vanilla;
@@ -19,7 +21,8 @@ use explore::model::{Macro, MacroKind, Opts};
 use explore::oracle::Planner;
 use explore::semantic::map_name;
 use explore::spine::{
-    BattlePlan, NEW_GAME_MAP, RETRIES, Step, StepOpts, TRAIN_BATTLES, TRAIN_DRY, WAIT_SCRIPT_FRAMES,
+    BattlePlan, Bypass, NEW_GAME_MAP, RETRIES, Step, StepOpts, TRAIN_BATTLES, TRAIN_DRY,
+    WAIT_FOR_FRAMES, WAIT_SCRIPT_FRAMES,
 };
 
 /// Frames one macro may take (`explore::spine::PLAY_MACRO_FRAMES`, and battles on top).
@@ -35,7 +38,19 @@ pub struct Live<'g, G: GameData> {
     pub opts: StepOpts,
     /// Times the last [`Live::play`] replayed its step after a lost battle.
     pub rerolls: u32,
+    /// What the last step played natively for a [`Step::Bypass`].
+    pub note: Option<String>,
 }
+
+/// The answer a bypassed scripted talk takes natively (the spine has no `Choose` before a
+/// bypass): `(issue, choice)`. Mr. Briney: yes to Dewford; Slateport (1) in his multichoice.
+const NATIVE_CHOICE: &[(&str, u8)] = &[
+    ("briney-sail-camera", 0),
+    ("briney-sail-camera-slateport", 1),
+];
+
+/// Floor triggers pressed at most to open a way ([`Live::bypass`], Mauville's gym).
+const TRIGGER_DEPTH: u32 = 3;
 
 /// Replays of a step whose battle vanilla lost ([`Live::play`]).
 pub const REROLLS: u32 = 6;
@@ -48,6 +63,7 @@ impl<'g, G: GameData> Live<'g, G> {
             game,
             opts: StepOpts::default(),
             rerolls: 0,
+            note: None,
         }
     }
 
@@ -88,6 +104,7 @@ impl<'g, G: GameData> Live<'g, G> {
             self.opts,
         );
         self.rerolls = 0;
+        self.note = None;
         loop {
             let r = self.play_once(step);
             let lost = (self.v.outcomes[outcomes..].iter())
@@ -125,10 +142,17 @@ impl<'g, G: GameData> Live<'g, G> {
                     BattlePlan::Fight => {
                         self.opts.run_wild = false;
                         self.opts.best_move = false;
+                        self.opts.learn = false;
                     }
                     BattlePlan::Best => {
                         self.opts.run_wild = false;
                         self.opts.best_move = true;
+                        self.opts.learn = false;
+                    }
+                    BattlePlan::BestLearn => {
+                        self.opts.run_wild = false;
+                        self.opts.best_move = true;
+                        self.opts.learn = true;
                     }
                     BattlePlan::RunWild => self.opts.run_wild = true,
                 }
@@ -149,6 +173,7 @@ impl<'g, G: GameData> Live<'g, G> {
             run_wild: self.opts.run_wild || !pacing,
             choice: self.opts.choice.take().unwrap_or(0),
             best_move: self.opts.best_move,
+            learn: self.opts.learn,
         };
         self.answer(opts);
         let start = self.map()?;
@@ -222,6 +247,18 @@ impl<'g, G: GameData> Live<'g, G> {
             Step::WaitScript => self
                 .v
                 .hold(Buttons::NONE, WAIT_SCRIPT_FRAMES, MACRO_FRAMES)?,
+            Step::WaitFor { local_id, x, y } => {
+                let mut n = 0;
+                while self.object(local_id)?.is_none_or(|o| o.cell != (x, y)) {
+                    n += 1;
+                    ensure!(
+                        n <= WAIT_FOR_FRAMES,
+                        "object {local_id} never on ({x}, {y}) in {WAIT_FOR_FRAMES} frames"
+                    );
+                    self.v.hold(Buttons::NONE, 1, MACRO_FRAMES)?;
+                }
+            }
+            Step::Bypass(b) => self.bypass(b, opts)?,
             Step::Grass { x, y, .. } => {
                 self.grass((x, y))?;
             }
@@ -295,6 +332,138 @@ impl<'g, G: GameData> Live<'g, G> {
             }
         }
         Ok(())
+    }
+
+    /// Object `local_id` of the current map, when spawned and visible.
+    fn object(&mut self, local_id: u8) -> Result<Option<crate::state::Object>> {
+        let map = self.map()?;
+        Ok((0..crate::state::layout::OBJECT_EVENTS)
+            .filter_map(|i| self.v.object_event(i))
+            .find(|o| !o.is_player && o.visible && o.map == map && o.local_id == local_id))
+    }
+
+    /// Plays a [`Step::Bypass`] natively, the feature our engine lacks (it writes the state
+    /// the feature leaves instead):
+    ///
+    /// - no warp: the bypass only writes flags and vars, which vanilla's feature wrote when it
+    ///   ran (nothing to play: the boundary's diff says whether they agree);
+    /// - a warp on the current map (a gym puzzle): walk to the cell, pressing the map's floor
+    ///   triggers (up to [`TRIGGER_DEPTH`], searched on save states) until a way opens;
+    /// - a warp to another map (a scripted trip): A on what the player faces, answering per
+    ///   [`NATIVE_CHOICE`], and the script runs to the end.
+    ///
+    /// [`Live::note`] says what was played and where vanilla stands.
+    pub fn bypass(&mut self, b: &Bypass, opts: Opts) -> Result<()> {
+        let features = b.features.join(", ");
+        let Some((m, x, y)) = b.warp else {
+            self.v.settle(MACRO_FRAMES)?;
+            self.note = Some(format!(
+                "{}: nothing to play ({features} ran natively)",
+                b.issue
+            ));
+            return Ok(());
+        };
+        let m = self.resolve_map(m);
+        let start = self.map()?;
+        let from = self.v.frames;
+        if start == m {
+            let mut pressed = Vec::new();
+            ensure!(
+                self.reach_by_triggers(m, (x, y), TRIGGER_DEPTH, &mut pressed)?,
+                "{}: no way to ({x}, {y}) pressing up to {TRIGGER_DEPTH} triggers",
+                b.issue
+            );
+            self.note = Some(format!(
+                "{}: {features} played natively: triggers {pressed:?} pressed, ({x}, {y}) reached \
+                 in {} frames",
+                b.issue,
+                self.v.frames - from
+            ));
+            return Ok(());
+        }
+        let choice = (NATIVE_CHOICE.iter())
+            .find(|(i, _)| *i == b.issue)
+            .map_or(0, |&(_, c)| c);
+        self.answer(Opts { choice, ..opts });
+        self.v.settle(MACRO_FRAMES)?;
+        self.v.tap(Buttons::A)?;
+        self.v.settle(MACRO_FRAMES)?;
+        let on = self.map()?;
+        let cell = self.cell()?;
+        self.note = Some(format!(
+            "{}: {features} played natively (choice {choice}): on {} at {cell:?} after {} frames \
+             (the bypass warps to {:?})",
+            b.issue,
+            map_name(on),
+            self.v.frames - from,
+            (map_name(m), x, y)
+        ));
+        ensure!(
+            on == m,
+            "{}: the native script left the player on {}, not {}",
+            b.issue,
+            map_name(on),
+            map_name(m)
+        );
+        Ok(())
+    }
+
+    /// Whether `to` is reachable on `map` now (objects in the way).
+    fn reachable(&mut self, map: MapId, to: (i16, i16)) -> Result<bool> {
+        let me = self.cell()?;
+        let overrides = self.v.overrides(self.game, map);
+        let occupied = self.v.occupied(map);
+        let p = Planner::new(self.game, map, &overrides, occupied);
+        Ok(me == to || p.first_dir(me, to).is_some())
+    }
+
+    /// Walks to `to`, stepping on the map's floor triggers first (depth-first over save
+    /// states, `depth` presses at most) while it is out of reach. `pressed` gets the
+    /// triggers' cells.
+    fn reach_by_triggers(
+        &mut self,
+        map: MapId,
+        to: (i16, i16),
+        depth: u32,
+        pressed: &mut Vec<(i16, i16)>,
+    ) -> Result<bool> {
+        if self.reachable(map, to)? {
+            self.goto(map, to, &[])?;
+            return Ok(true);
+        }
+        if depth == 0 {
+            return Ok(false);
+        }
+        let mut triggers: Vec<(i16, i16)> = (self.game.map(map).coords.iter())
+            .map(|c| (c.x, c.y))
+            .collect();
+        triggers.dedup();
+        for t in triggers {
+            if self.cell()? == t || !self.reachable(map, t)? {
+                continue;
+            }
+            let state = self.v.emu.save_state()?;
+            let (frames, battles, outcomes) =
+                (self.v.frames, self.v.battles.len(), self.v.outcomes.len());
+            let ok = self
+                .v
+                .walk_to(self.game, t, MACRO_FRAMES)
+                .is_ok_and(|w| w == Walk::Reached)
+                && self.v.settle(MACRO_FRAMES).is_ok()
+                && self.map()? == map;
+            if ok {
+                pressed.push(t);
+                if self.reach_by_triggers(map, to, depth - 1, pressed)? {
+                    return Ok(true);
+                }
+                pressed.pop();
+            }
+            self.v.emu.load_state(&state)?;
+            self.v.frames = frames;
+            self.v.battles.truncate(battles);
+            self.v.outcomes.truncate(outcomes);
+        }
+        Ok(false)
     }
 
     /// Sets the answers (and the starter ball) for what the next inputs trigger, on the

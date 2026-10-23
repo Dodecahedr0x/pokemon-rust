@@ -172,11 +172,11 @@ pub fn first_damaging_slot_of(moves: &[Option<MoveId>; 4], pp: &[u8; 4], t: &Bat
 /// multipliers on the foe's types, over the usable moves with power; ties go to the lower slot.
 /// Without a damaging move, [`first_damaging_slot`].
 /// A move's worth for [`forget_slot`]: power, x1.5 with STAB; 0 for a status move.
-fn move_worth(me: &BattleMon, mov: MoveId, t: &BattleTables) -> u32 {
+fn move_worth(me: SpeciesId, mov: MoveId, t: &BattleTables) -> u32 {
     let Some(mi) = t.moves.get(mov.0 as usize) else {
         return 0;
     };
-    let stab = t.species_info(me.species).types.contains(&mi.ty);
+    let stab = t.species_info(me).types.contains(&mi.ty);
     u32::from(mi.power) * if stab { 15 } else { 10 }
 }
 
@@ -187,8 +187,18 @@ pub fn forget_slot(me: &BattleMon, t: &BattleTables) -> Option<u8> {
     let new = (t.species_info(me.species).learnset.iter())
         .find(|l| l.level == me.level && !me.moves.contains(&Some(l.mov)))?
         .mov;
+    forget_slot_of(me.species, &me.moves, new, t)
+}
+
+/// [`forget_slot`] on raw moves, for learning `new` (the vanilla oracle's `gMoveToLearn`).
+pub fn forget_slot_of(
+    me: SpeciesId,
+    moves: &[Option<MoveId>; 4],
+    new: MoveId,
+    t: &BattleTables,
+) -> Option<u8> {
     let (worth, slot) = (0..4)
-        .filter_map(|i| me.moves[i].map(|m| (move_worth(me, m, t), i as u8)))
+        .filter_map(|i| moves[i].map(|m| (move_worth(me, m, t), i as u8)))
         .min()?;
     (move_worth(me, new, t) > worth).then_some(slot)
 }

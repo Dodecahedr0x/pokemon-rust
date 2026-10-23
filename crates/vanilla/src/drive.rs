@@ -17,7 +17,16 @@ use anyhow::{Result, anyhow};
 use engine::Buttons;
 use engine::data::{Dir, GameData, MapId, MoveId, SpeciesId};
 use explore::oracle::{Planner, overrides_from_grid};
-use explore::policy::{best_damaging_slot_of, first_damaging_slot_of, toward};
+use explore::policy::{best_damaging_slot_of, first_damaging_slot_of, forget_slot_of, toward};
+
+/// The key that moves a one-column list cursor from `c` to `want`, or A once it is there.
+fn vertical(c: u8, want: u8) -> Buttons {
+    match c.cmp(&want) {
+        std::cmp::Ordering::Less => Buttons::DOWN,
+        std::cmp::Ordering::Greater => Buttons::UP,
+        std::cmp::Ordering::Equal => Buttons::A,
+    }
+}
 
 /// How a [`Vanilla::walk_to`] ended.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -59,7 +68,7 @@ impl Vanilla {
     /// Steps until [`Mode::FieldIdle`] holds over [`SETTLE_IDLE`] frames without input (within
     /// `max_frames`),
     /// answering every wait per [`Vanilla::answers`] (module docs): messages with A, yes/no,
-    /// multichoices (the first item), other screens (the clock, the starter, the naming
+    /// multichoices (the choice's item, the next one when the same script asks again), other screens (the clock, the starter, the naming
     /// screen), the battle's menus and prompts. Scripts and transitions run without input.
     /// Every battle seen starting is logged in [`Vanilla::battles`].
     pub fn settle(&mut self, max_frames: u64) -> Result<()> {
@@ -67,6 +76,8 @@ impl Vanilla {
         let mut idle = 0;
         let mut in_battle = false;
         let mut last = None;
+        // The script position of the last multichoice, and the times it was asked again.
+        let (mut asked, mut reasked, mut in_multichoice) = (None, 0u8, false);
         loop {
             let mode = self.mode();
             if self.trace && last != Some(mode) {
@@ -74,6 +85,15 @@ impl Vanilla {
                 eprintln!("  [{:>7}] settle {mode:?}: {inputs}", self.frames);
                 last = Some(mode);
             }
+            if mode == Mode::Multichoice && !in_multichoice {
+                let at = self.emu.read_u32(self.sym.script_context + CTX_SCRIPT_PTR);
+                if asked == Some(at) {
+                    reasked += 1;
+                } else {
+                    (asked, reasked) = (Some(at), 0);
+                }
+            }
+            in_multichoice = mode == Mode::Multichoice;
             let battle = matches!(
                 mode,
                 Mode::BattleAction | Mode::BattleMove | Mode::BattleTarget | Mode::BattleWaiting
@@ -101,7 +121,19 @@ impl Vanilla {
                 // B answers NO wherever the cursor is (`menu.c`: MENU_B_PRESSED).
                 Mode::YesNo => Buttons::B,
                 Mode::Screen { .. } => self.screen_key(),
-                Mode::Message | Mode::Multichoice => Buttons::A,
+                // The choice's item where it applies (`Choose(n)`), else the first; the next
+                // item each time the same script asks again (a tutorial's "please select X").
+                Mode::Multichoice => {
+                    let at = self.emu.read_u8(self.sym.menu + 2);
+                    let max = self.emu.read_u8(self.sym.menu + 4);
+                    let base = if self.choice_holds() {
+                        self.answers.choice
+                    } else {
+                        0
+                    };
+                    vertical(at, (base + reasked) % (max.saturating_add(1).max(1)))
+                }
+                Mode::Message => Buttons::A,
             };
             if self.frames >= end {
                 let inputs = self.mode_inputs();
@@ -147,6 +179,15 @@ impl Vanilla {
             _ => {
                 let instr = self.emu.read_u32(s.battlescript_curr_instr);
                 match self.emu.read_u8(instr) {
+                    // Learn over the weakest known move when the new one is worth more
+                    // (`Opts::learn`, our `policy::forget_slot`); else keep the known moves.
+                    B_SCR_OP_YESNOBOXLEARNMOVE if self.forget_slot().is_some() => {
+                        if self.emu.read_u8(s.battle_communication + 1) == 0 {
+                            Buttons::A
+                        } else {
+                            Buttons::UP
+                        }
+                    }
                     B_SCR_OP_YESNOBOXLEARNMOVE => Buttons::B,
                     B_SCR_OP_YESNOBOXSTOPLEARNINGMOVE => {
                         if self.emu.read_u8(s.battle_communication + 1) == 0 {
@@ -159,6 +200,37 @@ impl Vanilla {
                 }
             }
         }
+    }
+
+    /// The slot to forget for `gMoveToLearn` (`Opts::learn` only), from `gBattleMons[0]`.
+    fn forget_slot(&mut self) -> Option<u8> {
+        if !self.answers.learn {
+            return None;
+        }
+        let t = self.tables?;
+        let me = self.sym.battle_mons;
+        let species = SpeciesId(self.emu.read_u16(me + BM_SPECIES));
+        let moves: [Option<MoveId>; 4] = std::array::from_fn(|i| {
+            let m = self.emu.read_u16(me + BM_MOVES + 2 * i as u32);
+            (m != 0).then_some(MoveId(m))
+        });
+        let new = MoveId(self.emu.read_u16(self.sym.move_to_learn));
+        forget_slot_of(species, &moves, new, t)
+    }
+
+    /// The summary screen's forget-a-move cursor: toward [`Vanilla::forget_slot`], then A; B
+    /// (keep the known moves) without one.
+    fn replace_move_key(&mut self) -> Buttons {
+        let Some(slot) = self.forget_slot() else {
+            return Buttons::B;
+        };
+        let pss = self.emu.read_u32(self.sym.mon_summary_screen);
+        if pss == 0
+            || self.emu.read_u16(pss + PSS_NEW_MOVE) != self.emu.read_u16(self.sym.move_to_learn)
+        {
+            return Buttons::NONE;
+        }
+        vertical(self.emu.read_u8(pss + PSS_FIRST_MOVE_INDEX), slot)
     }
 
     /// The policy's move slot, from `gBattleMons[0]` (ours) and `[1]` (the foe).
@@ -188,6 +260,9 @@ impl Vanilla {
     fn screen_key(&mut self) -> Buttons {
         let s = self.sym.clone();
         let tasks = self.tasks();
+        if tasks.contains(&s.task_replace_move) {
+            return self.replace_move_key();
+        }
         if tasks.contains(&s.task_set_clock_confirm) || tasks.contains(&s.task_starter_confirm) {
             return self.yes();
         }
@@ -205,7 +280,26 @@ impl Vanilla {
                 Some(_) => Buttons::START,
             };
         }
+        if self.callback2() == s.cb2_pokenav {
+            return self.pokenav_key();
+        }
         Buttons::A
+    }
+
+    /// Rustboro's PokéNav tutorial (`OpenPokenavForTutorial`): before the call
+    /// (`POKENAV_MODE_FORCE_CALL_READY`) A on MATCH CALL (only it opens: A taps, then a DOWN
+    /// once the cursor's animation is long over, until it does), A on the first entry, A on
+    /// CALL; after it, B out of every menu.
+    fn pokenav_key(&mut self) -> Buttons {
+        let res = self.emu.read_u32(self.sym.pokenav_resources);
+        if res == 0 {
+            return Buttons::NONE;
+        }
+        match self.emu.read_u16(res + PN_MODE) {
+            POKENAV_MODE_FORCE_CALL_READY if (self.frames / 2) % 48 == 47 => Buttons::DOWN,
+            POKENAV_MODE_FORCE_CALL_READY => Buttons::A,
+            _ => Buttons::B,
+        }
     }
 
     /// The key toward YES on a `menu.c` yes/no.

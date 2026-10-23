@@ -83,6 +83,9 @@ fn print_row(r: &Row, quiet: bool) {
     if let Some(e) = &r.error {
         println!("      VANILLA FAILED: {e}");
     }
+    if let Some(n) = &r.note {
+        println!("      BYPASS: {n}");
+    }
     if r.rerolls > 0 {
         println!("      vanilla lost a battle: replayed {} times", r.rerolls);
     }

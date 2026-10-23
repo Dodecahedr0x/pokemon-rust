@@ -112,6 +112,17 @@ symbols! {
     battlescript_curr_instr = "gBattlescriptCurrInstr" @ 0x02024214,
     /// `gBattleCommunication[1]`: the battle yes/no box's cursor.
     battle_communication = "gBattleCommunication" @ 0x02024332,
+    /// The level-up move a battle's learn prompt offers.
+    move_to_learn = "gMoveToLearn" @ 0x020244e2,
+    /// `struct MonSummaryScreenData *` (`pokemon_summary_screen.c`): `newMove` at +0x40C4,
+    /// `firstMoveIndex` (the forget-a-move cursor) at +0x40C6.
+    mon_summary_screen = "sMonSummaryScreen" @ 0x0203cf1c,
+    /// The PokéNav's main callback.
+    cb2_pokenav = "CB2_Pokenav" @ 0x081c7400,
+    /// `struct PokenavResources *`: `mode` at +8.
+    pokenav_resources = "gPokenavResources" @ 0x0203cf40,
+    /// The summary screen's forget-a-move input.
+    task_replace_move = "Task_HandleReplaceMoveInput" @ 0x081c174c,
 }
 
 /// Every address of every name in a symbol listing: any line whose first token is a hex

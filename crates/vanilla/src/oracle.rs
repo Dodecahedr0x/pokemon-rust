@@ -39,6 +39,8 @@ pub struct Row {
     pub new: Vec<Delta>,
     /// Vanilla could not play the step (a driver problem, or a divergence).
     pub error: Option<String>,
+    /// What vanilla played natively for a `Bypass` step ([`Live::note`]).
+    pub note: Option<String>,
     /// Replays after a battle vanilla lost ([`Live::play`]).
     pub rerolls: u32,
     pub tolerance: Tolerance,
@@ -147,6 +149,7 @@ pub fn run_spine<G: GameData>(
             new,
             error,
             rerolls: live.rerolls,
+            note: live.note.take(),
             tolerance: tol,
         };
         progress(&row);

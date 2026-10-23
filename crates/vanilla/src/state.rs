@@ -110,6 +110,12 @@ pub mod layout {
     // Battle script opcodes (`B_SCR_OP_*`).
     pub const B_SCR_OP_YESNOBOXLEARNMOVE: u8 = 0x5A;
     pub const B_SCR_OP_YESNOBOXSTOPLEARNINGMOVE: u8 = 0x5B;
+    // struct MonSummaryScreenData
+    pub const PSS_NEW_MOVE: u32 = 0x40C4;
+    pub const PSS_FIRST_MOVE_INDEX: u32 = 0x40C6;
+    // struct PokenavResources
+    pub const PN_MODE: u32 = 8;
+    pub const POKENAV_MODE_FORCE_CALL_READY: u16 = 1;
 }
 
 use layout::*;
