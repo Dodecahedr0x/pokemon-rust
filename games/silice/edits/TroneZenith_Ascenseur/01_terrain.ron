@@ -1,0 +1,19 @@
+// Cells. The golden floor stands for the source's translucent crystal; the scrolling background (pixel
+// clouds, then gold; stars, then the city) is a missing mechanic, the source's fallback is a fixed one.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "aaaaaaa",
+        "bcccccb",
+        "deeeeef",
+        "g.....h",
+        "g......",
+        "i.....j",
+        "k.....l",
+    ], legend: {
+        'a': (metatile: 559, collision: 1, elevation: 0), 'b': (metatile: 575, collision: 1, elevation: 0), 'c': (metatile: 567, collision: 1, elevation: 0),
+        'd': (metatile: 583, collision: 1, elevation: 0), 'e': (metatile: 572, collision: 0, elevation: 3), 'f': (metatile: 533, collision: 1, elevation: 0),
+        'g': (metatile: 571, collision: 0, elevation: 3), 'h': (metatile: 570, collision: 0, elevation: 3), '.': (metatile: 570, collision: 0, elevation: 3),
+        'i': (metatile: 638, collision: 0, elevation: 3), 'j': (metatile: 574, collision: 0, elevation: 3),
+        'k': (metatile: 639, collision: 1, elevation: 0), 'l': (metatile: 582, collision: 1, elevation: 0),
+    }),
+]

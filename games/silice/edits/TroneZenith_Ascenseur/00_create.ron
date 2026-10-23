@@ -1,0 +1,5 @@
+// Silice Ch11, MAP_TRONE_ZENITH_ASCENSEUR: the Crystal Elevator's cabin (7 x 7, the source's), used by the
+// ascent (Sommet_Apex_Sc07, story 114) and the descent (Ascenseur_Sc12, story 117). Building +
+// BattleFrontier (the Battle Tower battle room's golden floor and pillars, Emerald tilesets by name).
+// Border: black, blocked.
+(name: "TroneZenith_Ascenseur", width: 7, height: 7, primary: "Building", secondary: "BattleFrontier", fill: 570, border: [1025, 1025, 1025, 1025])

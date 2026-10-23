@@ -4002,6 +4002,135 @@ Engine side of the three SIL3 battle features, ahead of SIL3 (branch of `db07b1d
 
 Sequencing: SIL1 can run in parallel with M9 (its files are disjoint except the shell plumbing, Task D, which merges first). Each later SIL milestone waits for, or pulls forward, the Emerald milestone it needs (Q4).
 
+#### SIL5 Ch10–Ch11 maps as built (the Tower, the Apex, the Zenith)
+
+The nine Chapter 10–11 maps are in `games/silice/{maps,layouts}/`, made only with the studio map editor. Their edit scripts are in `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, `03_allow`; `TroneZenith_Nuit` shares `TroneZenith`'s layout and has no `01_terrain`). No other chapter's map was touched. `cargo xtask studio map --game silice build` writes the same bytes on a second run (no diff).
+
+**Names.** The chapters' `MAP_*` constants map to the names `ids/maps.ron` gives:
+
+| Constant | Map | Size (source's) | Tilesets | Why this pair |
+|---|---|---|---|---|
+| `MAP_TOUR_NEBULA_ASCENSEUR` | `TourNebulaAscenseur` | 7 × 8 (7 × 8) | Building + BattleFrontier | The Battle Tower elevator's glass walls and floor grid. |
+| `MAP_TOUR_NEBULA_1F` | `TourNebula_1F` | 26 × 24 (26 × 24) | General + InsideShip | The ship's wood panelling, barrels, counter and black water: a cellar with a bar. |
+| `MAP_TOUR_NEBULA_2F` | `TourNebula_2F` | 24 × 22 (24 × 22) | Building + Contest | The contest hall's curtains, stage and coloured stage strips (the holographic set). |
+| `MAP_TOUR_NEBULA_3F` | `TourNebula_3F` | 24 × 17 (24 × 24) | General + Facility | The Space Center's window walls round one sea metatile (414), so the hidden path does not show. |
+| `MAP_TOUR_NEBULA_4F` | `TourNebula_4F` | 22 × 26 (22 × 26) | Building + EliteFour | Glacia's ice blocks as mirrors, its floor, the prism pedestals. |
+| `MAP_SOMMET_APEX` | `SommetApex` | 24 × 30 (24 × 30) | Building + Shop | The source's placeholder, the Department Store rooftop: fences, flagstones, the stage (625), amps and the tube. |
+| `MAP_TRONE_ZENITH_ASCENSEUR` | `TroneZenith_Ascenseur` | 7 × 7 (7 × 7) | Building + BattleFrontier | A second glass cabin. |
+| `MAP_TRONE_ZENITH` | `TroneZenith` | 15 × 15 (15 × 15) | Building + EliteFour | A round crystal platform over the void, ringed by terminals (843), the diffuser at the centre, the tube stairs south. |
+| `MAP_TRONE_ZENITH_NUIT` | `TroneZenith_Nuit` | shares `TroneZenith` | (shared) | The source's fallback-only night variant: same layout, MUS_END, no weather. |
+
+The other names in the chapters belong elsewhere: `MAP_NEBULA_TOUR_HALL` and `MAP_NEBULA` (Ch9), `MAP_BRICO_BOURG_PLAYER_HOUSE_1F`/`_2F` (Ch0), and the `_RUINE` floors and `MAP_SOMMET_APEX_TEMPLE_NUAGES` (Ch12, post-game). Every layout is original and `hygiene` (including `games::copies`) is clean. Music: MUS_SEALED_CHAMBER (both cabins, the Zenith), MUS_MT_PYRE_EXTERIOR (1F), MUS_CONTEST_LOBBY (2F), MUS_UNDERWATER (3F), MUS_TRICK_HOUSE (4F), MUS_ENCOUNTER_ELITE_FOUR (Apex), MUS_END (night Zenith); all are in the song table. Weather: fog (1F), rain (3F), shade (Apex, the duel's rain is a script's), drought (Zenith, the sun).
+
+**Warps** (the numbers scripts and other chapters rely on). "Landing" means a plain floor cell: the engine never warps from it, it is only an arrival point.
+- `TourNebulaAscenseur`: 0 (1, 6) → 1F#0; 1 (2, 6) → 2F#0; 2 (4, 6) → 3F#0; 3 (5, 6) → 4F#0; 4 (3, 5) → SommetApex#0; 5 (3, 6) → `MAP_DYNAMIC` 127 (the Ch9 hall's elevator). All landings: the cabin is never walked (see `_Sc00`).
+- `TourNebula_1F`: 0 (11, 21) landing → cabin#0; 1 (16, 1) the door behind the counter → cabin#0.
+- `TourNebula_2F`: 0 (10, 19) landing → cabin#1; 1 (20, 1) "SORTIE ARTISTES" → cabin#1.
+- `TourNebula_3F`: 0 (11, 15) landing → cabin#2; 1 (12, 1) the screen behind Arthur → cabin#2.
+- `TourNebula_4F`: 0 (10, 23) landing → cabin#3. No exit warp: `_Sc05` (down to the hall) and `_Sc06` (up to the Apex) warp by script.
+- `SommetApex`: 0 (11, 27) landing → cabin#4; 1 (11, 3) the crystal tube's foot, landing → `TroneZenith_Ascenseur`#0.
+- `TroneZenith_Ascenseur`: 0 (3, 4) → Apex#1; 1 (3, 5) → TroneZenith#0; 2 (3, 6) → TroneZenith_Nuit#0. All landings.
+- `TroneZenith` and `TroneZenith_Nuit`: 0 (7, 13), the tube's stairs, landing → `TroneZenith_Ascenseur`#1 / #2.
+
+**Objects and puzzles.**
+- Cabin: Mathieu (3, 4), hidden (`FLAG_SIL_HIDE_TOUR_MATHIEU`), for the meal between 2F and 3F.
+- 1F: Mathias (12, 3) behind the grille (10–14, 5); the maître de chai (16, 7); the tasting barrels A/B/C (7, 7), (10, 7), (13, 7) as signs; Gaston (3, 14) and Coralie (3, 9), facing east, sight 4; the steward, the guard, the waitress; a Full Restore ball (23, 13); two iron-bound barrels (7, 10), (17, 10) on the pontoons' north ends (Strength, `PUSHABLE_BOULDER`); a hidden Max Elixir (21, 9).
+- 2F: Kimiko (11, 3) behind the holographic set (Y/P/V, 6–17, 4); Basile (5, 8) and Lou (16, 8), facing south, sight 4; the stage manager, the drone (WINGULL, `FLAG_SIL_HIDE_TOUR_DRONE` since the review: `_Sc04` hides it), the intern; a Max Revive ball (22, 10); the three consoles (4, 5), (14, 5), (20, 5); twelve chat screens on the side walls; a hidden PP Up (3, 11).
+- 3F: Arthur (11, 2) at the helm; Yann (3, 13) east and Maëlle (16, 13) west, sight 4; the compass (8, 13), an item-ball sprite hidden by the source's `FLAG_SIL_HIDE_ARTHUR_BOUSSOLE`; the technician, the cabin boy; three origami boats (3, 14), (10, 14), (18, 14) as signs; a hidden Full Restore (22, 13). The 14-cell hidden path (from (11, 11): north 4, east 3, north 3, west 3, to (11, 3)) and every sea cell next to it are walkable and carry the fall coord; the rest of the sea is solid.
+- 4F: a mirror maze I drew (the source gives its shape only in prose). Four false mirrors (walkable, 645): (1, 10) and (3, 14) are shortcuts, (18, 19) leads to the hidden Max Revive (17, 19), (6, 11) to prism p3's pocket. Prisms p1 (2, 19), p2 (12, 13), p3 (5, 12) are signs. The prism door (11, 4) is a fourth prism (522), solid. Revenge (11, 2) and his glass statue share the cell (the statue hidden at start by `FLAG_SIL_HIDE_REVENGE_STATUE`); Écho (13, 9) west and Mira (3, 7) east, sight 4; a Full Restore ball (9, 21); the vault door (11, 0) is a sign.
+- Apex: Poussin (11, 6) on the stage; Julien (14, 3) by the console, hidden; Gogo (8, 17) and Romain (9, 17); Marc (17, 22) west, Sophie (3, 19) east (sight 3), Kevin (8, 13) east, sight 4; Full Restore (2, 23); Max Revive (21, 9) behind two crates (19, 11), (20, 11) (Strength); hidden PP Max (3, 4) and Max Elixir (17, 14). The console (10–13, 4), the tube (11, 2), (12, 2), the amps, the service door, the sky, the blocked elevator and the maintenance hatch are signs.
+- Zenith cabin: Mathieu, Adrien, Gwada, Julien at (2, 3), (4, 3), (2, 5), (4, 5), all hidden.
+- Zenith (both): Julien (7, 3) facing north, no flag; Mathieu, Adrien, Gwada on the stairs (6–8, 13), hidden; the diffuser (7, 5) a sign.
+
+**Script contract** (`<Map>_ScNN`, `<Map>_EventScript_<What>`, `<Map>_OnTransition`/`_OnLoad`). The source's names are renamed to the map names: `Tour_Ascenseur_ScNN` → `TourNebulaAscenseur_ScNN`, `Tour_1F_ScNN` → `TourNebula_1F_ScNN` (and 2F–4F), `Sommet_Apex_ScNN` → `SommetApex_ScNN`, `Trone_Zenith_ScNN` → `TroneZenith_ScNN`, `Ascenseur_Sc12` → `TroneZenith_Ascenseur_Sc12`. All names stay unwritten under `registry::ALLOW_UNWRITTEN`. Below, names are given without the `<Map>_` prefix.
+- `TourNebulaAscenseur`: `Sc00` (on-frame on `VAR_TEMP_1` 0, so every arrival): reads `VAR_SIL_STORY`, runs `_Sc00a`, `_Sc01`–`_Sc04` as the source says, then always warps away by coordinates (1F (11, 21), 2F (10, 19), 3F (11, 15), 4F (10, 23), the Apex (11, 27)); `EventScript_Panneau`. The cabin is never walked.
+- `TourNebula_1F`: `OnLoad` (from story 101: the door (16, 1) to collision 0; with `FLAG_SIL_CAVE_GRILLE_OUVERTE`: the grille (10–14, 5) to 568, collision 0); `Sc01` (coords (11, 20), (10, 21), (12, 21) on `VAR_TEMP_1` 0: sets `VAR_TEMP_1` 1, plays once by its flag); `Sc02` (the maître de chai) and `Sc02_A`/`_B`/`_C` (the barrels; the right answer opens the grille with `setmetatile` and the flag); `Sc03` (coords (10–14, 4) on `VAR_TEMP_2` 0, the heart pulse, once); `Sc04` (Mathias; `Sc05` after the battle is called from it); `EventScript_{Gaston,Coralie,Intendant,Garde,Serveuse,ItemFullRestore,FutCercle,Entree,Ponton,PorteVerrouillee}`.
+- `TourNebula_2F`: `OnLoad` (with `FLAG_SIL_STUDIO_DECOR_COUPE` or from story 103: the set (6–17, 4) to metatile 608, collision 0; from story 103 the exit (20, 1) to collision 0); `Sc01` (coords (10, 18), (9, 19), (11, 19), `VAR_TEMP_1` idiom); `Sc02_01`–`_12` (the chat screens); `Sc03_1`–`_3` (the consoles, `Sc03_Erreur` inside); `Sc04` (Kimiko, `Sc05` after); `EventScript_{Basile,Lou,Regisseuse,Drone,Stagiaire,ItemMaxRevive,Entree,Logo,PorteVerrouillee}`.
+- `TourNebula_3F`: `OnLoad` (from story 105: the screen (12, 1) to collision 0); `Sc01` (coords (11, 14), (10, 15), (12, 15), `VAR_TEMP_1` idiom); `Sc02` (the compass object); `Sc03` (46 coords on `VAR_SIL_STORY` 104, every walkable sea cell off the path: the fall, back to the quay); `Sc04` (Arthur, `Sc05` after); `EventScript_{Yann,Maelle,Technicien,Mousse,Origami1,Origami2,Origami3,Entree,Ecrans,PorteVerrouillee}`.
+- `TourNebula_4F`: `OnLoad` (with `FLAG_SIL_REFLETS_PORTE_OUVERTE`: the door (11, 4) to 652, collision 0); `OnTransition` (from story 107: `FLAG_SIL_HIDE_TOUR_REVENGE` set, `FLAG_SIL_HIDE_REVENGE_STATUE` cleared); `Sc01` (coords (9, 23), (11, 23), `VAR_TEMP_1` idiom); `Sc02_1`–`_3` (the prisms); `Sc03` (coord (11, 4) on 106: Revenge); `Sc04` (the statue object); `Sc05` (the elevator door sign (10, 24): down to the hall); `Sc06` (the vault door sign (11, 0), and coords (10–12, 1) on 108: the save and the point of no return, then the warp to the Apex); `EventScript_{Revenge,Echo,Mira,ItemFullRestore,Entree,Miroir,FauxMiroir}`.
+- `SommetApex`: `OnLoad` (from story 113: lights the crystal tube (11–12, 1–2), `METATILE_CRISTAL_ON`, no tile yet), `OnTransition` (the hide flags by story); `Sc01` (on-frame on story 109, the riff); `Sc02` (coords (10–13, 18) on 110: Gogo and Romain); `Sc03` (coords (10–13, 9) on 111: Poussin's solo, the duel; `Sc04` follows from it); `Sc05` (the console signs (10–13, 4), and coords (10–13, 10) on 112: the white-and-gold glove, `Sc06` from it); `Sc07` (the tube signs (11, 2), (12, 2): the crystal elevator); `EventScript_{Poussin,Gogo,Romain,Marc,Sophie,Kevin,ItemFullRestore,ItemMaxRevive,Caisse,Ampli,Service,Ciel,AscenseurBloque,Maintenance}`.
+- `TroneZenith_Ascenseur`: `OnTransition` (the four friends from story 117); `Sc00` (on-frame on `VAR_TEMP_1` 0: 114 or 115, including the retry after `Sc08_Lose` → `Sc07`'s second half, sets 115, warps to `TroneZenith` (7, 13); 117 → `Sc12`, the descent, sets 118, warps to Nebula's tower exit (Ch9); both always warp away).
+- `TroneZenith`: `OnTransition`; `Sc08` (coords (3–11, 8) on 115: Cocorico, `Sc08_Lose`, `Sc09`–`Sc11` follow); `EventScript_{Julien,Diffuseur}`.
+- `TroneZenith_Nuit`: `OnLoad` (the broken prism on the diffuser (6–8, 5), `METATILE_PRISME_BRISE`, no tile yet), `OnTransition` (the friends' flags, as `TroneZenith`); `EventScript_{Julien,Diffuseur}` (the Elysium branch, `Elysium_E1`–`E5`, runs from here and from borrowed maps).
+
+**Path search** (`cargo xtask studio map --game silice bypass`/`reach`, after the fixes below; `--open` stands for a cell the scripts open).
+- No way round: every intro (1F, 2F, 3F, 4F); 1F Mathias without `Sc03` (grille open); 4F Revenge without `Sc03` (door open); Apex `Sc02`, `Sc03`, `Sc05` (both ways); Zenith `Sc08`; 3F the helm off the hidden path.
+- Unreachable until the puzzle is solved: 1F Mathias (grille closed); 1F the barrel zone without Strength; 2F Kimiko (set on); Apex the Max Revive without Strength; 4F p3 and the hidden pocket except through their false mirrors.
+- Reachable once open: 1F, 2F and 3F exits; the 4F vault front; the Apex tube foot and the service door from the stage; the 3F helm along the path (17 steps, no fall coord).
+- Every trainer's sight has 3–4 walkable cells; none faces a wall.
+- `lint-reach` on the nine maps: 0 warnings, 0 infos, 13 allowed. The allowances (`AllowReach`) are the landing-only warps (cabin 1–5, Zenith cabin 1–2, the Apex tube foot), the script-opened exits (1F, 2F, 3F warp 1), the 4F vault sign behind the prism door, and the 3F fall coords (traps, not a gate).
+
+**Warnings and allowances.** `validate`: no errors; its warnings are only the unwritten scripts. `AllowCollision` covers the landings on floor cells (all the arrival warps, 1F (16, 1), 2F (20, 1), 3F (12, 1), Apex (11, 3)), the 1F black water (722, decor, not surfable) and the 3F sea (414, solid off the path). `silice check` needed one exception: `placement-map` `FLAG_SIL_ARTHUR_BOUSSOLE_PRISE`. The compass is a scene item: the object (8, 13) carries the hide flag, and `TourNebula_3F_Sc02` gives the item and sets the flag. Drop the entry once the ch10 scripts name it. `silice check`, `PKR_GAME=silice cargo test -p content -p extract` and `cargo test -p xtask --test silice_games` pass.
+
+**Ids** (commit `feat(silice): ids for Ch10–Ch11 maps`). Ten hide flags in the Ch10–Ch11 block, 1250–1259, all `FLAG_SIL_HIDE_*`: `TOUR_REVENGE`, `APEX_JULIEN`, `APEX_ROMAIN`, `ZENITH_MATHIEU`, `ZENITH_ADRIEN`, `ZENITH_GWADA`, `ZENITH_ASC_MATHIEU`, `ZENITH_ASC_ADRIEN`, `ZENITH_ASC_GWADA`, `ZENITH_ASC_JULIEN`. The source's own: `TOUR_MATHIEU`, `REVENGE_STATUE`, `ARTHUR_BOUSSOLE`, `APEX_POUSSIN`, `APEX_GOGO_ROMAIN` (Gogo; Romain got `APEX_ROMAIN` so no two objects share a flag). New map id 116 `MAP_TRONE_ZENITH_NUIT` (master's next free), and its `map-undefined` check exception is gone. The import (`--force`, into a scratch copy) keeps `ids/*.ron` byte-identical; only `IMPORT-REPORT.md` was taken back. All appended to `ids.golden`.
+
+Hidden at start, in `game.ron`'s `new_game_flags`: the cabin's Mathieu, Revenge's statue, Julien on the Apex, the three friends on the Zenith and the four in its cabin (10 flags). Revenge, the compass, Poussin, Gogo and Romain start visible. `game_tests.rs` checks both groups. `FLAG_SIL_HIDE_NEBULA_EVEIL` and `FLAG_SIL_HIDE_HOUSE_EPILOGUE` (and the Elysium house flag) are set by default in the source but hide objects on Ch9 and Ch0 maps; they belong with those maps' edits and are not added here.
+
+**Pending links.**
+(Updated in the review below with the Ch9 maps' facts.)
+- The Ch9 hall (`Nebula_TourHall`) has no warp event to the cabin: its elevator door is a sign at (12, 1), `Nebula_TourHall_EventScript_Ascenseur`, which Ch10 writes; it warps by coordinates to the cabin's warp 5 cell (3, 6), and the cabin's `_Sc00` dispatches. Warp 5 stays a `MAP_DYNAMIC` landing that no warp names.
+- `TourNebula_4F_Sc05` warps to `Nebula_TourHall` in front of its elevator, (12, 2).
+- `TroneZenith_Ascenseur_Sc12` warps to Nebula's tower exit, (28, 11) as Ch9 suggests (`NEBULA_TOUR_EXIT`); `Nebula_Sc13` and Elysium_E2 use `NEBULA_PLACE` (30, 31). Nebula's local ids 40–43 are kept free for the four EVEIL NPCs; `FLAG_SIL_HIDE_NEBULA_EVEIL` is added with Nebula's edits once Ch9 has landed.
+- `Brico_Bourg_Sc14` and `Elysium_E4` need Ch0's player house edits (Gwada and Julien at 1F, `FLAG_SIL_HIDE_HOUSE_EPILOGUE`).
+
+**Missing (engine or content, not maps).** The scrolling backdrop behind both cabins (fixed windows instead); the Apex rain during the duel; the sky-crack overlay and the gold and night palettes; the alternate ending's reload (`Event::ReloadLastSave`); the scripted save before the point of no return; MUS_SIL_* songs (stand-ins above); an industrial-roof tileset (the Department Store roof stands in); the "no silhouette" mirror (the false mirrors use a lighter frame instead); `METATILE_CRISTAL_ON` and `METATILE_PRISME_BRISE` (named in the scripts' contract, no tile).
+
+**Deviations from the source.**
+- 3F is 24 × 17, not 24 × 24: the platform, the 14-cell path and the quay fit in 17 rows.
+- The 3F exit is the screen at (12, 1) (one east of the helm's axis, beside the stairs tile).
+- The cabin panel is at (0, 2), on the window's left post, not in the top wall's middle (a window row there).
+- The Apex console is on row 4 and the tube's foot at (11, 3), north of the stage, so the tube stands against the back fence.
+- The 4F maze is mine, from the prose.
+- Coord rows are as wide as the corridor they close (Apex 4 cells, Zenith 9), not the source's single cells, so no scene can be walked round.
+- The Zenith's ring of terminals is 23 tiles (the round wall), not 12 objects.
+
+**Friction.**
+1. `bypass --avoid coord:` with `--open`: a cell opened with `--open` keeps its layout elevation, so a closed cell drawn at elevation 0 under a coord at elevation 3 let the path through. The engine's `set_metatile` also keeps the elevation, so cells a script opens must be drawn at elevation 3; the editor could warn about a solid cell at elevation 0 under or next to a coord.
+2. `lint-reach` wants every portal connected both ways, so every landing-only warp needs an `AllowReach`; a `Landing` marker on the warp would say it once.
+3. Contest metatile 633 looks like stage floor but is solid in the extract (switched to 625).
+4. `validate` did not check song names when this was built; the reachability checker's merge added that check, and these maps pass it.
+
+#### SIL5 Ch10–Ch11 maps: review
+
+The branch was merged with master (the Ch8 maps, the Ch3–Ch6 reach fixes, the Ch1 scripts). In the conflicts both sides were kept, in numeric order: `ids/flags.ron` (Ch7/Ch8's 900–954, then 1250–1260), `ids.golden`, `game.ron`'s `new_game_flags`, `game_tests.rs`'s two groups, and `IMPORT-REPORT.md` (now `ids/flags: 603`). The maps were checked against `10-tour-piliers.md` and `11-apex-zenith.md` (§2 maps, §3 scenes' triggers and warps, §7 items, §8 flags), and with `reach`, `bypass` and `lint-reach` run by hand.
+
+**Findings and fixes.**
+- Critical: none. Every scene gate holds (`bypass`, with `--open` for the cells scripts open): 1F `Sc03` past the grille, 2F `Sc01` before the set, 3F `Sc01` and `Sc03` (the only way to the helm off the falls is the 14-cell path), 4F `Sc03` on the prism door, Apex `Sc02`, `Sc03` and `Sc05`, Zenith `Sc08`. The 1F barrel zone needs a barrel pushed (Strength), and the Apex Max Revive the crates. No softlock: both 1F barrels can be pushed all the way through their pontoon, and the Apex crates have free cells south of them.
+- Important, fixed: **the 2F drone had no hide flag.** `Tour_2F_Sc04` hides it after Kimiko's battle; without a flag it came back on the next load. It now carries `FLAG_SIL_HIDE_TOUR_DRONE` (1260, appended; visible on a new game, asserted with the "shown" group). `edits/TourNebula_2F/04_review.ron`.
+- Important, fixed: **prism p3 did not need its false mirror.** The source's rule 3 says one false mirror leads to p3, but p3 (5, 12) was readable from the corridor below, (5, 13). (5, 13) is now a mirror, so p3 is read only from its pocket (5, 11), behind the false mirror (6, 11). The corridor stays connected through (3, 12) and (7, 12). `edits/TourNebula_4F/04_review.ron`.
+- Minor, for the scripts:
+  - `Elysium_E3` warps the player to the Apex (8, 18), now a pylon (row 18 is closed except the catwalk). The player is locked and leaves at once, so this is cosmetic. (10, 18) or (8, 16) are walkable.
+  - `Tour_4F_Sc06` steps the player back with `Walk(Down)`. From (11, 1) that is the statue's cell (11, 2), so the step should go sideways there.
+  - `Trone_Zenith_Sc10` walks the player down three cells from the coord row. From (3, 8) or (11, 8) that runs into the terminals, so the script should place the player first (as `Sc08` may already do).
+  - The 4F Full Restore ball is at (9, 21), not in the bottom-left corner as the source has it. The hall's west end would put the ball across the maze's west entrance.
+
+**Checked and correct.**
+- Trainer sight. Each of the eight elites and three Apex trainers sees 3–4 reachable cells, and none faces a wall.
+- The elevation-3 trick. Every cell a script opens is drawn at elevation 3: the 1F door and grille, the 2F exit and set, the 3F screen, and the 4F prism door, which carries `Sc03`'s coord.
+- The `AllowReach`es. They are the landing-only warps, the exits that scripts open, the vault sign, and the 3F falls; there are 13, and each was re-run without its allowance.
+- Ids are append-only, and `new_game_flags` matches its tests.
+- The `placement-map` exception for `FLAG_SIL_ARTHUR_BOUSSOLE_PRISE` is justified. It is a scene item whose object carries the source's hide flag, as with the Casino's coins.
+- The songs pass `validate`'s song check.
+
+**Ch9 links (Ch9 under review on its own branch; nothing of Ch9 edited here).** Ch9's hall has no elevator warp. `Nebula_TourHall_Sc02` (the coord row (11–13, 3), story 97) warps straight to `MAP_TOUR_NEBULA_1F`, and Ch10 writes the door sign `Nebula_TourHall_EventScript_Ascenseur` at (12, 1). Ch9 suggests `NEBULA_TOUR_EXIT` (28, 11) and `NEBULA_PLACE` (30, 31), and keeps Nebula's local ids 40–43 for the EVEIL NPCs. The pending links above are updated to match.
+
+**Questions for the author.**
+1. Ch9's `Tour_Hall_Sc02` sets story 99 and warps straight to 1F (10, 14). Ch10 instead has the hall's door lead to the cabin, whose `Sc00a` plays the first climb and sets 100. `Tour_1F_Sc04` (Mathias) needs 100, and 1F `Sc01` fires only round the (11, 21) arrival. Which one wins? The maps support the Ch10 route: the hall script warps to the cabin's (3, 6), or to 1F (11, 21) after setting 100.
+2. The Apex's alternate-ending camera cell (8, 18): keep the closed row 18, or reopen a cell there?
+
+**Gates** (after the merge and the fixes):
+
+| Gate | Result |
+|---|---|
+| `cargo fmt --all --check` | clean |
+| `cargo xtask silice check` | ok, 0 warnings |
+| `cargo test -p xtask --test silice_games` | 2 passed |
+| `studio map --game silice build` | 89 maps, no errors; a second run changes no byte; the committed maps match |
+| `validate`, `hygiene` | 89 maps, no errors; clean |
+| `lint-reach --all` | 89 maps: 5 warnings (GrisEchec_Usine, RouteS02: master's), 35 infos, 78 allowed; none on the nine maps |
+| `PKR_GAME=silice cargo test -p content` | all passed |
+| `cargo test -p content -p xtask` | 243 passed, 0 failed |
+
 ## 4. Contradictions and errors in `contenu-jeu` that block conversion
 
 1. **Encounter schema.** `donnees/rencontres.ron` keys maps by `"MAP_*"` with one header each. The extract's v5 `EncountersFile` keys by map name with a `Vec` of headers (`content/extracted/battle/encounters.ron`). The conventions call it an "extension de encounters.ron", but it cannot be loaded as is.
