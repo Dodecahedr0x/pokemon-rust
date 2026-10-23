@@ -13,7 +13,7 @@
 // The 483 specials named by a `special`/`specialvar` line of the decomp (`data/**/*.inc` and
 // `data/*.s`, `data/specials.inc` excluded) are classified; the other 41 are Unsupported.
 //
-// Counts: 56 Native, 19 Ignore, 83 Default, 366 Unsupported.
+// Counts: 59 Native, 19 Ignore, 83 Default, 363 Unsupported.
 {
     "SPECIAL_AccessHallOfFamePC": Unsupported, // post-game; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_Bag_ChooseBerry": Native, // degraded: no bag screen, nothing chosen; fades back in
@@ -304,9 +304,9 @@
     "SPECIAL_LookThroughPorthole": Unsupported,
     "SPECIAL_LoopWingFlapSE": Unsupported,
     "SPECIAL_LostSecretBaseBattle": Unsupported,
-    "SPECIAL_MauvilleGymDeactivatePuzzle": Unsupported,
-    "SPECIAL_MauvilleGymPressSwitch": Unsupported,
-    "SPECIAL_MauvilleGymSetDefaultBarriers": Unsupported,
+    "SPECIAL_MauvilleGymDeactivatePuzzle": Native, // Wave C: every switch pressed, every beam off
+    "SPECIAL_MauvilleGymPressSwitch": Native, // Wave C: switch VAR_0x8004 pressed, the others raised
+    "SPECIAL_MauvilleGymSetDefaultBarriers": Native, // Wave C: every beam of the gym toggled (Request::Query Metatile)
     "SPECIAL_MonOTNameNotPlayer": Default(0), // OT names are not kept: every mon is the player's
     "SPECIAL_MoveDeleterChooseMoveToForget": Unsupported,
     "SPECIAL_MoveDeleterForgetMove": Unsupported,

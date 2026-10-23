@@ -87,6 +87,8 @@ struct Rec {
     map: u16,
     /// The answers to `Query` (0 for the others).
     queries: Vec<(Query, u16)>,
+    /// The map's metatiles (`Query::Metatile`; 0 elsewhere), which `SetMetatile` changes.
+    tiles: BTreeMap<(i16, i16), (u16, bool)>,
 }
 
 impl Rec {
@@ -114,6 +116,18 @@ impl Rec {
                 Response::Unit
             }
             Request::Random(_) => Response::Value(self.rand),
+            Request::Query(Query::Metatile { x, y }) => {
+                Response::Value(self.tiles.get(&(x, y)).map_or(0, |t| t.0))
+            }
+            Request::SetMetatile {
+                x,
+                y,
+                metatile,
+                blocked,
+            } => {
+                self.tiles.insert((x, y), (metatile, blocked));
+                Response::Unit
+            }
             Request::Query(q) => Response::Value(
                 (self.queries.iter())
                     .find(|&&(k, _)| k == q)
@@ -688,6 +702,38 @@ fn wave_c_cases(covered: &mut BTreeSet<&'static str>) -> Vec<Case> {
             0,
         ),
     ];
+    // Mauville's gym on an empty map: the switches, then the beam area's 9x12 cells read.
+    let switch = |x, y, metatile| Request::SetMetatile {
+        x,
+        y,
+        metatile,
+        blocked: false,
+    };
+    let beams: Vec<Request> = (5..17)
+        .flat_map(|y| (0..9).map(move |x| q(Query::Metatile { x, y })))
+        .collect();
+    let pressed = [(0, 15), (4, 12), (3, 9), (8, 9)].map(|(x, y)| switch(x, y, 0x206));
+    cases.extend([
+        (
+            "SPECIAL_MauvilleGymPressSwitch",
+            1,
+            vec![
+                Request::GetVar(VAR_0x8004),
+                switch(0, 15, 0x206),
+                switch(4, 12, 0x205),
+                switch(3, 9, 0x205),
+                switch(8, 9, 0x205),
+            ],
+            0,
+        ),
+        ("SPECIAL_MauvilleGymSetDefaultBarriers", 1, beams.clone(), 0),
+        (
+            "SPECIAL_MauvilleGymDeactivatePuzzle",
+            1,
+            [pressed.to_vec(), beams].concat(),
+            0,
+        ),
+    ]);
     let story = [
         "SPECIAL_TryUpdateRusturfTunnelState",
         "SPECIAL_FoundBlackGlasses",
@@ -824,6 +870,55 @@ fn wave_c_specials_follow_their_answers() {
     h.queries.push((national(true), 4));
     assert_eq!(run_special(&mut h, "SPECIAL_ScriptGetPokedexInfo"), 1);
     assert_eq!((h.vars[&VAR_0x8005.0], h.vars[&VAR_0x8006.0]), (9, 4));
+}
+
+/// `MauvilleGymSetDefaultBarriers` (`field_specials.c`) on the gym's alternate barriers at
+/// (3..=8, 10..=13): every beam flips, the poles' beams follow the cell above as changed.
+#[test]
+fn mauville_gym_barriers_toggle() {
+    let mut h = Rec::with_party(1);
+    for (cell, m) in [
+        ((3, 11), 0x241), // RedBeamV1_On
+        ((3, 12), 0x249), // RedBeamV2_On
+        ((3, 13), 0x250), // PoleTop_On
+        ((4, 10), 0x222), // RedBeamH1_On
+        ((4, 11), 0x22A), // RedBeamH3_On
+        ((4, 13), 0x230), // GreenBeamH1_Off
+        ((4, 14), 0x238), // GreenBeamH3_Off
+        ((6, 8), 0x242),  // PoleBottom_On
+        ((6, 9), 0x21A),  // FloorTile
+        ((6, 10), 0x251), // PoleTop_Off
+        ((7, 9), 0x21A),  // FloorTile under nothing: the red beam
+    ] {
+        h.tiles.insert(cell, (m, false));
+    }
+    run_special(&mut h, "SPECIAL_MauvilleGymSetDefaultBarriers");
+    let want = [
+        ((3, 11), (0x243, true)), // PoleBottom_Off
+        ((3, 12), (0x21A, false)),
+        ((3, 13), (0x251, false)),
+        ((4, 10), (0x232, false)),
+        ((4, 11), (0x23A, false)),
+        ((4, 13), (0x220, false)),
+        ((4, 14), (0x228, true)),
+        ((6, 8), (0x240, true)),  // GreenBeamV1_On
+        ((6, 9), (0x248, true)),  // GreenBeamV2_On: under the green beam just set
+        ((6, 10), (0x250, true)), // PoleTop_On
+        ((7, 9), (0x249, true)),  // RedBeamV2_On
+    ];
+    for (cell, t) in want {
+        assert_eq!(h.tiles[&cell], t, "{cell:?}");
+    }
+    // Pressed twice, the switch's barriers are back.
+    h.log.clear();
+    run_special(&mut h, "SPECIAL_MauvilleGymSetDefaultBarriers");
+    assert_eq!(h.tiles[&(4, 10)].0, 0x222);
+    assert_eq!(h.tiles[&(6, 8)].0, 0x242);
+    // Deactivated: every beam off, every switch pressed.
+    h.log.clear();
+    run_special(&mut h, "SPECIAL_MauvilleGymDeactivatePuzzle");
+    assert_eq!(h.tiles[&(4, 10)], (0x232, false));
+    assert_eq!(h.tiles[&(3, 9)], (0x206, false));
 }
 
 /// `GetPokedexRatingText` (`birch_pc.c`) with no mythical caught: by tens below 200, then the

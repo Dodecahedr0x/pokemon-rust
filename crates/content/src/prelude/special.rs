@@ -418,6 +418,29 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             degraded(ctx, id).await;
             ctx.set_flag(FLAG_SYS_RIBBON_GET, true).await;
         }
+        // ---- Wave C: Mauville's gym (`field_specials.c`) ----
+        id if id == SPECIAL_MauvilleGymPressSwitch => {
+            // The switch of `VAR_0x8004` pressed, the others raised.
+            let pressed = ctx.var(VAR_0x8004).await;
+            for (i, &(x, y)) in mauville_gym::SWITCHES.iter().enumerate() {
+                let m = if i as u16 == pressed {
+                    mauville_gym::PRESSED_SWITCH
+                } else {
+                    mauville_gym::RAISED_SWITCH
+                };
+                ctx.set_metatile(x, y, m, false).await;
+            }
+        }
+        id if id == SPECIAL_MauvilleGymSetDefaultBarriers => {
+            mauville_gym_scan(ctx, mauville_gym::toggle).await;
+        }
+        id if id == SPECIAL_MauvilleGymDeactivatePuzzle => {
+            for &(x, y) in &mauville_gym::SWITCHES {
+                ctx.set_metatile(x, y, mauville_gym::PRESSED_SWITCH, false)
+                    .await;
+            }
+            mauville_gym_scan(ctx, mauville_gym::deactivate).await;
+        }
         // Not a `Native` special: the lowering never passes one (it reports the `Unsupported`
         // ones itself); a hand-written call is only logged.
         _ => {}
@@ -464,6 +487,112 @@ pub async fn check_party_move(ctx: &Ctx, m: MoveId) {
     if slot < PARTY_SIZE {
         let species = ctx.query(Query::PartySpecies(slot as u8)).await;
         ctx.set_var(VAR_0x8004, species).await;
+    }
+}
+
+/// The beam area of Mauville's gym (cells (0..9, 5..17), Gen3 less `MAP_OFFSET`): each
+/// metatile is replaced by `change`'s answer (metatile, impassable), in Gen3's row order. The
+/// floor's answer depends on the cell above, already changed.
+async fn mauville_gym_scan(ctx: &Ctx, change: fn(u16, u16) -> Option<(u16, bool)>) {
+    for y in 5..17 {
+        for x in 0..9 {
+            let m = ctx.query(Query::Metatile { x, y }).await;
+            let above = if m == mauville_gym::FLOOR {
+                ctx.query(Query::Metatile { x, y: y - 1 }).await
+            } else {
+                0
+            };
+            if let Some((to, blocked)) = change(m, above) {
+                ctx.set_metatile(x, y, to, blocked).await;
+            }
+        }
+    }
+}
+
+/// Gen3 `METATILE_MauvilleGym_*` (`include/constants/metatile_labels.h`) and the beam toggles
+/// of `MauvilleGymSetDefaultBarriers` and `MauvilleGymDeactivatePuzzle` (`field_specials.c`).
+mod mauville_gym {
+    pub const FLOOR: u16 = 0x21A;
+    const GREEN_H1_OFF: u16 = 0x230;
+    const GREEN_H1_ON: u16 = 0x220;
+    const GREEN_H2_OFF: u16 = 0x231;
+    const GREEN_H2_ON: u16 = 0x221;
+    const GREEN_H3_OFF: u16 = 0x238;
+    const GREEN_H3_ON: u16 = 0x228;
+    const GREEN_H4_OFF: u16 = 0x239;
+    const GREEN_H4_ON: u16 = 0x229;
+    const GREEN_V1_ON: u16 = 0x240;
+    const GREEN_V2_ON: u16 = 0x248;
+    const POLE_BOTTOM_OFF: u16 = 0x243;
+    const POLE_BOTTOM_ON: u16 = 0x242;
+    const POLE_TOP_OFF: u16 = 0x251;
+    const POLE_TOP_ON: u16 = 0x250;
+    pub const PRESSED_SWITCH: u16 = 0x206;
+    pub const RAISED_SWITCH: u16 = 0x205;
+    const RED_H1_OFF: u16 = 0x232;
+    const RED_H1_ON: u16 = 0x222;
+    const RED_H2_OFF: u16 = 0x233;
+    const RED_H2_ON: u16 = 0x223;
+    const RED_H3_OFF: u16 = 0x23A;
+    const RED_H3_ON: u16 = 0x22A;
+    const RED_H4_OFF: u16 = 0x23B;
+    const RED_H4_ON: u16 = 0x22B;
+    const RED_V1_ON: u16 = 0x241;
+    const RED_V2_ON: u16 = 0x249;
+
+    /// `sMauvilleGymSwitchCoords`.
+    pub const SWITCHES: [(i16, i16); 4] = [(0, 15), (4, 12), (3, 9), (8, 9)];
+
+    /// `MauvilleGymSetDefaultBarriers`: every beam flips; a flipped-on lower beam blocks.
+    pub fn toggle(m: u16, above: u16) -> Option<(u16, bool)> {
+        Some(match m {
+            GREEN_H1_ON => (GREEN_H1_OFF, false),
+            GREEN_H2_ON => (GREEN_H2_OFF, false),
+            GREEN_H3_ON => (GREEN_H3_OFF, false),
+            GREEN_H4_ON => (GREEN_H4_OFF, false),
+            GREEN_H1_OFF => (GREEN_H1_ON, false),
+            GREEN_H2_OFF => (GREEN_H2_ON, false),
+            GREEN_H3_OFF => (GREEN_H3_ON, true),
+            GREEN_H4_OFF => (GREEN_H4_ON, true),
+            RED_H1_ON => (RED_H1_OFF, false),
+            RED_H2_ON => (RED_H2_OFF, false),
+            RED_H3_ON => (RED_H3_OFF, false),
+            RED_H4_ON => (RED_H4_OFF, false),
+            RED_H1_OFF => (RED_H1_ON, false),
+            RED_H2_OFF => (RED_H2_ON, false),
+            RED_H3_OFF => (RED_H3_ON, true),
+            RED_H4_OFF => (RED_H4_ON, true),
+            GREEN_V1_ON => (POLE_BOTTOM_ON, true),
+            GREEN_V2_ON => (FLOOR, false),
+            RED_V1_ON => (POLE_BOTTOM_OFF, true),
+            RED_V2_ON => (FLOOR, false),
+            POLE_BOTTOM_ON => (GREEN_V1_ON, true),
+            FLOOR if above == GREEN_V1_ON => (GREEN_V2_ON, true),
+            FLOOR => (RED_V2_ON, true),
+            POLE_BOTTOM_OFF => (RED_V1_ON, true),
+            POLE_TOP_OFF => (POLE_TOP_ON, true),
+            POLE_TOP_ON => (POLE_TOP_OFF, false),
+            _ => return None,
+        })
+    }
+
+    /// `MauvilleGymDeactivatePuzzle`: every beam off.
+    pub fn deactivate(m: u16, _above: u16) -> Option<(u16, bool)> {
+        Some(match m {
+            GREEN_H1_ON => (GREEN_H1_OFF, false),
+            GREEN_H2_ON => (GREEN_H2_OFF, false),
+            GREEN_H3_ON => (GREEN_H3_OFF, false),
+            GREEN_H4_ON => (GREEN_H4_OFF, false),
+            RED_H1_ON => (RED_H1_OFF, false),
+            RED_H2_ON => (RED_H2_OFF, false),
+            RED_H3_ON => (RED_H3_OFF, false),
+            RED_H4_ON => (RED_H4_OFF, false),
+            GREEN_V1_ON => (POLE_BOTTOM_ON, true),
+            RED_V1_ON => (POLE_BOTTOM_OFF, true),
+            GREEN_V2_ON | RED_V2_ON => (FLOOR, false),
+            POLE_TOP_ON => (POLE_TOP_OFF, false),
+            _ => return None,
+        })
     }
 }
 
