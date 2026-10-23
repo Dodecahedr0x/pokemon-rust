@@ -980,5 +980,9 @@ fn hole_warps_and_step_callbacks() {
     };
     assert_eq!((f.hole_for(0x22F), f.hole_for(0x22E)), (0x206, 0x237));
     assert_eq!(Emerald.step_callback(MAP_ROUTE101), None);
-    assert_eq!(Emerald.fall_script().is_some(), !STUB);
+    // The full scripts have both std scripts; the stub and the small fixture extract have neither.
+    assert_eq!(
+        Emerald.fall_script().is_some(),
+        crate::data::SCRIPT_WHITEOUT.is_some()
+    );
 }
