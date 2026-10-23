@@ -97,7 +97,11 @@ fn rebuilt_differs_in_build_only() {
     }
     // Its checkpoints carry its build.
     let mut s = Session::new(rebuilt);
-    game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
-    let cp = s.checkpoint().expect("capturable");
+    let cp = (0..600)
+        .find_map(|_| {
+            s.step(engine::Buttons::NONE);
+            s.checkpoint().ok()
+        })
+        .expect("capturable");
     assert_eq!(cp.header.build, b);
 }
