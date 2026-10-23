@@ -3901,6 +3901,90 @@ The 87 names in all: the scene and map scripts above, plus one `_EventScript_` p
   - Accessibility toggle in Options (M9 menu).
   - An idle-frame counter is readable by scripts for the confusion emitters.
 
+#### SIL3 Ch5 scripts as built (Owlys)
+
+The Chapter 5 scripts, from `contenu-jeu/chapitres/05-owlys.md`, in `crates/content/src/silice/scripts/`. Every text is a `text/fr.ron` id (or a Gen 3 `gText_*` for the nurse). Every script name the fourteen Chapter 5 maps use is written (100 functions), and the fourteen maps are strict.
+
+**Files.**
+- `ch05_route_s05.rs` claims `RouteS05`, `RouteS05_Banc`, `RouteS05_Epave`, `RouteS05_GrotteCorail` and `RouteS05_Faille`.
+- `ch05_owlys.rs` claims `Owlys`, `Owlys_PokemonCenter`, `Owlys_MarcheGris` and `Owlys_Orphelinat`.
+- `ch05_grotte_est.rs` claims `Owlys_GrotteEst`.
+- `ch05_silo.rs` claims `Owlys_Entrepot` and `Owlys_Entrepot_B1F`.
+- `ch05_gym.rs` claims `Owlys_Gym` and `Owlys_Gym_B1F`.
+
+No prelude or driver change: the chapter only uses existing helpers.
+
+**Ids.** None new. The task's block for new script flags (1550–1599) cannot hold flags: `ids/flags.ron` takes raw ids in 0x20..=0x4FF, and 0x500 up are the trainer flags (1550 is 0x60E, refused by the importer). The chapter needed one flag beyond the import, a hide flag for the Silo Chief, and reuses the scene's own `FLAG_SIL_OWLYS_SILO_DECIDE` instead (see the map edits). `ids.golden` is unchanged.
+
+**Map scripts.**
+- `Owlys_OnTransition` sets the hide flags. Mathieu on the square: from story 52. The eastern grunt: always (Sc02 shows him). Milo and the alley grunt: once Milo is met. Mathieu after the badge: until `FLAG_SIL_OWLYS_MATHIEU_RESTE`. Both lift Watchers: from the badge. `Owlys_OnLoad` keeps the gym door open (30, 12; metatile 774, walkable) from `FLAG_SIL_OWLYS_PORTE_GYM`.
+- `Owlys_PokemonCenter_OnTransition` sets the respawn to the new `HEAL_LOCATION_SIL_OWLYS`, appended to `game.ron` after Gris-Échec's: (15, 30) on `Owlys`, the cell in front of the Centre door.
+- `Owlys_GrotteEst_OnTransition` (new, see the map edits) shows Mathieu and both drivers at story 52 only, and hides Owl-Justice and the Feather on every load.
+- `Owlys_Entrepot_B1F_OnTransition` hides the three Umbreon. `Owlys_Entrepot_B1F_OnLoad` (new) repaints the emptied sacks (29–31, 25–26) as floor (742).
+- `Owlys_Gym_OnLoad` draws the bridges: P1 posed at first, every bridge posed once the court is solved (`FLAG_SIL_OWLYS_GYM_COUR_OK`), and the walkway (14, 6–11) once all four watchers are beaten. `Owlys_Gym_OnTransition` swaps Skycker's masked and unmasked objects by the badge and hides Mathieu.
+
+**Scenes.**
+
+| Scene | Script | Story |
+|---|---|---|
+| Route Sc01 | `RouteS05_Sc01`: the route's first frame | 49 → 50 |
+| Route Sc02 | `RouteS05_Sc02`: the sailor's Punch Bottle once, then his shop | |
+| Lokhlass | `RouteS05_GrotteCorail_Sc01`: the LAPRAS 36 battle; caught, or gone until the next load | |
+| Owlys Sc01 | `Owlys_Sc01`: the town's first frame | 50 → 51 |
+| Owlys Sc02 | `Owlys_Sc02`: the skewers (3 Super Potions), the eastern grunt, the deal (yes: Mathieu leaves) | 51 → 52 |
+| Owlys Sc03 | `Owlys_Sc03`: the alley grunt's battle, Milo, TM46 | |
+| East Cave Sc01 | `Owlys_GrotteEst_Sc01`: the duo battle, Owl-Justice, the Shaded Feather | 52 → 53 |
+| Owlys Sc04 | `Owlys_Sc04`: the gym door, shut until 53 and the Feather | |
+| Silo Sc01 | `Owlys_Entrepot_B1F_Sc01_1` to `_3`: the Umbreon at three junctions | |
+| Silo Sc02 | `Owlys_Entrepot_B1F_Sc02`: the Silo Chief, the sacks, the choice (`FLAG_SIL_OWLYS_SILO_VIDE`, `FLAG_SIL_OWLYS_SILO_DECIDE`) | |
+| Gym court | `Owlys_Gym_EventScript_LivreRouge`/`Bleu`/`Noir`, `_CourOk` | |
+| Gym watchers | Ariane, Morgane, Corvus, Nyx: each puts a statue's eyes out; the fourth lowers the walkway | |
+| Gym Sc01 | `Owlys_Gym_Sc01`: Skycker, the badge, Sustentation, TM12, Mathieu, sync 50, `LOG_05` | 53 → 54 |
+| Owlys Sc05 | `Owlys_Sc05`: the town's first frame after the badge | 54 → 55 |
+
+**Fallbacks (reported with `fallback()`, marked `// fallback:`).**
+- `battle_multi`: the East Cave's duo battle is two single battles (driver A, a heal and Praugect's `_Repli` line, driver B), as the source's own fallback.
+- `mega_evolution`: Skycker's Absol does not Mega Evolve (the form-change data is empty).
+- `play_fanfare`, `show_sync`, `log_menu`: the badge line alone, the sync text alone, the log's text as a message.
+- `statue eyes`: the gym's statues keep their eyes (no eyes metatile in the tilesets); the walkway still lowers.
+- `screen_shake`: the walkway's tremor (prelude).
+- `moving light`: the silo's Umbreon lights nothing (no darkness yet); their lines give the way.
+- `mart`: the islet's sailor, the Centre's clerk and the market's vendor greet and sell nothing.
+- `hidden item`: every hidden item is a sign running `hidden_item` (the map edits).
+- Not fallbacks but engine gaps, written as the source says: Surf (Route S5's water, the wreck, the coral cave, the Banc and the rift's water are written but unreachable), fishing (the Super Rod is a bag item), the magnetic currents (forced movement on water, after Surf).
+
+**Map edits (`games/silice/edits/<Map>/05_ch5_scripts.ron`).** One new phase file per map that needed one; the earlier phases are untouched. `cargo xtask studio map build` rebuilds the seven maps and writes the same bytes on a second run.
+- `RouteS05`, `RouteS05_Banc`, `RouteS05_Epave`, `RouteS05_GrotteCorail`, `Owlys`, `Owlys_GrotteEst` and `Owlys_Entrepot_B1F`: each `HiddenItem` bg becomes a `Script` sign running `hidden_item` (11 in all). The original op is kept in a comment, to restore once the engine picks hidden items up.
+- `Owlys_GrotteEst`: `ScriptsSet(on_transition: "Owlys_GrotteEst_OnTransition")`. Without it the duo scene's actors, hidden at start, could never show.
+- `Owlys_Entrepot_B1F`: `ScriptsSet(on_load: "Owlys_Entrepot_B1F_OnLoad")` and the Silo Chief's object again with a hide flag, `FLAG_SIL_OWLYS_SILO_DECIDE`. Without a hide flag he came back as soon as his cell scrolled into view, and he stands in the reserve's only gap: the player was walled in (found by the e2e).
+- `games/silice/check-exceptions.ron`: two `placement-map` exceptions for Chapter 12 post-game placements in maps this chapter now claims (`FLAG_SIL_CLE_DEBUG` in `Owlys_GrotteEst`, `FLAG_SIL_VESTIGE_ARTHUR` in `RouteS05_Epave`).
+
+`cargo xtask studio map lint-reach` on the fourteen maps: 0 warnings, 17 infos, all "Surf reaches it".
+
+**Deviations from the source.**
+- `Owlys_Gym_Sc01` ends with Mathieu leaving (a fade and `hide`). The source leaves him on the walkway, the platform's only way down, so the player could not leave the gym.
+- The Silo Chief's hide flag (above).
+- Reused texts where the source has none: the Centre's pilgrim says `Owlys_Npc_Lanterne`; the lift Watchers say `Owlys_Sign_Ascenseur`; the orphanage's drawings read `Owlys_Orphelinat_Enfant1`; the fisherman says nothing after his gift.
+- Paths the source leaves open: Milo leaves right and up 4 (left and up 4 when the player stands at x 6); Mathieu leaves right 6 (down first when the player stands at (32, 25)); the Umbreon walk 3 cells left, down and right (each junction's direction in its line).
+
+**E2E (`crates/content/tests/silice_spine/ch05.rs`, `crates/content/tests/sil6_ch5.rs`).**
+- Two start states, because of Surf. `ch05::ilot` puts the player on Route S5's islet at story 49: Route_S05_Sc01, the sailor (gift, then the shop fallback), the fisherman. `ch05::start` puts the player on the rift's quay (9, 13) at story 50, past the water.
+- The party: Chapter 2's end plus about 4–5 levels a chapter (QUILAVA 35, LAIRON 38, FLAAFFY 21), with Chapters 0–4's flags, badges, modules, logs and sync 40.
+- No `Step::Train`. The engine's wild encounters are tall grass only (`wild.rs`), and the chapter's land is cave floor: pacing the rift met nothing in 450 000 frames. The main path plays the optional silo instead (the guard, three grunts, the Chief), plus Lilith. That takes the starter to TYPHLOSION 40 and the LAIRON to 40 by Skycker.
+- One hook, `ch05::FOURTH`: a LANTURN 38 (Route S4 and S5's wild lists) joins before `Owlys_Gym_Sc01`. Without it the party loses to Skycker's five (38–42): the battle policy learns into free slots only, so the starter keeps Smokescreen, Ember, Quick Attack and Flame Wheel. **Revisit after the battle policy fix** (replacing the weakest move).
+- The main path: the rift's Escape Rope and gargoyle; Owlys Sc01 and the Centre; Mathieu (Sc02); the alley (Sc03); the silo (all three junctions, the Chief, sacks emptied, five hidden items); the shut gym door; the East Cave (Sc01, Lilith, the Moon Stone, the cart's Ultra Ball); the door (Sc04); the gym (blue and black lecterns, the Sharp Beak, the court, the four watchers, Skycker); Sc05; Mathieu after; the lift to Route S6.
+- About 137 000 frames for the main path, 2 200 for the islet. `check_end` asserts story 55, the badge, the module, `LOG_05`, sync 50, the bag, no dropped event, and nine fallbacks.
+
+**Questions for the author.**
+1. Skycker's scene leaves Mathieu on the walkway, the platform's only way down. The scripts have him leave after the log. Should he walk down instead, or leave before the log?
+2. The Silo Chief "leaves" after his battle but had no hide flag. He now uses `FLAG_SIL_OWLYS_SILO_DECIDE`. Is a separate "chief gone" flag wanted (outside the importer's flag block)?
+3. The new-flag block 1550–1599 is in the trainer-flag range. Which free range should new script flags use?
+4. Texts with no source line: the Centre's pilgrim, the lift Watchers, the orphanage's drawings, the fisherman after his gift. Should they get their own lines?
+5. `Route_S05_Npc_Marin_Ilot` and `Owlys_Gym_Trappe` are unused (the sailor speaks through Sc02; the trapdoors are plain warps). Keep, or drop them?
+6. The source's Umbreon, Milo and Mathieu paths give no direction or length. Are the guesses above right?
+7. The heal location is (15, 30), in front of the Centre door. Is that the intended cell?
+8. Chapter 5's land has no tall grass, so a player cannot train before Skycker (38–42) unless cave encounters come (an engine change). Should the rift or the East Cave get grass, or wait for cave encounters?
+
 #### Silice engine: held items, Fairy, Mega/Primal, abilities (as built)
 Engine side of the three SIL3 battle features, ahead of SIL3 (branch of `db07b1d`). It is game-agnostic, and Emerald does not move: parity is identical (route loop 166 of 217, hash 46 of 65), and the four committed checkpoint nodes verify as `valid (rehash)`. Every new behaviour is gated on data Emerald lacks: an item with a hold effect, a form change, a weather or post-Gen3 ability, or the Fairy type.
 
