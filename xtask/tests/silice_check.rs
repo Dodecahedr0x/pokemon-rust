@@ -168,12 +168,15 @@ fn text_rules() {
     fails_with(&g, "error[text-missing] Beta_Sc01_Hello");
 
     let (_tmp, g) = imported();
-    plant(&g, "text/fr.ron", "Sign number one.", "Sign \u{2665} one.");
+    plant(&g, "text/fr.ron", "Sign number one.", "Sign \u{2014} one.");
     let out = fails_with(
         &g,
-        "error[text-charmap] Alpha_Sign_1: not in the FR charmap: '\u{2665}'",
+        "error[text-charmap] Alpha_Sign_1: no glyph (FR charmap or font/): '\u{2014}'",
     );
-    assert!(out.contains("glyphs missing from the FR charmap"), "{out}");
+    assert!(
+        out.contains("glyphs in neither the FR charmap nor font/"),
+        "{out}"
+    );
 
     let (_tmp, g) = imported();
     // `{PLAYER}` counts as 7 of the widest capital (6 px here): 30 + 42 + 150 = 222 px.
@@ -194,7 +197,7 @@ fn text_rules() {
         &g,
         "text/fr.ron",
         "Sign number two.",
-        &"\u{2665}".repeat(37),
+        &"\u{2014}".repeat(37),
     );
     let out = fails_with(
         &g,
@@ -267,6 +270,109 @@ fn text_rules() {
     let g = tmp.path().join("games");
     assert!(import(&src2, &g, false).ok);
     fails_with(&g, "error[dynamic-unresolved] Beta_Q<n>_Pick");
+}
+
+/// The authored glyphs (`font/*.ron`, SIL1 Task G): the committed files, on the fixture extract
+/// (every glyph 6 px wide).
+fn with_glyphs(g: &Path) {
+    let font = g.join("font");
+    std::fs::create_dir_all(&font).unwrap();
+    let committed = Path::new(env!("CARGO_MANIFEST_DIR")).join("../games/silice/font");
+    for e in std::fs::read_dir(&committed).unwrap().flatten() {
+        std::fs::copy(e.path(), font.join(e.file_name())).unwrap();
+    }
+}
+
+/// The glyph file `name` redrawn at `width` (rows padded or cut on the right).
+fn set_width(g: &Path, name: &str, width: usize) {
+    let p = g.join("font").join(format!("{name}.ron"));
+    let mut f: extract::games::font::GlyphFile =
+        ron::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
+    f.width = width as u8;
+    for r in &mut f.rows {
+        *r = format!("{r:.<width$}").chars().take(width).collect();
+    }
+    std::fs::write(&p, ron::to_string(&f).unwrap()).unwrap();
+}
+
+#[test]
+fn authored_glyph_rules() {
+    let heart = char::from_u32(0x2665).unwrap();
+    let dot = char::from_u32(0xB7).unwrap();
+    // The redrawn middle dot keeps the extract's width (6 in the fixture, 3 in the FR font).
+    let (_tmp, g) = imported();
+    with_glyphs(&g);
+    fails_with(
+        &g,
+        "error[font-glyph] font: glyph middle_dot: width 3 but the extract draws 0xAF 6 wide",
+    );
+
+    // Both encode; the heart is measured at its authored width (8): 27 fit in 216 px.
+    let (_tmp, g) = imported();
+    with_glyphs(&g);
+    set_width(&g, "middle_dot", 6);
+    plant(
+        &g,
+        "text/fr.ron",
+        "Sign number one.",
+        &format!("Sign {heart} one {dot} two."),
+    );
+    plant(
+        &g,
+        "text/fr.ron",
+        "Sign number two.",
+        &heart.to_string().repeat(27),
+    );
+    let r = check(&g, &[]);
+    assert!(r.ok, "{}", r.out);
+    assert!(!r.out.contains("text-charmap"), "{}", r.out);
+    assert!(!r.out.contains("font-glyph"), "{}", r.out);
+    let row = |n: usize| heart.to_string().repeat(n);
+    plant(&g, "text/fr.ron", &row(27), &row(28));
+    fails_with(
+        &g,
+        "error[text-width] Alpha_Sign_2: line 1 is 224 px (max 216)",
+    );
+
+    // The other missing glyphs still need a ruling.
+    let (_tmp, g) = imported();
+    with_glyphs(&g);
+    set_width(&g, "middle_dot", 6);
+    plant(
+        &g,
+        "text/fr.ron",
+        "Sign number one.",
+        &format!("{heart} \u{2014} \u{B0}"),
+    );
+    fails_with(
+        &g,
+        "error[text-charmap] Alpha_Sign_1: no glyph (FR charmap or font/): '\u{B0}' '\u{2014}'",
+    );
+
+    // A code without its glyph, and a glyph without a code.
+    let (_tmp, g) = imported();
+    with_glyphs(&g);
+    set_width(&g, "middle_dot", 6);
+    std::fs::remove_file(g.join("font/heart.ron")).unwrap();
+    fails_with(
+        &g,
+        "error[font-glyph] font: no glyph file draws '\u{2665}' (code 0x37)",
+    );
+    let (_tmp, g) = imported();
+    with_glyphs(&g);
+    plant(&g, "font/heart.ron", &format!("'{heart}'"), "'\u{2014}'");
+    fails_with(&g, "has no code in extract::games::font::CODES");
+
+    // Without `font/` the check runs and says so.
+    let (_tmp, g) = imported();
+    let r = check(&g, &[]);
+    assert!(r.ok, "{}", r.out);
+    assert!(
+        r.out
+            .contains("the authored glyphs encode but nothing draws them"),
+        "{}",
+        r.out
+    );
 }
 
 #[test]
