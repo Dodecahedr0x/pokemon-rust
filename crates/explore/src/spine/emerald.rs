@@ -164,21 +164,18 @@ mod list {
         ..Bypass::NONE
     };
 
-    /// Mossdeep's gym: the trick-house statues block every way to Tate and Liza until the
-    /// floor switches turn them (`MossdeepCity_Gym_EventScript_*FloorSwitch`: the rotating
-    /// tile puzzle's commands are unsupported). The bypass lands in front of the twins, where
-    /// the gym's warp pads end.
-    static MOSSDEEP_GYM_PUZZLE: Bypass = Bypass {
-        issue: "mossdeep-gym-puzzle",
-        features: &[
-            "initrotatingtilepuzzle",
-            "moverotatingtileobjects",
-            "turnrotatingtileobjects",
-            "freerotatingtilepuzzle",
-        ],
-        warp: Some((MAP_MOSSDEEP_CITY_GYM, 23, 8)),
-        ..Bypass::NONE
-    };
+    /// A walk in Mossdeep's gym (`Step::Path`): its floor switches (coord events,
+    /// `MossdeepCity_Gym_EventScript_*FloorSwitch`) turn the statues and trainers standing on
+    /// their colour's arrows (`rotating_tile_puzzle.c`), and its pads warp
+    /// (`warpmossdeepgym`), so the route is written out, cell by cell: a search over the
+    /// layout's arrows, the objects' cells, the switches and the pads (each segment ends on a
+    /// switch, a pad or in front of Tate).
+    const fn gym_path(dirs: &'static [Dir]) -> Step {
+        Step::Path {
+            map: MAP_MOSSDEEP_CITY_GYM,
+            dirs,
+        }
+    }
 
     /// One training round on Route 120's grass by Fortree, healed at Fortree's Center.
     const fn fortree_train(level: u8) -> [Step; 6] {
@@ -1699,9 +1696,54 @@ mod list {
         MT58[7],
         MT58[8],
         enter(MAP_MOSSDEEP_CITY, 38, 9, Up),
-        // The gym's statues move with its floor switches (`initrotatingtilepuzzle`, ...):
-        // `mossdeep-gym-puzzle` lands in front of the twins.
-        Step::Bypass(&MOSSDEEP_GYM_PUZZLE),
+        // The gym's floor switches turn its statues (`moverotatingtileobjects`, ...): from the
+        // entrance (6, 35) to the twins, through every room.
+        // To the pad (1, 33) -> (20, 24).
+        gym_path(&[Left, Left, Left, Up, Up, Up, Up, Left, Left, Down, Down]),
+        // To the purple switch (23, 24). Clifford and Kathleen both see (22, 24): the engine
+        // battles them one after the other (degraded "double sight"), and the second sighting
+        // takes the press of the next Right, so one Right more.
+        gym_path(&[Right, Right, Right, Right]),
+        // To the green switch (15, 34).
+        gym_path(&[Right, Down, Down, Down, Down, Down, Down, Down, Left, Down, Left, Down, Left, Down, Left, Left, Left, Left, Left, Left]),
+        // To the green switch (15, 34).
+        gym_path(&[Right, Left]),
+        // To the purple switch (23, 24).
+        gym_path(&[Right, Right, Right, Right, Right, Right, Up, Right, Up, Right, Up, Right, Up, Up, Up, Up, Up, Up, Up, Left]),
+        // To the purple switch (23, 21).
+        gym_path(&[Up, Up, Up]),
+        // To the pad (23, 20) -> (9, 18).
+        gym_path(&[Up]),
+        // To the pad (7, 18) -> (8, 12).
+        gym_path(&[Left, Left]),
+        // To the blue switch (8, 10).
+        gym_path(&[Up, Up]),
+        // To the blue switch (8, 10).
+        gym_path(&[Down, Up]),
+        // To the blue switch (8, 10).
+        gym_path(&[Down, Up]),
+        // To the blue switch (6, 7).
+        gym_path(&[Up, Left, Up, Up, Left]),
+        // To the blue switch (6, 7).
+        gym_path(&[Right, Left]),
+        // To the blue switch (6, 7).
+        gym_path(&[Right, Left]),
+        // To the red switch (8, 6).
+        gym_path(&[Right, Up, Right]),
+        // To the red switch (8, 6).
+        gym_path(&[Up, Down]),
+        // To the red switch (8, 6).
+        gym_path(&[Up, Down]),
+        // To the blue switch (6, 7).
+        gym_path(&[Up, Up, Left, Left, Left, Down, Down, Right, Down]),
+        // To the blue switch (8, 10).
+        gym_path(&[Right, Down, Down, Right, Down]),
+        // To the pad (11, 3) -> (11, 35).
+        gym_path(&[Up, Right, Right, Right, Up, Up, Up, Up, Up, Up]),
+        // To the pad (13, 32) -> (21, 10).
+        gym_path(&[Right, Up, Right, Up, Up]),
+        // To Tate.
+        gym_path(&[Up, Right, Right, Up]),
         talk(MAP_MOSSDEEP_CITY_GYM, 1),
         Step::WaitScript,
         Step::Expect("tate_liza_defeated"),

@@ -69,7 +69,6 @@ const SPINE_BLOCKERS: &[&str] = &[
     "fly-lilycove",
     "water-door-in",
     "water-door-out",
-    "mossdeep-gym-puzzle",
     "steven-multi",
     "dive-seafloor",
     "legendaries-scene",
