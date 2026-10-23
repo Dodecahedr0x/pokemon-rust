@@ -65,14 +65,11 @@ pub fn story_flag(f: FlagId, cfg: &KeyConfig) -> bool {
 
 /// Saved vars that never take part in a key: the Emerald step and day counters, the random
 /// vars and the object graphics vars `VAR_OBJ_GFX_ID_0..F` (scripts set them to pick a sprite,
-/// for a scene or a rival; not story progress) (from `content::consts`). On the stub world,
-/// only the counters its walks and wild battles tick (`UpdatePoisonStepCounter` every step,
-/// `VAR_DAILY_WILDS`; its story vars are the ids above them); Silice has its own list.
+/// for a scene or a rival; not story progress) (from `content::consts`). The stub world too:
+/// the engine runs the step counters there as well (field poison's `VAR_POISON_STEP_COUNTER`,
+/// the wild battle's `VAR_DAILY_WILDS`). Silice has its own list.
 #[cfg(not(pkr_silice))]
-pub static EXCLUDED_VARS: &[VarId] = if content::STUB {
-    use content::consts::*;
-    &[VAR_POISON_STEP_COUNTER, VAR_DAILY_WILDS]
-} else {
+pub static EXCLUDED_VARS: &[VarId] = {
     use content::consts::*;
     &[
         VAR_REPEL_STEP_COUNT,
@@ -142,6 +139,43 @@ pub static EXCLUDED_VARS: &[VarId] = {
         VAR_OBJ_GFX_ID_F,
     ]
 };
+
+/// Flag ranges (inclusive) of side content that no story script waits on: Match Call
+/// registrations (`FLAG_REGISTERED_ROSE..=FLAG_REGISTERED_WALLACE`), hidden items
+/// (`FLAG_HIDDEN_ITEMS_START..`), item balls (`FLAG_ITEM_*`), beaten trainers
+/// (`TRAINER_FLAGS_START..=TRAINER_FLAGS_END`) and the daily flags
+/// (`DAILY_FLAGS_START..=DAILY_FLAGS_END`) (`include/constants/flags.h`). A branch that only
+/// sets some of these rejoins the spine ([`side_flag`]). Empty on the stub world.
+#[cfg(not(pkr_silice))]
+pub static SIDE_FLAGS: &[(u16, u16)] = if content::STUB {
+    &[]
+} else {
+    use content::consts::*;
+    use content::prelude::TRAINER_FLAGS_START;
+    &[
+        (FLAG_REGISTERED_ROSE.0, FLAG_REGISTERED_WALLACE.0),
+        (
+            FLAG_HIDDEN_ITEMS_START.0,
+            FLAG_HIDDEN_ITEM_ROUTE_105_BIG_PEARL.0,
+        ),
+        (
+            FLAG_ITEM_ROUTE_102_POTION.0,
+            FLAG_ITEM_SAFARI_ZONE_SOUTH_EAST_BIG_PEARL.0,
+        ),
+        // `MAX_TRAINERS_COUNT` (864) flags.
+        (TRAINER_FLAGS_START, TRAINER_FLAGS_START + 863),
+        (FLAG_UNUSED_0x920.0, FLAG_UNUSED_0x95F.0),
+    ]
+};
+
+/// Silice's [`SIDE_FLAGS`]: none yet (its flag numbers are its own).
+#[cfg(pkr_silice)]
+pub static SIDE_FLAGS: &[(u16, u16)] = &[];
+
+/// Whether flag `f` records side content ([`SIDE_FLAGS`]): not progress for a rejoin.
+pub fn side_flag(f: u16) -> bool {
+    SIDE_FLAGS.iter().any(|&(a, b)| (a..=b).contains(&f))
+}
 
 /// Whether var `v` takes part in the key: a saved, non-temporary var (`TEMP_VARS_END..VARS_END`;
 /// the special vars `0x8000..` are out), not in [`EXCLUDED_VARS`], that `cfg` does not ignore.
@@ -293,6 +327,24 @@ mod tests {
         assert_eq!(splitmix64(0), 0xE220_A839_7B1D_CDAF);
     }
 
+    #[cfg(not(pkr_silice))]
+    #[test]
+    fn side_flags_are_trainers_items_and_daily() {
+        if content::STUB {
+            assert!(!side_flag(0x500));
+            return;
+        }
+        use content::consts::*;
+        // Trainers (0x500 + id), item balls, hidden items, Match Call, daily.
+        for f in [0x500, 0x618, 0x85F, 0x3E8, 0x1F4, 0x168, 0x921] {
+            assert!(side_flag(f), "{f:#x}");
+        }
+        // Story: badges, a received HM, the system flags after the trainers.
+        for f in [FLAG_BADGE01_GET.0, FLAG_RECEIVED_HM_WATERFALL.0, 0x860] {
+            assert!(!side_flag(f), "{f:#x}");
+        }
+    }
+
     #[test]
     fn exclusions_cover_temp_and_special_ranges() {
         let cfg = KeyConfig::default();
@@ -300,9 +352,9 @@ mod tests {
         assert!(story_flag(FlagId(TEMP_FLAGS_END), &cfg));
         assert!(!story_flag(FlagId(FLAG_COUNT), &cfg));
         assert!(!story_var(TEMP_VARS_END - 1, &cfg));
-        // The first vars after the temp ones are the object graphics vars (excluded on the
-        // extracted build); the first story var follows them.
-        assert_eq!(story_var(TEMP_VARS_END, &cfg), content::STUB);
+        // The first vars after the temp ones are the object graphics vars (excluded); the
+        // first story var follows them.
+        assert!(!story_var(TEMP_VARS_END, &cfg));
         assert!(story_var(TEMP_VARS_END + 0x10, &cfg));
         assert!(!story_var(engine::flow::SPECIAL_VARS_START, &cfg));
         for &f in cleared_on_map_change() {
@@ -313,7 +365,7 @@ mod tests {
     #[test]
     fn content_counters_are_always_excluded() {
         assert_eq!(default_key_config(), KeyConfig::default());
-        assert_eq!(EXCLUDED_VARS.len() == 2, content::STUB);
+        assert!(!EXCLUDED_VARS.is_empty());
         let cfg = KeyConfig::default();
         for v in EXCLUDED_VARS {
             assert!((TEMP_VARS_END..VARS_END).contains(&v.0));
