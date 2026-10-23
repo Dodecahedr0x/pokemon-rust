@@ -2,7 +2,10 @@
 [
     Header((music: "MUS_GYM", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_GYM")),
     // The on-transition script keeps Gwada hidden outside his scene (FLAG_SIL_HIDE_PORT_GYM_GWADA).
-    Scripts((on_load: None, on_transition: Some("PortRessac_Gym_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // The on-load script opens the grille (9-10, 10) once Samuel has been faced (VAR_SIL_STORY >= 48,
+    // won or lost), so the player leaves by the quarterdeck stairs instead of crossing the hold
+    // backwards (whose barrels reset and bar the way down at row 3).
+    Scripts((on_load: Some("PortRessac_Gym_OnLoad"), on_transition: Some("PortRessac_Gym_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
     // Warps 0-1: the exit steps of the gangway (9-10, 21), to Port-Ressac's gym gangway (its warp 3).
     Warp(x: 9, y: 21, dest_map: "PortRessac", dest_warp: 3),
     Warp(x: 10, y: 21, dest_map: "PortRessac", dest_warp: 3),
@@ -14,9 +17,11 @@
     Object(x: 13, y: 3, gfx: "OBJ_EVENT_GFX_BRAWLY", id: "LOCALID_GYM4_SAMUEL", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "PortRessac_Gym_Sc01"),
     // 2: the gym guide at the foot of the mast (Port_Ressac_Gym_Guide, or the badge reminder).
     Object(x: 5, y: 14, gfx: "OBJ_EVENT_GFX_MAN_2", id: "LOCALID_GYM4_GUIDE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "PortRessac_Gym_EventScript_Guide"),
-    // 3-4: Bosco Patrice and Matelote Jessy, in sight of the way from the gangway to the hatch.
-    Object(x: 4, y: 16, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_GYM4_PATRICE", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "PortRessac_Gym_EventScript_Patrice", trainer_type: "TRAINER_TYPE_NORMAL", sight: 5),
-    Object(x: 15, y: 15, gfx: "OBJ_EVENT_GFX_EXPERT_F", id: "LOCALID_GYM4_JESSY", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "PortRessac_Gym_EventScript_Jessy", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    // 3-4: Bosco Patrice and Matelote Jessy, in sight of the way from the gangway to the hatch:
+    // Patrice watches the coupée's top row (5-10, 17), which every step aboard crosses; Jessy
+    // watches the hatch's front cell (13-15, 14).
+    Object(x: 4, y: 17, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_GYM4_PATRICE", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "PortRessac_Gym_EventScript_Patrice", trainer_type: "TRAINER_TYPE_NORMAL", sight: 6),
+    Object(x: 16, y: 14, gfx: "OBJ_EVENT_GFX_EXPERT_F", id: "LOCALID_GYM4_JESSY", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "PortRessac_Gym_EventScript_Jessy", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
     // 5: Puncheur Gus, by the top of the hold's ladder; he sees (5-6, 5) as the player steps out.
     Object(x: 7, y: 5, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_GYM4_GUS", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "PortRessac_Gym_EventScript_Gus", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
     // 9 (the source's obj 9): Gwada l'Enjaillé, hidden until Sc03; he walks down 2 to (7, 17),
@@ -25,7 +30,8 @@
     // Sc03 on the top of the coupée (9-10, 18), the only way off the ship.
     Coord(x: 9, y: 18, var: "VAR_SIL_STORY", value: 48, script: "PortRessac_Gym_Sc03"),
     Coord(x: 10, y: 18, var: "VAR_SIL_STORY", value: 48, script: "PortRessac_Gym_Sc03"),
-    // The grille barring the quarterdeck stairs, read from the deck.
+    // The grille barring the quarterdeck stairs, read from the deck (rail 617, collision 1; opened
+    // as floor 552 by _OnLoad and at the end of Sc02).
     Sign(x: 9, y: 10, script: "PortRessac_Gym_EventScript_Grille"),
     Sign(x: 10, y: 10, script: "PortRessac_Gym_EventScript_Grille"),
     // The roll notice (Port_Ressac_Gym_Sign_Roulis), on the hatch deckhouse.

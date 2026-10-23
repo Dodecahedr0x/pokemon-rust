@@ -9,7 +9,9 @@
 // The cargo pier (x 2-3) and the gym pier (x 27-28) lead to docks (row 26) under the two hulls'
 // boarding stairs (cargo (7, 25), Zenith-Grog (32, 25)); the gym sign (26, 20). The east jetty
 // (x 40-47, rows 21-23).
-// The hulls stand in a solid shoal (414, as round the Abandoned Ship on Route 108). Open sea (water,
+// The hulls stand in a solid shoal (414, as round the Abandoned Ship on Route 108). The shallows
+// beside each boarding stair (873/875) are solid too, so a stair is reached only from the dock cell
+// below it (7, 26) or (32, 26), where the cargo's block and the gangway pirate stand guard. Open sea (water,
 // elevation 1, surfable from M10) everywhere else.
 [
     Ascii(x: 0, y: 0, rows: [
@@ -124,8 +126,8 @@
         '*': (metatile: 868, collision: 1),
         '(': (metatile: 869, collision: 1),
         '}': (metatile: 414, collision: 1),
-        '<': (metatile: 873, collision: 0),
+        '<': (metatile: 873, collision: 1),
         'X': (metatile: 874, collision: 0),
-        '>': (metatile: 875, collision: 0),
+        '>': (metatile: 875, collision: 1),
     }),
 ]

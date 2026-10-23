@@ -529,6 +529,22 @@
             script: Some("PortRessac_Sc03"),
         ),
         (
+            x: 45,
+            y: 21,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 43,
+            script: Some("PortRessac_Sc03"),
+        ),
+        (
+            x: 47,
+            y: 21,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 43,
+            script: Some("PortRessac_Sc03"),
+        ),
+        (
             x: 5,
             y: 20,
             elevation: 3,

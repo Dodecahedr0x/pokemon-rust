@@ -72,10 +72,14 @@
 
     // The cargo is off limits until the lookout (Garde_Cargo_T1, the player steps back).
     Coord(x: 6, y: 26, var: "VAR_SIL_STORY", value: 42, script: "PortRessac_EventScript_CargoBloque"),
-    // Sc03: three tiles before the jetty's end.
+    // Sc03: three tiles before the jetty's end, plus the jetty's top row east of that column
+    // (45, 21) and (47, 21) (Romain stands on (46, 21)): the quay (row 20) opens onto the whole
+    // jetty, so a player stepping down at x 45-47 would otherwise skip the scene.
     Coord(x: 44, y: 21, var: "VAR_SIL_STORY", value: 43, script: "PortRessac_Sc03"),
     Coord(x: 44, y: 22, var: "VAR_SIL_STORY", value: 43, script: "PortRessac_Sc03"),
     Coord(x: 44, y: 23, var: "VAR_SIL_STORY", value: 43, script: "PortRessac_Sc03"),
+    Coord(x: 45, y: 21, var: "VAR_SIL_STORY", value: 43, script: "PortRessac_Sc03"),
+    Coord(x: 47, y: 21, var: "VAR_SIL_STORY", value: 43, script: "PortRessac_Sc03"),
     // Sc05: the foreman's battle and the cargo's departure, two tiles before him.
     Coord(x: 5, y: 20, var: "VAR_SIL_STORY", value: 46, script: "PortRessac_Sc05"),
     // During the cleaning, the gym's dock is closed (a pirate's line: clear the quays first).
