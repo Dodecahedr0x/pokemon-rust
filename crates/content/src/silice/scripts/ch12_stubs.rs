@@ -111,3 +111,18 @@ pub async fn RouteS06_BoisSoupirs_EventScript_Drone(_ctx: Ctx) {
 pub async fn RouteS06_BoisSoupirs_EventScript_HoOh(_ctx: Ctx) {
     // fallback: Ch12 post-game scripts not written yet.
 }
+
+// ---- ReverseCity_Phare (claimed by ch07_phare.rs) ----
+// Ch7's `ReverseCity_Phare_OnTransition` already shows Thomas (`FLAG_SIL_HIDE_THOMAS_PHARE`) at
+// `VAR_SIL_STORY` 122 only.
+
+/// Ch12 `Reverse_City_PG_Sc04`, Thomas's revenge at the top of the stairs: the coord (12, 8)
+/// at `VAR_SIL_STORY` 122.
+pub async fn ReverseCity_Phare_PG_Sc04(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet: the step does nothing.
+}
+
+/// Ch12: Thomas at the top (hidden except at `VAR_SIL_STORY` 122).
+pub async fn ReverseCity_Phare_PG_Thomas(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}

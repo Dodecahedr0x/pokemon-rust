@@ -39,6 +39,9 @@
         // Ch6: Manga-Square's Pokémon Center, set on entering it
         // (MangaSquare_PokemonCenter_OnTransition). The cell in front of its door (15, 23).
         (name: "HEAL_LOCATION_SIL_MANGA_SQUARE", map: "MangaSquare", x: 15, y: 24),
+        // Ch7: Reverse-City's Centre (set_respawn on entering it, ReverseCity_PokemonCenter_OnTransition),
+        // the cell in front of its door (4, 20).
+        (name: "HEAL_LOCATION_SIL_REVERSE_CITY", map: "ReverseCity", x: 4, y: 21),
     ],
     respawn: "HEAL_LOCATION_SIL_BRICO_BOURG_PLAYER_HOUSE",
     // Ch0 Brico_Bourg_Sc03 (D-18): index 0, 1, 2 is VAR_SIL_STARTER's value. Level 5.

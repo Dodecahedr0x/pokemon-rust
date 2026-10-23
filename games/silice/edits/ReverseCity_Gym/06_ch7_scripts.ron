@@ -1,0 +1,11 @@
+// SIL4 Ch7 scripts: the map changes the Chapter 7 scripts need.
+[
+    // The hidden-item fallback (as Ch0-Ch5): the engine ignores BgKind::HiddenItem (the M9 finding of
+    // "SIL1 Task F as built"), so the hidden item is a sign running hidden_item. To restore once the
+    // engine picks hidden items up: Replace(index: 3, event: Bg((x: 2, y: 25, elevation: 0, kind: HiddenItem(item: "ITEM_LUM_BERRY", flag: "FLAG_SIL_ITEM_GYM07_LUM_BERRY")))).
+    Replace(index: 3, event: Bg((x: 2, y: 25, elevation: 0, kind: Script(facing: 0, script: Some("ReverseCity_Gym_EventScript_HiddenLumBerry"))))),
+    // The hidden-item fallback (as Ch0-Ch5): the engine ignores BgKind::HiddenItem (the M9 finding of
+    // "SIL1 Task F as built"), so the hidden item is a sign running hidden_item. To restore once the
+    // engine picks hidden items up: Replace(index: 4, event: Bg((x: 6, y: 4, elevation: 0, kind: HiddenItem(item: "ITEM_SIL_ALAKAZITE", flag: "FLAG_SIL_ITEM_GYM07_ALAKAZITE")))).
+    Replace(index: 4, event: Bg((x: 6, y: 4, elevation: 0, kind: Script(facing: 0, script: Some("ReverseCity_Gym_EventScript_HiddenAlakazite"))))),
+]

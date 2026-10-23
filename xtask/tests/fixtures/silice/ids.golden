@@ -1130,3 +1130,8 @@ flags FLAG_SIL_HIDE_APEX_SOCLE 1121
 flags FLAG_SIL_HIDE_TOUR_2F_GWADA 1122
 # SIL6 Ch12 maps review: Rayquaza's capture (its hide flag is a scene prop's, not "caught").
 flags FLAG_SIL_RAYQUAZA_CAPTURE 1123
+# SIL4 Ch7 scripts (script block 1180-1199): the mirror signs' plaques read (the vault's code).
+flags FLAG_SIL_REVERSE_PLAQUE_1 1180
+flags FLAG_SIL_REVERSE_PLAQUE_2 1181
+flags FLAG_SIL_REVERSE_PLAQUE_3 1182
+flags FLAG_SIL_REVERSE_PLAQUE_4 1183

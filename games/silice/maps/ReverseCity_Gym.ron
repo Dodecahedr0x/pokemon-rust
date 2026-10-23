@@ -263,18 +263,18 @@
             x: 2,
             y: 25,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_LUM_BERRY",
-                flag: "FLAG_SIL_ITEM_GYM07_LUM_BERRY",
+            kind: Script(
+                facing: 0,
+                script: Some("ReverseCity_Gym_EventScript_HiddenLumBerry"),
             ),
         ),
         (
             x: 6,
             y: 4,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_SIL_ALAKAZITE",
-                flag: "FLAG_SIL_ITEM_GYM07_ALAKAZITE",
+            kind: Script(
+                facing: 0,
+                script: Some("ReverseCity_Gym_EventScript_HiddenAlakazite"),
             ),
         ),
     ],
