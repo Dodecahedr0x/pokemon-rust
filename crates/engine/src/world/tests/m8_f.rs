@@ -92,6 +92,7 @@ static DYNAMIC_EXIT: MapData = MapData {
     connections: &[],
     scripts: NO_SCRIPTS,
     allow_running: false,
+    map_type: 0,
 };
 
 #[test]
@@ -137,6 +138,7 @@ fn entering_a_dynamic_room_stores_the_way_back() {
         connections: &[],
         scripts: NO_SCRIPTS,
         allow_running: false,
+        map_type: 0,
     };
     let mut w = started();
     let player = w.objects().player().pos();
@@ -287,6 +289,7 @@ static PAINTED_ROUTE: MapData = MapData {
     }],
     scripts: NO_SCRIPTS,
     allow_running: true,
+    map_type: 0,
 };
 
 /// The test game, with a route whose secondary tileset differs from the town's.

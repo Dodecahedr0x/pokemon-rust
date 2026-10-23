@@ -682,6 +682,20 @@ pub struct ScriptFile {
     pub source: Option<String>,
     pub labels: Vec<IrLabel>,
     pub movements: Vec<IrMovement>,
+    /// Named item lists (`pokemart` and the decoration marts; Milestone 9 Task X2), absent in
+    /// older extracts.
+    #[serde(default)]
+    pub lists: Vec<IrList>,
+}
+
+/// An item list a command points at (`pokemart <list>`): its `ITEM_*` names, without the
+/// `ITEM_NONE` end marker. Names come from the decomp (`<Map>_Pokemart…`) by the label
+/// transfer, else `<Script>_Items<n>`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct IrList {
+    pub name: String,
+    pub origin: NameOrigin,
+    pub items: Vec<String>,
 }
 
 /// A label and its straight-line block, up to the next label or a terminator.
@@ -726,6 +740,8 @@ pub enum IrArg {
     Braille(String),
     /// `VAddress`/`VScript`/`VText` and other unnamed words.
     Raw(u32),
+    /// A named item list of [`ScriptFile::lists`] (Milestone 9: `pokemart`).
+    Items(String),
 }
 
 /// A movement script: its `MOVEMENT_ACTION_*` names, without the end marker.
@@ -851,6 +867,106 @@ pub struct TrainerMoneyFile {
     pub classes: BTreeMap<String, u8>,
 }
 
+// ---- Milestone 9 (declared in Wave 0; X1 and X2 write them and bump FORMAT_MINOR) ----
+
+/// `ui/<Name>.ron` (tiles in `ui/<Name>.png`, 4bpp) and `ui/frames/<n>.ron`: a UI picture
+/// (party, bag, summary, shop, options and evolution backgrounds; the user window frames).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct UiPictureFile {
+    pub tile_count: u16,
+    /// Tilemap entries (Gen3 screen entries), row-major; empty for a frame or a sheet.
+    pub map: Vec<u16>,
+    /// Map width in tiles (0 without a map).
+    pub map_width: u16,
+    /// BGR555 palettes, 16 colors each.
+    pub palettes: Vec<[u16; 16]>,
+}
+
+/// `icons/items/<ITEM>.ron` (tiles in `icons/items/<ITEM>.png`): `gItemIconTable`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct ItemIconFile {
+    pub palette: [u16; 16],
+}
+
+/// `icons/mons/palettes.ron`: `gMonIconPaletteIndices` by `SPECIES_*`, and the shared icon
+/// palettes (`gMonIconPalettes`). Tiles are `icons/mons/<SPECIES>.png`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct MonIconPalettesFile {
+    pub species: BTreeMap<String, u8>,
+    pub palettes: Vec<[u16; 16]>,
+}
+
+/// `tables/item_text.ron`: `ITEM_*` -> its description (decomp `.string` syntax).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct ItemTextFile {
+    pub items: BTreeMap<String, String>,
+}
+
+/// `tables/move_text.ron`: `MOVE_*` -> its description.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct MoveTextFile {
+    pub moves: BTreeMap<String, String>,
+}
+
+/// `tables/ui_text.ron`: the `gText_*` / `gMenuText_*` labels the screens print, by decomp name.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct UiTextFile {
+    pub texts: BTreeMap<String, String>,
+}
+
+/// `tables/item_effects.ron`: per `ITEM_*`, its `gItemEffectTable` bytes, field and battle use
+/// function names and hold effect.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct ItemEffectsFile {
+    pub items: BTreeMap<String, ItemEffectEntry>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct ItemEffectEntry {
+    pub effect: Vec<u8>,
+    pub field_use: Option<String>,
+    pub battle_use: Option<String>,
+    pub hold_effect: Option<String>,
+    pub hold_effect_param: u8,
+}
+
+/// `tables/tmhm.ron`: TM/HM item -> move, in TM order, and `sTMHMLearnsets` by `SPECIES_*`
+/// (bit `n` = the `n`th entry of `moves`).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct TmHmFile {
+    pub moves: Vec<(String, String)>,
+    pub learnsets: BTreeMap<String, u64>,
+}
+
+/// `tables/natures.ron`: the nature names, in `NATURE_*` order.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct NaturesFile {
+    pub names: Vec<String>,
+}
+
+/// `tables/ingame_trades.ron`: `sIngameTrades`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct InGameTradesFile {
+    pub trades: Vec<InGameTradeEntry>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct InGameTradeEntry {
+    pub nickname: String,
+    pub species: String,
+    pub ivs: [u8; 6],
+    pub ability_slot: u8,
+    pub ot_id: u32,
+    pub conditions: [u8; 5],
+    pub personality: u32,
+    pub held: String,
+    pub mail: Option<u8>,
+    pub ot_name: String,
+    pub ot_gender: u8,
+    pub sheen: u8,
+    pub requested: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -941,9 +1057,20 @@ mod tests {
                 origin: NameOrigin::Positional,
                 actions: vec!["MOVEMENT_ACTION_WALK_NORMAL_UP".into()],
             }],
+            lists: vec![IrList {
+                name: "L".into(),
+                origin: NameOrigin::Positional,
+                items: vec!["ITEM_POTION".into()],
+            }],
         };
         let s = ron::to_string(&file).unwrap();
         assert_eq!(ron::from_str::<ScriptFile>(&s).unwrap(), file);
+        // An extract before Milestone 9 has no `lists`.
+        let mut old = file.clone();
+        old.lists.clear();
+        let s = ron::to_string(&old).unwrap().replace(",lists:[]", "");
+        assert!(!s.contains("lists"));
+        assert_eq!(ron::from_str::<ScriptFile>(&s).unwrap(), old);
         let enc = EncountersFile {
             maps: BTreeMap::from([(
                 "Route101".into(),

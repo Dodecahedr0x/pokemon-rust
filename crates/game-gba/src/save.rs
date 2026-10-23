@@ -41,7 +41,8 @@ pub fn boot_world(
     };
     match boot_choice(seen, held_at_boot) {
         BootChoice::NewGame(code) => new_game(code),
-        BootChoice::Restore => match slots.read::<Checkpoint>(0) {
+        // Task S boots into the main menu; until then it is a restore.
+        BootChoice::Restore | BootChoice::MainMenu => match slots.read::<Checkpoint>(0) {
             Err(_) => new_game(boot::CORRUPT),
             Ok(cp) => match World::restore(game, &cp) {
                 Ok(world) => (world, boot::RESTORED),

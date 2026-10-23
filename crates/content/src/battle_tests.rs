@@ -57,7 +57,8 @@ fn trainer_battle_single_follows_trainer_battle_inc() {
             Request::WaitButton,
             Request::BattleTrainer {
                 trainer: tr,
-                defeat: TextId(2)
+                defeat: TextId(2),
+                no_whiteout: false,
             },
             Request::SetFlag(FlagId(0x503), true),
             Request::ReleaseAll,
@@ -95,7 +96,8 @@ fn trainer_battle_variants() {
             Request::TrainerApproach { obj: 2 },
             Request::BattleTrainer {
                 trainer: tr,
-                defeat: TextId(4)
+                defeat: TextId(4),
+                no_whiteout: false,
             },
             Request::SetFlag(FlagId(0x507), true),
             Request::SetVar(consts::VAR_RESULT, 1),
@@ -132,7 +134,8 @@ fn choose_starter_gives_it_and_starts_the_first_battle() {
             Request::SetVar(consts::VAR_STARTER_MON, 1),
             Request::GiveMon {
                 species: battle::STARTERS[1],
-                level: 5
+                level: 5,
+                extra: None,
             },
             Request::BattleWild {
                 species: foe,
@@ -212,7 +215,8 @@ fn the_two_starts() {
         h.log.last(),
         Some(&Request::GiveMon {
             species: battle::STARTERS[2],
-            level: 5
+            level: 5,
+            extra: None,
         })
     );
     assert!(h.flags.contains(&FLAG_SYS_POKEMON_GET.0));

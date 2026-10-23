@@ -141,19 +141,44 @@ pub enum Emote {
     Heart,
 }
 
-/// How a species evolves, Gen3 `EVO_*` folded (the exact kind is kept for Milestone 9).
+/// How a species evolves (Gen3 `EVO_*`). Until Milestone 9 Task E classifies them exactly
+/// (`build/classify/evolution.rs`), content folds the exact kinds onto `Level`, `Friendship`,
+/// `Item`, `Trade` and `Other`, and the engine evaluates `Level` only.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum EvoMethod {
-    /// `EVO_LEVEL` and its stat/personality variants: `param` is the level.
+    /// `EVO_LEVEL` (and, while folded, its stat/personality variants): `param` is the level.
     Level,
-    /// `EVO_FRIENDSHIP*`.
+    /// `EVO_FRIENDSHIP` (and, while folded, its day and night variants).
     Friendship,
     /// `EVO_ITEM`: `param` is the item.
     Item,
-    /// `EVO_TRADE*`.
+    /// `EVO_TRADE` (and, while folded, `EVO_TRADE_ITEM`).
     Trade,
-    /// Anything else (`EVO_BEAUTY`, `EVO_LEVEL_NINJASK`, …).
+    /// Anything else (`EVO_BEAUTY` while folded, …).
     Other,
+    // ---- Milestone 9 (Wave 0 declares them; Task E classifies and evaluates them) ----
+    /// `EVO_FRIENDSHIP_DAY`.
+    FriendshipDay,
+    /// `EVO_FRIENDSHIP_NIGHT`.
+    FriendshipNight,
+    /// `EVO_LEVEL_ATK_GT_DEF`: `param` is the level.
+    LevelAtkGtDef,
+    /// `EVO_LEVEL_ATK_EQ_DEF`.
+    LevelAtkEqDef,
+    /// `EVO_LEVEL_ATK_LT_DEF`.
+    LevelAtkLtDef,
+    /// `EVO_LEVEL_SILCOON` (by personality).
+    LevelSilcoon,
+    /// `EVO_LEVEL_CASCOON`.
+    LevelCascoon,
+    /// `EVO_LEVEL_NINJASK`.
+    LevelNinjask,
+    /// `EVO_LEVEL_SHEDINJA` (into an empty party slot, with a Poké Ball).
+    LevelShedinja,
+    /// `EVO_BEAUTY`: `param` is the beauty.
+    Beauty,
+    /// `EVO_TRADE_ITEM`: `param` is the item.
+    TradeItem,
 }
 
 /// One `gEvolutionTable` entry.
@@ -462,6 +487,8 @@ pub struct MapData {
     pub connections: &'static [Connection],
     pub scripts: MapScripts,
     pub allow_running: bool,
+    /// Gen3 `MAP_TYPE_*` ([`map_type`]; Milestone 9: the escape warp and Escape Rope read it).
+    pub map_type: u8,
 }
 
 /// An object sprite sheet. Each frame is its tiles in GBA 1D OBJ order.
@@ -489,13 +516,344 @@ pub struct WindowGfx {
     pub text_bg: u8,
 }
 
-/// Fixed UI strings the engine draws itself (Gen3-encoded, 0xFF-terminated).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+/// Fixed UI strings the engine draws itself (Gen3-encoded, 0xFF-terminated). Content answers
+/// every variant through [`GameData::ui_text`]; a string the game does not have is `[0xFF]`
+/// (empty), never a panic.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum UiText {
     Yes,
     No,
     /// Expansion of the `{RIVAL}` placeholder.
     RivalName,
+    // ---- Milestone 9 (Wave 0 declares them; Task X2 extracts them, Task C answers them).
+    // Task X2 may append variants for strings the screens print that are missing here. ----
+    // Party menu (`party_menu.c`).
+    PartySummary,
+    PartySwitch,
+    PartyItem,
+    PartyGive,
+    PartyTake,
+    PartyCancel,
+    PartyShift,
+    PartyChoosePokemon,
+    PartyMoveToWhere,
+    PartyAble,
+    PartyNotAble,
+    PartyCantSwitchFainted,
+    PartyAlreadyInBattle,
+    // Bag (`item_menu.c`).
+    BagUse,
+    BagGive,
+    BagToss,
+    BagRegister,
+    BagCancel,
+    BagSell,
+    PocketItems,
+    PocketKeyItems,
+    PocketPokeBalls,
+    PocketTmHm,
+    PocketBerries,
+    BagTossHowMany,
+    BagThrewAway,
+    BagCantUseHere,
+    // Shop (`shop.c`).
+    ShopBuy,
+    ShopSell,
+    ShopQuit,
+    ShopHowMany,
+    ShopIsThatOkay,
+    ShopNotEnoughMoney,
+    ShopNoRoom,
+    ShopThankYou,
+    ShopPremierBonus,
+    ShopAnythingElse,
+    // PC (`player_pc.c`, `pokemon_storage_system.c`).
+    PcItemStorage,
+    PcMailbox,
+    PcDecoration,
+    PcTurnOff,
+    PcWithdrawItem,
+    PcDepositItem,
+    PcTossItem,
+    PcWithdrawMon,
+    PcDepositMon,
+    PcMoveMon,
+    PcReleaseMon,
+    PcBox,
+    PcSentToBox,
+    PcBoxFull,
+    // Save (`start_menu.c`).
+    SaveAsk,
+    SaveOverwrite,
+    SaveSaving,
+    SaveDone,
+    SaveError,
+    // Options (`option_menu.c`).
+    OptionTextSpeed,
+    OptionBattleScene,
+    OptionBattleStyle,
+    OptionSound,
+    OptionButtonMode,
+    OptionFrame,
+    OptionCancel,
+    OptionSlow,
+    OptionMid,
+    OptionFast,
+    OptionOn,
+    OptionOff,
+    OptionShift,
+    OptionSet,
+    OptionMono,
+    OptionStereo,
+    OptionNormal,
+    OptionLr,
+    OptionLEqualsA,
+    OptionType,
+    // Main menu (`main_menu.c`).
+    MainContinue,
+    MainNewGame,
+    MainOption,
+    MainPlayer,
+    MainTime,
+    MainPokedex,
+    MainBadges,
+    // Summary (`pokemon_summary_screen.c`).
+    SummaryInfo,
+    SummarySkills,
+    SummaryMoves,
+    SummaryOt,
+    SummaryIdNo,
+    SummaryItem,
+    SummaryNone,
+    SummaryNature,
+    SummaryAbility,
+    SummaryExpPoints,
+    SummaryNextLv,
+    SummaryPower,
+    SummaryAccuracy,
+    SummaryHp,
+    SummaryAttack,
+    SummaryDefense,
+    SummarySpAtk,
+    SummarySpDef,
+    SummarySpeed,
+    // Evolution (`evolution_scene.c`).
+    EvolutionWhat,
+    EvolutionCongrats,
+    EvolutionStopped,
+}
+
+/// One start-menu entry (Gen3 `sStartMenuItems`), in display order (Milestone 9).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct StartItem {
+    pub label: TextId,
+    pub action: StartAction,
+    /// Shown only while this flag is set (Gen3 `BuildNormalStartMenu`'s `FLAG_SYS_*_GET`).
+    pub shown_if: Option<FlagId>,
+    /// The help line printed for the entry, if the game has one.
+    pub description: Option<TextId>,
+}
+
+/// What a [`StartItem`] does.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum StartAction {
+    Pokedex,
+    Party,
+    Bag,
+    PlayerCard,
+    Save,
+    Options,
+    Exit,
+    /// Game-defined (Silice's Mallette, Emerald's PokéNav placeholder): runs the script with
+    /// the field locked, after the menu closes (Gen3 `ScriptContext_SetupScript`).
+    Script(ScriptId),
+}
+
+/// A field move (Gen3 `FIELD_MOVE_*`); Milestone 10 implements the uses.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum FieldMove {
+    Cut,
+    Flash,
+    RockSmash,
+    Strength,
+    Surf,
+    Fly,
+    Dive,
+    Waterfall,
+    Teleport,
+    Dig,
+    SecretPower,
+    SoftBoiled,
+    MilkDrink,
+    SweetScent,
+}
+
+impl FieldMove {
+    /// Gen3 `FIELD_MOVE_*` order.
+    pub const ALL: [FieldMove; 14] = [
+        FieldMove::Cut,
+        FieldMove::Flash,
+        FieldMove::RockSmash,
+        FieldMove::Strength,
+        FieldMove::Surf,
+        FieldMove::Fly,
+        FieldMove::Dive,
+        FieldMove::Waterfall,
+        FieldMove::Teleport,
+        FieldMove::Dig,
+        FieldMove::SecretPower,
+        FieldMove::SoftBoiled,
+        FieldMove::MilkDrink,
+        FieldMove::SweetScent,
+    ];
+}
+
+/// How a field move becomes usable (M10 implements the uses).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum FieldMoveGate {
+    /// The game has no such field move.
+    Never,
+    /// A party mon knows `move_id`, and the badge flag is set when one is given (Gen3
+    /// `sFieldMoves` and the HM badge checks).
+    PartyMove {
+        move_id: MoveId,
+        badge: Option<FlagId>,
+    },
+    /// Usable while the flag is set, whatever the party knows (Silice's modules).
+    Flag(FlagId),
+}
+
+/// A medicine's effect (Gen3 `gItemEffectTable` bytes, decoded by content).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum MedicineEffect {
+    /// Restores this much HP (`u16::MAX`: to full).
+    Heal(u16),
+    /// Cures these status bits (Gen3 `ITEM3_*` order: sleep, poison, burn, freeze, paralysis,
+    /// confusion, infatuation; one bit each).
+    Cure(u8),
+    /// [`MedicineEffect::Heal`] and [`MedicineEffect::Cure`] together (Full Restore).
+    HealCure(u16, u8),
+    /// Revives with this fraction of the max HP, in 1/256ths (Revive 128, Max Revive 256).
+    Revive(u16),
+    /// Restores PP: `(amount, every move)` (`u8::MAX` amount: to full).
+    Pp(u8, bool),
+    /// Rare Candy: one level.
+    LevelUp,
+    /// A vitamin: `(stat index in Stat order, EVs)`.
+    Ev(u8, u8),
+    /// PP Up (`false`) or PP Max (`true`).
+    PpUp(bool),
+}
+
+/// What a key item does when used.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum KeyUse {
+    /// The bikes (M10).
+    Bike,
+    /// A rod (M10): `0` old, `1` good, `2` super.
+    Rod(u8),
+    /// Runs this script (content-defined uses).
+    Script(ScriptId),
+    /// No field use (Gen3 `ItemUseOutOfBattle_CannotUse`).
+    None,
+    /// Any other key use, by its Gen3 function name.
+    Other(&'static str),
+}
+
+/// What using an item does (content classifies it from Gen3 `gItemEffectTable` and the item's
+/// field and battle use functions; Milestone 9 Task C).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ItemUse {
+    None,
+    Medicine(MedicineEffect),
+    /// A ball, with its catch multiplier ×10.
+    Ball(u8),
+    /// An X item or Guard Spec: `(stat index, stages)`.
+    StatStage(u8, i8),
+    /// An evolution stone (any item that evolves through `EVO_ITEM`).
+    Evolution,
+    /// A repel lasting this many steps.
+    Repel(u16),
+    EscapeRope,
+    /// A TM or HM teaching this move.
+    Tm(MoveId),
+    Berry,
+    Key(KeyUse),
+    /// Anything else, by its Gen3 name (the bag reports it).
+    Other(&'static str),
+}
+
+/// One extracted UI picture (Milestone 9 Task X1 extracts them, Task C answers them); Task X1
+/// may append variants.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum UiGfx {
+    PartyBg,
+    PartySlots,
+    PartyHpBar,
+    BagBg,
+    /// The bag sprite of pocket `n`.
+    BagSprite(u8),
+    SummaryPages,
+    ShopBg,
+    OptionsBg,
+    EvolutionBg,
+    MainMenuWindows,
+    StatusIcons,
+    TypeIcons,
+    ScrollArrows,
+    MenuCursor,
+    MoneyBox,
+}
+
+/// A full-screen picture: 4bpp tiles (32 bytes each), a tilemap (u16 entries as little-endian
+/// bytes, 32 entries a row) and its palettes (16 colours a bank).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct UiPicture {
+    pub tiles: &'static [u8],
+    pub map: &'static [u8],
+    pub palette: &'static [u16],
+}
+
+/// An item or mon icon: `frames` frames of 32x32 4bpp tiles in 1D OBJ order, and its palette.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Icon {
+    pub tiles: &'static [u8],
+    pub palette: &'static [u16],
+    pub frames: u8,
+}
+
+/// A Gen3 `sIngameTrades` entry (Milestone 9: Task R makes the swap, Task J the specials).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct InGameTrade {
+    /// The species the NPC asks for.
+    pub requested: SpeciesId,
+    /// The species the NPC gives.
+    pub species: SpeciesId,
+    /// Gen3-encoded nickname, 0xFF-terminated.
+    pub nickname: &'static [u8],
+    pub ivs: [u8; 6],
+    pub ability_slot: u8,
+    pub personality: u32,
+    /// Gen3-encoded OT name, 0xFF-terminated.
+    pub ot_name: &'static [u8],
+    pub ot_id: u32,
+    pub held: Option<ItemId>,
+    /// The mail item the traded mon holds (mail itself is not modelled).
+    pub mail: Option<ItemId>,
+}
+
+/// Gen3 `MAP_TYPE_*` (`MapData::map_type`; Milestone 9 Task F reads it, content fills it).
+pub mod map_type {
+    pub const NONE: u8 = 0;
+    pub const TOWN: u8 = 1;
+    pub const CITY: u8 = 2;
+    pub const ROUTE: u8 = 3;
+    pub const UNDERGROUND: u8 = 4;
+    pub const UNDERWATER: u8 = 5;
+    pub const OCEAN_ROUTE: u8 = 6;
+    pub const UNKNOWN: u8 = 7;
+    pub const INDOOR: u8 = 8;
+    pub const SECRET_BASE: u8 = 9;
 }
 
 /// Where a new game starts and the script that sets up its flags and vars.
@@ -541,6 +899,25 @@ pub struct SpecialIds {
     /// `BAG_KEYITEMS_COUNT`, `BAG_POKEBALLS_COUNT`, `BAG_TMHM_COUNT`, `BAG_BERRIES_COUNT`). All 0
     /// for a game without a bag.
     pub pocket_slots: [u8; 5],
+    // ---- Milestone 9 (a game without them gets 0 / `None` and the feature stays off) ----
+    /// PC boxes (Gen3 `TOTAL_BOXES_COUNT`, 14), each of [`crate::pc::BOX_SLOTS`] mons; 0: no
+    /// Pokémon storage.
+    pub pc_boxes: u8,
+    /// PC item slots (Gen3 `PC_ITEMS_COUNT`, 50); 0: no item storage.
+    pub pc_item_slots: u8,
+    /// The coin cap (Gen3 `MAX_COINS`, 9,999); 0: no coins.
+    pub max_coins: u16,
+    /// The badge flags, badge 1 first (Gen3 `FLAG_BADGE01_GET`..`FLAG_BADGE08_GET`).
+    pub flag_badges: [Option<FlagId>; 8],
+    /// Repel steps left (Gen3 `VAR_REPEL_STEP_COUNT`).
+    pub var_repel_steps: Option<VarId>,
+    /// The walking friendship counter (Gen3 `VAR_FRIENDSHIP_STEP_COUNTER`).
+    pub var_friendship_steps: Option<VarId>,
+    /// Run when a repel wears off (Gen3 `EventScript_RepelWoreOff`).
+    pub script_repel_wore_off: Option<ScriptId>,
+    /// The CONTINUE window shows the Pokédex line while this flag is set (Gen3
+    /// `FLAG_SYS_POKEDEX_GET`).
+    pub flag_pokedex: Option<FlagId>,
 }
 
 impl Default for SpecialIds {
@@ -556,6 +933,14 @@ impl Default for SpecialIds {
             max_money: 0,
             multichoice_cancel: u16::MAX,
             pocket_slots: [0; 5],
+            pc_boxes: 0,
+            pc_item_slots: 0,
+            max_coins: 0,
+            flag_badges: [None; 8],
+            var_repel_steps: None,
+            var_friendship_steps: None,
+            script_repel_wore_off: None,
+            flag_pokedex: None,
         }
     }
 }
@@ -676,6 +1061,71 @@ pub trait GameData {
     /// without them (Emerald) returns the default, empty.
     fn form_changes(&self) -> &'static [FormChange] {
         &[]
+    }
+
+    // ---- Milestone 9 (Wave 0 declares them; Task C answers them from Tasks X1 and X2's
+    // extract). Every screen works with the defaults: frames and text only. ----
+
+    /// The start menu's entries in display order (Gen3 `sStartMenuItems`); empty: START opens
+    /// nothing.
+    fn start_menu(&self) -> &'static [StartItem] {
+        &[]
+    }
+    /// How field move `m` becomes usable.
+    fn field_move_gate(&self, m: FieldMove) -> FieldMoveGate {
+        let _ = m;
+        FieldMoveGate::Never
+    }
+    fn item_use(&self, id: ItemId) -> ItemUse {
+        let _ = id;
+        ItemUse::None
+    }
+    /// Gen3-encoded, 0xFF-terminated item description (`gItems[].description`).
+    fn item_description(&self, id: ItemId) -> Option<&'static [u8]> {
+        let _ = id;
+        None
+    }
+    /// Gen3-encoded, 0xFF-terminated move description (`gMoveDescriptionPointers`).
+    fn move_description(&self, id: MoveId) -> Option<&'static [u8]> {
+        let _ = id;
+        None
+    }
+    /// The move a TM or HM item teaches.
+    fn tm_move(&self, id: ItemId) -> Option<MoveId> {
+        let _ = id;
+        None
+    }
+    /// Gen3 `CanMonLearnTMHM` (`sTMHMLearnsets`).
+    fn can_learn_tm(&self, species: SpeciesId, tm: ItemId) -> bool {
+        let _ = (species, tm);
+        false
+    }
+    fn ui_gfx(&self, g: UiGfx) -> Option<&'static UiPicture> {
+        let _ = g;
+        None
+    }
+    /// User window frame `n` (0..20, Gen3 `gUserFrames`); `None`: the dialogue frame.
+    fn window_frame(&self, n: u8) -> Option<&'static WindowGfx> {
+        let _ = n;
+        None
+    }
+    fn item_icon(&self, id: ItemId) -> Option<&'static Icon> {
+        let _ = id;
+        None
+    }
+    fn mon_icon(&self, species: SpeciesId) -> Option<&'static Icon> {
+        let _ = species;
+        None
+    }
+    /// Gen3 `sIngameTrades[n]`.
+    fn in_game_trade(&self, n: u8) -> Option<&'static InGameTrade> {
+        let _ = n;
+        None
+    }
+    /// Gen3-encoded, 0xFF-terminated name of nature `n` (`gNatureNamePointers`).
+    fn nature_name(&self, n: u8) -> Option<&'static [u8]> {
+        let _ = n;
+        None
     }
 }
 

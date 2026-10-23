@@ -68,6 +68,43 @@ pub mod layout {
         pub const OBJ_PRIORITY_MON: u8 = 2;
         pub const OBJ_PRIORITY_BOX: u8 = 1;
     }
+
+    /// The VRAM layout of full-screen screens (Milestone 9: party, bag, summary, mart, PC,
+    /// options, main menu, evolution), used while a screen owns the screen. Folded from the
+    /// decomp's BG templates (`sPartyMenuBgTemplates`, `sBgTemplates_ItemMenu`, the summary's
+    /// `sBgTemplates`): Gen3's windows layer on top, a foreground layer (slots, pages) and the
+    /// background picture, on 32x32 maps as the battle layout does (Gen3's 64-wide summary
+    /// map scrolls between pages; ours redraws).
+    pub mod menu {
+        // BG: (layer, char block, screen block, priority).
+        /// Text windows and frames (Gen3 BG0 of the party menu and bag).
+        pub const WINDOWS: (u8, u8, u8, u8) = (0, 0, 31, 0);
+        /// Foreground picture: party slots, summary page, bag sprite area.
+        pub const FOREGROUND: (u8, u8, u8, u8) = (1, 1, 30, 1);
+        /// Background picture.
+        pub const BACKGROUND: (u8, u8, u8, u8) = (2, 2, 29, 2);
+        /// Spare layer (scrolling backdrops, the evolution scene's sparkles), off by default.
+        pub const SPARE: (u8, u8, u8, u8) = (3, 2, 28, 3);
+        /// BG tiles per char block for the windows layer's frame (`gUserFrames`, 9 tiles) and
+        /// the standard message frame, then the text canvases.
+        pub const WINDOW_FRAME_BASE: u16 = 0x1F0;
+        // BG palettes: 0..13 the pictures, 14 the menu text (`gStandardMenuPalette`), 15 the
+        // window frame (`layout::WINDOW_PALETTE`, shared with the field).
+        pub const TEXT_PALETTE: u8 = 14;
+        pub const FRAME_PALETTE: u8 = super::WINDOW_PALETTE;
+        // OBJ tiles (1D, 1024): mon icons 0..192 (six icons of two 32x32 frames), item icon
+        // 192..208, cursor and scroll arrows 208..240, the bag sprite 256..512, 512.. free.
+        pub const OBJ_MON_ICONS: u16 = 0;
+        pub const OBJ_ITEM_ICON: u16 = 192;
+        pub const OBJ_CURSOR: u16 = 208;
+        pub const OBJ_BAG: u16 = 256;
+        // OBJ palettes: 0..3 the mon icon palettes (`gMonIconPalettes`), 3 the item icon,
+        // 4 cursor and arrows, 5 the bag sprite, 6..16 free.
+        pub const OBJ_PAL_MON_ICONS: u8 = 0;
+        pub const OBJ_PAL_ITEM_ICON: u8 = 3;
+        pub const OBJ_PAL_CURSOR: u8 = 4;
+        pub const OBJ_PAL_BAG: u8 = 5;
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]

@@ -167,6 +167,7 @@ pub fn leak_map_data(d: &Doc, c: &Catalog) -> Result<&'static MapData> {
         connections: leak(connections(d, c).0),
         scripts: MapScripts::default(),
         allow_running: true,
+        map_type: 0,
     })))
 }
 

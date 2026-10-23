@@ -172,7 +172,7 @@ fn verdict(w: &World) -> &'static str {
     use engine::script::Request;
     match w.script_waiting() {
         Some(Request::WaitMessage) => "still waits on a message after mashing",
-        Some(Request::WaitButton | Request::YesNo | Request::Multichoice { .. }) => {
+        Some(Request::WaitButton | Request::YesNo { .. } | Request::Multichoice { .. }) => {
             "still waits for the player after mashing"
         }
         Some(_) => "script waits on the engine",
@@ -245,7 +245,10 @@ fn run_map(map: MapId) -> MapRun {
                 frame.set(IDLE + n);
                 let key = if n % 2 == 0 {
                     Buttons::default()
-                } else if s.world().script_waiting() == Some(&engine::script::Request::YesNo) {
+                } else if matches!(
+                    s.world().script_waiting(),
+                    Some(engine::script::Request::YesNo { .. })
+                ) {
                     Buttons::B
                 } else {
                     Buttons::A

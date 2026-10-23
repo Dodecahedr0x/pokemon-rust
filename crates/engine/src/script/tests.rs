@@ -222,6 +222,7 @@ fn battle_request_hashes_differ() {
         Request::GiveMon {
             species: SpeciesId(1),
             level: 5,
+            extra: None,
         },
         Request::PartySize,
         Request::HealParty,
@@ -238,6 +239,12 @@ fn battle_request_hashes_differ() {
         Request::BattleTrainer {
             trainer: TrainerId(1),
             defeat: TextId(5),
+            no_whiteout: false,
+        },
+        Request::BattleTrainer {
+            trainer: TrainerId(1),
+            defeat: TextId(5),
+            no_whiteout: true,
         },
         Request::ChooseStarter([SpeciesId(1), SpeciesId(5), SpeciesId(0)]),
         Request::SetRespawn(1),

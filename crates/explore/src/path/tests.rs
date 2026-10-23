@@ -46,6 +46,7 @@ fn synth(width: u16, rows: &[&[u16]]) -> Synth {
         connections: &[],
         scripts: MapScripts::default(),
         allow_running: false,
+        map_type: 0,
     })))
 }
 

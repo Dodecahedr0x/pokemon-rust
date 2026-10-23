@@ -25,9 +25,15 @@
 //! script (Gen3 `CB2_LoadMap` resets the script context).
 
 mod battle;
+pub(crate) mod caught;
 mod checkpoint;
+mod evolve;
+pub(crate) mod friendship;
 mod host;
 mod maps;
+mod mode;
+mod save;
+mod screens;
 mod sight;
 mod templates;
 #[cfg(test)]
@@ -38,7 +44,9 @@ pub use battle::{ENCOUNTER_IMMUNITY_STEPS, Origin, Stage, WHITEOUT_FRAMES};
 use crate::bag::Bag;
 use crate::battle::BattleOutcome;
 use crate::battle::scene::BattleScene;
+use crate::checkpoint::{Checkpoint, SaveError};
 use crate::checkpoint::{PLAYER_NAME_SIZE, PlayerName};
+use crate::data::ItemId;
 use crate::data::{
     Behavior, BgKind, Dir, FlagId, GameData, MapId, ObjectEvent, PLAYER, ScriptId, SpecialIds,
     VarId,
@@ -48,19 +56,24 @@ use crate::flow::{
     Fader, Input, Target, Transition, Vars, block_behavior, coord_trigger, door_warp,
     facing_elevation, interact_target, map_script_on_frame, warp_on_enter, warp_on_push,
 };
+use crate::fx::ScreenFx;
 use crate::hash::Fnv64;
 use crate::mon::Party;
 use crate::objects::{Objects, PlayerEvent, PlayerInput, Terrain};
+use crate::options::Options;
+use crate::pc::PcStorage;
+use crate::pokedex::Pokedex;
 use crate::script::{Fade, Report, Runner, Speed, Step};
 use crate::starter::StarterChoice;
 use crate::str_vars::{STR_VAR_LEN, StrVars};
 use crate::text::TextBox;
+use crate::ui::ScreenKindTag;
 use crate::video::Frame;
 use crate::{Buttons, Rng};
 use alloc::vec::Vec;
-use battle::Mode;
 use host::Host;
 use maps::{cross_connection, load_map};
+use mode::Mode;
 
 /// Screen pixel of the player's cell top-left when the camera is centered on the player.
 pub const CAMERA_OFFSET: (i32, i32) = (112, 64);
@@ -86,6 +99,16 @@ pub enum Event {
     BattleEnded(BattleOutcome),
     /// A script's `Request::Report`.
     Report(Report),
+    /// A screen opened (START, a request, or a screen over another one).
+    ScreenOpened(ScreenKindTag),
+    /// The last screen closed and the field is back.
+    ScreenClosed,
+    /// The in-game save ran: the shells persist [`World::save_snapshot`] when `ok`.
+    Saved {
+        ok: bool,
+    },
+    /// A party mon evolved into this species.
+    Evolved(crate::data::SpeciesId),
 }
 
 /// The last script log lines (`Request::Log`), for tests and debugging.
@@ -154,65 +177,78 @@ impl WarpDest {
 
 /// Everything the script host touches (all of the world but the runner).
 pub(crate) struct State {
-    rng: Rng,
-    input: Input,
-    field: Field,
-    objects: Objects,
-    text: TextBox,
-    vars: Vars,
-    fader: Fader,
-    transition: Transition,
+    pub(crate) rng: Rng,
+    pub(crate) input: Input,
+    pub(crate) field: Field,
+    pub(crate) objects: Objects,
+    pub(crate) text: TextBox,
+    pub(crate) vars: Vars,
+    pub(crate) fader: Fader,
+    pub(crate) transition: Transition,
     /// The current map's object templates for this visit (scripts move them and change their
     /// movement type), with their hash digest.
-    templates: templates::Templates,
+    pub(crate) templates: templates::Templates,
     /// The object whose interaction started the running script (Gen3 `gSelectedObjectEvent`):
     /// local id and map (the previous map's, for an NPC left in view by a crossing). Every
     /// script start sets it and captures happen outside scripts, so checkpoints and the hash
     /// keep the local id only (a restore puts it on the current map).
-    selected: Option<(u8, MapId)>,
+    pub(crate) selected: Option<(u8, MapId)>,
     /// Object of the last `Move` (Gen3 `sMovingNpcId`), for `WaitMove(0)`.
-    last_mover: u8,
+    pub(crate) last_mover: u8,
     /// Frames left of a script `Delay`.
-    delay: u16,
+    pub(crate) delay: u16,
     /// Frames left of a door animation.
-    door: u8,
-    log: Log,
+    pub(crate) door: u8,
+    pub(crate) log: Log,
     /// The player's party (Gen3 `gPlayerParty`).
-    party: Party,
+    pub(crate) party: Party,
     /// Heal location of the last `setrespawn` (Gen3 `gSaveBlock1Ptr->lastHealLocation`).
-    respawn: u8,
+    pub(crate) respawn: u8,
     /// The player's trainer id, the OT id of their mons (Gen3 `playerTrainerId`).
-    player_id: u32,
+    pub(crate) player_id: u32,
     /// Gen3 `sPrevMetatileBehavior`: the cell behavior of the last checked step.
-    prev_behavior: Behavior,
+    pub(crate) prev_behavior: Behavior,
     /// Gen3 `sWildEncounterImmunitySteps`: steps since the last
     /// `RestartWildEncounterImmunitySteps` (map loads and battles), up to
     /// [`ENCOUNTER_IMMUNITY_STEPS`].
-    encounter_immunity: u8,
+    pub(crate) encounter_immunity: u8,
     /// What owns the screen: the field, the starter screen or a battle.
-    mode: Mode,
+    pub(crate) mode: Mode,
     /// The answer to the script's pending `ChooseStarter` / `BattleWild` / `BattleTrainer`.
-    answer: Option<u16>,
+    pub(crate) answer: Option<u16>,
     /// Gen3-encoded player name, 0xFF-terminated and 0xFF-padded (Gen3 `playerName`). Copied
     /// from `NewGame` at a new game; hashed last in `World::hash`. Texts, the starter screen and
     /// battles print this copy.
-    player_name: PlayerName,
+    pub(crate) player_name: PlayerName,
     // ---- Milestone 8 ----
     /// The player's bag (Gen3 `gSaveBlock1Ptr->bagPocket_*`).
-    bag: Bag,
+    pub(crate) bag: Bag,
     /// Gen3 `gSaveBlock1Ptr->money`.
-    money: u32,
+    pub(crate) money: u32,
     /// Gen3 `gStringVar1..3`.
-    str_vars: StrVars,
-    warp_slots: WarpSlots,
+    pub(crate) str_vars: StrVars,
+    pub(crate) warp_slots: WarpSlots,
+    // ---- Milestone 9 ----
+    /// Gen3 `gSaveBlock2Ptr->optionsTextSpeed` and the other options.
+    pub(crate) options: Options,
+    /// Gen3 `gSaveBlock2Ptr->pokedex.seen/owned`.
+    pub(crate) pokedex: Pokedex,
+    /// Gen3 `pcItems` and `gPokemonStoragePtr`.
+    pub(crate) pc: PcStorage,
+    /// Gen3 `gSaveBlock1Ptr->coins`.
+    pub(crate) coins: u16,
+    /// Gen3 `gSaveBlock1Ptr->registeredItem` (SELECT).
+    pub(crate) registered_item: Option<ItemId>,
+    /// Screen flash, shake and tint (not snapshotted: a save or capture needs it clear).
+    pub(crate) fx: ScreenFx,
     // Tool-facing, neither hashed nor snapshotted:
     /// This step's events (cleared at the start of `step`, except the first step of a new
     /// world, which keeps `World::new`'s), at most [`EVENTS_MAX`].
-    events: Vec<Event>,
+    pub(crate) events: Vec<Event>,
     /// Events dropped past [`EVENTS_MAX`] since the world was created or restored.
-    events_dropped: u32,
+    pub(crate) events_dropped: u32,
     /// The last script started.
-    last_script: Option<ScriptId>,
+    pub(crate) last_script: Option<ScriptId>,
 }
 
 /// All mutable game state. Deterministic: the same state and input give the same next state.
@@ -348,6 +384,15 @@ impl World {
                 money: 0,
                 str_vars: StrVars::new(),
                 warp_slots: WarpSlots::default(),
+                options: Options::default(),
+                pokedex: Pokedex::default(),
+                pc: PcStorage::new(
+                    game.special_ids().pc_item_slots,
+                    game.special_ids().pc_boxes,
+                ),
+                coins: 0,
+                registered_item: None,
+                fx: ScreenFx::default(),
                 events: Vec::with_capacity(EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,
@@ -386,7 +431,10 @@ impl World {
             Mode::Field => self.step_field(game, &mut f),
             Mode::Starter(run) => self.step_starter(game, run, &mut f),
             Mode::Battle(run) => self.step_battle(game, run, &mut f),
+            Mode::Screens(stack) => self.step_screens(game, stack, &mut f),
         }
+        // Screen effects post-process the whole frame, last (Task R).
+        crate::fx::apply(&self.s.fx, &mut f);
         f
     }
 
@@ -525,6 +573,18 @@ impl World {
                 self.start_warp(game, map, w, true);
                 return false;
             }
+            // Gen3 `ProcessPlayerFieldInput`: START (`ShowStartMenu`), then SELECT
+            // (`UseRegisteredKeyItemOnField`), after the A interaction and the door warp.
+            if self.s.input.is_pressed(Buttons::START) && screens::start_pressed(&mut self.s, game)
+            {
+                return false;
+            }
+            if self.s.input.is_pressed(Buttons::SELECT)
+                && let Some(id) = crate::item_use::select_pressed(&mut self.s, game)
+            {
+                self.start_script(game, id, None);
+                return false;
+            }
         }
         let ids = game.special_ids();
         let s = &mut self.s;
@@ -557,9 +617,16 @@ impl World {
                     if let Some(w) = warp_on_enter(map, x, y, elevation, b) {
                         self.start_warp(game, map, w, false);
                     } else {
-                        // Gen3 `CheckStandardWildEncounter`, after the step-based scripts.
-                        let id = s.field.map();
-                        s.wild_step(game, id, b, f);
+                        // Gen3 `TryStartStepBasedScript` after the coord and warp checks: the
+                        // friendship step counter, then the repel counter (which may start
+                        // its wear-off script), then `CheckStandardWildEncounter`.
+                        friendship::on_step(s, game);
+                        if let Some(id) = crate::item_use::on_step(s, game) {
+                            self.start_script(game, id, None);
+                        } else {
+                            let id = s.field.map();
+                            s.wild_step(game, id, b, f);
+                        }
                     }
                 }
             }
@@ -668,7 +735,61 @@ impl World {
         self.s.player_name = player_name(name);
     }
 
-    /// Whether the overworld owns the frame (no starter screen, no battle).
+    /// The options (Gen3 `OPTION` menu).
+    pub fn options(&self) -> &Options {
+        &self.s.options
+    }
+
+    /// The Pokédex seen and caught flags.
+    pub fn pokedex(&self) -> &Pokedex {
+        &self.s.pokedex
+    }
+
+    /// The PC's items and boxes.
+    pub fn pc(&self) -> &PcStorage {
+        &self.s.pc
+    }
+
+    /// Gen3 `coins`.
+    pub fn coins(&self) -> u16 {
+        self.s.coins
+    }
+
+    /// The item registered on SELECT.
+    pub fn registered_item(&self) -> Option<ItemId> {
+        self.s.registered_item
+    }
+
+    /// How many screens are open (0 when the field, a battle or the starter screen owns the
+    /// frame).
+    pub fn screens_open(&self) -> usize {
+        match &self.s.mode {
+            Mode::Screens(stack) => stack.len(),
+            _ => 0,
+        }
+    }
+
+    /// The open screens, bottom first (empty when no screen is open).
+    pub fn screens(&self) -> Option<&crate::ui::ScreenStack> {
+        match &self.s.mode {
+            Mode::Screens(stack) => Some(stack),
+            _ => None,
+        }
+    }
+
+    /// A save of the current world, as the in-game save writes it (Task S; Wave 0 answers
+    /// `Err(SaveError::Unsupported)`).
+    pub fn save_snapshot(&self, game: &impl GameData) -> Result<Checkpoint, SaveError> {
+        save::save_now(self, game)
+    }
+
+    /// The shell's write of the last save failed: the save dialog answers "not saved" (Gen3
+    /// `SaveErrorTimer`).
+    pub fn save_failed(&mut self) {
+        save::save_failed(&mut self.s);
+    }
+
+    /// Whether the overworld owns the frame (no starter screen, no battle, no screen).
     pub fn field_active(&self) -> bool {
         matches!(self.s.mode, Mode::Field)
     }
@@ -752,6 +873,22 @@ impl World {
                 }
             }
         }
+        // Milestone 9: each piece only when it differs from a new game's (so routes that never
+        // touch it keep their hashes), except the Pokédex once anything was seen. The screen
+        // stack is in `s.mode` above (it writes nothing while empty, and `Mode::Screens` is
+        // never empty).
+        s.options.hash(&mut h);
+        s.pokedex.hash(&mut h);
+        s.pc.hash(&mut h);
+        if s.coins != 0 {
+            h.write(&[0xA9]);
+            h.write_u16(s.coins);
+        }
+        if let Some(item) = s.registered_item {
+            h.write(&[0xAA]);
+            h.write_u16(item.0);
+        }
+        s.fx.hash(&mut h);
         h.finish()
     }
 }

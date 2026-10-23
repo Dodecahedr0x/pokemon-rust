@@ -99,6 +99,7 @@ fn fight() -> Request {
     Request::BattleTrainer {
         trainer: TrainerId(TRAINER),
         defeat: LOSE,
+        no_whiteout: false,
     }
 }
 fn intro() -> [Request; 3] {

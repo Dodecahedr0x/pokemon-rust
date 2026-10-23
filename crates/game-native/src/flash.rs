@@ -200,6 +200,11 @@ mod tests {
                 str_vars: Default::default(),
                 warp_slots: Default::default(),
                 party_held: Vec::new(),
+                options: None,
+                pokedex: Default::default(),
+                pc: Default::default(),
+                coins: 0,
+                registered_item: None,
             },
         }
     }
@@ -218,6 +223,9 @@ mod tests {
                 build: cp.header.build,
                 frame: 1234,
                 map: MapId(3),
+                name: cp.world.player_name,
+                dex_caught: 0,
+                badges: 0,
             }
         );
     }
@@ -238,15 +246,54 @@ mod tests {
         assert_eq!((meta.frame, cp), (20, sample(20)));
     }
 
+    /// Milestone 9 Step 0: the largest checkpoint the 64 KiB one-slot layout takes, on erased
+    /// flash and then for every later save (agb_save writes the new copy before it frees the
+    /// old one). `MAX_ENCODED` keeps a 512-byte margin under it.
+    #[test]
+    fn slot_capacity_holds_max_encoded() {
+        // `n` two-byte flags (ids 0x80..0x4000).
+        let sized = |n: usize, frame: u32| {
+            let mut cp = sample(frame);
+            cp.world.vars.flags = (0..n).map(|i| FlagId(0x80 + (i % 0x3F00) as u16)).collect();
+            cp
+        };
+        let fits = |n: usize| {
+            let Ok(mut sav) = encode_sav(&sized(n, 1)) else {
+                return false;
+            };
+            for frame in [2, 3] {
+                match write_sav(&sav, &sized(n, frame)) {
+                    Ok(s) => sav = s,
+                    Err(_) => return false,
+                }
+            }
+            decode_sav(&sav).is_ok_and(|(_, cp)| cp == sized(n, 3))
+        };
+        let (mut lo, mut hi) = (0, FLASH_SIZE / 2);
+        assert!(fits(lo));
+        while hi - lo > 1 {
+            let mid = (lo + hi) / 2;
+            if fits(mid) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        let capacity = postcard::to_allocvec(&sized(lo, 3)).unwrap().len();
+        std::println!("64 KiB one-slot capacity: {capacity} bytes (MAX_ENCODED {MAX_ENCODED})");
+        assert!(MAX_ENCODED + 512 <= capacity);
+    }
+
     #[test]
     fn three_max_size_writes_fit() {
         let big = |frame: u32| {
             let mut cp = sample(frame);
-            let mut id = 0u16;
-            while postcard::to_allocvec(&cp).unwrap().len() < MAX_ENCODED - 16 {
-                cp.world.vars.flags.push(FlagId(id));
-                id += 1;
-            }
+            // Two-byte flags (ids 0x80..0x4000; a two-byte length) up to MAX_ENCODED - 16 or a
+            // byte more.
+            cp.world.vars.flags.clear();
+            let base = postcard::to_allocvec(&cp).unwrap().len() + 1;
+            let n = (MAX_ENCODED - 16 - base).div_ceil(2);
+            cp.world.vars.flags = (0..n).map(|i| FlagId(0x80 + (i % 0x3F00) as u16)).collect();
             cp
         };
         let size = postcard::to_allocvec(&big(1)).unwrap().len();

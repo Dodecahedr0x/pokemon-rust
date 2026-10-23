@@ -2,7 +2,8 @@
 //! types, every Gen3 constant (`FLAG_*`, `VAR_*`, `MAP_*`, `SPECIAL_*`, `STD_*`, `ITEM_*`,
 //! `OBJ_EVENT_GFX_*`, `SPECIES_*`, `MOVE_*`, `TRAINER_*`, `HEAL_LOCATION_*`), every text id,
 //! and the Gen3 std-script helpers, one file per owner (Milestone 8): [`msgbox`], `std`
-//! (`callstd`), `special`, `trainer` (Task I), `items`, `text` and `menu` (Task H). The
+//! (`callstd`), `special`, `trainer` (Task I), `items`, `text` and `menu` (Task H), and for
+//! Milestone 9 `mart` and `party` (Task J: `pokemart`, `ChoosePartyMon`, `SaveGame`, PCs). The
 //! helpers declared in Wave 0 issue their request and return the host's default; the owning task
 //! fills the Gen3 behaviour, and the script lowering (Task D2) emits only these names.
 
@@ -17,8 +18,10 @@ pub use engine::data::{
 pub use engine::script::{BufferSrc, Ctx, Emote, Fade, Report, Speed, Step, WarpSlot};
 
 mod items;
+mod mart;
 mod menu;
 mod msgbox;
+mod party;
 mod special;
 mod std;
 mod text;
@@ -26,8 +29,10 @@ mod trainer;
 
 pub use self::std::*;
 pub use items::*;
+pub use mart::*;
 pub use menu::*;
 pub use msgbox::*;
+pub use party::*;
 pub use special::*;
 pub use text::*;
 pub use trainer::*;

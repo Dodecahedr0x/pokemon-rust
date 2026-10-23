@@ -25,9 +25,11 @@ fn layout_is_stable() {
     assert_eq!(offset_of!(DebugRegion, events_dropped), 210);
     assert_eq!(offset_of!(DebugRegion, stack_min), 212);
     assert_eq!(offset_of!(DebugRegion, panicked), 214);
-    assert_eq!(size_of::<DebugRegion>(), 216);
+    assert_eq!(offset_of!(DebugRegion, late_saving), 216);
+    assert_eq!(offset_of!(DebugRegion, screens), 220);
+    assert_eq!(size_of::<DebugRegion>(), 224);
     assert_eq!(core::mem::align_of::<DebugRegion>(), 8);
-    assert_eq!(&DebugRegion::new().magic, b"PKRDBG03");
+    assert_eq!(&DebugRegion::new().magic, b"PKRDBG04");
 }
 
 #[test]

@@ -14,3 +14,4 @@ content/.extracted.old/
 checkpoints/*/snapshots/
 checkpoints/*/status.ron
 checkpoints/*/local/
+checkpoints/*/saves/

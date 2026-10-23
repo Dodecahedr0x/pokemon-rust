@@ -22,6 +22,10 @@ pub enum BootChoice {
     Restore,
     /// `World::new`, with the `debug::boot` code saying why.
     NewGame(u32),
+    /// The main menu (CONTINUE, NEW GAME, OPTION) over a valid slot (Milestone 9 Task S;
+    /// [`boot_choice`] does not answer it before then).
+    #[allow(dead_code, reason = "Milestone 9 Task S boots into it")]
+    MainMenu,
 }
 
 /// What agb reports for slot 0 at boot. Blank or foreign flash is reformatted by agb at init

@@ -63,7 +63,7 @@ impl ScriptHost for Host {
             Request::Random(_) | Request::PlayerFacing => Response::Value(0),
             Request::PlayerPos => Response::Pos(0, 0),
             Request::CurrentMap => Response::Value(0),
-            Request::YesNo => Response::Bool(self.yes),
+            Request::YesNo { .. } => Response::Bool(self.yes),
             // The bag and money always succeed.
             Request::ItemAdd { .. }
             | Request::ItemCheck { .. }
@@ -140,7 +140,7 @@ fn msgbox_yes_no_stores_the_answer_in_var_result() {
             [
                 Request::Message(TextId(0)),
                 Request::WaitMessage,
-                Request::YesNo
+                Request::YesNo { default_no: false }
             ]
         );
         assert_eq!(h.vars[&consts::VAR_RESULT.0], want);

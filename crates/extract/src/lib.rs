@@ -23,6 +23,8 @@ pub mod scripts;
 pub mod sprites;
 pub mod tables;
 pub mod text;
+pub mod ui_gfx;
+pub mod ui_text;
 pub mod window;
 
 pub use rom::{GameCode, ROM_BASE, Rom};

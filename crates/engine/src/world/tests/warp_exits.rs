@@ -69,6 +69,7 @@ static EXIT_MAPS: [MapData; 2] = [
         connections: &[],
         scripts: NO_SCRIPTS,
         allow_running: false,
+        map_type: 0,
     },
     MapData {
         name: "route north",
@@ -85,6 +86,7 @@ static EXIT_MAPS: [MapData; 2] = [
         connections: &[],
         scripts: NO_SCRIPTS,
         allow_running: false,
+        map_type: 0,
     },
 ];
 

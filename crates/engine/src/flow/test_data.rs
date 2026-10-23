@@ -163,6 +163,7 @@ static MAPS: [MapData; 2] = [
             on_warp_into: &[vs(0x4005, 2, 40), vs(0x4006, 0, 41)],
         },
         allow_running: true,
+        map_type: 0,
     },
     MapData {
         name: "house",
@@ -190,6 +191,7 @@ static MAPS: [MapData; 2] = [
             on_warp_into: &[],
         },
         allow_running: false,
+        map_type: 0,
     },
 ];
 

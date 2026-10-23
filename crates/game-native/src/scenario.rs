@@ -1128,6 +1128,7 @@ mod tests {
             connections: &[],
             scripts: MapScripts::default(),
             allow_running: false,
+            map_type: 0,
         })));
         let dir = |from, to| first_dir(&game, MapId(0), from, to, &[], false);
         // East out of the walled cell, and west into it, cross the wall: round by row 0 or 2.

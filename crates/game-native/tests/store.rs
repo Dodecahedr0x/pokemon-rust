@@ -183,6 +183,11 @@ fn checkpoint(frame: u32, state: u32, build: BuildHash) -> Checkpoint {
         str_vars: Default::default(),
         warp_slots: Default::default(),
         party_held: Vec::new(),
+        options: None,
+        pokedex: Default::default(),
+        pc: Default::default(),
+        coins: 0,
+        registered_item: None,
     };
     Checkpoint {
         header: Header {

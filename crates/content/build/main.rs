@@ -33,6 +33,7 @@ mod input;
 mod scripts;
 mod silice;
 mod stub;
+mod ui;
 
 use build_support::write_if_changed;
 use std::path::PathBuf;
@@ -194,6 +195,7 @@ fn main() {
         ("overrides.rs", &sc.overrides),
         ("report.txt", &format!("{}{}", sc.report, g.report)),
         ("battle.rs", &g.battle),
+        ("ui.rs", &ui::generate(&world)),
     ] {
         write_if_changed(&out.join(name), src.as_bytes()).unwrap();
     }

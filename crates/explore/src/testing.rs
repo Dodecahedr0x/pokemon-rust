@@ -773,6 +773,7 @@ fn copy_map(base: &'static MapData) -> MapData {
         name: base.name,
         width: base.width,
         height: base.height,
+        map_type: base.map_type,
         blocks: base.blocks,
         border: base.border,
         primary: base.primary,

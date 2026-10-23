@@ -9,7 +9,7 @@
 //! of `frame - 1`. Harnesses must key on `frame` and the input ring,
 //! never on emulator frame counts (boot adds an offset).
 
-pub const MAGIC: [u8; 8] = *b"PKRDBG03";
+pub const MAGIC: [u8; 8] = *b"PKRDBG04";
 pub const INPUT_RING: usize = 64;
 pub const OFF_FRAME: u32 = 8;
 pub const OFF_SCAN_PASSES: u32 = 12;
@@ -32,8 +32,10 @@ pub const OFF_REPORTS: u32 = 208;
 pub const OFF_EVENTS_DROPPED: u32 = 210;
 pub const OFF_STACK_MIN: u32 = 212;
 pub const OFF_PANICKED: u32 = 214;
+pub const OFF_LATE_SAVING: u32 = 216;
+pub const OFF_SCREENS: u32 = 220;
 /// `size_of::<DebugRegion>()`.
-pub const SIZE: usize = 216;
+pub const SIZE: usize = 224;
 /// [`DebugRegion::last_script`] before any script started.
 pub const NO_SCRIPT: u16 = 0xFFFF;
 
@@ -128,6 +130,15 @@ pub struct DebugRegion {
     pub stack_min: u16,
     /// The line of the panic location (saturates at `u16::MAX`) once the ROM panicked, else 0.
     pub panicked: u16,
+    // ---- v4 (Milestone 9 Wave 0) ----
+    /// Late applies while the shell wrote the in-game save to flash (`Event::Saved`): flash
+    /// time stalls the shell, not the engine, so they are counted apart from `late` and not
+    /// gated (decision 6).
+    pub late_saving: u32,
+    /// `World::screens_open()`: screens open after step `frame`.
+    pub screens: u16,
+    /// Padding to the region's 8-byte alignment.
+    pub _pad: u16,
 }
 
 const _: () = {
@@ -152,6 +163,8 @@ const _: () = {
     assert!(core::mem::offset_of!(DebugRegion, events_dropped) == OFF_EVENTS_DROPPED as usize);
     assert!(core::mem::offset_of!(DebugRegion, stack_min) == OFF_STACK_MIN as usize);
     assert!(core::mem::offset_of!(DebugRegion, panicked) == OFF_PANICKED as usize);
+    assert!(core::mem::offset_of!(DebugRegion, late_saving) == OFF_LATE_SAVING as usize);
+    assert!(core::mem::offset_of!(DebugRegion, screens) == OFF_SCREENS as usize);
     assert!(core::mem::size_of::<DebugRegion>() == SIZE);
     // emu scans EWRAM in 8-byte steps.
     assert!(core::mem::align_of::<DebugRegion>() == 8);
@@ -183,6 +196,9 @@ impl DebugRegion {
             events_dropped: 0,
             stack_min: 0,
             panicked: 0,
+            late_saving: 0,
+            screens: 0,
+            _pad: 0,
         }
     }
 }

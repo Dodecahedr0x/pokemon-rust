@@ -183,6 +183,7 @@ fn fixture_ir() -> Vec<ScriptFile> {
                 "MOVEMENT_ACTION_FACE_DOWN".into(),
             ],
         }],
+        lists: vec![],
     };
     let other = ScriptFile {
         module: "Other".into(),
@@ -197,6 +198,7 @@ fn fixture_ir() -> Vec<ScriptFile> {
             ],
         )],
         movements: vec![],
+        lists: vec![],
     };
     vec![stub_town, other]
 }
