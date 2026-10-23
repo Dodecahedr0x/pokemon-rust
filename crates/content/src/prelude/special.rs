@@ -260,6 +260,9 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             ctx.fade(Fade::FromBlack).await
         }
         id if id == SPECIAL_DrawWholeMapView => ctx.redraw_map().await,
+        id if id == SPECIAL_SetSootopolisGymCrackedIceMetatiles => {
+            set_sootopolis_gym_cracked_ice(ctx).await
+        }
         id if id == SPECIAL_InitBirchState => ctx.set_var(VAR_BIRCH_STATE, 0).await,
         id if id == SPECIAL_GetPCBoxToSendMon => return ctx.var(VAR_PC_BOX_TO_SEND_MON).await,
         id if id == SPECIAL_CalculatePlayerPartyCount || id == SPECIAL_CountPartyNonEggMons => {

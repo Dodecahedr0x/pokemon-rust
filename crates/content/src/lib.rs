@@ -547,6 +547,18 @@ impl GameData for Game {
     fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
         battle::heal_location(id)
     }
+
+    fn step_callback(&self, map: MapId) -> Option<engine::data::StepCallback> {
+        prelude::step_callback(map)
+    }
+
+    fn hole_warp(&self, map: MapId) -> Option<MapId> {
+        prelude::hole_warp(map)
+    }
+
+    fn fall_script(&self) -> Option<ScriptId> {
+        data::SCRIPT_FALL_DOWN_HOLE
+    }
 }
 
 /// The Emerald and stub tables and scripts (the Silice flavour's are `silice::tests`).

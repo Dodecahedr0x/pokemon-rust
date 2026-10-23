@@ -13,7 +13,7 @@
 // The 483 specials named by a `special`/`specialvar` line of the decomp (`data/**/*.inc` and
 // `data/*.s`, `data/specials.inc` excluded) are classified; the other 41 are Unsupported.
 //
-// Counts: 64 Native, 19 Ignore, 83 Default, 358 Unsupported.
+// Counts: 65 Native, 19 Ignore, 83 Default, 357 Unsupported.
 {
     "SPECIAL_AccessHallOfFamePC": Unsupported, // post-game; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_Bag_ChooseBerry": Native, // degraded: no bag screen, nothing chosen; fades back in
@@ -427,7 +427,7 @@
     "SPECIAL_SetRoute123Weather": Unsupported,
     "SPECIAL_SetSSTidalFlag": Unsupported,
     "SPECIAL_SetSecretBaseOwnerGfxId": Unsupported,
-    "SPECIAL_SetSootopolisGymCrackedIceMetatiles": Unsupported,
+    "SPECIAL_SetSootopolisGymCrackedIceMetatiles": Native, // the cracked ice the row vars remember (prelude::puzzle)
     "SPECIAL_SetTrainerFacingDirection": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
     "SPECIAL_SetTrickHouseNuggetFlag": Unsupported,
     "SPECIAL_SetUnlockedPokedexFlags": Ignore, // GameCube link flags only

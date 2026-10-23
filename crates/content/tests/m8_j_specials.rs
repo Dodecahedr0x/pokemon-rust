@@ -554,6 +554,25 @@ fn native_specials_issue_their_requests_in_order() {
     assert_eq!(h.log, want);
     covered.insert("SPECIAL_PetalburgGymUnlockRoomDoors");
     covered.insert("SPECIAL_PetalburgGymSlideOpenRoomDoors");
+    // `SetSootopolisGymCrackedIceMetatiles`: VAR_TEMP_1 (row 6) bits 0 and 10 are columns 3
+    // and 13; the other row vars (all read, in row order) are clear.
+    let mut h = Rec::default();
+    h.vars.insert(0x4001, 1 | 1 << 10);
+    run_special(&mut h, "SPECIAL_SetSootopolisGymCrackedIceMetatiles");
+    let mut want = vec![Request::GetVar(VarId(0x4001))];
+    for x in [3, 13] {
+        want.push(Request::SetMetatile {
+            x,
+            y: 6,
+            metatile: 0x20E,
+            blocked: false,
+        });
+    }
+    for v in [0x4002, 0x4003, 0x4004, 0x4005, 0x4006, 0x4007, 0x4008, 0x4009, 0x400A] {
+        want.push(Request::GetVar(VarId(v)));
+    }
+    assert_eq!(h.log, want);
+    covered.insert("SPECIAL_SetSootopolisGymCrackedIceMetatiles");
     covered.insert("SPECIAL_CableCarWarp");
     covered.insert("SPECIAL_CableCar");
     // `GetMomOrDadStringForTVMessage` with `VAR_TEMP_3` already set (a second look at the TV):
