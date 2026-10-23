@@ -148,6 +148,7 @@ const fn map(name: &'static str, w: u16, h: u16, blocks: &'static [u16]) -> MapD
         connections: &[],
         scripts: NO_SCRIPTS,
         allow_running: true,
+        map_type: 0,
     }
 }
 
