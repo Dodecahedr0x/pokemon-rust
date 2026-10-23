@@ -86,6 +86,34 @@ impl PcStorage {
         self.items[i] = slot;
     }
 
+    /// Gen3 `AddPCItem`: tops up the slots that hold `item` (up to [`MAX_PC_ITEM_CAPACITY`]),
+    /// then puts the rest in the first free slot. False, with nothing changed, when it does not
+    /// fit.
+    pub fn add_item(&mut self, item: ItemId, qty: u16) -> bool {
+        let mut items = self.items.clone();
+        let mut left = qty;
+        for s in items.iter_mut().filter(|s| s.qty > 0 && s.item == item) {
+            if left == 0 {
+                break;
+            }
+            let n = left.min(MAX_PC_ITEM_CAPACITY.saturating_sub(s.qty));
+            s.qty += n;
+            left -= n;
+        }
+        if left > 0 {
+            match items.iter_mut().find(|s| s.qty == 0) {
+                Some(s) => *s = Slot { item, qty: left },
+                None => return false,
+            }
+        }
+        for (i, s) in items.into_iter().enumerate() {
+            if s != self.items[i] {
+                self.set_item(i, s);
+            }
+        }
+        true
+    }
+
     pub fn box_count(&self) -> u8 {
         self.box_count
     }

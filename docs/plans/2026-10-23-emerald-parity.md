@@ -118,15 +118,14 @@ Each row is one `Step::Bypass` of `explore/src/spine/emerald.rs` (its `issue`); 
 
 | issue (step) | map (cell) | error / report | decomp feature | owner |
 |---|---|---|---|---|
-| `new-game-map-flags` (78, after `badge1`) | new game; seen on Route 104 (17,50) | Briney's door is blocked by the Route 104 rival object ("enter: no warp"): its `FLAG_HIDE_*` was never set | `EventScript_ResetAllMapFlags` (`data/scripts/new_game.inc`): `content::new_game` sets 25 of its 159 flags; the bypass sets the 134 others that Act 1 left untouched | content (new game), Wave C |
-| `briney-sail-camera` (115) | Route104_MrBrineysHouse (9,6) to Route 104 (13,51) | RoundTrip finding: `restore failed: Invalid("camera far outside the map")` during the sail | `Route104_EventScript_SailToDewford`: `applymovement` of the boat and player across map connections, `showobjectat` on another map | engine (camera / checkpoint across connections), Wave C |
-| `briney-sail-camera-slateport` (151) | Dewford Town (11,9), Briney's multichoice: Slateport | the same RoundTrip finding | `DewfordTown_EventScript_SailToSlateport` (same pattern, lands on Route 109) | engine, same fix as `briney-sail-camera` |
-| `mauville-gym-barriers` (245) | MauvilleCity_Gym (4,20) | Wattson unreachable: the floor switches' trigger runs but no barrier moves (`NoPath` to Wattson) | `SPECIAL_MauvilleGymSetDefaultBarriers`, `SPECIAL_MauvilleGymPressSwitch` (unsupported; they toggle every beam metatile) | engine specials, Wave C |
-| `mauville-gym-deactivate` (250) | MauvilleCity_Gym (4,19), after Wattson | the way out stays barred: Wattson's script deactivates the puzzle through an unsupported special | `SPECIAL_MauvilleGymDeactivatePuzzle` | engine specials, Wave C (with `mauville-gym-barriers`) |
-| `teach-hm-rock-smash` (258) | Mauville City (32,15), after HM06 | the spine has no way to teach an HM: no bag or party menu; the bypass writes Rock Smash over the lead's slot 2 | party menu: teach a TM/HM (`ItemUseOutOfBattle_TMHM`, `party_menu.c`) | engine UI (bag, party menu), Milestone 9 |
-| `checkpartymove-rock-smash` (261) | Route 111 (18,101), the rock north of the Winstrates' | `EventScript_RockSmash` never offers to smash: `checkpartymove` is a `Default(6)` stub, so no party mon "knows" the move; the rock and the tip man block the corridor (`NoPath`) | `checkpartymove` (`ScrCmd_checkpartymove`), then the field move (`dofieldeffect FLDEFF_USE_ROCK_SMASH`) | content (script command), Wave C; every later HM (Cut, Strength, Surf...) needs it |
-| `cable-car` (302) | Route112_CableCarStation (6,4) | the ride never starts: the attendant's script sets `VAR_CABLE_CAR_STATION_STATE` 1 and the player stays in the station | `SPECIAL_CableCarWarp` (sets the warp to the Mt. Chimney station's (6,4)), `SPECIAL_CableCar` (the ride scene, `cable_car.c`) | engine specials, Wave C |
-| `lavaridge-gym-warps` (315) | LavaridgeTown_Gym_1F (8,9) | "enter: no warp": the gym's holes and geysers do not warp; Flannery's platform is reached only through them (1F (8,9), B1F (8,6), 1F (10,6), B1F (12,12)) | `MB_LAVARIDGE_GYM_1F_WARP`, `MB_LAVARIDGE_GYM_B1F_WARP` (`field_control_avatar.c` Lavaridge warp checks, `FLDEFF_LAVARIDGE_GYM_WARP` / `FLDEFF_POP_OUT_OF_ASH`) | engine (field), Wave C |
+| `briney-sail-camera` (117) | Route104_MrBrineysHouse (9,6) to Route 104 (13,51) | RoundTrip finding: `restore failed: Invalid("camera far outside the map")` during the sail | `Route104_EventScript_SailToDewford`: `applymovement` of the boat and player across map connections, `showobjectat` on another map | engine (camera / checkpoint across connections), Wave C |
+| `briney-sail-camera-slateport` (153) | Dewford Town (11,9), Briney's multichoice: Slateport | the same RoundTrip finding | `DewfordTown_EventScript_SailToSlateport` (same pattern, lands on Route 109) | engine, same fix as `briney-sail-camera` |
+| `mauville-gym-barriers` (267) | MauvilleCity_Gym (4,20) | Wattson unreachable: the floor switches' trigger runs but no barrier moves (`NoPath` to Wattson) | `SPECIAL_MauvilleGymSetDefaultBarriers`, `SPECIAL_MauvilleGymPressSwitch` (unsupported; they toggle every beam metatile) | engine specials, Wave C |
+| `mauville-gym-deactivate` (272) | MauvilleCity_Gym (4,19), after Wattson | the way out stays barred: Wattson's script deactivates the puzzle through an unsupported special | `SPECIAL_MauvilleGymDeactivatePuzzle` | engine specials, Wave C (with `mauville-gym-barriers`) |
+| `teach-hm-rock-smash` (280) | Mauville City (32,15), after HM06 | the spine has no way to teach an HM: no bag or party menu; the bypass writes Rock Smash over the lead's slot 2 | party menu: teach a TM/HM (`ItemUseOutOfBattle_TMHM`, `party_menu.c`) | engine UI (bag, party menu), Milestone 9 |
+| `checkpartymove-rock-smash` (283) | Route 111 (18,101), the rock north of the Winstrates' | `EventScript_RockSmash` never offers to smash: `checkpartymove` is a `Default(6)` stub, so no party mon "knows" the move; the rock and the tip man block the corridor (`NoPath`) | `checkpartymove` (`ScrCmd_checkpartymove`), then the field move (`dofieldeffect FLDEFF_USE_ROCK_SMASH`) | content (script command), Wave C; every later HM (Cut, Strength, Surf...) needs it |
+| `cable-car` (324) | Route112_CableCarStation (6,4) | the ride never starts: the attendant's script sets `VAR_CABLE_CAR_STATION_STATE` 1 and the player stays in the station | `SPECIAL_CableCarWarp` (sets the warp to the Mt. Chimney station's (6,4)), `SPECIAL_CableCar` (the ride scene, `cable_car.c`) | engine specials, Wave C |
+| `lavaridge-gym-warps` (337) | LavaridgeTown_Gym_1F (8,9) | "enter: no warp": the gym's holes and geysers do not warp; Flannery's platform is reached only through them (1F (8,9), B1F (8,6), 1F (10,6), B1F (12,12)) | `MB_LAVARIDGE_GYM_1F_WARP`, `MB_LAVARIDGE_GYM_B1F_WARP` (`field_control_avatar.c` Lavaridge warp checks, `FLDEFF_LAVARIDGE_GYM_WARP` / `FLDEFF_POP_OUT_OF_ASH`) | engine (field), Wave C |
 
 **Report-only findings along the spine** (it plays on; first site of each): `dofieldeffect` and `waitfieldeffect` (every Center heal); `bufferitemnameplural` (degraded, Birch's lab); `SPECIAL_StartWallyTutorialBattle` (degraded, Petalburg); the evolution scene (degraded); `copyobjectxytoperm` (Rustboro (30,11), Rusturf Tunnel (9,5)); `SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial` (degraded, Rustboro (11,17)); `setholewarp` (Granite Cave B1F (4,21)); move effects 087 (Brawly's gym), 176 (Route 110 wild) and 007 (Wattson); `SPECIAL_UpdateCyclingRoadState` (Route 110 (17,99)); `ai pursuit viability` (degraded, Route 110 rival); `SPECIAL_SetMauvilleOldManObjEventGfx` (Mauville Center); `SPECIAL_SetMirageTowerVisibility`, `setmaplayoutindex` and `SPECIAL_GabbyAndTyGetBattleNum` (Route 111 (16,139)); move effect 117 (Route 113 (7,9)); `SPECIAL_CableCarWarp` and `SPECIAL_CableCar` (also a bypass).
 
@@ -291,7 +290,7 @@ A name defined several times (`sMenu`, `HandleInputChooseAction`) keeps the tabl
 - `#[ignore]` `vanilla/tests/boot.rs`: boots BPEE to the truck and prints the diff with our new game;
 - `#[ignore]` `vanilla/tests/intro.rs`: drives BPEE through the intro (out of the truck, Mom, the clock, May's house, meeting May) to **our new game's start**, then through Birch's rescue (Zigzagoon battle won with Pound) and the lab's starter (Mudkip, species 283, Pound and Growl). It diffs at both points: with `Emerald::default()` and with `Emerald::after_starter()`. It takes about 6 s in release.
 
-**What the diffs show.** Our new game starts outside Brendan's house with May met (`content::new_game`, `Start::BeforeRescue`). In the truck, the map, the cell, the four `VAR_LITTLEROOT_*` intro vars, the intro flags, the respawn and the objects therefore differ by design. At our start, after vanilla played the intro, **all `VAR_LITTLEROOT_*` vars, the map and the respawn agree**. After the starter, `VAR_BIRCH_LAB_STATE`, `VAR_ROUTE101_STATE`, `VAR_STARTER_MON`, the Littleroot vars, the party species and moves and the HP bucket agree too. What remains are parity gaps for Wave C, all in the new-game data:
+**What the diffs show.** Our new game starts outside Brendan's house with May met (`content::new_game`, `Start::BeforeRescue`). In the truck, the map, the cell, the four `VAR_LITTLEROOT_*` intro vars, the intro flags, the respawn and the objects therefore differ by design. At our start, after vanilla played the intro, **all `VAR_LITTLEROOT_*` vars, the map and the respawn agree**. After the starter, `VAR_BIRCH_LAB_STATE`, `VAR_ROUTE101_STATE`, `VAR_STARTER_MON`, the Littleroot vars, the party species and moves and the HP bucket agree too. What remained were parity gaps for Wave C, all in the new-game data (closed by Wave C "new-game state parity", below):
 
 1. **136 `FLAG_HIDE_*` flags** that `EventScript_ResetAllMapFlags` (`new_game.c` `NewGameInitData`) sets are clear in our new game. Examples: `FLAG_HIDE_ROUTE_104_RIVAL`, `FLAG_HIDE_PETALBURG_CITY_WALLY`, the Mr. Briney, Scott, Aqua and Magma, and Steven objects. `content::new_game` sets only the Littleroot subset, so these objects would be visible in our game where Emerald hides them. **Story-relevant: likely the largest single gap.**
 2. **`FLAG_HIDE_LITTLEROOT_TOWN_FAT_MAN`** is set in ours and clear in vanilla after the intro: the intro clears it, and our new game sets it.
@@ -318,18 +317,18 @@ A name defined several times (`sMenu`, `HandleInputChooseAction`) keeps the tabl
 
 ### Task S — spine Act 2+ (branch `worktree-agent-abf2907939cd907aa`)
 
-**Reach.** The Emerald spine runs 320 steps and 548,040 frames to Flannery's badge (Act 4's end), about 1 s in release, after the Wave C3 merge (abilities and hold effects). Act 1 is unchanged: `badge1` is still at step 78, frame 109,851, and no bypass comes before it. Nine bypasses come after it (§2); `spine_reaches_badge4` asserts their list equals `SPINE_BLOCKERS`.
+**Reach.** The Emerald spine runs 342 steps and 555,914 frames to Flannery's badge (Act 4's end), about 1 s in release, after the Wave C3 (abilities, hold effects) and C5 (new-game state) merges. `badge1` is at step 81, frame 104,335, and no bypass comes before it. Eight bypasses come after it (§2); `spine_reaches_badge4` asserts their list equals `SPINE_BLOCKERS`.
 
 | checkpoint | step | frame | where |
 |---|---|---|---|
-| `devon_goods` | 93 | 130,038 | Rusturf Tunnel (13,5): the grunt beaten |
-| `mr_stone` | 100 | 142,119 | Devon Corp 3F: the PokéNav |
-| `dewford` | 118 | 151,423 | after `briney-sail-camera` |
-| `steven` | 132 | 162,016 | Granite Cave, Steven's room |
-| `badge2` | 145 | 222,593 | Brawly |
-| `museum` | 167 | 242,807 | Oceanic Museum 2F: the Devon Goods delivered, the Aqua grunts beaten |
-| `badge3` | 250 | 436,605 | Wattson, after `mauville-gym-barriers` |
-| `badge4` | 320 | 548,040 | Flannery, after `cable-car` and `lavaridge-gym-warps` |
+| `devon_goods` | 95 | 121,399 | Rusturf Tunnel (13,5): the grunt beaten |
+| `mr_stone` | 102 | 129,903 | Devon Corp 3F: the PokéNav |
+| `dewford` | 120 | 139,413 | after `briney-sail-camera` |
+| `steven` | 134 | 149,490 | Granite Cave, Steven's room |
+| `badge2` | 147 | 221,643 | Brawly |
+| `museum` | 169 | 240,859 | Oceanic Museum 2F: the Devon Goods delivered, the Aqua grunts beaten |
+| `badge3` | 272 | 455,954 | Wattson, after `mauville-gym-barriers` |
+| `badge4` | 342 | 555,914 | Flannery, after `cable-car` and `lavaridge-gym-warps` |
 
 **Goals.** Two new acts:
 - `act2` (8 goals, from `goods_stolen` to `badge2`);
@@ -375,3 +374,27 @@ Policy:
 - Route 111's rest stop: the planner's direct walk stalled at (21,12); `Goto`s to (28,11) and (29,17) first.
 
 **Not covered.** Past the first bypass the inputs do not reproduce from a new game; a branch's origin checkpoint does. `cargo xtask explore branch` on the extended spine: see the final report.
+
+### Wave C — new-game state parity
+
+**What is built.**
+- **`EventScript_ResetAllMapFlags` comes from the decomp.** `extract/tests/names.rs` reads its `setflag`s from `data/scripts/new_game.inc` into `names::RESET_ALL_MAP_FLAGS` (159 names, guarded by the drift test like the other decomp tables). The content build emits `consts::RESET_ALL_MAP_FLAGS: &[FlagId]`.
+- **`content::new_game` (Emerald only) runs `NewGameInitData`, then the skipped intro.**
+  - `NewGameInitData`: every `RESET_ALL_MAP_FLAGS` flag, `SetMoney(3000)`, `VAR_SEEDOT_SIZE_RECORD`/`VAR_LOTAD_SIZE_RECORD` = `DEFAULT_MAX_SIZE` (0x8000), and `NewGameInitPCItems` (a Potion in the PC).
+  - The male intro up to meeting May: `SetIntroFlagsMale`, the truck and the Vigoroths, `FLAG_SET_WALL_CLOCK`/`FLAG_SYS_CLOCK_SET`, `FLAG_SYS_TV_HOME`/`FLAG_SYS_TV_WATCH`, `FLAG_MET_RIVAL_MOM`, `FLAG_DECORATION_1..14`, May's 2F Poké Ball. It clears `FLAG_HIDE_LITTLEROOT_TOWN_FAT_MAN` and May's bedroom flag, as the intro does.
+  - `Start::AfterStarter` adds the rescue and the lab, clears `FLAG_HIDE_LITTLEROOT_TOWN_BIRCHS_LAB_BIRCH` and `FLAG_HIDE_ROUTE_101_BOY`, and sets `VAR_DAILY_WILDS` 1 for the rescue's skipped battle.
+- **Engine:** `Request::PcItemAdd` (`Ctx::pc_item_add`, hash tag 100) and `PcStorage::add_item` (Gen3 `AddPCItem`: top up to 999, then the first free slot, all or nothing).
+- **Oracle:** `vanilla/tests/intro.rs` now asserts both diffs. At our new game's start only `cell` differs: we stand outside Brendan's house, and vanilla has just left May's. After the starter only the placement differs: map, cell, facing and the objects, because vanilla stands in the lab.
+- **Spine:** the `new-game-map-flags` bypass and its blocker row are gone. The objects now hidden from the start change which wanderers draw from the RNG, so the battles from Act 1 on play differently. Three spots then lost a battle, and the spine now steps around them:
+  - a heal at Oldale's Center before Route 102;
+  - `GotoAvoiding` past the Route 116 School Kid's sight (her Shroomish);
+  - one more level (33) on Route 110 before Wattson.
+  
+  `EMERALD_BADGE1_FRAMES` is now 104,335 and `EMERALD_FRAMES` is 455,512.
+
+**Not done.**
+- `addpcitem`/`checkpcitem` in scripts are still `Default(0)` (`commands.ron`). The request now exists for lowering them.
+- `EventScript_ResetAllBerries` (berry trees) is not run. The engine has no berry trees.
+- Options (`SetDefaultOptions`) are left as they are, because the engine's defaults are Gen3's (text speed MID).
+- The engine never counts `VAR_DAILY_WILDS` on a played wild battle.
+
