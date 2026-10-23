@@ -1,6 +1,6 @@
 // Silice Ch4, MAP_PORT_RESSAC_GYM: the Zenith-Grog, Samuel's ship (20 x 22): the quarterdeck (north,
 // y 1-6), the raised front with the barred stairs (y 7-10), the main deck (y 10-17) and the
-// gangway, the "coupée" (south, y 18-21). General + Facility (Emerald tilesets by name): the
-// Abandoned Ship's deck is Emerald's only open ship deck (planks, railings, deckhouses with doorways,
-// masts, hull, boarding stairs), with the sea drawn as decor around the hull. Border: that sea, blocked.
-(name: "PortRessac_Gym", width: 20, height: 22, primary: "General", secondary: "Facility", fill: 552, border: [1438, 1438, 1438, 1438])
+// gangway, the "coupée" (south, y 18-21). General (Emerald, by name) + SilPortRessacGym (original,
+// games/silice/tilesets): plank deck, railings, the hull, deckhouses, the great mast, the helm, rum
+// barrels, with the sea drawn as decor around the hull. Border: that sea, blocked.
+(name: "PortRessac_Gym", width: 20, height: 22, primary: "General", secondary: "SilPortRessacGym", fill: 512, border: [1392, 1392, 1392, 1392])
