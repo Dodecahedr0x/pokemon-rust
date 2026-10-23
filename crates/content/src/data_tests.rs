@@ -527,6 +527,12 @@ fn every_script_id_dispatches() {
     }
 }
 
+/// Whether this is the hand-written fixture of `tests/build_modes.rs` (the stub world plus a
+/// two-module script IR): it has none of the game's standard scripts.
+fn fixture() -> bool {
+    data::SCRIPT_NAMES.contains(&"StubTown_EventScript_Obj1")
+}
+
 /// Only does something on the fixture of `tests/build_modes.rs`: its hand-written IR
 /// `StubTown_EventScript_Obj1`, lowered by the build, runs through msgbox, a movement table, a
 /// label call, a cross-module call, special, `checkplayergender`, `STD_OBTAIN_ITEM`, an
@@ -973,7 +979,7 @@ mod battle_tests;
 /// menu's `SetUpFieldMove_*`), when the ROM data is in.
 #[test]
 fn hm_moves_and_field_move_gates() {
-    if STUB {
+    if STUB || fixture() {
         return;
     }
     let (surf, rock_smash) = (data::HM_MOVES[2], data::HM_MOVES[5]);
@@ -988,4 +994,26 @@ fn hm_moves_and_field_move_gates() {
         }
     );
     assert!(Emerald.field_move_script(FieldMove::Surf).is_some());
+}
+
+/// The maps' `on_resume` puzzles (`setstepcallback`, `setholewarp`) and the fall script.
+#[test]
+fn hole_warps_and_step_callbacks() {
+    use consts::*;
+    assert_eq!(
+        Emerald.hole_warp(MAP_GRANITE_CAVE_B1F),
+        Some(MAP_GRANITE_CAVE_B2F)
+    );
+    assert_eq!(Emerald.hole_warp(MAP_SKY_PILLAR_4F), Some(MAP_SKY_PILLAR_3F));
+    assert_eq!(Emerald.hole_warp(MAP_ROUTE101), None);
+    assert!(matches!(
+        Emerald.step_callback(MAP_SOOTOPOLIS_CITY_GYM_1F),
+        Some(StepCallback::Ice(_))
+    ));
+    let Some(StepCallback::CrackedFloor(f)) = Emerald.step_callback(MAP_MT_PYRE_2F) else {
+        panic!("Mt. Pyre 2F has cracked floors");
+    };
+    assert_eq!((f.hole_for(0x22F), f.hole_for(0x22E)), (0x206, 0x237));
+    assert_eq!(Emerald.step_callback(MAP_ROUTE101), None);
+    assert_eq!(Emerald.fall_script().is_some(), !STUB && !fixture());
 }

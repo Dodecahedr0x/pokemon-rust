@@ -41,9 +41,6 @@ const EMERALD_LABELS: &[&str] = &[
 /// deleting its bypass (and its line here).
 const SPINE_BLOCKERS: &[&str] = &[
     "teach-hm-rock-smash",
-    "cable-car",
-    "lavaridge-gym-warps",
-    "petalburg-gym-doors",
     "teach-hm-surf",
 ];
 

@@ -168,7 +168,7 @@ impl Object {
             gfx: self.gfx,
             pos: (self.x, self.y),
             prev: self.prev,
-            elevation: self.elevation,
+            elevation: self.packed_elevation(),
             facing: self.facing,
             movement: self.movement,
             home: self.home,
@@ -200,6 +200,7 @@ impl Object {
     }
 
     fn from_snapshot(s: &ObjectSnap) -> Object {
+        let (elevation, prev_elevation) = Object::unpack_elevation(s.elevation);
         Object {
             local_id: s.local_id,
             map: s.map,
@@ -207,7 +208,8 @@ impl Object {
             x: s.pos.0,
             y: s.pos.1,
             prev: s.prev,
-            elevation: s.elevation,
+            elevation,
+            prev_elevation,
             facing: s.facing,
             movement: s.movement,
             code: super::movement_code(s.movement),

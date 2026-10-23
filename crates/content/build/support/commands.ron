@@ -10,7 +10,7 @@
 //   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
 // Only Unsupported commands report.
 //
-// Counts: 111 Native, 42 Ignore, 13 Default, 61 Unsupported.
+// Counts: 112 Native, 43 Ignore, 13 Default, 59 Unsupported.
 //
 // Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
 {
@@ -74,12 +74,12 @@
     "warp": Native,
     "warpsilent": Native,
     "warpdoor": Native,
-    "warphole": Unsupported,                        // falling through holes is not modelled
+    "warphole": Native,                             // MAP_UNDEFINED: the map's hole warp (GameData::hole_warp)
     "warpteleport": Native,
     "setwarp": Unsupported,                         // the warp destination of warp specials (DoContestHallWarp, ...); no WarpSlot for it
     "setdynamicwarp": Native,
     "setdivewarp": Unsupported,                     // Dive is M9
-    "setholewarp": Unsupported,                     // falling through holes is not modelled
+    "setholewarp": Ignore,                          // GameData::hole_warp answers the map's on_resume value
     "getplayerxy": Native,
     "getpartysize": Native,
     "additem": Native,
@@ -180,7 +180,7 @@
     "resetweather": Ignore,                         // weather is not drawn
     "setweather": Ignore,                           // weather is not drawn
     "doweather": Ignore,                            // weather is not drawn
-    "setstepcallback": Ignore,                      // per-step field effects (ash, ice, footprints) are not modelled
+    "setstepcallback": Ignore,                      // GameData::step_callback answers the map's on_resume value (ice, cracked floors); ash, bridges and the truck are not modelled
     "setmaplayoutindex": Native,
     "setobjectsubpriority": Ignore,                 // sprite draw order only
     "resetobjectsubpriority": Ignore,               // sprite draw order only

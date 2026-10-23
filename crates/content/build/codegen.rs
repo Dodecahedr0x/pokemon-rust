@@ -728,6 +728,12 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         "/// HM01..HM08's moves (Gen3 `sHMMoves`, by `ITEM_HM0n`; Wave C).\npub static HM_MOVES: [MoveId; 8] = [{}];",
         hms.map(|v| format!("MoveId({v})")).join(", ")
     )?;
+    let fall = s.names.iter().position(|n| n == "EventScript_FallDownHole");
+    writeln!(
+        o,
+        "/// `EventScript_FallDownHole`, when the scripts have it (`GameData::fall_script`).\npub const SCRIPT_FALL_DOWN_HOLE: Option<ScriptId> = {};",
+        fall.map_or("None".into(), |i| format!("Some(ScriptId({i}))"))
+    )?;
     let repel = s.names.iter().position(|n| n == "EventScript_RepelWoreOff");
     writeln!(
         o,

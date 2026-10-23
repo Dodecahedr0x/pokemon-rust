@@ -172,6 +172,11 @@ fn load_map_spread(
     } else {
         s.field.enter(game, id, camera, f);
     }
+    // Gen3 `InitPlayerAvatar` makes a new player object (elevations 0) and its first
+    // `ObjectEventUpdateElevation` takes the arrival cell's: `previousElevation` is that one
+    // unless it is 0 or 15.
+    let e = crate::data::block_elevation(s.field.block(game, x, y));
+    s.objects.reset_player_position_elevation(if e == 15 { 0 } else { e });
     for script in [map.scripts.on_load, map.scripts.on_resume]
         .into_iter()
         .flatten()

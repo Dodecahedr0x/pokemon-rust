@@ -42,10 +42,7 @@ On the user's request the running agents were stopped and their branches merged 
   4. warp, then `fall_script` on a hole;
   5. Wave 0's friendship, repel and encounter chain.
 - **Next (scoped by its review):** Emerald's content hooks are still missing:
-  - the `step_callback` table from `setstepcallback` (`STEP_CB_SOOTOPOLIS_ICE`, `STEP_CB_CRACKED_FLOOR`, currently `Ignore`);
-  - lowering `warphole` and `setholewarp` (currently `Unsupported`);
-  - wiring `EventScript_FallDownHole` and `on_frame VAR_ICE_STEP_COUNT == 0`;
-  - `IceRows` for Sootopolis's `VAR_TEMP_1..` rows.
+  - done in Wave C (spine warps): the `step_callback` and `hole_warp` tables (`content::prelude::puzzle`), `warphole` lowered, `fall_script` = `EventScript_FallDownHole`, Sootopolis's `IceRows`.
 
   The explorer's path planner still treats forced cells as plain floor.
 

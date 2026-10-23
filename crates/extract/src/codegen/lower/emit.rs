@@ -440,6 +440,21 @@ impl<'a> Low<'a> {
                 };
                 out.push(format!("ctx.warp({m}, {w}, {x}, {y}).await;{note}"));
             }
+            ("warphole", [m]) => {
+                // Gen3 `ScrCmd_warphole`: MAP_UNDEFINED falls to the map's `setholewarp` map
+                // (`GameData::hole_warp`).
+                let m = if u16_lit(m) == Some(0xFFFF)
+                    || matches!(m, IrArg::Const { name, .. } if name == "MAP_UNDEFINED")
+                {
+                    "None".to_string()
+                } else {
+                    let Some(m) = map_arg(m) else {
+                        return Ok(false);
+                    };
+                    format!("Some({m})")
+                };
+                out.push(format!("ctx.warp_hole({m}).await;"));
+            }
             ("setdynamicwarp" | "setescapewarp", [m, w, x, y]) => {
                 let (Some(m), Some(w), Some(x), Some(y)) =
                     (map_arg(m), warp_id(w), coord(x), coord(y))

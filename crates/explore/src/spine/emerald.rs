@@ -59,32 +59,10 @@ mod list {
             avoid,
         }
     }
+
     const fn train_fresh(map: MapId, x: i16, y: i16, level: u8) -> Step {
         Step::TrainFresh { map, x, y, level }
     }
-
-    /// `Route112_CableCarStation_EventScript_RideCableCar`: `special CableCarWarp` (the warp
-    /// destination) and `special CableCar` (the ride scene) are unsupported, so the player stays
-    /// in the station. The bypass warps to the Mt. Chimney station's (6, 4), where
-    /// `VAR_CABLE_CAR_STATION_STATE` 1 (set by the script) plays the exit.
-    static CABLE_CAR_UP: Bypass = Bypass {
-        issue: "cable-car",
-        features: &["SPECIAL_CableCarWarp", "SPECIAL_CableCar"],
-        warp: Some((MAP_MT_CHIMNEY_CABLE_CAR_STATION, 6, 4)),
-        ..Bypass::NONE
-    };
-
-    /// The Lavaridge gym's holes and geysers (`MB_LAVARIDGE_GYM_1F_WARP` /
-    /// `MB_LAVARIDGE_GYM_B1F_WARP`, `field_control_avatar.c`'s Lavaridge warp checks with their
-    /// field effects): stepping on 1F (8, 9) does not warp ("enter: no warp"). The bypass lands
-    /// on Flannery's platform, the end of the 1F (8, 9) / B1F (8, 6) / 1F (10, 6) / B1F
-    /// (12, 12) chain.
-    static LAVARIDGE_GYM_WARPS: Bypass = Bypass {
-        issue: "lavaridge-gym-warps",
-        features: &["MB_LAVARIDGE_GYM_1F_WARP", "MB_LAVARIDGE_GYM_B1F_WARP"],
-        warp: Some((MAP_LAVARIDGE_TOWN_GYM_1F, 13, 11)),
-        ..Bypass::NONE
-    };
 
     /// Teaching HM06 needs the bag and the party menu (Milestone 9): the bypass writes Rock
     /// Smash over the lead's Mud-Slap, so `EventScript_RockSmash`'s `checkpartymove` finds it.
@@ -102,21 +80,6 @@ mod list {
         issue: "teach-hm-surf",
         features: &["party menu: teach an HM"],
         teach: &[(3, MOVE_SURF)],
-        ..Bypass::NONE
-    };
-
-    /// The Petalburg gym's room doors (`MB_PETALBURG_GYM_DOOR`) open through
-    /// `SPECIAL_PetalburgGymUnlockRoomDoors` on load (`VAR_PETALBURG_GYM_STATE` 6, the doors of
-    /// beaten rooms) and `SPECIAL_PetalburgGymSlideOpenRoomDoors` after a room's trainer:
-    /// unsupported, so pressing into the entrance room's door (1, 105) does nothing. The bypass
-    /// lands in Norman's room, the end of the (1, 105), (1, 79), (7, 40), (7, 14) chain.
-    static PETALBURG_GYM_DOORS: Bypass = Bypass {
-        issue: "petalburg-gym-doors",
-        features: &[
-            "SPECIAL_PetalburgGymUnlockRoomDoors",
-            "SPECIAL_PetalburgGymSlideOpenRoomDoors",
-        ],
-        warp: Some((MAP_PETALBURG_CITY_GYM, 4, 5)),
         ..Bypass::NONE
     };
 
@@ -872,8 +835,9 @@ mod list {
         enter(MAP_FIERY_PATH, 26, 36, Down),
         enter(MAP_ROUTE112, 28, 27, Up),
         Step::Battle(BattlePlan::BestLearn),
+        // The attendant's ride (`CableCarWarp`, `CableCar`) lands in Mt. Chimney's station,
+        // whose `ON_FRAME` script walks the player out.
         talk(MAP_ROUTE112_CABLE_CAR_STATION, 1),
-        Step::Bypass(&CABLE_CAR_UP),
         Step::WaitScript,
         // ---- Mt. Chimney: Maxie at the meteorite machine ----
         enter(MAP_MT_CHIMNEY_CABLE_CAR_STATION, 6, 11, Down),
@@ -888,11 +852,19 @@ mod list {
         use_(MAP_LAVARIDGE_TOWN_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_LAVARIDGE_TOWN_POKEMON_CENTER_1F, 7, 8, Down),
         // ---- Flannery ----
-        // The gym's floors chain through its holes and geysers (warps on both floors at the
-        // same cells): 1F (8, 9) down, B1F (8, 6) up, 1F (10, 6) down, B1F (12, 12) up to
-        // Flannery's platform. The first hole never fires (`lavaridge-gym-warps`).
+        // The gym's floors chain through 1F's hidden holes (`MB_LAVARIDGE_GYM_1F_WARP`) and
+        // B1F's geysers (`MB_LAVARIDGE_GYM_B1F_WARP`) to Flannery's platform, clear of the
+        // buried trainers' cells: 1F (8, 9), B1F (1, 14), 1F (0, 10), B1F (0, 6), 1F (2, 3),
+        // B1F (7, 2), 1F (10, 6), then B1F (12, 12) past the ledges.
         enter(MAP_LAVARIDGE_TOWN, 5, 15, Up),
-        Step::Bypass(&LAVARIDGE_GYM_WARPS),
+        enter(MAP_LAVARIDGE_TOWN_GYM_1F, 8, 9, Up),
+        enter(MAP_LAVARIDGE_TOWN_GYM_B1F, 1, 14, Left),
+        enter(MAP_LAVARIDGE_TOWN_GYM_1F, 0, 10, Left),
+        enter(MAP_LAVARIDGE_TOWN_GYM_B1F, 0, 6, Up),
+        enter(MAP_LAVARIDGE_TOWN_GYM_1F, 2, 3, Right),
+        enter(MAP_LAVARIDGE_TOWN_GYM_B1F, 7, 2, Right),
+        enter(MAP_LAVARIDGE_TOWN_GYM_1F, 10, 6, Right),
+        enter(MAP_LAVARIDGE_TOWN_GYM_B1F, 12, 12, Right),
         talk(MAP_LAVARIDGE_TOWN_GYM_1F, 1),
         Step::Expect("flannery_defeated"),
         Step::Expect("badge4"),
@@ -919,6 +891,9 @@ mod list {
         enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
         // Route 117 west to Verdanturf, the tunnel to Wanda.
         cross(MAP_MAUVILLE_CITY, 0, 9, Left),
+        // A stop at (12, 9) before Lydia (8, 10): walked straight in, her team's paralysis
+        // and Take Down's recoil drew the battle (a whiteout), depending on the RNG.
+        goto(MAP_ROUTE117, 12, 9),
         cross(MAP_ROUTE117, 0, 10, Left),
         Step::Expect("verdanturf"),
         enter(MAP_VERDANTURF_TOWN, 8, 1, Up),
@@ -944,11 +919,20 @@ mod list {
         use_(MAP_PETALBURG_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_PETALBURG_CITY_POKEMON_CENTER_1F, 7, 8, Down),
         // ---- Norman ----
-        // The rooms chain through doors warping within the gym: the entrance room's (1, 105),
-        // then (1, 79), (7, 40) and (7, 14) to Norman's. The doors stay shut
-        // (`petalburg-gym-doors`).
+        // The rooms chain through doors that are signs (`PetalburgCity_Gym_EventScript_*Door`:
+        // yes, then `warpdoor`): the entrance room's (1, 105) (opened on load,
+        // `PetalburgGymUnlockRoomDoors`), then (1, 79), (7, 40) and (7, 14) to Norman's, each
+        // opened by beating its room's trainer (Randall, Parker, Jody), whose script slides the
+        // doors open (`PetalburgGymSlideOpenRoomDoors`).
         enter(MAP_PETALBURG_CITY, 15, 8, Up),
-        Step::Bypass(&PETALBURG_GYM_DOORS),
+        Step::Choose(0),
+        use_(MAP_PETALBURG_CITY_GYM, 1, 106, Up),
+        talk(MAP_PETALBURG_CITY_GYM, 3),
+        use_(MAP_PETALBURG_CITY_GYM, 1, 80, Up),
+        talk(MAP_PETALBURG_CITY_GYM, 4),
+        use_(MAP_PETALBURG_CITY_GYM, 7, 41, Up),
+        talk(MAP_PETALBURG_CITY_GYM, 7),
+        use_(MAP_PETALBURG_CITY_GYM, 7, 15, Up),
         talk(MAP_PETALBURG_CITY_GYM, 1),
         Step::Expect("norman_defeated"),
         Step::Expect("badge5"),

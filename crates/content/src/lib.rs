@@ -606,6 +606,18 @@ impl GameData for Game {
             consts::FLAG_SYS_USE_STRENGTH,
         ))
     }
+
+    fn step_callback(&self, map: MapId) -> Option<engine::data::StepCallback> {
+        prelude::step_callback(map)
+    }
+
+    fn hole_warp(&self, map: MapId) -> Option<MapId> {
+        prelude::hole_warp(map)
+    }
+
+    fn fall_script(&self) -> Option<ScriptId> {
+        data::SCRIPT_FALL_DOWN_HOLE
+    }
 }
 
 /// The Emerald and stub tables and scripts (the Silice flavour's are `silice::tests`).

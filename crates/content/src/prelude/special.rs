@@ -44,10 +44,135 @@ const PLAYER_HOUSES_1F: [MapId; 2] = [
 #[cfg(pkr_silice)]
 const PLAYER_HOUSES_1F: [MapId; 2] = [MAP_BRICO_BOURG_PLAYER_HOUSE_1F; 2];
 
+/// The cable car's stations, `[up, down]`: where `CableCarWarp` sends a ride going up
+/// (`VAR_0x8004` = 0) or down.
+#[cfg(not(pkr_silice))]
+const CABLE_CAR_STATIONS: [MapId; 2] = [
+    MAP_MT_CHIMNEY_CABLE_CAR_STATION,
+    MAP_ROUTE112_CABLE_CAR_STATION,
+];
+/// Silice has no cable car: a ride warps nowhere (the host ignores a missing map).
+#[cfg(pkr_silice)]
+const CABLE_CAR_STATIONS: [MapId; 2] = [MapId(0xFFFF); 2];
+/// Both stations' arrival cell (`CableCarWarp`, `WARP_ID_NONE`).
+const CABLE_CAR_ARRIVAL: (i16, i16) = (6, 4);
+/// The ride between the fade to black and the warp (`cable_car.c`): `Task_CableCar` fades out
+/// at timer 570, and that fade (`BeginNormalPaletteFade(…, 3, 0, 16, …)`, 8 steps of 4 frames)
+/// takes 32 more.
+const CABLE_CAR_RIDE_FRAMES: u16 = 570 + 32;
+
+/// Gen3 `sPetalburgGymSlidingDoorMetatiles` (`METATILE_PetalburgGym_SlidingDoor_Frame0..4`,
+/// `include/constants/metatile_labels.h`): the door's top half; the bottom half is a metatile
+/// row (`METATILE_ROW_WIDTH`, 8) further.
+const PETALBURG_GYM_DOOR_FRAMES: [u16; 5] = [0x218, 0x219, 0x21A, 0x21B, 0x21C];
+const METATILE_ROW_WIDTH: u16 = 8;
+/// `Task_PetalburgGymSlideOpenRoomDoors`' `sSlidingDoorNextFrameDelay` {0, 1, 1, 1, 1}: the
+/// first frame is drawn at once, each later one 2 frames after the previous.
+const PETALBURG_GYM_DOOR_FRAME_GAP: u16 = 2;
+
+/// `PetalburgGymSetDoorMetatiles`' doors of room `room` (`VAR_0x8004`, 1 to 8): the top cells.
+fn petalburg_gym_doors(room: u16) -> &'static [(i16, i16)] {
+    match room {
+        1 => &[(1, 104), (7, 104)],
+        2 => &[(1, 78), (7, 78)],
+        3 => &[(1, 91), (7, 91)],
+        4 => &[(7, 39)],
+        5 => &[(1, 52), (7, 52)],
+        6 => &[(1, 65)],
+        7 => &[(7, 13)],
+        8 => &[(1, 26)],
+        _ => &[],
+    }
+}
+
+/// Gen3 `PetalburgGymSetDoorMetatiles`: room `VAR_0x8004`'s doors (both halves, impassable)
+/// show `metatile`, then `DrawWholeMapView`.
+async fn petalburg_gym_set_doors(ctx: &Ctx, room: u16, metatile: u16) {
+    for &(x, y) in petalburg_gym_doors(room) {
+        ctx.set_metatile(x, y, metatile, true).await;
+        ctx.set_metatile(x, y + 1, metatile + METATILE_ROW_WIDTH, true)
+            .await;
+    }
+    ctx.redraw_map().await;
+}
+
+/// Gen3 `FRONTIER_UTIL_FUNC_*` (`include/constants/frontier_util.h`), `CallFrontierUtilFunc`'s
+/// `VAR_0x8004`, by name (index = value).
+const FRONTIER_UTIL_FUNCS: [&str; 23] = [
+    "FRONTIER_UTIL_FUNC_GET_STATUS",
+    "FRONTIER_UTIL_FUNC_GET_DATA",
+    "FRONTIER_UTIL_FUNC_SET_DATA",
+    "FRONTIER_UTIL_FUNC_SET_PARTY_ORDER",
+    "FRONTIER_UTIL_FUNC_SOFT_RESET",
+    "FRONTIER_UTIL_FUNC_SET_TRAINERS",
+    "FRONTIER_UTIL_FUNC_SAVE_PARTY",
+    "FRONTIER_UTIL_FUNC_RESULTS_WINDOW",
+    "FRONTIER_UTIL_FUNC_CHECK_AIR_TV_SHOW",
+    "FRONTIER_UTIL_FUNC_GET_BRAIN_STATUS",
+    "FRONTIER_UTIL_FUNC_IS_BRAIN",
+    "FRONTIER_UTIL_FUNC_GIVE_BATTLE_POINTS",
+    "FRONTIER_UTIL_FUNC_GET_FACILITY_SYMBOLS",
+    "FRONTIER_UTIL_FUNC_GIVE_FACILITY_SYMBOL",
+    "FRONTIER_UTIL_FUNC_CHECK_BATTLE_TYPE",
+    "FRONTIER_UTIL_FUNC_CHECK_INELIGIBLE",
+    "FRONTIER_UTIL_FUNC_CHECK_VISIT_TRAINER",
+    "FRONTIER_UTIL_FUNC_INCREMENT_STREAK",
+    "FRONTIER_UTIL_FUNC_RESTORE_HELD_ITEMS",
+    "FRONTIER_UTIL_FUNC_SAVE_BATTLE",
+    "FRONTIER_UTIL_FUNC_BUFFER_TRAINER_NAME",
+    "FRONTIER_UTIL_FUNC_RESET_SKETCH_MOVES",
+    "FRONTIER_UTIL_FUNC_SET_BRAIN_OBJECT",
+];
+const FRONTIER_UTIL_FUNC_GET_STATUS: u16 = 0;
+const FRONTIER_UTIL_FUNC_GET_DATA: u16 = 1;
+const FRONTIER_UTIL_FUNC_SET_DATA: u16 = 2;
+/// `GetChallengeStatus` with `frontier.challengeStatus` 0 (no challenge in progress).
+const CHALLENGE_STATUS_NONE: u16 = 0xFF;
+
+/// Gen3 `CallFrontierUtilFunc` (`frontier_util.c`), with no Battle Frontier or Battle Tent save
+/// data yet (Milestone 13): no challenge ever starts, so `frontier.challengeStatus` is 0.
+/// - `GET_STATUS` (`GetChallengeStatus`): `VAR_TEMP_CHALLENGE_STATUS` = 0xFF, exact: a lobby's
+///   `ON_FRAME` table then has no match (it reran `frontier_getstatus` every frame while the
+///   var stayed 0).
+/// - `GET_DATA` (`GetFrontierData`): `VAR_RESULT` = 0, a new save's value (degraded);
+///   `SET_DATA` stores nothing (degraded).
+/// - The others report `Unsupported` with their `FRONTIER_UTIL_FUNC_*` name.
+async fn call_frontier_util_func(ctx: &Ctx, id: u16) {
+    match ctx.var(VAR_0x8004).await {
+        FRONTIER_UTIL_FUNC_GET_STATUS => {
+            ctx.set_var(VAR_TEMP_CHALLENGE_STATUS, CHALLENGE_STATUS_NONE)
+                .await;
+        }
+        FRONTIER_UTIL_FUNC_GET_DATA => {
+            degraded(ctx, id).await;
+            ctx.set_var(VAR_RESULT, 0).await;
+        }
+        FRONTIER_UTIL_FUNC_SET_DATA => degraded(ctx, id).await,
+        f => {
+            let name = FRONTIER_UTIL_FUNCS
+                .get(usize::from(f))
+                .copied()
+                .unwrap_or("FRONTIER_UTIL_FUNC_?");
+            ctx.report(Report::Unsupported(name)).await;
+        }
+    }
+}
+
 /// Reports `id` as run in a simplified way (its decomp name).
 async fn degraded(ctx: &Ctx, id: u16) {
     let name = name_of(&crate::data::SPECIAL_NAMES, id).unwrap_or("SPECIAL_?");
     ctx.report(Report::Degraded(name)).await;
+}
+
+/// Gen3 `CableCarWarp`'s destination map: Mt. Chimney's station going up (`VAR_0x8004` = 0),
+/// Route 112's going down.
+async fn cable_car_destination(ctx: &Ctx) -> MapId {
+    let [up, down] = CABLE_CAR_STATIONS;
+    if ctx.var(VAR_0x8004).await != 0 {
+        down
+    } else {
+        up
+    }
 }
 
 /// `special <id>` / `specialvar <var>, <id>` for the `Native` specials: logs the special's name,
@@ -81,6 +206,18 @@ async fn degraded(ctx: &Ctx, id: u16) {
 ///   male player, May's else) Mom, `VAR_TEMP_3` = 1, with no draw; else `VAR_TEMP_3` picks
 ///   (1 Mom, 2 Dad, above 2 by parity), and when unset Mom or Dad at random, kept in
 ///   `VAR_TEMP_3`; `STR_VAR_1` gets `gText_Mom` or `gText_Dad`.
+/// - `CableCarWarp` (`field_specials.c`): Gen3 sets `gWarpDestination` to the other station's
+///   (6, 4) by `VAR_0x8004` (0: up to Mt. Chimney); only the ride's end reads it, so this
+///   reads the var and `CableCar` warps there.
+/// - `CableCar` (`cable_car.c`), degraded: no ride scene. The field fades to black as Gen3's
+///   `CableCar` does, stays black for the ride's frames, then warps to `CableCarWarp`'s
+///   destination (`CB2_EndCableCar`'s `WarpIntoMap`); the warp's map load ends the script, as
+///   `CB2_LoadMap` does in Gen3 (the script's `waitstate` is never reached).
+/// - `PetalburgGymUnlockRoomDoors`, `PetalburgGymSlideOpenRoomDoors` (`field_specials.c`): room
+///   `VAR_0x8004`'s doors show the open frame at once, or slide through the five frames (2
+///   frames apart, `Task_PetalburgGymSlideOpenRoomDoors`; the script's `waitstate` then
+///   passes). The unlock sound is not modelled.
+/// - `CallFrontierUtilFunc`: see [`call_frontier_util_func`].
 /// - Degraded (reported), as if cancelled:
 ///   - `StartWallyTutorialBattle`: no battle; the script goes on as after Wally's catch;
 ///   - `ChoosePartyMon`: `VAR_0x8004` = `PARTY_NOTHING_CHOSEN`;
@@ -123,6 +260,9 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             ctx.fade(Fade::FromBlack).await
         }
         id if id == SPECIAL_DrawWholeMapView => ctx.redraw_map().await,
+        id if id == SPECIAL_SetSootopolisGymCrackedIceMetatiles => {
+            set_sootopolis_gym_cracked_ice(ctx).await
+        }
         id if id == SPECIAL_InitBirchState => ctx.set_var(VAR_BIRCH_STATE, 0).await,
         id if id == SPECIAL_GetPCBoxToSendMon => return ctx.var(VAR_PC_BOX_TO_SEND_MON).await,
         id if id == SPECIAL_CalculatePlayerPartyCount || id == SPECIAL_CountPartyNonEggMons => {
@@ -152,6 +292,31 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             ctx.buffer(0, BufferSrc::Std(s)).await;
         }
         id if id == SPECIAL_StartWallyTutorialBattle => degraded(ctx, id).await,
+        id if id == SPECIAL_PetalburgGymUnlockRoomDoors => {
+            let room = ctx.var(VAR_0x8004).await;
+            petalburg_gym_set_doors(ctx, room, PETALBURG_GYM_DOOR_FRAMES[4]).await;
+        }
+        id if id == SPECIAL_PetalburgGymSlideOpenRoomDoors => {
+            let room = ctx.var(VAR_0x8004).await;
+            for (i, &frame) in PETALBURG_GYM_DOOR_FRAMES.iter().enumerate() {
+                if i > 0 {
+                    ctx.delay(PETALBURG_GYM_DOOR_FRAME_GAP).await;
+                }
+                petalburg_gym_set_doors(ctx, room, frame).await;
+            }
+        }
+        id if id == SPECIAL_CallFrontierUtilFunc => call_frontier_util_func(ctx, id).await,
+        id if id == SPECIAL_CableCarWarp => {
+            cable_car_destination(ctx).await;
+        }
+        id if id == SPECIAL_CableCar => {
+            degraded(ctx, id).await;
+            let map = cable_car_destination(ctx).await;
+            ctx.fade(Fade::ToBlack).await;
+            ctx.delay(CABLE_CAR_RIDE_FRAMES).await;
+            let (x, y) = CABLE_CAR_ARRIVAL;
+            ctx.warp(map, None, x, y).await;
+        }
         id if id == SPECIAL_GetMomOrDadStringForTVMessage => {
             let [male_house, female_house] = PLAYER_HOUSES_1F;
             let house = if check_player_gender(ctx).await == MALE {
