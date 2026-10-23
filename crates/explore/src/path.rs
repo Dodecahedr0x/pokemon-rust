@@ -294,6 +294,26 @@ impl<'a, G: GameData> Grid<'a, G> {
             && !(self.behavior(c).enters_warp() && has_warp(self.map, c))
     }
 
+    /// The player's elevation at the searches' start on `c` (the module docs' rule).
+    pub fn elevation_at_start(&self, c: (i16, i16)) -> u8 {
+        let t = self.terrain();
+        if !self.in_bounds(c) {
+            return 0;
+        }
+        self.start_elevation(t, self.index(c))
+    }
+
+    /// The player's elevation after a step from `c` to `n` carrying `carried`, or `None` when
+    /// the elevations mismatch (the module docs' rule).
+    pub fn step_elevation(&self, carried: u8, c: (i16, i16), n: (i16, i16)) -> Option<u8> {
+        if !self.in_bounds(c) || !self.in_bounds(n) {
+            return None;
+        }
+        let t = self.terrain();
+        let (ec, en) = (t.elevation[self.index(c)], t.elevation[self.index(n)]);
+        (!mismatch(carried, en)).then(|| carry(carried, ec, en))
+    }
+
     pub fn walkable(&self, c: (i16, i16), avoid_grass: bool) -> bool {
         self.open(c) && !self.occupied(c) && !(avoid_grass && self.behavior(c).land_encounter())
     }

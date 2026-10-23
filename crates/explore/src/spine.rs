@@ -1234,8 +1234,9 @@ fn bypass<G: GameData + Clone>(
 }
 
 /// The first direction of a shortest path from `from` to `to` on `grid` that never enters an
-/// `avoid` cell (ledges jumped toward their direction; `to` entered whatever it is). Grass is
-/// avoided when a path without it exists.
+/// `avoid` cell (ledges jumped toward their direction; `to` entered whatever it is), carrying
+/// the player's elevation as [`crate::path`] does (bridges). Grass is avoided when a path
+/// without it exists.
 fn first_dir_avoiding<G: GameData>(
     grid: &crate::path::Grid<'_, G>,
     from: (i16, i16),
@@ -1243,13 +1244,18 @@ fn first_dir_avoiding<G: GameData>(
     avoid: &[(i16, i16)],
 ) -> Option<Dir> {
     use engine::data::Behavior;
-    let step = |c: (i16, i16), d: Dir, grass: bool| -> Option<(i16, i16)> {
+    type Node = ((i16, i16), u8);
+    let step = |(c, e): Node, d: Dir, grass: bool| -> Option<Node> {
         if grid.behavior(c) == Behavior::ArrowWarp(d) {
             return None;
         }
         let (dx, dy) = d.delta();
         let mut n = (c.0 + dx, c.1 + dy);
         if !grid.in_bounds(n) || Behavior::walled(grid.behavior(c), grid.behavior(n), d) {
+            return None;
+        }
+        // A muddy slope slides the player back down (as `path`'s terrain).
+        if grid.behavior(n) == Behavior::MuddySlope && d != Dir::Down {
             return None;
         }
         if let Behavior::Ledge(ld) = grid.behavior(n) {
@@ -1259,15 +1265,25 @@ fn first_dir_avoiding<G: GameData>(
             n = (n.0 + dx, n.1 + dy);
         }
         let ok = grid.in_bounds(n) && !avoid.contains(&n) && (n == to || grid.walkable(n, grass));
-        ok.then_some(n)
+        if !ok {
+            return None;
+        }
+        // The target itself is a destination (a door, an object): no elevation rule.
+        match grid.step_elevation(e, c, n) {
+            Some(e2) => Some((n, e2)),
+            None if n == to => Some((n, e)),
+            None => None,
+        }
     };
+    let start = (from, grid.elevation_at_start(from));
     for grass in [true, false] {
-        // BFS from `from`, remembering each cell's first direction.
-        let mut first: std::collections::BTreeMap<(i16, i16), Option<Dir>> =
-            std::collections::BTreeMap::from([(from, None)]);
-        let mut queue = std::collections::VecDeque::from([from]);
+        // BFS from `from` over (cell, carried elevation), remembering each node's first
+        // direction.
+        let mut first: std::collections::BTreeMap<Node, Option<Dir>> =
+            std::collections::BTreeMap::from([(start, None)]);
+        let mut queue = std::collections::VecDeque::from([start]);
         while let Some(c) = queue.pop_front() {
-            if c == to {
+            if c.0 == to {
                 return first[&c];
             }
             for d in [Dir::Up, Dir::Down, Dir::Left, Dir::Right] {
