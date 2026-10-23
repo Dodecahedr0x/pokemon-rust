@@ -17,8 +17,9 @@
 //! events (`World::events_dropped`).
 //!
 //! `cargo xtask sweep --studio` runs the studio's `#[ignore]`d whole-game tests (map renders,
-//! cells, overlays, encounters, the map editor's renders) in release. `cargo xtask sweep --repro` builds `content` twice
-//! (native debug, its `$OUT_DIR` cleaned each time) and fails on any byte of difference.
+//! cells, overlays, encounters, the map editor's renders) in release. `cargo xtask sweep
+//! --repro` builds `content` twice (native debug, its `$OUT_DIR` cleaned each time) and fails
+//! on any byte of difference.
 
 use anyhow::{Context, Result, bail, ensure};
 use content::Emerald;
