@@ -247,6 +247,9 @@ pub(crate) struct State {
     pub(crate) fx: ScreenFx,
     /// Running field effects and their arguments (Wave C; not snapshotted, not hashed).
     pub(in crate::world) field_effects: host::FieldEffects,
+    /// The rotating tile puzzle between `initrotatingtilepuzzle` and `freerotatingtilepuzzle`
+    /// (Wave F; Gen3 `sRotatingTilePuzzle`, script RAM: not snapshotted, not hashed).
+    pub(in crate::world) rotating_tiles: Option<host::RotatingTiles>,
     /// The running field-move effect (Wave C; hashed while it runs, never captured).
     pub(in crate::world) field_move: Option<field_move::FieldMoveRun>,
     // Tool-facing, neither hashed nor snapshotted:
@@ -408,6 +411,7 @@ impl World {
                 berry_trees: crate::berry::BerryTrees::new(game.special_ids().berry_trees),
                 fx: ScreenFx::default(),
                 field_effects: host::FieldEffects::default(),
+                rotating_tiles: None,
                 field_move: None,
                 events: Vec::with_capacity(EVENTS_MAX),
                 events_dropped: 0,

@@ -255,6 +255,7 @@ impl World {
                 berry_trees,
                 fx: ScreenFx::default(),
                 field_effects: super::host::FieldEffects::default(),
+                rotating_tiles: None,
                 field_move: None,
                 events: Vec::with_capacity(super::EVENTS_MAX),
                 events_dropped: 0,

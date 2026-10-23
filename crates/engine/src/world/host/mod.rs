@@ -10,10 +10,12 @@
 //! Milestone 9 Wave 0 no task edits this file.
 
 pub(in crate::world) use field::FieldEffects;
+pub(in crate::world) use rotating_tiles::RotatingTiles;
 pub(in crate::world) use fx::whiteout_allowed;
 
 mod buffers;
 mod field;
+pub(in crate::world) mod rotating_tiles;
 mod fx;
 mod items;
 mod menu;
@@ -416,6 +418,10 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::SetMapLayout(_)
             | Request::CreateVirtualObject { .. }
             | Request::TurnVirtualObject { .. } => field::begin(self, r),
+            Request::RotatingTilesInit { .. }
+            | Request::RotatingTilesMove(_)
+            | Request::RotatingTilesTurn
+            | Request::RotatingTilesFree => rotating_tiles::begin(self, r),
             Request::FieldMoveEffect(m) => {
                 s.start_field_move(game, m);
                 UNIT
