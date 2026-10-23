@@ -662,18 +662,22 @@ fn slow_frames_never_end_a_job() {
 }
 
 #[test]
+#[ignore = "the planner models elevation since Task S (bridges included): the stub has no \
+            planner-blind obstacle left to stall on"]
 fn a_planner_divergence_is_flagged_after_a_stall() {
     if !content::STUB {
         return;
     }
-    // Every cell at elevation 3 but one at 4 on the player's way: the planner (elevation
-    // ignored) holds the direction toward it, the engine refuses the step.
+    // Every cell at elevation 3, then on the player's way a bridge cell (15) and one at 4: the
+    // engine refuses the step 15 -> 4 (the player keeps elevation 3 on the bridge). The
+    // planner used to ignore elevation (decision 16) and stall there; it now routes around.
     let game = Emerald::for_shells();
     let start = root(&game);
     let p = player(&start);
     let map = start.world.field.map;
     let base = game.map(map);
-    let wall = (p.0 + 1, p.1);
+    let bridge = (p.0 + 1, p.1);
+    let wall = (p.0 + 2, p.1);
     let to = (p.0 + 3, p.1);
     let mask = 0xF << BLOCK_ELEVATION_SHIFT;
     let blocks = base
@@ -685,7 +689,11 @@ fn a_planner_divergence_is_flagged_after_a_stall() {
                 (i % base.width as usize) as i16,
                 (i / base.width as usize) as i16,
             );
-            let e: u16 = if c == wall { 4 } else { 3 };
+            let e: u16 = match c {
+                _ if c == bridge => 15,
+                _ if c == wall => 4,
+                _ => 3,
+            };
             (b & !mask) | (e << BLOCK_ELEVATION_SHIFT)
         })
         .collect();

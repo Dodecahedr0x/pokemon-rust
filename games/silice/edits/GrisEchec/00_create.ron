@@ -1,4 +1,4 @@
-// Silice Ch2, MAP_GRIS_ECHEC: Gris-Echec, Secteur Beta (40 x 32). General + Rustboro (Emerald
-// tilesets by name): paved concrete, gray office blocks, black iron fences, no trees. The
-// out-of-map border is a flat roof, so the city seems to go on.
-(name: "GrisEchec", width: 40, height: 32, primary: "General", secondary: "Rustboro", fill: 699, border: [557, 557, 557, 557])
+// Silice Ch2, MAP_GRIS_ECHEC: Gris-Echec, Secteur Beta (40 x 32). General (Emerald, by name) +
+// SilGrisEchec (original, games/silice/tilesets): raw concrete, screens of grey snow, circuit-board
+// paving, no trees. The out-of-map border is a flat concrete roof, so the city seems to go on.
+(name: "GrisEchec", width: 40, height: 32, primary: "General", secondary: "SilGrisEchec", fill: 94, border: [1686, 1686, 1686, 1686])

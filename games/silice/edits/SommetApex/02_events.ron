@@ -21,7 +21,7 @@
     // roadie Kevin, sight trainers. 8-9: the Full Restore and the Max Revive (in the pocket). 10-11: the
     // metal crates (Strength, "Champ Magnetique"; FLAG_SIL_MODULE_FORCE, and the Mallette, see their script).
     Object(x: 11, y: 6, gfx: "OBJ_EVENT_GFX_DRAKE", id: "LOCALID_APEX_POUSSIN", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "SommetApex_EventScript_Poussin", flag: "FLAG_SIL_HIDE_APEX_POUSSIN"),
-    Object(x: 14, y: 3, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_APEX_JULIEN", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_APEX_JULIEN"),
+    Object(x: 14, y: 3, gfx: "OBJ_EVENT_GFX_SIL_JULIEN", id: "LOCALID_APEX_JULIEN", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_APEX_JULIEN"),
     Object(x: 8, y: 17, gfx: "OBJ_EVENT_GFX_MAXIE", id: "LOCALID_APEX_GOGO", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "SommetApex_EventScript_Gogo", flag: "FLAG_SIL_HIDE_APEX_GOGO_ROMAIN"),
     Object(x: 9, y: 17, gfx: "OBJ_EVENT_GFX_ARCHIE", id: "LOCALID_APEX_ROMAIN", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "SommetApex_EventScript_Romain", flag: "FLAG_SIL_HIDE_APEX_ROMAIN"),
     Object(x: 17, y: 22, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_APEX_MARC", local_id: 5, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "SommetApex_EventScript_Marc", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),

@@ -47,7 +47,7 @@
         (
             local_id: 3,
             id: Some("LOCALID_ROUTE_S02_ADRIEN"),
-            gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M",
+            gfx: "OBJ_EVENT_GFX_SIL_ADRIEN",
             x: 24,
             y: 14,
             elevation: 3,
@@ -62,7 +62,7 @@
         (
             local_id: 4,
             id: Some("LOCALID_ROUTE_S02_GWADA"),
-            gfx: "OBJ_EVENT_GFX_BOY_2",
+            gfx: "OBJ_EVENT_GFX_SIL_GWADA",
             x: 50,
             y: 6,
             elevation: 3,

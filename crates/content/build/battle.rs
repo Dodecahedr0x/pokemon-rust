@@ -543,14 +543,21 @@ impl Gen<'_> {
         self.gen_encounters()?;
         self.gen_evolutions_and_money()?;
         let mut hold_arms = String::new();
+        let hold = |name: &str| {
+            classify::hold_effect(name).and_then(|e| {
+                classify::hold_effect_species(e, |s| {
+                    self.species_no.get(s).map(|i| format!("SpeciesId({i})"))
+                })
+            })
+        };
         for (v, name) in names::ITEMS.iter() {
-            if let Some(e) = classify::hold_effect(name) {
+            if let Some(e) = hold(name) {
                 writeln!(hold_arms, "        {v} => Some({e}), // {name}")?;
             }
         }
         // An authored game's items take their base item's effect.
         for (v, base) in self.w.authored.iter().flat_map(|a| &a.item_bases) {
-            if let Some(e) = classify::hold_effect(base) {
+            if let Some(e) = hold(base) {
                 writeln!(hold_arms, "        {v} => Some({e}), // as {base}")?;
             }
         }

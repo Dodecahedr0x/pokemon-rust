@@ -8,11 +8,14 @@ use crate::silice::prelude::*;
 /// The maps whose scripts this file owns: strict (every script they name must exist).
 pub const MAPS: &[&str] = &["BoisEther_Gym"];
 
-/// `METATILE_PORTE_SAS_OUVERTE`: an open airlock door, PetalburgGym's floor (513), walkable.
-pub const METATILE_PORTE_SAS_OUVERTE: u16 = 513;
-/// A closed airlock door: its top (PetalburgGym 536) and bottom (544) halves, solid.
-const PORTE_HAUT: u16 = 536;
-const PORTE_BAS: u16 = 544;
+/// `METATILE_PORTE_SAS_OUVERTE`: an open airlock door's lower half, SilBoisEtherGym's
+/// `porte_sas_ouverte` (519), walkable; its upper half is [`PORTE_OUVERTE_HAUT`] (518).
+pub const METATILE_PORTE_SAS_OUVERTE: u16 = 519;
+const PORTE_OUVERTE_HAUT: u16 = 518;
+/// A closed airlock door: its top (SilBoisEtherGym's `porte_sas`, 516) and bottom (517) halves,
+/// solid. Door D (8, 22) is a lower half.
+const PORTE_HAUT: u16 = 516;
+const PORTE_BAS: u16 = 517;
 
 /// Zone 1's airlock door D (one cell).
 const PORTE_D: (i16, i16) = (8, 22);
@@ -24,7 +27,7 @@ const PORTE_SERRE: i16 = 8;
 /// Opens (walkable floor) or closes the two-cell airlock door whose top is (7, `top`).
 async fn airlock(ctx: &Ctx, top: i16, open: bool) {
     let (haut, bas) = if open {
-        (METATILE_PORTE_SAS_OUVERTE, METATILE_PORTE_SAS_OUVERTE)
+        (PORTE_OUVERTE_HAUT, METATILE_PORTE_SAS_OUVERTE)
     } else {
         (PORTE_HAUT, PORTE_BAS)
     };

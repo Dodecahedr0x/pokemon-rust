@@ -214,6 +214,27 @@ impl<'a, 'o, G: GameData + Clone> Live<'a, 'o, G> {
         }
     }
 
+    /// Replaces the session's world by `end` (a spine bypass, `spine::Bypass`): a step of no
+    /// input and no frame, so the inputs stay those played.
+    pub fn load_bypass(&mut self, end: Checkpoint) -> Result<(), String> {
+        self.s.load(&end).map_err(|e| format!("{e:?}"))?;
+        let map = end.world.field.map;
+        let pos = end.world.objects.objs[0].pos;
+        self.res.steps.push(StepResult {
+            macro_: Macro::of(MacroKind::Wait { frames: 0 }),
+            inputs: Vec::new(),
+            end: Arc::new(end),
+            summary: crate::model::SimSummary {
+                maps: vec![map],
+                cells: [(map, pos.0, pos.1)].into(),
+                ..Default::default()
+            },
+            bug: false,
+        });
+        self.obs = (self.obs_make)();
+        Ok(())
+    }
+
     /// Records a skipped `m` as the job's stop (a prune), as [`simulate`] does.
     pub fn stop_on(&mut self, m: &Macro, e: StepFail) {
         if let StepFail::Skip(e) = e {
@@ -271,7 +292,19 @@ impl<'a, 'o, G: GameData + Clone> Live<'a, 'o, G> {
             }
             Err((e @ (ExpandError::NoPath | ExpandError::NoEffect(_)), _)) => Err(Ok(e)),
             Err((ExpandError::Timeout(t), _)) => {
-                Err(Err(Stop::Pruned(format!("{m:?}: timeout ({t})"))))
+                let w = self.s.world();
+                Err(Err(Stop::Pruned(format!(
+                    "{m:?}: timeout ({t}) on {:#06x} at {:?}, frame {}, script {:?} waiting on \
+                     {:?}, battle {}, transition {}, text open {}",
+                    w.map().0,
+                    w.objects().player().pos(),
+                    w.frame(),
+                    w.last_script(),
+                    w.script_waiting(),
+                    w.in_battle(),
+                    w.transition_active(),
+                    w.text().is_open()
+                ))))
             }
             Err((ExpandError::Panicked(p), ex)) => Err(Err(Stop::Finding(finding(
                 &self.s,

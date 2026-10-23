@@ -396,6 +396,20 @@ fn play_spine(db: &mut Db, game: &Emerald, cfg: &Config) -> anyhow::Result<Spine
     }
     if !s.reports.is_empty() {
         println!("  {} report-only findings (Unsupported)", s.reports.len());
+        for r in &s.reports {
+            println!("    map {:#06x} {:?}: {}", r.map.0, r.pos, r.message);
+        }
+    }
+    let bypasses = s.bypasses();
+    if !bypasses.is_empty() {
+        println!(
+            "  {} bypasses (engine gaps stepped over; inputs reproduce the spine up to frame {}):",
+            bypasses.len(),
+            s.first_bypass_frame().unwrap_or(0)
+        );
+        for (i, issue) in bypasses {
+            println!("    step {i:>3}  {issue}");
+        }
     }
     if let Some(e) = &s.error {
         println!("spine stopped at step {}: {}", e.step, e.message);

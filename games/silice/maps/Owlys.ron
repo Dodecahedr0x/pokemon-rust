@@ -32,7 +32,7 @@
         (
             local_id: 2,
             id: Some("LOCALID_OWLYS_MATHIEU"),
-            gfx: "OBJ_EVENT_GFX_BLACK_BELT",
+            gfx: "OBJ_EVENT_GFX_SIL_MATHIEU",
             x: 31,
             y: 25,
             elevation: 3,
@@ -182,7 +182,7 @@
         (
             local_id: 12,
             id: Some("LOCALID_OWLYS_MATHIEU_APRES"),
-            gfx: "OBJ_EVENT_GFX_BLACK_BELT",
+            gfx: "OBJ_EVENT_GFX_SIL_MATHIEU",
             x: 28,
             y: 29,
             elevation: 3,

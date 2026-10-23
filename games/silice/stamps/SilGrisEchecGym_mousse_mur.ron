@@ -1,0 +1,11 @@
+(
+    primary: "Building",
+    secondary: "SilGrisEchecGym",
+    width: 1,
+    height: 2,
+    elevation: false,
+    blocks: [
+        (1547),
+        (1548),
+    ],
+)

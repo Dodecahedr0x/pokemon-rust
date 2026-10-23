@@ -1,5 +1,5 @@
-// Silice Ch2, MAP_GRIS_ECHEC_GYM: Yohan's Chessboard (15 x 46, vertical). Building + MossdeepGym
-// (Emerald tilesets by name: gray checker floor, black void, colored panels). Hall (y 38-45),
-// Salle 1 the binary tiles (y 30-37), Salle 2 the invisible maze (y 22-28), Salle 3 the
-// chessboard (y 11-21). Rows 0-10 stay void (the source's size).
-(name: "GrisEchec_Gym", width: 15, height: 46, primary: "Building", secondary: "MossdeepGym", fill: 520, fill_collision: 1, border: [1544, 1544, 1544, 1544])
+// Silice Ch2, MAP_GRIS_ECHEC_GYM: Yohan's Chessboard (15 x 46, vertical). Building (Emerald, by
+// name) + SilGrisEchecGym (original, games/silice/tilesets): dark slate floors over a black void,
+// black walls with Yohan's screens. Hall (y 38-45), Salle 1 the binary tiles (y 30-37), Salle 2 the
+// invisible maze (y 22-28), Salle 3 the chessboard (y 11-21). Rows 0-10 stay void (the source's size).
+(name: "GrisEchec_Gym", width: 15, height: 46, primary: "Building", secondary: "SilGrisEchecGym", fill: 515, fill_collision: 1, border: [1539, 1539, 1539, 1539])

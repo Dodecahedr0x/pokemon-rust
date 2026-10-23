@@ -13,9 +13,9 @@
     // 2: the bar's clerk behind the shop counter (the §7 shop).
     Object(x: 3, y: 2, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_TAVERNE_VENDEUR", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "PortRessac_Taverne_EventScript_Vendeur"),
     // 3: Gwada on a bar stool (Port_Ressac_Taverne_Sc01), shown while VAR_SIL_STORY is 42-48.
-    Object(x: 6, y: 6, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_TAVERNE_GWADA", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "PortRessac_Taverne_Sc01", flag: "FLAG_SIL_HIDE_PORT_TAVERNE_GWADA"),
+    Object(x: 6, y: 6, gfx: "OBJ_EVENT_GFX_SIL_GWADA", id: "LOCALID_TAVERNE_GWADA", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "PortRessac_Taverne_Sc01", flag: "FLAG_SIL_HIDE_PORT_TAVERNE_GWADA"),
     // 4: Adrien asleep, head on the table (Port_Ressac_Taverne_Adrien).
-    Object(x: 12, y: 6, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_TAVERNE_ADRIEN", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "PortRessac_Taverne_EventScript_Adrien", flag: "FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN"),
+    Object(x: 12, y: 6, gfx: "OBJ_EVENT_GFX_SIL_ADRIEN", id: "LOCALID_TAVERNE_ADRIEN", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "PortRessac_Taverne_EventScript_Adrien", flag: "FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN"),
     // 5: the regular (Port_Ressac_Taverne_Pilier).
     Object(x: 3, y: 7, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_TAVERNE_PILIER", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "PortRessac_Taverne_EventScript_Pilier"),
 ]

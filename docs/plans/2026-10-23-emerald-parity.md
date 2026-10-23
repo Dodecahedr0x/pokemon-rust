@@ -114,9 +114,16 @@ After each merge, the spine is extended past the blocker it removed.
 
 ## 2. Spine blockers
 
-| step | map (cell) | error / report | decomp feature | owner |
+Each row is one `Step::Bypass` of `explore/src/spine/emerald.rs` (its `issue`); `spine_real::SPINE_BLOCKERS` lists the same ids in spine order. Fixing a gap means deleting its bypass and its row; the spine then plays the real thing and may need a step or two in place of the bypass.
+
+| issue (step) | map (cell) | error / report | decomp feature | owner |
 |---|---|---|---|---|
-| (filled by Task S) | | | | |
+| `new-game-map-flags` (78, after `badge1`) | new game; seen on Route 104 (17,50) | Briney's door is blocked by the Route 104 rival object ("enter: no warp"): its `FLAG_HIDE_*` was never set | `EventScript_ResetAllMapFlags` (`data/scripts/new_game.inc`): `content::new_game` sets 25 of its 159 flags; the bypass sets the 134 others that Act 1 left untouched | content (new game), Wave C |
+| `briney-sail-camera` (115) | Route104_MrBrineysHouse (9,6) to Route 104 (13,51) | RoundTrip finding: `restore failed: Invalid("camera far outside the map")` during the sail | `Route104_EventScript_SailToDewford`: `applymovement` of the boat and player across map connections, `showobjectat` on another map | engine (camera / checkpoint across connections), Wave C |
+| `briney-sail-camera-slateport` (151) | Dewford Town (11,9), Briney's multichoice: Slateport | the same RoundTrip finding | `DewfordTown_EventScript_SailToSlateport` (same pattern, lands on Route 109) | engine, same fix as `briney-sail-camera` |
+| `mauville-gym-barriers` (245) | MauvilleCity_Gym (4,20) | Wattson unreachable: the floor switches' trigger runs but no barrier moves (`NoPath` to Wattson) | `SPECIAL_MauvilleGymSetDefaultBarriers`, `SPECIAL_MauvilleGymPressSwitch` (unsupported; they toggle every beam metatile) | engine specials, Wave C |
+
+**Report-only findings along the spine** (it plays on; first site of each): `dofieldeffect` and `waitfieldeffect` (every Center heal); `bufferitemnameplural` (degraded, Birch's lab); `SPECIAL_StartWallyTutorialBattle` (degraded, Petalburg); the evolution scene (degraded); `copyobjectxytoperm` (Rustboro (30,11), Rusturf Tunnel (9,5)); `SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial` (degraded, Rustboro (11,17)); `setholewarp` (Granite Cave B1F (4,21)); move effects 087 (Brawly's gym), 176 (Route 110 wild) and 007 (Wattson); `SPECIAL_UpdateCyclingRoadState` (Route 110 (17,99)); `ai pursuit viability` (degraded, Route 110 rival); `SPECIAL_SetMauvilleOldManObjEventGfx` (Mauville Center); `SPECIAL_MauvilleGymDeactivatePuzzle` (after Wattson).
 
 ## 3. As built
 
@@ -303,3 +310,54 @@ A name defined several times (`sMenu`, `HandleInputChooseAction`) keeps the tabl
 - the battle policy from `gBattleMons` and the cursors (`settle` only presses FIGHT and the first move);
 - tolerance switches after wild battles;
 - a release build: the debug build runs about 10x slower.
+
+### Task S — spine Act 2+ (branch `worktree-agent-abf2907939cd907aa`)
+
+**Reach.** The Emerald spine runs 250 steps and 436,161 frames to Wattson's badge, 1.3 s in release. Act 1 is unchanged: `badge1` is still at step 78, frame 109,851, and no bypass comes before it. Four bypasses come after it (§2).
+
+| checkpoint | step | frame | where |
+|---|---|---|---|
+| `devon_goods` | 93 | 130,038 | Rusturf Tunnel (13,5): the grunt beaten |
+| `mr_stone` | 100 | 142,119 | Devon Corp 3F: the PokéNav |
+| `dewford` | 118 | 151,423 | after `briney-sail-camera` |
+| `steven` | 132 | 162,016 | Granite Cave, Steven's room |
+| `badge2` | 145 | 222,593 | Brawly |
+| `museum` | 167 | 242,459 | Oceanic Museum 2F: the Devon Goods delivered, the Aqua grunts beaten |
+| `badge3` | 250 | 436,161 | Wattson, after `mauville-gym-barriers` |
+
+**Goals.** Two new acts:
+- `act2` (8 goals, from `goods_stolen` to `badge2`);
+- `act3` (6 goals: `slateport`, `devon_goods_delivered`, `rival_route110`, `mauville`, `wattson_defeated`, `badge3`).
+
+Their constants are checked against the decomp headers (`m8_k_goals`: 28 constants). A spine `Expect` looks its goal up in the run's act first, then in the build's other acts (`goals::find`).
+
+**Explorer-side changes the spine needed.** None of them touch the engine.
+
+New steps:
+- `Step::Bypass(&Bypass { issue, features, set, clear, vars, warp })`. It writes flags and vars, debug-warps if asked, and plays no input. `explore spine` lists the bypasses and the frame up to which the inputs reproduce. `SpineRun::bypasses` and `SpineRun::first_bypass_frame` expose them. The parity ledger reads `features`.
+- `Step::WaitFor { local_id, x, y }`: wait until an object stands on a cell. Used for Mr. Briney's looping Peeko.
+
+Planner (`path.rs`):
+- **Elevation.** The searches carry the player's elevation: the start comes from the snapshot or live object, a step sets it to the new cell's, and a step to or from a 15 cell keeps it. A step is refused on `IsElevationMismatchAt`. This replaces decision 16, which made the Route 109 beach stairs and Route 110's under-bridge passage false `PlannerDivergence`s. `a_planner_divergence_is_flagged_after_a_stall` (stub) is now `#[ignore]`: the stub has no planner-blind obstacle left.
+- **Warp behaviours.** A warp behaviour with no warp event is a floor. Route 110's `MB_BRIDGE_OVER_OCEAN` under the cycling road is the case.
+- **Muddy slope.** Only a step down onto a muddy slope is allowed (Granite Cave).
+
+Spine execution:
+- `Talk` walks next to an unspawned object's template cell first, since Gen3 spawns objects only near the camera (Stern's Shipyard's Dock).
+- `Talk` retries when a wild battle interrupted it.
+- The talk macro presses A only when both the player and the object are settled.
+- `Goto` retries a `NoPath` after a short wait, for wandering NPCs.
+- `Train` resets its dry counter on success, and wild-grass walks get 9,600 frames.
+
+Policy:
+- A multichoice moves its cursor to `Choose(n)`. It was previously answered as yes/no.
+- `BattlePlan::BestLearn` (`Opts::learn`) learns a level-up move when it hits harder than the weakest known move, and forgets that one. Act 1 keeps `Best`, so its frames are unchanged. Without it, the level-30 Marshtomp never learnt Take Down and lost the Route 110 rival battle to Grovyle.
+
+**Explorer gaps worked around in the spine:**
+- `Talk` gives `NoPath` on Mr. Briney on the Dewford dock and on the Rusturf grunt. The spine uses `Use` from a hand-picked cell instead.
+- Mr. Briney's and Peeko's `WALK_SEQUENCE` loops never stop. The spine blocks Peeko's path with `WaitFor` and a step.
+- `GotoAvoiding` finds no path around a trigger that every way in crosses by design.
+- Route 110's trainers drain the lead. The spine fights them first, heals in Slateport, then triggers the rival.
+- Level 31 is trained a level at a time, with a Center heal after each: one level uses up Tackle's PP or Take Down's recoil.
+
+**Not covered.** Past the first bypass the inputs do not reproduce from a new game; a branch's origin checkpoint does. `cargo xtask explore branch` on the extended spine: see the final report.

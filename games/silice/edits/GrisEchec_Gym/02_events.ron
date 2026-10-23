@@ -20,12 +20,12 @@
     Object(x: 4, y: 15, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_GYM2_CAVALIER", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Gym_EventScript_Cavalier"),
     Object(x: 8, y: 16, gfx: "OBJ_EVENT_GFX_GENTLEMAN", id: "LOCALID_GYM2_FOU", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Gym_EventScript_Fou"),
     Object(x: 10, y: 15, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_GYM2_TOUR", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "GrisEchec_Gym_EventScript_Tour"),
-    Object(x: 7, y: 13, gfx: "OBJ_EVENT_GFX_PSYCHIC_M", id: "LOCALID_GYM2_YOHAN", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Gym_Sc10"),
+    Object(x: 7, y: 13, gfx: "OBJ_EVENT_GFX_SIL_YOHAN", id: "LOCALID_GYM2_YOHAN", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Gym_Sc10"),
     // Gym2_Sc11: Gwada (the source's obj 30) and Wattouat (obj 31) appear under e1 and walk up;
     // Lainergie is the fallback's add_object (it replaces Wattouat on the same cell). The source's
     // Walk(Up) x7 from (7, 21) ends on e7 (7, 14), which can be the player's cell: the script must
     // stop below the player.
-    Object(x: 7, y: 21, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_GYM2_GWADA", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_GYM2_GWADA"),
+    Object(x: 7, y: 21, gfx: "OBJ_EVENT_GFX_SIL_GWADA", id: "LOCALID_GYM2_GWADA", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_GYM2_GWADA"),
     Object(x: 7, y: 22, gfx: "OBJ_EVENT_GFX_PIKACHU", id: "LOCALID_GYM2_WATTOUAT", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_GYM2_WATTOUAT"),
     Object(x: 7, y: 22, gfx: "OBJ_EVENT_GFX_PIKACHU", id: "LOCALID_GYM2_LAINERGIE", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_GYM2_LAINERGIE"),
     // Salle 1: every tile is a coord event on VAR_TEMP_3 (never set on this map, so always 0, the

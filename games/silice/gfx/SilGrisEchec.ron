@@ -1,0 +1,127 @@
+// Gris-Échec (Ch2, MAP_GRIS_ECHEC), Secteur Bêta: contenu-jeu/chapitres/02-gris-echec.md. Raw
+// concrete blocks, right angles, no trees; giant screens on every facade showing only grey snow;
+// streets paved with recycled electronics (circuit boards set in resin); the Place des Pions, a
+// black and white checkerboard; the Tour d'Observation (antenna on top) to the north; the arena, a
+// windowless black cube whose screens are the only ones working; the closed factory. Industrial
+// espionage mood: very calm, oppressive.
+// Ground (transparent pixels): General 94, the pale concrete sidewalk; the walls and the cells by
+// the Route S2 / Route S3 seams are General metatiles (0, 94) so the neighbours draw them right.
+// Footprints keep the map's doors: Centre and Boutique 3x4 (door bottom middle), Tour 4x5 (double
+// door, two cells), arena 5x5 (door bottom middle), factory 7x4 (door bottom middle). Sizes are
+// kept small and the prompts flat: the secondary's 512 tiles are the budget.
+// Features without a prompt are derived art (scratch compositing of the generated ones, see the
+// as-built notes): the jammer on the annex roof (on/off), the bin on a white square, the Tour's
+// crackling shut door.
+(
+    name: "SilGrisEchec",
+    primary: "General",
+    ground: Some(94),
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance). Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no tiny decorations, no anti-aliasing. Cold palette: concrete greys, black, with only small accents of colour.",
+    features: [
+        (
+            name: "immeuble",
+            cells: ["####", "####", "####", "####"],
+            prompt: Some("A brutalist apartment block of raw grey concrete, perfectly square right angles, a flat roof with a thin darker rim, small dark square windows in a strict grid, and one giant flat screen mounted on the front facade showing only grey and white TV static snow. No door, no plants."),
+        ),
+        (
+            name: "centre",
+            cells: ["###", "###", "###", "#D#"],
+            prompt: Some("A small narrow Pokemon Center, taller than wide (3 wide by 4 tall), rebuilt as a plain brutalist grey concrete block: a flat red roof seen from above in the upper part, a white and red Poke Ball emblem on the front wall above the entrance, light grey concrete walls, one glass door exactly in the middle of the bottom edge. No text."),
+        ),
+        (
+            name: "boutique",
+            cells: ["###", "###", "###", "#D#"],
+            prompt: Some("A small narrow Poke Mart, taller than wide (3 wide by 4 tall), rebuilt as a plain brutalist grey concrete block: a flat blue roof seen from above in the upper part, a simple white shopping bag icon on the front wall above the entrance, light grey concrete walls, one glass door exactly in the middle of the bottom edge. No text."),
+        ),
+        (
+            name: "tour",
+            cells: ["####", "####", "####", "####", "#DD#"],
+            prompt: Some("A tall square security observation tower of raw grey concrete seen from the front: narrow, with a tall thin radio antenna mast with a small red light on top of its flat roof, a band of dark tinted observation windows near the top, a row of small grey surveillance screens showing static, and a wide dark metal double door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "annexe",
+            cells: ["#####", "#...#", "#...#", "#.###", "#.###"],
+            prompt: Some("A low one-storey concrete shop annex seen from above and the front: a large flat grey gravel roof with a low concrete parapet around it occupying the upper three fifths, a plain grey concrete front wall below with one small dark window, and a narrow black iron wall ladder running up the front wall in the second column from the left, from the bottom edge up to the roof."),
+        ),
+        (
+            name: "arene",
+            cells: ["#####", "#####", "#####", "#####", "##D##"],
+            key: Some("00FF00"),
+            prompt: Some("A monolithic black cube building without any window, flat matte black walls with faint dark grey panel seams, a thin white edge on the roof outline, two bright working screens on its facade showing a white chess knight and a chessboard on glowing cyan, and a black double door with a thin cyan frame exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "usine",
+            cells: ["#######", "#######", "#######", "###D###"],
+            prompt: Some("A closed electronic components factory of grey corrugated metal and concrete: a saw-tooth roof, two short chimneys without smoke, rusty stains, boarded-up dark windows in a row, a broken screen showing static, and a large shut rolling metal door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "pion",
+            cells: ["##", "##"],
+            prompt: Some("A monumental statue of a giant black chess pawn, glossy black stone, standing on a square plinth of white concrete. Simple round pawn shape."),
+        ),
+        (
+            name: "ecran_pied",
+            cells: [".", "#"],
+            over: [0],
+            prompt: Some("A tall thin street screen on a single dark grey metal pole: a small flat rectangular screen at the top showing grey TV static snow, the pole standing straight down to the ground."),
+        ),
+        (
+            name: "brouilleur",
+            cells: ["#"],
+            prompt: Some("A signal jammer: a small grey metal box with two short antennas, a red light and a few black cables, sitting on the ground. It fills most of the picture."),
+        ),
+        (
+            name: "poubelle",
+            cells: ["#"],
+            prompt: Some("A round grey metal street trash bin with a lid, slightly dented. It fills most of the picture."),
+        ),
+        (
+            name: "barriere",
+            cells: ["#"],
+            prompt: Some("A security checkpoint barrier: a short black and red striped boom bar across, on a squat black post with a small red light. It fills most of the picture."),
+        ),
+        (
+            name: "pave",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Street paving of light grey resin with recycled electronics set in it: one bright green circuit board chip with two orange copper traces and one small black microchip, on a mostly flat light grey resin base. Light and clean, few details."),
+        ),
+        (
+            name: "case_noire",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A single plain black polished stone floor slab, almost flat black with a faint dark grey edge."),
+        ),
+        (
+            name: "case_blanche",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A single plain white polished stone floor slab, almost flat white with a faint light grey edge."),
+        ),
+        (
+            name: "toit",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A flat grey concrete rooftop seen from straight above: plain grey with one thin darker seam line and one small square vent."),
+        ),
+        // Derived: the jammer on the annex roof cell (3, 1), then switched off (grey light).
+        (
+            name: "j1",
+            cells: ["#"],
+        ),
+        (
+            name: "j1_hs",
+            cells: ["#"],
+        ),
+        // Derived: the bin on a white square of the Place des Pions (J2 inside).
+        (
+            name: "poubelle_case",
+            cells: ["#"],
+        ),
+        // Derived: the Tour's door cells, crackling with static (shut until FLAG_SIL_TOUR_OPEN).
+        (
+            name: "tour_porte_brouillee",
+            cells: ["##"],
+        ),
+    ],
+)

@@ -116,8 +116,65 @@ pub fn hold_effect(name: &str) -> Option<&'static str> {
         "ITEM_CHARCOAL" => "HoldEffect::TypePower(Type::Fire, 10)",
         "ITEM_DRAGON_FANG" => "HoldEffect::TypePower(Type::Dragon, 10)",
         "ITEM_SILK_SCARF" => "HoldEffect::TypePower(Type::Normal, 10)",
+        // Wave C. `{SPECIES_*}` placeholders are the build's species ids
+        // ([`hold_effect_species`]).
+        "ITEM_WHITE_HERB" => "HoldEffect::RestoreStats",
+        "ITEM_LIECHI_BERRY" => "HoldEffect::StatUp(Stat::Atk, 4)",
+        "ITEM_GANLON_BERRY" => "HoldEffect::StatUp(Stat::Def, 4)",
+        "ITEM_SALAC_BERRY" => "HoldEffect::StatUp(Stat::Speed, 4)",
+        "ITEM_PETAYA_BERRY" => "HoldEffect::StatUp(Stat::SpAtk, 4)",
+        "ITEM_APICOT_BERRY" => "HoldEffect::StatUp(Stat::SpDef, 4)",
+        "ITEM_LANSAT_BERRY" => "HoldEffect::CriticalUp(4)",
+        "ITEM_STARF_BERRY" => "HoldEffect::RandomStatUp(4)",
+        // FLAVOR_SPICY, _DRY, _SWEET, _BITTER, _SOUR.
+        "ITEM_FIGY_BERRY" => "HoldEffect::ConfuseBerry { flavor: 0, param: 8 }",
+        "ITEM_WIKI_BERRY" => "HoldEffect::ConfuseBerry { flavor: 1, param: 8 }",
+        "ITEM_MAGO_BERRY" => "HoldEffect::ConfuseBerry { flavor: 2, param: 8 }",
+        "ITEM_AGUAV_BERRY" => "HoldEffect::ConfuseBerry { flavor: 3, param: 8 }",
+        "ITEM_IAPAPA_BERRY" => "HoldEffect::ConfuseBerry { flavor: 4, param: 8 }",
+        "ITEM_LEPPA_BERRY" => "HoldEffect::RestorePp(10)",
+        "ITEM_MENTAL_HERB" => "HoldEffect::CureAttract",
+        "ITEM_SHELL_BELL" => "HoldEffect::ShellBell(8)",
+        "ITEM_SCOPE_LENS" => "HoldEffect::ScopeLens",
+        "ITEM_LUCKY_PUNCH" => "HoldEffect::SpeciesCrit({SPECIES_CHANSEY})",
+        "ITEM_STICK" => "HoldEffect::SpeciesCrit({SPECIES_FARFETCHD})",
+        "ITEM_DEEP_SEA_TOOTH" => "HoldEffect::DeepSeaTooth({SPECIES_CLAMPERL})",
+        "ITEM_DEEP_SEA_SCALE" => "HoldEffect::DeepSeaScale({SPECIES_CLAMPERL})",
+        "ITEM_LIGHT_BALL" => "HoldEffect::LightBall({SPECIES_PIKACHU})",
+        "ITEM_METAL_POWDER" => "HoldEffect::MetalPowder({SPECIES_DITTO})",
+        "ITEM_THICK_CLUB" => "HoldEffect::ThickClub({SPECIES_CUBONE}, {SPECIES_MAROWAK})",
+        "ITEM_SOUL_DEW" => "HoldEffect::SoulDew({SPECIES_LATIAS}, {SPECIES_LATIOS})",
+        "ITEM_MACHO_BRACE" => "HoldEffect::MachoBrace",
+        "ITEM_SMOKE_BALL" => "HoldEffect::CanAlwaysRun",
+        "ITEM_AMULET_COIN" => "HoldEffect::DoublePrize",
+        "ITEM_EXP_SHARE" => "HoldEffect::ExpShare",
+        "ITEM_LUCKY_EGG" => "HoldEffect::LuckyEgg",
+        "ITEM_SOOTHE_BELL" => "HoldEffect::FriendshipUp",
+        "ITEM_EVERSTONE" => "HoldEffect::PreventEvolve",
+        "ITEM_DRAGON_SCALE" | "ITEM_UP_GRADE" => "HoldEffect::TradeItem",
         _ => return None,
     })
+}
+
+/// [`hold_effect`]'s expression with each `{SPECIES_*}` placeholder replaced by
+/// `species(name)` (`None` for a species the build lacks: the item gets no effect).
+pub fn hold_effect_species(expr: &str, species: impl Fn(&str) -> Option<String>) -> Option<String> {
+    let mut out = String::new();
+    let mut rest = expr;
+    while let Some(i) = rest.find('{') {
+        let Some(j) = rest[i..].find('}') else { break };
+        let name = &rest[i + 1..i + j];
+        if !name.starts_with("SPECIES_") {
+            out.push_str(&rest[..i + j + 1]);
+            rest = &rest[i + j + 1..];
+            continue;
+        }
+        out.push_str(&rest[..i]);
+        out.push_str(&species(name)?);
+        rest = &rest[i + j + 1..];
+    }
+    out.push_str(rest);
+    Some(out)
 }
 
 /// `ABILITY_*` name -> `Ability` expression under Emerald's [`Rules`]; the abilities the
@@ -209,9 +266,33 @@ pub fn ability_with(name: &str, r: Rules) -> &'static str {
         // Field-only in Gen3 (the encounter rate; no battle effect).
         "ABILITY_STENCH" => "Ability::Stench",
         "ABILITY_ILLUMINATE" => "Ability::Illuminate",
-        // `Ability::WhiteSmoke`, `ArenaTrap` and `Pressure` exist for the encounter rules
-        // (`engine::wild`), but their battle effects (Clear Body's, trapping, double PP use)
-        // are not modelled: their holders stay `Other`.
+        // Wave C: the remaining Gen3 abilities (battle and encounter effects).
+        "ABILITY_WHITE_SMOKE" => "Ability::WhiteSmoke",
+        "ABILITY_ARENA_TRAP" => "Ability::ArenaTrap",
+        "ABILITY_PRESSURE" => "Ability::Pressure",
+        "ABILITY_MAGMA_ARMOR" => "Ability::MagmaArmor",
+        "ABILITY_FLAME_BODY" => "Ability::FlameBody",
+        "ABILITY_PLUS" => "Ability::Plus",
+        "ABILITY_MINUS" => "Ability::Minus",
+        "ABILITY_WATER_VEIL" => "Ability::WaterVeil",
+        "ABILITY_ROUGH_SKIN" => "Ability::RoughSkin",
+        "ABILITY_STICKY_HOLD" => "Ability::StickyHold",
+        "ABILITY_HYPER_CUTTER" => "Ability::HyperCutter",
+        "ABILITY_OWN_TEMPO" => "Ability::OwnTempo",
+        "ABILITY_COLOR_CHANGE" => "Ability::ColorChange",
+        "ABILITY_IMMUNITY" => "Ability::Immunity",
+        "ABILITY_FORECAST" => "Ability::Forecast",
+        "ABILITY_FLASH_FIRE" => "Ability::FlashFire",
+        "ABILITY_VOLT_ABSORB" => "Ability::VoltAbsorb",
+        "ABILITY_WATER_ABSORB" => "Ability::WaterAbsorb",
+        "ABILITY_LIMBER" => "Ability::Limber",
+        "ABILITY_SUCTION_CUPS" => "Ability::SuctionCups",
+        "ABILITY_AIR_LOCK" => "Ability::AirLock",
+        "ABILITY_CLOUD_NINE" => "Ability::CloudNine",
+        "ABILITY_CACOPHONY" => "Ability::Cacophony",
+        "ABILITY_DAMP" => "Ability::Damp",
+        "ABILITY_SERENE_GRACE" => "Ability::SereneGrace",
+        "ABILITY_WONDER_GUARD" => "Ability::WonderGuard",
         // Silice engine: Gen3 abilities that Emerald species have, gated.
         "ABILITY_DROUGHT" if gen3_extra => "Ability::Drought",
         "ABILITY_DRIZZLE" if gen3_extra => "Ability::Drizzle",
@@ -222,9 +303,11 @@ pub fn ability_with(name: &str, r: Rules) -> &'static str {
         "ABILITY_LEVITATE" if gen3_extra => "Ability::Levitate",
         "ABILITY_SHELL_ARMOR" if gen3_extra => "Ability::ShellArmor",
         "ABILITY_BATTLE_ARMOR" if gen3_extra => "Ability::BattleArmor",
-        "ABILITY_SAND_VEIL" if gen3_extra => "Ability::SandVeil",
-        // Gen3's Lightning Rod only redirects in doubles: nothing in singles (`Other`).
+        "ABILITY_SAND_VEIL" if silice => "Ability::SandVeil",
+        "ABILITY_SAND_VEIL" if gen3_extra => "Ability::SandVeilGen3",
+        // Gen3's Lightning Rod only redirects in doubles: nothing in singles.
         "ABILITY_LIGHTNING_ROD" if silice => "Ability::LightningRod",
+        "ABILITY_LIGHTNING_ROD" => "Ability::LightningRodGen3",
         // Post-Gen3 (no Emerald species has them).
         "ABILITY_PRIMORDIAL_SEA" => "Ability::PrimordialSea",
         "ABILITY_DESOLATE_LAND" => "Ability::DesolateLand",
@@ -248,12 +331,10 @@ pub fn ability_with(name: &str, r: Rules) -> &'static str {
 
 /// Whether the Gen3 abilities the Silice engine added (Drought, Drizzle, Sand Stream, Speed
 /// Boost, Shadow Tag, Levitate, Shell / Battle Armor, Sand Veil) act for Emerald's
-/// species, with their Gen3 behaviour. **Off**: Torkoal, Tyranitar, Ninjask, Wobbuffet, the
-/// Levitate ghosts … would change the recorded route; turning it on is a later Emerald route
-/// change (re-baseline parity and the checkpoint tree). Gen3's Lightning Rod stays `Other`
-/// (a doubles redirect). Rain Dish is mapped as before: only these bring rain. Not modelled: Cloud Nine, Air Lock (weather suppression), Sand
-/// Veil's overworld encounter halving.
-pub const GEN3_EXTRA_ABILITIES: bool = false;
+/// species, with their Gen3 behaviour. **On** since Wave C (an Emerald route change: Torkoal,
+/// Tyranitar, Ninjask, Wobbuffet, the Levitate ghosts …; the checkpoint tree needs a
+/// re-baseline). Not modelled: Sand Veil's overworld encounter halving (no field weather).
+pub const GEN3_EXTRA_ABILITIES: bool = true;
 
 /// The Silice game's later-generation rules for Gen3 abilities: Lightning Rod's Gen5 absorb,
 /// Shadow Tag's Gen4 exemption. **Off** for Emerald (not Gen3 behaviour); the Silice content
@@ -611,6 +692,49 @@ pub const STRS: &[(&str, StrSrc)] = {
             "AbilityRestoredHp",
             Key("STRINGID_PKMNSXRESTOREDHPALITTLE2"),
         ),
+        // Wave C: abilities and held items.
+        (
+            "PkmnPreventsParalysisWith",
+            Key("STRINGID_PKMNPREVENTSPARALYSISWITH"),
+        ),
+        (
+            "PkmnPreventsPoisoningWith",
+            Key("STRINGID_PKMNPREVENTSPOISONINGWITH"),
+        ),
+        (
+            "PkmnPreventsConfusionWith",
+            Key("STRINGID_PKMNPREVENTSCONFUSIONWITH"),
+        ),
+        ("PkmnSXPreventsBurns", Key("STRINGID_PKMNSXPREVENTSBURNS")),
+        ("PkmnSXPreventsYSZ", Key("STRINGID_PKMNSXPREVENTSYSZ")),
+        ("PkmnRestoredHpUsing", Key("STRINGID_PKMNRESTOREDHPUSING")),
+        ("PkmnSXMadeYUseless", Key("STRINGID_PKMNSXMADEYUSELESS")),
+        (
+            "PkmnRaisedFirePowerWith",
+            Key("STRINGID_PKMNRAISEDFIREPOWERWITH"),
+        ),
+        (
+            "PkmnSXMadeYIneffective",
+            Key("STRINGID_PKMNSXMADEYINEFFECTIVE"),
+        ),
+        ("PkmnChangedTypeWith", Key("STRINGID_PKMNCHANGEDTYPEWITH")),
+        ("PkmnHurtsWith", Key("STRINGID_PKMNHURTSWITH")),
+        (
+            "PkmnSXCuredItsYProblem",
+            Key("STRINGID_PKMNSXCUREDITSYPROBLEM"),
+        ),
+        ("PkmnTransformed", Key("STRINGID_PKMNTRANSFORMED")),
+        ("PkmnPreventsUsage", Key("STRINGID_PKMNPREVENTSUSAGE")),
+        ("AvoidedDamage", Key("STRINGID_AVOIDEDDAMAGE")),
+        (
+            "ItemRestoredStatus",
+            Key("STRINGID_PKMNSITEMRESTOREDSTATUS"),
+        ),
+        ("ItemRestoredPp", Key("STRINGID_PKMNSITEMRESTOREDPP")),
+        ("ForXCommaYZ", Key("STRINGID_FORXCOMMAYZ")),
+        ("UsedXToGetPumped", Key("STRINGID_PKMNUSEDXTOGETPUMPED")),
+        ("UsingItemStatRose", Key("STRINGID_USINGITEMSTATOFPKMNROSE")),
+        ("FledUsingIts", Key("STRINGID_PKMNFLEDUSINGITS")),
         // Post-Gen3: no Gen3 string.
         ("MegaReacting", Missing),
         ("MegaEvolved", Missing),
