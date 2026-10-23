@@ -6,6 +6,9 @@ use crate::mon::{self, BattleTables, LandEncounters, TrainerData};
 use crate::script::{Ctx, Script};
 use crate::video::Tile;
 
+mod puzzle;
+pub use puzzle::{CrackedFloor, IcePuzzle, IceRows, StepCallback};
+
 /// Facing / movement direction. Order matches Gen3 `DIR_SOUTH..DIR_EAST` minus one.
 #[derive(
     Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug, serde::Serialize, serde::Deserialize,
@@ -265,6 +268,29 @@ pub enum Behavior {
     /// Escalator: entering triggers its warp; arriving on one, the player faces `Dir` and walks
     /// one cell `Dir`, visible (Gen3 `Task_EscalatorWarpIn`, without the ride).
     Escalator(Dir),
+    // ---- forced movement (see `objects::forced`) ----
+    /// Ice (Gen3 `MB_ICE`, `MB_TRICK_HOUSE_PUZZLE_8_FLOOR`): the player slips on in the
+    /// direction they move, at `walk_fast`, until a cell that is not ice or an obstacle
+    /// (`ForcedMovement_Slip`).
+    Ice,
+    /// Gen3 `MB_WALK_*`: a forced `walk_normal` step towards `Dir` (`ForcedMovement_Walk*`).
+    ForcedWalk(Dir),
+    /// Gen3 `MB_SLIDE_*`: a forced `walk_fast` step towards `Dir`, facing kept
+    /// (`ForcedMovement_Slide*`).
+    Slide(Dir),
+    /// Gen3 `MB_MUDDY_SLOPE`: slides the player south, facing kept, unless they climb it north
+    /// at the Mach Bike's top speed (`ForcedMovement_MuddySlope`; no bike yet: always slides).
+    MuddySlope,
+    /// Gen3 `MB_THIN_ICE`: plain floor that a map's [`StepCallback::Ice`] cracks.
+    ThinIce,
+    /// Gen3 `MB_CRACKED_ICE`: plain floor that a map's [`StepCallback::Ice`] breaks.
+    CrackedIce,
+    /// Gen3 `MB_CRACKED_FLOOR`: a forced-movement tile without a movement (no step triggers,
+    /// no encounters on it); a map's [`StepCallback::CrackedFloor`] turns it into a hole.
+    CrackedFloor,
+    /// Gen3 `MB_CRACKED_FLOOR_HOLE`: finishing a step on it runs [`GameData::fall_script`]
+    /// (Gen3 `TryStartMiscWalkingScripts`, `EventScript_FallDownHole`).
+    CrackedFloorHole,
 }
 
 /// Sides of a cell, one bit per [`Dir`] (`1 << dir as u8`): the payload of
@@ -299,6 +325,20 @@ impl Behavior {
                 | Behavior::NonAnimDoor(_)
                 | Behavior::Ladder
                 | Behavior::Escalator(_)
+        )
+    }
+
+    /// Gen3 `MetatileBehavior_IsForcedMovementTile` (the behaviors classified here): on such a
+    /// cell a finished step runs no step triggers and no encounter check, and the field input
+    /// of the frame after it is ignored (`FieldGetPlayerInput`).
+    pub const fn is_forced_tile(self) -> bool {
+        matches!(
+            self,
+            Behavior::Ice
+                | Behavior::ForcedWalk(_)
+                | Behavior::Slide(_)
+                | Behavior::MuddySlope
+                | Behavior::CrackedFloor
         )
     }
 
@@ -676,6 +716,26 @@ pub trait GameData {
     /// without them (Emerald) returns the default, empty.
     fn form_changes(&self) -> &'static [FormChange] {
         &[]
+    }
+
+    // ---- forced movement and field puzzles (every default: none) ----
+
+    /// The per-step callback map `map` turns on (Gen3 `setstepcallback` in its `on_resume`
+    /// script): the Sootopolis-style ice puzzle or cracked floors ([`StepCallback`]).
+    fn step_callback(&self, map: MapId) -> Option<StepCallback> {
+        let _ = map;
+        None
+    }
+    /// The map a hole of `map` drops the player to, onto the same cell (Gen3 `setholewarp` in
+    /// its `on_resume` script; read by `warphole` without a map, `Request::WarpHole(None)`).
+    fn hole_warp(&self, map: MapId) -> Option<MapId> {
+        let _ = map;
+        None
+    }
+    /// Run when a player step finishes on a [`Behavior::CrackedFloorHole`] cell (Gen3
+    /// `EventScript_FallDownHole`, from `TryStartMiscWalkingScripts`).
+    fn fall_script(&self) -> Option<ScriptId> {
+        None
     }
 }
 

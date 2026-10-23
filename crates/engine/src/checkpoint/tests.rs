@@ -506,11 +506,15 @@ fn enum_variant_indices_are_pinned() {
             RunStateSnap::NotMoving,
             RunStateSnap::TurnDirection,
             RunStateSnap::Moving,
+            RunStateSnap::NotMovingHeld,
+            RunStateSnap::TurnDirectionHeld,
         ],
         |v| match v {
             RunStateSnap::NotMoving => 0,
             RunStateSnap::TurnDirection => 1,
             RunStateSnap::Moving => 2,
+            RunStateSnap::NotMovingHeld => 3,
+            RunStateSnap::TurnDirectionHeld => 4,
         },
     );
     check(
@@ -606,6 +610,14 @@ fn enum_variant_indices_are_pinned() {
             Behavior::NonAnimDoor(Dir::Up),
             Behavior::Ladder,
             Behavior::Escalator(Dir::Right),
+            Behavior::Ice,
+            Behavior::ForcedWalk(Dir::Left),
+            Behavior::Slide(Dir::Up),
+            Behavior::MuddySlope,
+            Behavior::ThinIce,
+            Behavior::CrackedIce,
+            Behavior::CrackedFloor,
+            Behavior::CrackedFloorHole,
         ],
         |v| match v {
             Behavior::Normal => 0,
@@ -620,6 +632,14 @@ fn enum_variant_indices_are_pinned() {
             Behavior::NonAnimDoor(_) => 9,
             Behavior::Ladder => 10,
             Behavior::Escalator(_) => 11,
+            Behavior::Ice => 12,
+            Behavior::ForcedWalk(_) => 13,
+            Behavior::Slide(_) => 14,
+            Behavior::MuddySlope => 15,
+            Behavior::ThinIce => 16,
+            Behavior::CrackedIce => 17,
+            Behavior::CrackedFloor => 18,
+            Behavior::CrackedFloorHole => 19,
         },
     );
     check(

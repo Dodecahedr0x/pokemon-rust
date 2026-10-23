@@ -55,10 +55,12 @@ impl Objects {
         );
         ObjectsSnap {
             map: self.map,
-            run_state: match self.run_state {
-                RunState::NotMoving => RunStateSnap::NotMoving,
-                RunState::TurnDirection => RunStateSnap::TurnDirection,
-                RunState::Moving => RunStateSnap::Moving,
+            run_state: match (self.run_state, self.hold) {
+                (RunState::NotMoving, false) => RunStateSnap::NotMoving,
+                (RunState::TurnDirection, false) => RunStateSnap::TurnDirection,
+                (RunState::Moving, _) => RunStateSnap::Moving,
+                (RunState::NotMoving, true) => RunStateSnap::NotMovingHeld,
+                (RunState::TurnDirection, true) => RunStateSnap::TurnDirectionHeld,
             },
             objs: self.objs.iter().map(Object::snapshot).collect(),
         }
@@ -87,13 +89,19 @@ impl Objects {
             objs: s.objs.iter().map(Object::from_snapshot).collect(),
             map: s.map,
             run_state: match s.run_state {
-                RunStateSnap::NotMoving => RunState::NotMoving,
-                RunStateSnap::TurnDirection => RunState::TurnDirection,
+                RunStateSnap::NotMoving | RunStateSnap::NotMovingHeld => RunState::NotMoving,
+                RunStateSnap::TurnDirection | RunStateSnap::TurnDirectionHeld => {
+                    RunState::TurnDirection
+                }
                 RunStateSnap::Moving => RunState::Moving,
             },
             banks: [None; 16],
             emotes: alloc::vec::Vec::new(),
             approach: None,
+            hold: matches!(
+                s.run_state,
+                RunStateSnap::NotMovingHeld | RunStateSnap::TurnDirectionHeld
+            ),
         }
     }
 

@@ -163,6 +163,14 @@ pub(super) fn behavior_code(b: Behavior) -> [u8; 2] {
         Behavior::NonAnimDoor(d) => [9, d as u8],
         Behavior::Ladder => [10, 0],
         Behavior::Escalator(d) => [11, d as u8],
+        Behavior::Ice => [12, 0],
+        Behavior::ForcedWalk(d) => [13, d as u8],
+        Behavior::Slide(d) => [14, d as u8],
+        Behavior::MuddySlope => [15, 0],
+        Behavior::ThinIce => [16, 0],
+        Behavior::CrackedIce => [17, 0],
+        Behavior::CrackedFloor => [18, 0],
+        Behavior::CrackedFloorHole => [19, 0],
     }
 }
 

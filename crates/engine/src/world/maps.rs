@@ -180,6 +180,10 @@ fn load_map_spread(
     if let Some(script) = on_warp_into(map, &s.vars) {
         run_immediate(game, s, f, script);
     }
+    // Gen3 `InitPlayerAvatar` sets `PLAYER_AVATAR_FLAG_CONTROLLABLE`: no forced movement until
+    // the player first moves. It only matters on a forced-movement cell (`Objects::hold`).
+    let on_forced = s.ground(game).behavior(x, y).is_forced_tile();
+    s.objects.hold_forced(on_forced);
 }
 
 /// Switches to connected map `to` as the player steps across the edge (Gen3

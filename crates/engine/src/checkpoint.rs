@@ -229,6 +229,10 @@ pub enum RunStateSnap {
     NotMoving,
     TurnDirection,
     Moving,
+    // Forced movement held off (Gen3 `PLAYER_AVATAR_FLAG_CONTROLLABLE`, `Objects::hold_forced`),
+    // never while `Moving`. Appended: snapshots without them encode as before.
+    NotMovingHeld,
+    TurnDirectionHeld,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]

@@ -10,6 +10,7 @@ mod anim;
 mod approach;
 mod draw;
 mod emote;
+mod forced;
 mod movement;
 mod snapshot;
 mod spawn;
@@ -545,6 +546,13 @@ pub struct Objects {
     emotes: Vec<EmoteFx>,
     /// A trainer that saw the player and walks up (Gen3 `TrainerSeeFuncList`).
     approach: Option<Approach>,
+    // ---- forced movement ----
+    /// Gen3 `PLAYER_AVATAR_FLAG_CONTROLLABLE`: forced movement is held off until the player
+    /// first moves (`PlayerAllowForcedMovementIfMovingSameDirection`). Gen3 sets it on every
+    /// warp load (`InitPlayerAvatar`); here [`Objects::hold_forced`] sets it only when the
+    /// player arrives on a forced-movement cell, the only place it matters, so it is never set
+    /// on maps without one. Never set while `run_state` is `Moving`.
+    hold: bool,
 }
 
 impl Default for Objects {
@@ -564,6 +572,7 @@ impl Objects {
             banks: [None; 16],
             emotes: Vec::new(),
             approach: None,
+            hold: false,
         }
     }
 
@@ -828,8 +837,55 @@ impl Objects {
         self.collision_at(terrain, i, dir)
     }
 
-    /// Player control for one frame, as Gen3 `MovePlayerNotOnBike`. Does nothing while the
-    /// player runs a movement script (`update` plays it).
+    /// Holds forced movement off until the player first moves (Gen3
+    /// `PLAYER_AVATAR_FLAG_CONTROLLABLE`, see `hold`): the World calls it after a warp load with
+    /// whether the player stands on a forced-movement cell.
+    pub fn hold_forced(&mut self, on_forced_cell: bool) {
+        self.hold = on_forced_cell;
+    }
+
+    /// Whether forced movement is held off ([`Objects::hold_forced`]).
+    pub fn forced_held(&self) -> bool {
+        self.hold
+    }
+
+    /// Frames the player's walk or run step has played (1 on the frame it starts), while one
+    /// plays: what the per-step callbacks time their effects by (`world/puzzle.rs`).
+    pub fn player_step_frames(&self) -> Option<u8> {
+        self.objs[0]
+            .action
+            .filter(|a| matches!(a.kind, ActionKind::Walk(_) | ActionKind::Run))
+            .map(|a| a.t)
+    }
+
+    /// Whether the player is at a step's end on a forced-movement cell (Gen3
+    /// `T_TILE_CENTER` with `MetatileBehavior_IsForcedMovementTile`): settled after moving, so
+    /// `FieldGetPlayerInput` reads no A, START or held direction this frame.
+    pub fn at_forced_tile_center(&self, terrain: &impl Terrain) -> bool {
+        let p = &self.objs[0];
+        p.is_settled()
+            && self.run_state == RunState::Moving
+            && terrain.behavior(p.x, p.y).is_forced_tile()
+    }
+
+    /// The forced step the player takes this frame, if one applies and is free: Gen3
+    /// `TryDoMetatileBehaviorForcedMovement` up to the collision test (see [`forced`]).
+    fn forced_step(&self, terrain: &impl Terrain) -> Option<(forced::ForcedStep, bool)> {
+        if self.hold {
+            return None;
+        }
+        let p = &self.objs[0];
+        let step = forced::forced_step(terrain.behavior(p.x, p.y), p.facing)?;
+        let (dx, dy) = step.dir.delta();
+        // Gen3 `CheckForPlayerAvatarCollision`: a ledge is jumped (`PlayerJumpLedge`).
+        let ledge = terrain.behavior(p.x + dx, p.y + dy) == Behavior::Ledge(step.dir);
+        (ledge || self.collision_at(terrain, 0, step.dir) == Collision::None)
+            .then_some((step, ledge))
+    }
+
+    /// Player control for one frame, as Gen3 `PlayerStep`: forced movement
+    /// ([`forced`]), else `MovePlayerNotOnBike`. Does nothing while the player runs a movement
+    /// script (`update` plays it).
     pub fn update_player(&mut self, terrain: &impl Terrain, input: PlayerInput) -> PlayerEvent {
         // Player control runs only when no script does: an approach left over by a trainer
         // script that ended without one is dropped.
@@ -838,15 +894,26 @@ impl Objects {
             return PlayerEvent::Idle;
         }
         self.objs[0].update_elevation(terrain);
-        // `CheckMovementInputNotOnBike` runs every frame, even while an action plays.
+        // Gen3 `TryDoMetatileBehaviorForcedMovement`, every frame before the keypad: a forced
+        // step sets `MOVING` and skips the keypad; a blocked one leaves it to the keypad.
+        let forced = self.forced_step(terrain);
         let p = &self.objs[0];
-        self.run_state = match input.dir {
-            None => RunState::NotMoving,
-            Some(d) if d != p.facing && self.run_state != RunState::Moving => {
-                RunState::TurnDirection
+        if forced.is_some() {
+            self.run_state = RunState::Moving;
+        } else {
+            // `CheckMovementInputNotOnBike` runs every frame, even while an action plays.
+            self.run_state = match input.dir {
+                None => RunState::NotMoving,
+                Some(d) if d != p.facing && self.run_state != RunState::Moving => {
+                    RunState::TurnDirection
+                }
+                Some(_) => RunState::Moving,
+            };
+            // `PlayerAllowForcedMovementIfMovingSameDirection`.
+            if self.run_state == RunState::Moving {
+                self.hold = false;
             }
-            Some(_) => RunState::Moving,
-        };
+        }
         if let Some(a) = p.action {
             // `PlayerSetAnimId` ignores input while an action plays.
             let done = self.objs[0].tick();
@@ -864,6 +931,25 @@ impl Objects {
         }
         if p.frozen {
             return PlayerEvent::Idle;
+        }
+        if let Some((step, ledge)) = forced {
+            let (dx, dy) = step.dir.delta();
+            let (x, y) = (p.x + dx, p.y + dy);
+            let o = &mut self.objs[0];
+            let locked = o.facing_locked;
+            o.facing_locked |= step.keep_facing;
+            let to = if ledge {
+                o.begin(ActionKind::Jump(2), step.dir);
+                (x + dx, y + dy)
+            } else {
+                o.begin(step.kind, step.dir);
+                (x, y)
+            };
+            o.facing_locked = locked;
+            if step.pause_anim && !ledge {
+                o.anim.pause();
+            }
+            return PlayerEvent::StepStarted { to, dir: step.dir };
         }
         let Some(dir) = input.dir else {
             let f = p.facing;
@@ -992,5 +1078,9 @@ impl Objects {
             self.hash_emotes(h);
         }
         self.hash_approach(h);
+        // Forced movement: only while held, so hashes without it are unchanged.
+        if self.hold {
+            h.write(&[0xF0]);
+        }
     }
 }

@@ -77,7 +77,7 @@ impl<G: GameData> Host<'_, G> {
             Request::WaitState => !s.transition.is_active() && s.fader.is_done() && s.door == 0,
             // Never answered: the warp's map load ends the script (Gen3 `warp` returns TRUE
             // and `CB2_LoadMap` resets the script context).
-            Request::Warp { .. } => false,
+            Request::Warp { .. } | Request::WarpHole(_) => false,
             Request::Multichoice { .. } => menu::done(self, r),
             Request::TrainerApproach { .. } => trainer::done(self, r),
             _ => true,
@@ -221,6 +221,28 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 } else {
                     s.log("warp to a missing map ignored");
                     UNIT
+                }
+            }
+            Request::WarpHole(_) if self.immediate => {
+                s.log("warp in a map script ignored");
+                UNIT
+            }
+            Request::WarpHole(map) => {
+                // Gen3 `ScrCmd_warphole`: the player's cell on the map below
+                // (`SetWarpDestinationToFixedHoleWarp`), then `DoFallWarp`. The fall itself
+                // (`FieldCB_FallWarpExit`) is a plain arrival here, facing south as Gen3's
+                // `ResetInitialPlayerAvatarState` leaves it.
+                match map.or_else(|| game.hole_warp(s.field.map())) {
+                    Some(dest) if game.has_map(dest) => {
+                        let (x, y) = s.objects.player().pos();
+                        s.transition.start(game, dest, None, x, y);
+                        s.objects.freeze_all();
+                        None
+                    }
+                    _ => {
+                        s.log("hole warp to a missing map ignored");
+                        UNIT
+                    }
                 }
             }
             Request::SetMetatile {

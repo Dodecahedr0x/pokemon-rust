@@ -28,6 +28,7 @@ mod battle;
 mod checkpoint;
 mod host;
 mod maps;
+mod puzzle;
 mod sight;
 mod templates;
 #[cfg(test)]
@@ -407,6 +408,8 @@ impl World {
             field: &s.field,
         };
         s.objects.update(&ground, &mut s.rng, player_updated);
+        // Gen3's per-step callback task (the map's ice puzzle or cracked floors).
+        puzzle::step(game, s, f);
         // The player entered a cell this frame (a step starts, by input or by a script's
         // movement, or a crossing or warp moved it): the view window follows (Gen3 spawns and
         // despawns on each camera tile move, `CameraMove` at step start, cutscenes included).
@@ -464,7 +467,9 @@ impl World {
         }
         let s = &self.s;
         let p = s.objects.player();
-        if p.is_settled() && !p.frozen {
+        // Gen3 `FieldGetPlayerInput`: at a step's end on a forced-movement cell, no A and no
+        // held direction (arrow warps, doors) this frame.
+        if p.is_settled() && !p.frozen && !s.objects.at_forced_tile_center(&s.ground(game)) {
             let ((x, y), facing, elevation) = (p.pos(), p.facing, p.elevation);
             let pushing = s.input.dpad() == Some(facing);
             let here = s.field.block(game, x, y);
@@ -547,15 +552,24 @@ impl World {
             // frame's field input (`ProcessPlayerFieldInput`, after `on_frame`), one frame later.
             PlayerEvent::StepFinished { at: (x, y) } => {
                 let elevation = s.objects.player().elevation;
+                let b = block_behavior(game, map, s.field.block(game, x, y));
                 if let Some(sighting) = sight::check(game, s) {
                     // Trainer sight first, as on every field-input frame (above).
                     self.start_sighting(game, sighting);
+                } else if b.is_forced_tile() {
+                    // Gen3 `FieldGetPlayerInput`: no `tookStep` and no encounter check on a
+                    // forced-movement cell (ice, arrows, slides, cracked floors).
                 } else if let Some(id) = coord_trigger(map, x, y, elevation, &s.vars) {
                     self.start_script(game, id, None);
                 } else {
-                    let b = block_behavior(game, map, s.field.block(game, x, y));
+                    let fall = game
+                        .fall_script()
+                        .filter(|_| b == Behavior::CrackedFloorHole);
                     if let Some(w) = warp_on_enter(map, x, y, elevation, b) {
                         self.start_warp(game, map, w, false);
+                    } else if let Some(id) = fall {
+                        // Gen3 `TryStartMiscWalkingScripts`: `EventScript_FallDownHole`.
+                        self.start_script(game, id, None);
                     } else {
                         // Gen3 `CheckStandardWildEncounter`, after the step-based scripts.
                         let id = s.field.map();
