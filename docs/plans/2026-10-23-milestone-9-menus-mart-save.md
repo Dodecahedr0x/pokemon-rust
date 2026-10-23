@@ -106,7 +106,7 @@ Wave 0 makes no feature work beyond two tiny behaviours that would otherwise put
    - Apply decision 5: set `SpecialIds::pc_boxes` for Emerald (14 if it fits) and `MAX_ENCODED` to the measured slot capacity minus a 512-byte margin. Record the numbers in "Wave 0 as built".
 3. **Screen budget spike:** a scratch full-screen upload the size of the party menu (three BG tilemaps, about 8 KiB of tiles, two palette banks, six mon icons) spread over black frames on the GBA. Set `ui::kit::UPLOAD_BYTES_PER_FRAME` (black) and `UPLOAD_BYTES_VISIBLE` from it, as Task F did for warps (`SPREAD_TILES_BLACK`).
 4. **Route-usage scan:** over the flattened Act 1 trace and the slice route, count START presses in the field, `pokemart` and `SaveGame` reached, `ChoosePartyMon`/`ChooseMonForMoveTutor` reached, FADE_TO_WHITE executed, BAG/POKéMON chosen in battle, field steps with a poisoned or Wurmple-line party, evolutions, and trainer battles won with two or more usable mons (the shift prompt). Write the table into "Wave 0 as built"; every task's route delta is checked against it.
-5. **Baselines on master:** parity (route, `act1:*` lanes, tour), `explore run --secs 60`, `cargo test --workspace` wall time in all three flavours, ROM / IWRAM / EWRAM, `heap_max` per lane.
+5. **Baselines on master:** parity (route, `act1:*` lanes, tour), `explore spine` and `explore branch` (since the spine rework), `cargo test --workspace` wall time in all three flavours, ROM / IWRAM / EWRAM, `heap_max` per lane.
 
 ### Engine contracts (`crates/engine`)
 - **`data.rs`** (Wave 0 is its only editor in M9, except Task E's `EvoMethod` variants, which Wave 0 adds too):
@@ -389,11 +389,11 @@ M8's rules apply unchanged ("Rules for every task" in `2026-10-22-milestone-8-sc
 ### Task D — explorer: spine and branches, schema v4, policy hooks
 **Owns:** `crates/explore/**`. Route-neutral (tools only).
 
-**Redesigned (user decision, 2026-10-23; `2026-10-23-explorer-spine.md`).** The evolutionary explorer is gone. Testing follows one authored main path per flavour (the **spine**: committed `spine::Step` lists, Emerald to badge 1, Silice's Chapter 0) and **branches** off it toward what the spine never touched, each recovering to the spine and verifying a short window, or aborted by its frame budget or a low novelty rate.
+**Redesigned (user decision, 2026-10-23; `2026-10-23-explorer-spine.md`).** The evolutionary explorer is gone. Testing follows one authored main path per flavour (the **spine**: committed `spine::Step` lists, Emerald to badge 1, Silice's Chapter 0) and **branches** off it toward what the spine never touched, each recovering to the spine and verifying a short window (after its target, its frame budget or its step cap), or aborted when its novelty rate falls too low.
 1. **`explore sweep` is folded into `explore branch`**, which covers every map the spine reaches (and every target off it). `cargo xtask sweep` stays the every-map `StartAt` sweep.
 2. **Schema v4** is the spine schema: `spine`, `position`, `branch`, `seen`, `coverage`, `finding`, `run`. An older db is refused with "run `explore reset --yes`". `Macro::code` is gone with the node tree (macros are stored as RON text).
 3. **Policy hooks** for Task N: still to add (`Policy::choose_switch`, `Policy::choose_item`), with today's behaviour. The spine's `Battle(Best)` already picks the move of the best expected damage.
-- **Done when:** `spine_reaches_badge1` and `spine_reaches_ch0_end` pass with their frame counts (Emerald 109,853; Silice 21,821), branch runs are identical across `--jobs`, and the studio's Explorer tab shows the spine and the branches. **Done** by the spine rework.
+- **Done when:** `spine_reaches_badge1` and `spine_reaches_ch0_end` pass with their frame counts (Emerald 109,851 since the review's `WaitScript`s at Petalburg; Silice 21,821), branch runs are identical across `--jobs`, and the studio's Explorer tab shows the spine and the branches. **Done** by the spine rework.
 
 ---
 

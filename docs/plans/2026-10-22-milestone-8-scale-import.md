@@ -912,7 +912,7 @@ Items sub-tab, water/fishing encounter views, trainer lists and new overlays (dy
 ## Wave 3 — Act 1 route, parity, close-out
 
 ### Task P — Act 1 end to end
-> **Since the spine rework (2026-10-23):** the Emerald spine (`crates/explore/src/spine/emerald.rs`) plays the route Task P found, cleaned of its detours, from a new game to badge 1 in 109,853 frames (about 1.3 s in release, against 81 min of evolutionary search). The committed `act1:*` nodes stay; `explore spine` compares its checkpoints with them.
+> **Since the spine rework (2026-10-23):** the Emerald spine (`crates/explore/src/spine/emerald.rs`) plays the route Task P found, cleaned of its detours, from a new game to badge 1 in 109,851 frames (since the spine review; about 0.1 s in release, against 81 min of evolutionary search). The committed `act1:*` nodes stay; `explore spine` compares its checkpoints with them.
 
 **Owns:** the `act1:*` nodes in `checkpoints/emerald/nodes/`, `crates/game-native/tests/act1.rs`, `crates/emu/tests/parity.rs` (the Act 1 lanes), and this doc's "Wave 3 as built".
 

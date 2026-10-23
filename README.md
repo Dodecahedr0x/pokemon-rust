@@ -108,8 +108,8 @@ bit-identical to the run that was never interrupted. Natively they live in a tre
 - `seed`: records the parity route and writes its `route:<name>` nodes (replacing the earlier
   `route:` nodes, never others): `lab`, `after_wild`, `oldale_center`, `route103_after_may`
   (stub: `stub_start`, `stub_after_battle`, `stub_end`)
-- `promote <local id> --label <text>`: moves a local node (for example one the explorer
-  exported with `explore export --to-store`) into the committed tree, after replaying it from
+- `promote <local id> --label <text>`: moves a local node (for example a spine checkpoint
+  exported with `explore spine --export`) into the committed tree, after replaying it from
   its parent on this build; the only way into the committed tree besides `seed`
 - `label <id> <text>`, `rm <id>` (refused for a node with children)
 - `sav <id> [-o <path>]`: writes the node's flash image to `target/game.sav`, which mGBA loads
@@ -388,16 +388,17 @@ main path per flavour, the spine** (`crates/explore/src/spine/`: Emerald from a 
 Roxanne's badge, Silice's Chapter 0, the stub's route), then **branches** off it toward what the
 spine never touched (warps, crossings, NPCs, signs, coord events, unvisited blocks, wild battles
 fought or run from, the other answer of a yes/no or another starter). A branch explores until
-its frame budget, its novelty rate or its step cap runs out, walks back to the spine, and plays
-the spine's next steps: it **rejoins**, **diverges** (expected when the branch itself changed
-the story state; otherwise a `Divergence` finding), is **stranded** (no way back; a softlock
-probe runs), is **aborted** (budget), or ends on a **bug**. Findings: game panics, softlocks,
+its frame budget or its step cap runs out (or nothing new is left), walks back to the spine, and
+plays the spine's next steps: it **rejoins**, **diverges** (expected when the branch itself
+changed the story state; otherwise a `Divergence` finding), is **stranded** (no way back; a
+softlock probe runs), is **aborted** (too little novelty for its frames once it chained past its
+target: no recovery), or ends on a **bug**. Findings: game panics, softlocks,
 checkpoint round-trip breaks, a field that is idle but never capturable, planner/engine
 disagreements, divergences, and report-only unsupported script commands, each with a trace that
 reproduces it from a new game. Results depend only on the config and the build: the job count
 does not change the db (`explore digest`). See `docs/plans/2026-10-23-explorer-spine.md`.
 
-- `spine [--trace] [--export]`: plays the spine (Emerald: 78 steps, 109,853 frames, about 1.3 s
+- `spine [--trace] [--export]`: plays the spine (Emerald: 78 steps, 109,851 frames, about 0.1 s
   in release) and prints its checkpoints and its coverage; `--trace` prints every step's end
   (map, cell, party, vars and flags changed). A failing step stops it with the step, the map
   and cell, the session state and the macros played. `--export` writes the checkpoints to the
@@ -435,7 +436,7 @@ Pokémon Silice is a second game on the same engine: authored French content
 or pass `--game silice` to any xtask command, which builds in `target/silice` so the Emerald
 build is kept:
 
-- `cargo xtask --game silice rom`, `parity`, `explore run --act sil_ch0`, `studio`: as for
+- `cargo xtask --game silice rom`, `parity`, `explore spine`, `explore branch`, `studio`: as for
   Emerald, on Silice (its parity lane is a new game left idle; it has no committed nodes yet).
 - `PKR_GAME=silice cargo run -p game-native --features window --bin play`: play it natively.
 - `cargo xtask silice check`: validates `games/silice` (ids, flags and vars, warp and
