@@ -2,20 +2,21 @@
     name: "FixtureTown",
     layout: "FixtureTown",
     header: (
-        music: 0,
-        region_map_section: 0,
+        music: "MUS_LITTLEROOT",
+        region_map_section: "MAPSEC_NONE",
         cave: 0,
-        weather: 0,
-        map_type: 0,
+        weather: "WEATHER_SUNNY",
+        map_type: "MAP_TYPE_TOWN",
         allow_cycling: true,
         allow_escaping: false,
         allow_running: true,
         show_map_name: true,
-        battle_type: 0,
+        battle_scene: "MAP_BATTLE_SCENE_NORMAL",
     ),
     objects: [
         (
             local_id: 1,
+            id: Some("LOCALID_FIXTURE_BOY"),
             gfx: "OBJ_EVENT_GFX_BOY_1",
             x: 2,
             y: 2,
@@ -30,6 +31,7 @@
         ),
         (
             local_id: 2,
+            id: None,
             gfx: "OBJ_EVENT_GFX_YOUNGSTER",
             x: 5,
             y: 3,
@@ -48,8 +50,15 @@
             x: 4,
             y: 5,
             elevation: 0,
-            dest_map: "OldaleTown",
+            dest_map: "FixtureRoute",
             dest_warp: 0,
+        ),
+        (
+            x: 7,
+            y: 5,
+            elevation: 0,
+            dest_map: "MAP_DYNAMIC",
+            dest_warp: 127,
         ),
     ],
     coords: [
@@ -86,7 +95,7 @@
         (
             dir: North,
             offset: 0,
-            map: "Route101",
+            map: "FixtureRoute",
         ),
     ],
     scripts: (

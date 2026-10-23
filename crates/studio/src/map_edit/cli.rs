@@ -3,9 +3,12 @@
 //! ```text
 //! studio-map [--games DIR | --game NAME] <command>
 //!   list                                   the games dir's maps
-//!   create <spec.ron>                      a new map from a NewMap spec (never replaces one)
-//!   apply <Map> <script.ron> [--dry-run]   applies an edit script (a RON list of Op) and saves
-//!   validate [<Map>...]                    every map by default; fails on errors
+//!   create <spec.ron>                      a new map from a NewMap spec (never replaces a map,
+//!                                          nor a layout unless the spec shares it)
+//!   apply <Map> <script.ron> [--dry-run]   applies an edit script (a RON list of Op) and saves,
+//!                                          even a draft that still has errors (they are listed)
+//!   validate [<Map>...]                    every map by default (and orphan layouts); fails
+//!                                          on errors
 //!   render <Map> [--out FILE] [--margin N] a PNG (default target/studio/maps/<Map>.png)
 //!   palette <Primary> <Secondary> [--out FILE]
 //!                                          the metatile palette (default
@@ -16,11 +19,11 @@
 //! git-ignored scratch dir unless `--out` says otherwise; they are never committed.
 
 use super::catalog::Catalog;
-use super::games::{DEFAULT_GAME, GamesDir};
-use super::model::{Doc, Editor, NewMap, Op};
+use super::games::{DEFAULT_GAME, GamesDir, check_name};
+use super::model::{Editor, NewMap, Op};
 use super::render::{palette, render, write_png};
 use super::schema::from_script_ron;
-use super::validate::{Issue, errors, validate};
+use super::validate::{Issue, errors, id_changes, validate};
 use crate::paths::StudioPaths;
 use anyhow::{Context, Result, bail};
 use std::fmt::Write as _;
@@ -28,7 +31,9 @@ use std::path::PathBuf;
 
 pub const USAGE: &str = "usage: studio-map [--games DIR | --game NAME] \
      (list | create <spec.ron> | apply <Map> <script.ron> [--dry-run] | validate [<Map>...] | \
-     render <Map> [--out FILE] [--margin N] | palette <Primary> <Secondary> [--out FILE])";
+     render <Map> [--out FILE] [--margin N] | palette <Primary> <Secondary> [--out FILE])\n\
+     apply saves the edited map even when it still has validation errors (a draft); \
+     validate fails on them.";
 
 /// Margin cells of a CLI render.
 pub const RENDER_MARGIN: u16 = 2;
@@ -46,6 +51,7 @@ pub fn run(args: &[String]) -> Result<String> {
                 rest = tail;
             }
             [flag, name, tail @ ..] if flag == "--game" => {
+                check_name(name).context("--game")?;
                 games = GamesDir::for_game(&paths.workspace, name);
                 rest = tail;
             }
@@ -63,7 +69,7 @@ pub fn run(args: &[String]) -> Result<String> {
         [cmd, spec] if cmd == "create" => {
             let text = std::fs::read_to_string(spec).with_context(|| format!("reading {spec}"))?;
             let spec: NewMap = from_script_ron(&text).with_context(|| format!("parsing {spec}"))?;
-            let doc = Doc::new(&spec)?;
+            let doc = games.new_doc(&spec)?;
             let catalog = Catalog::for_games(&games)?;
             let issues = validate(&doc, &catalog);
             if errors(&issues) > 0 {
@@ -87,7 +93,10 @@ pub fn run(args: &[String]) -> Result<String> {
             let mut ed = Editor::new(games.load(map)?);
             ed.apply_all(&ops)?;
             let doc = ed.doc();
-            let issues = validate(doc, &Catalog::for_games(&games)?);
+            let mut issues = validate(doc, &Catalog::for_games(&games)?);
+            if let Some(before) = ed.saved() {
+                issues.extend(id_changes(before, doc));
+            }
             if dry {
                 writeln!(out, "{map}: {} ops applied (dry run, not saved)", ops.len())?;
             } else {
@@ -105,9 +114,22 @@ pub fn run(args: &[String]) -> Result<String> {
             let catalog = Catalog::for_games(&games)?;
             let mut total = 0;
             for name in &names {
-                let issues = validate(&games.load(name)?, &catalog);
-                total += errors(&issues);
-                report(&mut out, name, &issues);
+                match games.load(name) {
+                    Ok(doc) => {
+                        let issues = validate(&doc, &catalog);
+                        total += errors(&issues);
+                        report(&mut out, name, &issues);
+                    }
+                    Err(e) => {
+                        total += 1;
+                        writeln!(out, "{name}: error: map: {e:#}")?;
+                    }
+                }
+            }
+            if maps.is_empty() {
+                for l in games.orphan_layouts()? {
+                    writeln!(out, "layout {l}: warning: no map uses it")?;
+                }
             }
             if total > 0 {
                 bail!("{out}{total} errors in {} maps", names.len());

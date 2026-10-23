@@ -238,6 +238,7 @@ impl Session {
             EventKind::Object => Op::Object {
                 x,
                 y,
+                id: None,
                 gfx: self.default_gfx.clone(),
                 movement: "MOVEMENT_TYPE_FACE_DOWN".into(),
                 range_x: 0,
@@ -417,6 +418,7 @@ mod tests {
                 fill_collision: 0,
                 fill_elevation: 3,
                 border: None,
+                shared_layout: false,
             })
             .unwrap(),
         ))

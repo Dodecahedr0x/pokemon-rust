@@ -2,11 +2,13 @@
 //! script format) and an [`Editor`] with undo and redo. No Dioxus, no files: the UI, the CLI
 //! and tests drive the same calls.
 
-use super::schema::{GameConnection, GameMap, GameWarp, default_header};
+use super::schema::{
+    GameConnection, GameHeader, GameMap, GameObject, GameWarp, MAP_DYNAMIC, WARP_ID_DYNAMIC,
+};
 use anyhow::{Result, bail, ensure};
 use engine::data::{BLOCK_COLLISION_SHIFT, BLOCK_ELEVATION_SHIFT, BLOCK_METATILE_MASK};
 use extract::schema::{
-    Bg, BgKind, Coord, Header, Layout, MapFile, MapScripts, Object, from_rows, to_rows,
+    Bg, BgKind, ConnectionDir, Coord, Layout, MapFile, MapScripts, from_rows, to_rows,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -47,11 +49,20 @@ pub struct NewMap {
     /// The layout's name; the map's name when absent.
     #[serde(default)]
     pub layout: Option<String>,
+    /// Use the saved layout `layout` (its size, tilesets, border and blocks) instead of a new
+    /// one; the fields below are then ignored. A new map never replaces a saved layout.
+    #[serde(default)]
+    pub shared_layout: bool,
+    #[serde(default)]
     pub width: u16,
+    #[serde(default)]
     pub height: u16,
+    #[serde(default)]
     pub primary: String,
+    #[serde(default)]
     pub secondary: String,
     /// Metatile index every cell starts with.
+    #[serde(default)]
     pub fill: u16,
     #[serde(default)]
     pub fill_collision: u8,
@@ -60,6 +71,57 @@ pub struct NewMap {
     /// 2x2 raw border blocks (a list of 4, row-major); four times the fill metatile when absent.
     #[serde(default)]
     pub border: Option<Vec<u16>>,
+}
+
+impl NewMap {
+    pub fn layout_name(&self) -> String {
+        self.layout.clone().unwrap_or_else(|| self.name.clone())
+    }
+
+    /// The raw block every cell starts with (ranges checked).
+    pub fn fill_block(&self) -> Result<u16> {
+        fill_block(self.fill, self.fill_collision, self.fill_elevation)
+    }
+
+    /// The map file of a new map: no events, the new map header.
+    pub fn blank_map(&self) -> GameMap {
+        GameMap {
+            name: self.name.clone(),
+            layout: self.layout_name(),
+            header: GameHeader::new_map(),
+            objects: Vec::new(),
+            warps: Vec::new(),
+            coords: Vec::new(),
+            bgs: Vec::new(),
+            connections: Vec::new(),
+            scripts: MapScripts::default(),
+        }
+    }
+}
+
+/// Gen3 `MAX_MAP_DATA_SIZE`: `(width + 15) * (height + 14)` must not exceed it.
+pub const MAX_MAP_DATA_SIZE: usize = 10240;
+
+/// A size the game can load (nonzero, within [`MAX_MAP_DATA_SIZE`]).
+pub fn check_size(width: u16, height: u16) -> Result<()> {
+    let data = (width as usize + 15) * (height as usize + 14);
+    ensure!(
+        width > 0 && height > 0 && data <= MAX_MAP_DATA_SIZE,
+        "size {width}x{height}: a map is at least 1x1 and (w + 15) * (h + 14) = {data} must \
+         not exceed {MAX_MAP_DATA_SIZE}"
+    );
+    Ok(())
+}
+
+/// `metatile | collision | elevation` after the [`Brush`] range checks.
+pub fn fill_block(metatile: u16, collision: u8, elevation: u8) -> Result<u16> {
+    let b = Brush {
+        metatile: Some(metatile),
+        collision: Some(collision),
+        elevation: Some(elevation),
+    };
+    b.check()?;
+    Ok(b.apply(0))
 }
 
 fn ground() -> u8 {
@@ -80,23 +142,14 @@ impl Doc {
             spec.width,
             spec.height
         );
-        let fill = block(spec.fill, spec.fill_collision, spec.fill_elevation);
+        check_size(spec.width, spec.height)?;
+        let fill = spec.fill_block()?;
         let border = match &spec.border {
-            None => [spec.fill & BLOCK_METATILE_MASK; 4],
+            None => [spec.fill; 4],
             Some(b) => border4(b)?,
         };
         Ok(Doc {
-            map: GameMap {
-                name: spec.name.clone(),
-                layout: spec.layout.clone().unwrap_or_else(|| spec.name.clone()),
-                header: default_header(),
-                objects: Vec::new(),
-                warps: Vec::new(),
-                coords: Vec::new(),
-                bgs: Vec::new(),
-                connections: Vec::new(),
-                scripts: MapScripts::default(),
-            },
+            map: spec.blank_map(),
             width: spec.width,
             height: spec.height,
             primary: spec.primary.clone(),
@@ -139,22 +192,26 @@ impl Doc {
     }
 
     /// An extracted map (`content/extracted/maps/<Name>.ron`) as a document: the layout is
-    /// named after the map, warps and connections to unexported maps are dropped.
+    /// named after the map; the header's numbers become names. Every warp is kept (indices
+    /// matter): `MAP_DYNAMIC` stays, other unexported targets become `UNEXPORTED_<group>_<num>`
+    /// (a validation error). Connections to unexported maps are dropped.
     pub fn from_map_file(f: &MapFile) -> Result<Doc> {
         let map = GameMap {
             name: f.name.clone(),
             layout: f.name.clone(),
-            header: f.header.clone(),
-            objects: f.objects.clone(),
+            header: GameHeader::from_extract(&f.header),
+            objects: f.objects.iter().map(GameObject::from_extract).collect(),
             warps: (f.warps.iter())
-                .filter_map(|w| {
-                    Some(GameWarp {
-                        x: w.x,
-                        y: w.y,
-                        elevation: w.elevation,
-                        dest_map: w.dest_map.clone()?,
-                        dest_warp: w.dest_warp,
-                    })
+                .map(|w| GameWarp {
+                    x: w.x,
+                    y: w.y,
+                    elevation: w.elevation,
+                    dest_map: match &w.dest_map {
+                        Some(n) => n.clone(),
+                        None if w.dest_map_id == "127.127" => MAP_DYNAMIC.into(),
+                        None => format!("UNEXPORTED_{}", w.dest_map_id.replace('.', "_")),
+                    },
+                    dest_warp: w.dest_warp,
                 })
                 .collect(),
             coords: f.coords.clone(),
@@ -189,6 +246,10 @@ impl Doc {
         x >= 0 && y >= 0 && x < self.width as i32 && y < self.height as i32
     }
 
+    fn in_bounds64(&self, x: i64, y: i64) -> bool {
+        x >= 0 && y >= 0 && x < self.width as i64 && y < self.height as i64
+    }
+
     /// The raw block at (x, y), `None` outside the map.
     pub fn block(&self, x: i32, y: i32) -> Option<u16> {
         self.in_bounds(x, y)
@@ -200,9 +261,9 @@ impl Doc {
         self.blocks[y as usize * w + x as usize] = b;
     }
 
-    fn need(&self, x: i32, y: i32) -> Result<()> {
+    fn need(&self, x: i64, y: i64) -> Result<()> {
         ensure!(
-            self.in_bounds(x, y),
+            self.in_bounds64(x, y),
             "({x}, {y}) is outside the {}x{} map",
             self.width,
             self.height
@@ -256,10 +317,31 @@ impl Doc {
         }
     }
 
-    /// Objects' `local_id`s are their index + 1 (Gen3), renumbered after every change.
-    fn renumber(&mut self) {
-        for (i, o) in self.map.objects.iter_mut().enumerate() {
-            o.local_id = (i + 1) as u8;
+    /// The local id a new object gets: the highest + 1 (ids stay stable; deletions leave gaps).
+    pub fn next_local_id(&self) -> u8 {
+        (self.map.objects.iter())
+            .map(|o| o.local_id)
+            .max()
+            .unwrap_or(0)
+            .saturating_add(1)
+    }
+
+    fn shift_events(&mut self, dx: i16, dy: i16) {
+        let m = &mut self.map;
+        let all = (m.objects.iter_mut().map(|e| (&mut e.x, &mut e.y)))
+            .chain(m.warps.iter_mut().map(|e| (&mut e.x, &mut e.y)))
+            .chain(m.coords.iter_mut().map(|e| (&mut e.x, &mut e.y)))
+            .chain(m.bgs.iter_mut().map(|e| (&mut e.x, &mut e.y)));
+        for (x, y) in all {
+            *x = x.saturating_add(dx);
+            *y = y.saturating_add(dy);
+        }
+        for c in &mut m.connections {
+            match c.dir {
+                ConnectionDir::North | ConnectionDir::South => c.offset += dx as i32,
+                ConnectionDir::East | ConnectionDir::West => c.offset += dy as i32,
+                ConnectionDir::Dive | ConnectionDir::Emerge => {}
+            }
         }
     }
 }
@@ -276,7 +358,7 @@ pub enum EventKind {
 /// One event, in the files' types.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum Event {
-    Object(Object),
+    Object(GameObject),
     Warp(GameWarp),
     Coord(Coord),
     Bg(Bg),
@@ -339,7 +421,9 @@ impl Brush {
         block(mt, col, el)
     }
 
-    fn check(self) -> Result<()> {
+    /// Something is set and every part is in range (metatile ≤ 1023, collision ≤ 3,
+    /// elevation ≤ 15).
+    pub fn check(self) -> Result<()> {
         ensure!(
             self.metatile.is_some() || self.collision.is_some() || self.elevation.is_some(),
             "an empty brush (set metatile, collision or elevation)"
@@ -364,7 +448,7 @@ impl Brush {
 }
 
 /// One edit; a list of them is an edit script (`cargo xtask studio map apply`). Cells are the
-/// map's (0, 0 at the top-left). Every op but `Undo`/`Redo` is one undo step.
+/// map's (0, 0 at the top-left). Every op but `Undo`/`Redo`/`Copy` is one undo step.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum Op {
     /// One cell.
@@ -426,24 +510,38 @@ pub enum Op {
     Border {
         blocks: Vec<u16>,
     },
-    /// New size; kept cells stay at the same (x, y), new ones get `fill` (a raw block).
+    /// New size. Old cell (x, y) moves to (x + dx, y + dy), and so do the events and the
+    /// connection offsets along their edge; new cells get `fill` (a metatile, with
+    /// `fill_collision` and `fill_elevation`, as a new map). Events left outside the map are
+    /// validation errors.
     Resize {
         width: u16,
         height: u16,
         fill: u16,
+        #[serde(default)]
+        fill_collision: u8,
+        #[serde(default = "ground")]
+        fill_elevation: u8,
+        #[serde(default)]
+        dx: i16,
+        #[serde(default)]
+        dy: i16,
     },
     Tilesets {
         primary: String,
         secondary: String,
     },
-    Header(Header),
+    Header(GameHeader),
     Scripts(MapScripts),
-    /// A new object (local id = its index + 1).
+    /// A new object; its local id is the highest + 1.
     Object {
         x: i16,
         y: i16,
         /// `OBJ_EVENT_GFX_*`.
         gfx: String,
+        /// `LOCALID_*` name scripts refer to it by.
+        #[serde(default)]
+        id: Option<String>,
         #[serde(default = "face_down")]
         movement: String,
         #[serde(default)]
@@ -463,6 +561,7 @@ pub enum Op {
         #[serde(default = "ground")]
         elevation: u8,
     },
+    /// A warp to `dest_map`'s warp `dest_warp` (`MAP_DYNAMIC` with 127: set at run time).
     Warp {
         x: i16,
         y: i16,
@@ -508,11 +607,13 @@ pub enum Op {
         x: i16,
         y: i16,
     },
-    /// Replaces event `index` of the event's kind (an object keeps its local id).
+    /// Replaces event `index` of the event's kind with `event`, as given (an object's
+    /// `local_id` and `id` included: duplicates are validation errors).
     Replace {
         index: usize,
         event: Event,
     },
+    /// Deletes an event; objects keep their local ids (a gap is left).
     Delete {
         kind: EventKind,
         index: usize,
@@ -565,24 +666,38 @@ pub struct Editor {
     clip: Option<Clip>,
     /// The state before an open stroke ([`Editor::begin_stroke`]).
     stroke: Option<Doc>,
-    /// Changes since the last [`Editor::mark_saved`].
-    dirty: bool,
+    /// The document as last saved (`None`: never saved).
+    saved: Option<Doc>,
 }
 
 impl Editor {
+    /// Editing a saved document (not dirty until it differs).
     pub fn new(doc: Doc) -> Editor {
         Editor {
+            saved: Some(doc.clone()),
             doc,
             undo: Vec::new(),
             redo: Vec::new(),
             clip: None,
             stroke: None,
-            dirty: false,
+        }
+    }
+
+    /// Editing a document no file holds yet (dirty until saved).
+    pub fn unsaved(doc: Doc) -> Editor {
+        Editor {
+            saved: None,
+            ..Editor::new(doc)
         }
     }
 
     pub fn doc(&self) -> &Doc {
         &self.doc
+    }
+
+    /// The document as last saved (`None` for a new map).
+    pub fn saved(&self) -> Option<&Doc> {
+        self.saved.as_ref()
     }
 
     pub fn clipboard(&self) -> Option<&Clip> {
@@ -597,12 +712,13 @@ impl Editor {
         !self.redo.is_empty()
     }
 
+    /// Whether the document differs from the saved one (undoing back to it clears this).
     pub fn is_dirty(&self) -> bool {
-        self.dirty
+        self.saved.as_ref() != Some(&self.doc)
     }
 
     pub fn mark_saved(&mut self) {
-        self.dirty = false;
+        self.saved = Some(self.doc.clone());
     }
 
     /// Applies `op` as one undo step. On an error the document is unchanged.
@@ -658,7 +774,6 @@ impl Editor {
             return;
         }
         let before = std::mem::replace(&mut self.doc, next);
-        self.dirty = true;
         if self.stroke.is_none() {
             self.push_undo(before);
             self.redo.clear();
@@ -677,7 +792,6 @@ impl Editor {
         match self.undo.pop() {
             Some(d) => {
                 self.redo.push(std::mem::replace(&mut self.doc, d));
-                self.dirty = true;
                 true
             }
             None => false,
@@ -689,7 +803,6 @@ impl Editor {
         match self.redo.pop() {
             Some(d) => {
                 self.undo.push(std::mem::replace(&mut self.doc, d));
-                self.dirty = true;
                 true
             }
             None => false,
@@ -698,7 +811,7 @@ impl Editor {
 
     pub fn copy(&self, x: i32, y: i32, w: i32, h: i32) -> Result<Clip> {
         rect_fits(&self.doc, x, y, w, h)?;
-        let mut blocks = Vec::with_capacity((w * h) as usize);
+        let mut blocks = Vec::with_capacity(w as usize * h as usize);
         for cy in y..y + h {
             for cx in x..x + w {
                 blocks.push(self.doc.block(cx, cy).unwrap_or_default());
@@ -708,14 +821,15 @@ impl Editor {
     }
 }
 
+/// The rectangle is non-empty and inside the map (checked in `i64`, so no overflow).
 fn rect_fits(d: &Doc, x: i32, y: i32, w: i32, h: i32) -> Result<()> {
     ensure!(w > 0 && h > 0, "an empty rectangle {w}x{h}");
-    d.need(x, y)?;
-    d.need(x + w - 1, y + h - 1)
+    d.need(x as i64, y as i64)?;
+    d.need(x as i64 + w as i64 - 1, y as i64 + h as i64 - 1)
 }
 
 fn check_event_pos(d: &Doc, x: i16, y: i16) -> Result<()> {
-    d.need(x as i32, y as i32)
+    d.need(x as i64, y as i64)
 }
 
 /// Applies `op` to `d` (not `Undo`, `Redo` or `Copy`, which are the editor's).
@@ -729,7 +843,7 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>) -> Result<()> {
             elevation,
         } => {
             let b = brush(*metatile, *collision, *elevation)?;
-            d.need(*x, *y)?;
+            d.need(*x as i64, *y as i64)?;
             let old = d.block(*x, *y).unwrap_or_default();
             d.set(*x, *y, b.apply(old));
         }
@@ -759,7 +873,7 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>) -> Result<()> {
             elevation,
         } => {
             let b = brush(*metatile, *collision, *elevation)?;
-            d.need(*x, *y)?;
+            d.need(*x as i64, *y as i64)?;
             flood_fill(d, *x, *y, b);
         }
         Op::Ascii { x, y, rows, legend } => {
@@ -771,8 +885,9 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>) -> Result<()> {
                     let Some(b) = legend.get(&ch) else {
                         bail!("row {dy} column {dx}: {ch:?} is not in the legend");
                     };
-                    let (cx, cy) = (x + dx as i32, y + dy as i32);
+                    let (cx, cy) = (*x as i64 + dx as i64, *y as i64 + dy as i64);
                     d.need(cx, cy)?;
+                    let (cx, cy) = (cx as i32, cy as i32);
                     let old = d.block(cx, cy).unwrap_or_default();
                     d.set(cx, cy, b.apply(old));
                 }
@@ -784,9 +899,13 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>) -> Result<()> {
             };
             for dy in 0..c.h {
                 for dx in 0..c.w {
-                    let (cx, cy) = (x + dx, y + dy);
-                    if d.in_bounds(cx, cy) {
-                        d.set(cx, cy, c.blocks[(dy * c.w + dx) as usize]);
+                    let (cx, cy) = (*x as i64 + dx as i64, *y as i64 + dy as i64);
+                    if d.in_bounds64(cx, cy) {
+                        d.set(
+                            cx as i32,
+                            cy as i32,
+                            c.blocks[dy as usize * c.w as usize + dx as usize],
+                        );
                     }
                 }
             }
@@ -796,15 +915,26 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>) -> Result<()> {
             width,
             height,
             fill,
+            fill_collision,
+            fill_elevation,
+            dx,
+            dy,
         } => {
-            ensure!(*width > 0 && *height > 0, "size {width}x{height}");
-            let mut blocks = vec![*fill; *width as usize * *height as usize];
-            for y in 0..(*height).min(d.height) as usize {
-                for x in 0..(*width).min(d.width) as usize {
-                    blocks[y * *width as usize + x] = d.blocks[y * d.width as usize + x];
+            check_size(*width, *height)?;
+            let fill = fill_block(*fill, *fill_collision, *fill_elevation)?;
+            let (w, h) = (*width as i64, *height as i64);
+            let mut blocks = vec![fill; (w * h) as usize];
+            for y in 0..d.height as i64 {
+                for x in 0..d.width as i64 {
+                    let (nx, ny) = (x + *dx as i64, y + *dy as i64);
+                    if (0..w).contains(&nx) && (0..h).contains(&ny) {
+                        blocks[(ny * w + nx) as usize] =
+                            d.blocks[(y * d.width as i64 + x) as usize];
+                    }
                 }
             }
             (d.width, d.height, d.blocks) = (*width, *height, blocks);
+            d.shift_events(*dx, *dy);
         }
         Op::Tilesets { primary, secondary } => {
             d.primary = primary.clone();
@@ -816,6 +946,7 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>) -> Result<()> {
             x,
             y,
             gfx,
+            id,
             movement,
             range_x,
             range_y,
@@ -826,8 +957,10 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>) -> Result<()> {
             elevation,
         } => {
             check_event_pos(d, *x, *y)?;
-            d.map.objects.push(Object {
-                local_id: 0,
+            let local_id = d.next_local_id();
+            d.map.objects.push(GameObject {
+                local_id,
+                id: id.clone(),
                 gfx: gfx.clone(),
                 x: *x,
                 y: *y,
@@ -840,7 +973,6 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>) -> Result<()> {
                 script: script.clone(),
                 flag: flag.clone(),
             });
-            d.renumber();
         }
         Op::Warp {
             x,
@@ -850,6 +982,12 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>) -> Result<()> {
             elevation,
         } => {
             check_event_pos(d, *x, *y)?;
+            if dest_map == MAP_DYNAMIC {
+                ensure!(
+                    *dest_warp == WARP_ID_DYNAMIC,
+                    "a {MAP_DYNAMIC} warp has dest_warp {WARP_ID_DYNAMIC}"
+                );
+            }
             d.map.warps.push(GameWarp {
                 x: *x,
                 y: *y,
@@ -931,7 +1069,6 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>) -> Result<()> {
             let (x, y) = event.pos();
             check_event_pos(d, x, y)?;
             put_event(d, *index, event.clone());
-            d.renumber();
         }
         Op::Delete { kind, index } => {
             let n = d.event_count(*kind);
@@ -943,7 +1080,6 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>) -> Result<()> {
                 EventKind::Coord => drop(m.coords.remove(*index)),
                 EventKind::Bg => drop(m.bgs.remove(*index)),
             }
-            d.renumber();
         }
         Op::Connect(c) => d.map.connections.push(c.clone()),
         Op::SetConnection { index, connection } => {

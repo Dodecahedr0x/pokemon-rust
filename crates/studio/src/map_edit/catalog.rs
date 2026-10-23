@@ -1,14 +1,20 @@
-//! What an edited map may reference: tilesets (by extract name), maps (the game's and the games
-//! dir's), object graphics and scripts.
+//! What an edited map may reference: tilesets (by extract name), maps, object graphics and
+//! scripts.
 //!
 //! Tilesets are the content build's own `'static` ones, paired with their extract names
 //! through the extract's map files (every compiled tileset is some map's), so a render is the
 //! game's. On the stub world they are `StubPrimary` and `StubSecondary` (`StubTown`'s).
+//!
+//! Maps: [`Catalog::from_content`] has the build's (for imported Emerald maps);
+//! [`Catalog::for_games`] has only the games dir's own: a Silice map warps and connects to
+//! Silice maps (and `MAP_DYNAMIC`), never to Emerald's.
 
 use super::games::GamesDir;
+use super::schema::GameConnection;
 use anyhow::{Context, Result};
 use content::Emerald;
-use engine::data::{GameData, METATILES_IN_PRIMARY, MapId, Tileset};
+use engine::data::{Dir, GameData, METATILES_IN_PRIMARY, MapId, Tileset};
+use extract::schema::ConnectionDir;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -37,12 +43,16 @@ impl std::fmt::Debug for TilesetRef {
     }
 }
 
-/// A map a warp or a connection may target.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// A map a warp or a connection may target, with what the cross-map checks need.
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct MapRef {
-    /// The game's id for an extracted map; `None` for a games dir map.
+    /// The game's id for a build map; `None` for a games dir map.
     pub id: Option<MapId>,
-    pub warps: usize,
+    /// Width and height (`None`: its layout could not be read).
+    pub size: Option<(u16, u16)>,
+    /// Each warp's destination map name.
+    pub warps: Vec<String>,
+    pub connections: Vec<GameConnection>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -53,6 +63,8 @@ pub struct Catalog {
     pub gfx: BTreeSet<String>,
     /// Script names the build knows (`content::data::SCRIPT_NAMES`); others are warnings.
     pub scripts: BTreeSet<String>,
+    /// The games dir whose maps these are (renders draw connected games dir maps from it).
+    pub games: Option<GamesDir>,
 }
 
 /// The extracted dir the content build read: `PKR_EXTRACTED_DIR`, else `content/extracted`.
@@ -67,6 +79,15 @@ pub fn extracted_dir() -> PathBuf {
     )
 }
 
+fn connection_dir(d: Dir) -> ConnectionDir {
+    match d {
+        Dir::Down => ConnectionDir::South,
+        Dir::Up => ConnectionDir::North,
+        Dir::Left => ConnectionDir::West,
+        Dir::Right => ConnectionDir::East,
+    }
+}
+
 impl Catalog {
     /// The build's world: its tilesets, maps, object graphics and scripts.
     pub fn from_content() -> Result<Catalog> {
@@ -74,11 +95,20 @@ impl Catalog {
         let mut c = Catalog::default();
         for (id, name) in crate::map_view::map_list() {
             let m = game.map(id);
+            let name_of = |id| crate::map_view::map_name(&game, id).to_string();
             c.maps.insert(
                 name.to_string(),
                 MapRef {
                     id: Some(id),
-                    warps: m.warps.len(),
+                    size: Some((m.width, m.height)),
+                    warps: m.warps.iter().map(|w| name_of(w.dest_map)).collect(),
+                    connections: (m.connections.iter())
+                        .map(|cn| GameConnection {
+                            dir: connection_dir(cn.dir),
+                            offset: cn.offset as i32,
+                            map: name_of(cn.map),
+                        })
+                        .collect(),
                 },
             );
         }
@@ -108,25 +138,36 @@ impl Catalog {
         Ok(c)
     }
 
-    /// [`Catalog::from_content`] plus the maps of a games dir.
+    /// The build's tilesets, graphics and scripts with only the maps of a games dir.
     pub fn for_games(games: &GamesDir) -> Result<Catalog> {
         let mut c = Catalog::from_content()?;
+        c.maps.clear();
         c.add_games(games)?;
         Ok(c)
     }
 
-    /// Adds (or replaces) the maps of a games dir.
+    /// Adds (or replaces) the maps of a games dir. A map file that does not parse is left out
+    /// (validating it reports why); a missing layout leaves its size unknown.
     pub fn add_games(&mut self, games: &GamesDir) -> Result<()> {
         for name in games.map_names()? {
-            let map = games.load_map(&name)?;
+            let Ok(map) = games.load_map(&name) else {
+                continue;
+            };
+            let size = games
+                .load_layout(&map.layout)
+                .ok()
+                .map(|l| (l.width, l.height));
             self.maps.insert(
                 name,
                 MapRef {
                     id: None,
-                    warps: map.warps.len(),
+                    size,
+                    warps: map.warps.iter().map(|w| w.dest_map.clone()).collect(),
+                    connections: map.connections.clone(),
                 },
             );
         }
+        self.games = Some(games.clone());
         Ok(())
     }
 
@@ -135,7 +176,7 @@ impl Catalog {
             .insert(name.to_string(), TilesetRef { tileset, secondary });
     }
 
-    /// Primary tileset names, then secondary ones, each sorted.
+    /// Tileset names of one kind, sorted.
     pub fn tileset_names(&self, secondary: bool) -> Vec<String> {
         (self.tilesets.iter())
             .filter(|(_, t)| t.secondary == secondary)

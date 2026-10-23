@@ -5,6 +5,7 @@
 //! - [`model`]: the document, the edit operations (also the edit script format) and undo/redo,
 //!   free of Dioxus and files.
 //! - [`schema`]: the games dir files, in one deterministic RON style.
+//! - [`names`]: the header constant tables (`MUS_*`, `WEATHER_*`, `MAP_TYPE_*`…).
 //! - [`games`]: loading and saving a games dir, and its hygiene check.
 //! - [`catalog`]: what a map may reference (tilesets, maps, graphics, scripts).
 //! - [`validate`]: errors and warnings against a catalog.
@@ -17,6 +18,7 @@ pub mod catalog;
 pub mod cli;
 pub mod games;
 pub mod model;
+pub mod names;
 pub mod render;
 pub mod schema;
 pub mod session;

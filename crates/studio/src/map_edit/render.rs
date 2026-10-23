@@ -4,10 +4,13 @@
 //! The engine reads maps as `&'static MapData`, so an edited map is served by [`Preview`], a
 //! [`GameData`] that answers [`PREVIEW`] with a leaked `MapData` and delegates everything else
 //! to the build. Leaks are bounded: one `MapData` per (size, tilesets, border, connections),
-//! cached; the cells that differ from its blocks are drawn as `setmetatile` overrides.
+//! cached; the cells that differ from its blocks are drawn as `setmetatile` overrides. Connected
+//! games dir maps are leaked once per layout contents and served as `NEIGHBOR + i`.
 
 use super::catalog::Catalog;
+use super::games::GamesDir;
 use super::model::Doc;
+use super::schema::to_ron;
 use crate::map_view::{MapImage, render_map};
 use anyhow::{Context, Result, anyhow};
 use content::Emerald;
@@ -21,13 +24,18 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 
-/// The id [`Preview`] serves the edited map under (Gen3 has no map 0xFFFE).
+/// The id [`Preview`] serves the edited map under (Gen3 has no map 0xFFFE; 0x7F7F is
+/// `MAP_DYNAMIC`).
 pub const PREVIEW: MapId = MapId(0xFFFE);
+/// The first id of the games dir maps a preview's connections draw ([`NEIGHBOR`] + the
+/// connection's index).
+pub const NEIGHBOR: u16 = 0xFF00;
 
-/// The build's game with [`PREVIEW`] answered by `map`.
+/// The build's game with [`PREVIEW`] answered by `map` and `NEIGHBOR + i` by `neighbors[i]`.
 pub struct Preview {
     pub game: Emerald,
     pub map: &'static MapData,
+    pub neighbors: Vec<(MapId, &'static MapData)>,
 }
 
 impl Preview {
@@ -35,6 +43,7 @@ impl Preview {
         Preview {
             game: Emerald::for_shells(),
             map,
+            neighbors: Vec::new(),
         }
     }
 }
@@ -42,9 +51,11 @@ impl Preview {
 impl GameData for Preview {
     fn map(&self, id: MapId) -> &'static MapData {
         if id == PREVIEW {
-            self.map
-        } else {
-            self.game.map(id)
+            return self.map;
+        }
+        match self.neighbors.iter().find(|n| n.0 == id) {
+            Some(n) => n.1,
+            None => self.game.map(id),
         }
     }
     fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
@@ -76,26 +87,56 @@ impl GameData for Preview {
     }
 }
 
-/// The engine's connections of `d` to the build's maps (connections to games dir maps, dive
-/// and emerge are not drawn).
-fn connections(d: &Doc, c: &Catalog) -> Vec<Connection> {
-    (d.map.connections.iter())
-        .filter_map(|cn| {
-            let dir = match cn.dir {
-                ConnectionDir::South => Dir::Down,
-                ConnectionDir::North => Dir::Up,
-                ConnectionDir::West => Dir::Left,
-                ConnectionDir::East => Dir::Right,
-                ConnectionDir::Dive | ConnectionDir::Emerge => return None,
-            };
-            let id = c.maps.get(&cn.map)?.id?;
-            Some(Connection {
-                dir,
-                offset: cn.offset as i16,
-                map: id,
-            })
-        })
-        .collect()
+/// The engine's connections of `d` (dive and emerge, and maps that cannot be read, are not
+/// drawn), with the games dir neighbors they need: build maps by their id, games dir maps
+/// (from [`Catalog::games`]) as leaked `MapData` under [`NEIGHBOR`] + the connection's index.
+fn connections(d: &Doc, c: &Catalog) -> (Vec<Connection>, Vec<(MapId, &'static MapData)>) {
+    let mut out = Vec::new();
+    let mut neighbors = Vec::new();
+    for (i, cn) in d.map.connections.iter().enumerate() {
+        let dir = match cn.dir {
+            ConnectionDir::South => Dir::Down,
+            ConnectionDir::North => Dir::Up,
+            ConnectionDir::West => Dir::Left,
+            ConnectionDir::East => Dir::Right,
+            ConnectionDir::Dive | ConnectionDir::Emerge => continue,
+        };
+        let Some(r) = c.maps.get(&cn.map) else {
+            continue;
+        };
+        let id = match r.id {
+            Some(id) => id,
+            None => {
+                let Some(m) = c.games.as_ref().and_then(|g| neighbor(g, &cn.map, c)) else {
+                    continue;
+                };
+                let id = MapId(NEIGHBOR + i as u16);
+                neighbors.push((id, m));
+                id
+            }
+        };
+        out.push(Connection {
+            dir,
+            offset: cn.offset as i16,
+            map: id,
+        });
+    }
+    (out, neighbors)
+}
+
+/// A games dir map's layout as a connection-less `MapData`, leaked once per layout contents.
+fn neighbor(g: &GamesDir, name: &str, c: &Catalog) -> Option<&'static MapData> {
+    static NEIGHBORS: OnceLock<Mutex<HashMap<String, &'static MapData>>> = OnceLock::new();
+    let mut doc = g.load(name).ok()?;
+    doc.map.connections.clear();
+    let key = to_ron(&doc.layout()).ok()?;
+    let mut cache = NEIGHBORS.get_or_init(Default::default).lock().unwrap();
+    if let Some(&m) = cache.get(&key) {
+        return Some(m);
+    }
+    let m = leak_map_data(&doc, c).ok()?;
+    cache.insert(key, m);
+    Some(m)
 }
 
 fn leak<T>(v: Vec<T>) -> &'static [T] {
@@ -123,7 +164,7 @@ pub fn leak_map_data(d: &Doc, c: &Catalog) -> Result<&'static MapData> {
         warps: &[],
         coords: &[],
         bgs: &[],
-        connections: leak(connections(d, c)),
+        connections: leak(connections(d, c).0),
         scripts: MapScripts::default(),
         allow_running: true,
     })))
@@ -143,13 +184,14 @@ struct BaseKey {
 /// The whole map with `margin` cells of border (and connected build maps) around it.
 pub fn render(d: &Doc, c: &Catalog, margin: u16) -> Result<MapImage> {
     static BASES: OnceLock<Mutex<HashMap<BaseKey, &'static MapData>>> = OnceLock::new();
+    let (conns, neighbors) = connections(d, c);
     let key = BaseKey {
         width: d.width,
         height: d.height,
         primary: d.primary.clone(),
         secondary: d.secondary.clone(),
         border: d.border,
-        connections: (connections(d, c).iter())
+        connections: (conns.iter())
             .map(|cn| (cn.dir, cn.offset, cn.map))
             .collect(),
     };
@@ -171,7 +213,11 @@ pub fn render(d: &Doc, c: &Catalog, margin: u16) -> Result<MapImage> {
         .filter(|(_, (a, b))| a != b)
         .map(|(i, (&a, _))| (((i % w) as i16, (i / w) as i16), a))
         .collect();
-    let mut img = render_map(&Preview::new(base), PREVIEW, margin, &overrides);
+    let preview = Preview {
+        neighbors,
+        ..Preview::new(base)
+    };
+    let mut img = render_map(&preview, PREVIEW, margin, &overrides);
     img.map = PREVIEW;
     Ok(img)
 }
@@ -244,6 +290,7 @@ fn palette_doc() -> Doc {
         fill_collision: 0,
         fill_elevation: 0,
         border: None,
+        shared_layout: false,
     })
     .expect("a 1x1 map")
 }

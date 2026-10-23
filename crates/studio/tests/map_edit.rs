@@ -1,14 +1,21 @@
 //! The map editor (SIL1 Task C) end to end: games dir files, renders against the game's own,
 //! the CLI and the games dir hygiene. Runs on both worlds; the extracted maps and the fixture's
 //! Emerald tilesets need the real extract and are skipped on the stub.
+//!
+//! The fixture (`tests/fixtures/games/fixture`) is self-contained: `FixtureTown` and
+//! `FixtureRoute` warp and connect to each other only (and `MAP_DYNAMIC`). It paints with
+//! Emerald's `General` + `Petalburg` tilesets, so it validates and renders on the extract only.
 
 use content::Emerald;
 use engine::data::GameData;
+use extract::schema::{Layout, MapFile, from_rows, to_rows};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use studio::map_edit::catalog::extracted_dir;
-use studio::map_edit::games::hygiene;
+use studio::map_edit::games::{COPY_MIN_DISTINCT, COPY_WINDOW, copies, hygiene};
 use studio::map_edit::render::{PREVIEW, Preview, leak_map_data, render};
+use studio::map_edit::schema::to_ron;
+use studio::map_edit::validate::{Severity, errors};
 use studio::map_edit::{Catalog, Doc, Editor, GamesDir, NewMap, Op, cli, validate};
 use studio::map_view::{map_list, render_map};
 
@@ -44,34 +51,57 @@ fn tilesets(c: &Catalog) -> (String, String, Vec<u16>) {
     (p, s, mts)
 }
 
+fn new_map(name: &str, w: u16, h: u16, p: &str, s: &str, fill: u16) -> NewMap {
+    NewMap {
+        name: name.into(),
+        layout: None,
+        shared_layout: false,
+        width: w,
+        height: h,
+        primary: p.into(),
+        secondary: s.into(),
+        fill,
+        fill_collision: 0,
+        fill_elevation: 3,
+        border: None,
+    }
+}
+
+fn extracted_map(name: &str) -> MapFile {
+    let text = std::fs::read_to_string(extracted_dir().join(format!("maps/{name}.ron"))).unwrap();
+    ron::from_str(&text).unwrap()
+}
+
 #[test]
 fn the_fixture_round_trips_byte_for_byte() {
     let src = fixture();
-    let doc = src.load("FixtureTown").unwrap();
-    assert_eq!((doc.width, doc.height), (8, 6));
-    assert_eq!(
-        (doc.primary.as_str(), doc.secondary.as_str()),
-        ("General", "Petalburg")
-    );
+    assert_eq!(src.map_names().unwrap(), ["FixtureRoute", "FixtureTown"]);
     let out = GamesDir::new(temp_dir("roundtrip"));
-    out.save(&doc).unwrap();
-    for (a, b) in [
-        (src.map_path("FixtureTown"), out.map_path("FixtureTown")),
-        (
-            src.layout_path("FixtureTown"),
-            out.layout_path("FixtureTown"),
-        ),
-    ] {
+    for name in ["FixtureRoute", "FixtureTown"] {
+        let doc = src.load(name).unwrap();
+        assert_eq!((doc.width, doc.height), (8, 6));
         assert_eq!(
-            std::fs::read(&a).unwrap(),
-            std::fs::read(&b).unwrap(),
-            "{}",
-            a.display()
+            (doc.primary.as_str(), doc.secondary.as_str()),
+            ("General", "Petalburg")
         );
+        out.save(&doc).unwrap();
+        for (a, b) in [
+            (src.map_path(name), out.map_path(name)),
+            (src.layout_path(name), out.layout_path(name)),
+        ] {
+            assert_eq!(
+                std::fs::read(&a).unwrap(),
+                std::fs::read(&b).unwrap(),
+                "{}",
+                a.display()
+            );
+        }
     }
     let _ = std::fs::remove_dir_all(&out.root);
 }
 
+/// The fixture has no errors and no one-way links: its only warnings are its unwritten
+/// scripts.
 #[test]
 fn the_fixture_validates_against_the_extract() {
     if !real() {
@@ -79,34 +109,102 @@ fn the_fixture_validates_against_the_extract() {
     }
     let games = fixture();
     let c = Catalog::for_games(&games).unwrap();
-    let issues = validate(&games.load("FixtureTown").unwrap(), &c);
     assert_eq!(
-        studio::map_edit::validate::errors(&issues),
-        0,
+        c.maps.keys().collect::<Vec<_>>(),
+        ["FixtureRoute", "FixtureTown"],
+        "a games dir's own maps only"
+    );
+    for name in ["FixtureRoute", "FixtureTown"] {
+        let issues = validate(&games.load(name).unwrap(), &c);
+        assert_eq!(errors(&issues), 0, "{name}: {issues:#?}");
+        assert!(
+            issues
+                .iter()
+                .all(|i| i.severity == Severity::Warning && i.message.contains("script")),
+            "{name}: {issues:#?}"
+        );
+    }
+    // An Emerald map is not a Silice map's neighbor.
+    let mut d = games.load("FixtureTown").unwrap();
+    d.map.warps[0].dest_map = "OldaleTown".into();
+    let issues = validate(&d, &c);
+    assert!(
+        issues
+            .iter()
+            .any(|i| i.message == "unknown destination map \"OldaleTown\""),
         "{issues:#?}"
     );
-    assert!(!issues.is_empty(), "its scripts are not written: warnings");
 }
 
-/// Every extracted map, loaded into the editor, renders exactly as the game draws it.
+/// A connected games dir map is drawn in the margin: `FixtureRoute`'s bottom row above
+/// `FixtureTown`.
 #[test]
-fn extracted_maps_render_as_the_game() {
+fn renders_draw_connected_games_dir_maps() {
     if !real() {
         return;
     }
+    let games = fixture();
+    let c = Catalog::for_games(&games).unwrap();
+    let town = games.load("FixtureTown").unwrap();
+    let route = games.load("FixtureRoute").unwrap();
+    let with = render(&town, &c, 1).unwrap();
+    let route_img = render(&route, &c, 0).unwrap();
+    for py in 0..16 {
+        for px in 0..8 * 16 {
+            assert_eq!(
+                with.rgb555[py * with.width + 16 + px],
+                route_img.rgb555[(5 * 16 + py) * route_img.width + px],
+                "pixel ({px}, {py}) above the town"
+            );
+        }
+    }
+    let mut alone = town.clone();
+    alone.map.connections.clear();
+    assert!(render(&alone, &c, 1).unwrap().rgb555 != with.rgb555);
+}
+
+// TODO(M8 Task L): use `content::samples::map_ids()` once the full import provides it.
+/// The Milestone 7 slice's maps and a few from later in the game (those the build has).
+const SAMPLE_MAPS: [&str; 20] = [
+    "LittlerootTown",
+    "LittlerootTown_BrendansHouse_1F",
+    "LittlerootTown_BrendansHouse_2F",
+    "LittlerootTown_MaysHouse_1F",
+    "LittlerootTown_MaysHouse_2F",
+    "LittlerootTown_ProfessorBirchsLab",
+    "OldaleTown",
+    "OldaleTown_House1",
+    "OldaleTown_House2",
+    "OldaleTown_Mart",
+    "OldaleTown_PokemonCenter_1F",
+    "OldaleTown_PokemonCenter_2F",
+    "Route101",
+    "Route102",
+    "Route103",
+    "PetalburgCity",
+    "Route104",
+    "RustboroCity",
+    "SlateportCity",
+    "MtChimney",
+];
+
+/// Loads each extracted map into the editor; checks it has no errors (but warps to maps the
+/// extract lacks) and renders exactly as the game draws it.
+fn check_extracted_maps(only: Option<&[&str]>) {
     let game = Emerald::for_shells();
     let c = Catalog::from_content().unwrap();
+    let mut n = 0;
     for (id, name) in map_list() {
-        let text =
-            std::fs::read_to_string(extracted_dir().join(format!("maps/{name}.ron"))).unwrap();
-        let file: extract::schema::MapFile = ron::from_str(&text).unwrap();
-        let doc = Doc::from_map_file(&file).unwrap();
-        assert_eq!(
-            studio::map_edit::validate::errors(&validate(&doc, &c)),
-            0,
-            "{name}: {:#?}",
-            validate(&doc, &c)
-        );
+        if only.is_some_and(|o| !o.contains(&name)) {
+            continue;
+        }
+        n += 1;
+        let doc = Doc::from_map_file(&extracted_map(name)).unwrap();
+        let issues = validate(&doc, &c);
+        let errs: Vec<_> = (issues.iter())
+            .filter(|i| i.severity == Severity::Error && !i.message.contains("UNEXPORTED_"))
+            .collect();
+        assert!(errs.is_empty(), "{name}: {errs:#?}");
         let edited = render(&doc, &c, 3).unwrap();
         let want = render_map(&game, id, 3, &[]);
         assert_eq!(
@@ -116,6 +214,40 @@ fn extracted_maps_render_as_the_game() {
         );
         assert!(edited.rgb555 == want.rgb555, "{name}: pixels differ");
     }
+    assert!(n >= 15, "{n} maps checked");
+}
+
+#[test]
+fn sample_extracted_maps_render_as_the_game() {
+    if real() {
+        check_extracted_maps(Some(&SAMPLE_MAPS));
+    }
+}
+
+/// Every map of the build (slow on the full import: `cargo test -- --ignored`).
+#[test]
+#[ignore]
+fn every_extracted_map_renders_as_the_game() {
+    if real() {
+        check_extracted_maps(None);
+    }
+}
+
+/// Extracted warps the editor cannot name stay, so later warp indices do not shift.
+#[test]
+fn extracted_warps_keep_their_indices() {
+    if !real() {
+        return;
+    }
+    let f = extracted_map("OldaleTown_PokemonCenter_2F");
+    let doc = Doc::from_map_file(&f).unwrap();
+    assert_eq!(doc.map.warps.len(), f.warps.len());
+    let dests: Vec<&str> = doc.map.warps.iter().map(|w| w.dest_map.as_str()).collect();
+    // The Union Room and the Colosseum (Cable Club maps the slice does not export).
+    assert_eq!(
+        &dests[dests.len() - 2..],
+        ["UNEXPORTED_25_60", "UNEXPORTED_25_25"]
+    );
 }
 
 /// An edited map's render equals a render of a `MapData` built directly from the same layout
@@ -126,16 +258,8 @@ fn an_edited_render_equals_a_direct_render() {
     let (p, s, mts) = tilesets(&c);
     let mut ed = Editor::new(
         Doc::new(&NewMap {
-            name: "Edited".into(),
-            layout: None,
-            width: 17,
-            height: 12,
-            primary: p,
-            secondary: s,
-            fill: mts[0],
-            fill_collision: 0,
-            fill_elevation: 3,
             border: Some(vec![mts[1], mts[2], mts[1], mts[2]]),
+            ..new_map("Edited", 17, 12, &p, &s, mts[0])
         })
         .unwrap(),
     );
@@ -176,9 +300,7 @@ fn an_edited_render_equals_a_direct_render() {
         .into_iter()
         .find(|(_, n)| *n == "Route101")
         .unwrap();
-    let text = std::fs::read_to_string(extracted_dir().join(format!("maps/{name}.ron"))).unwrap();
-    let file: extract::schema::MapFile = ron::from_str(&text).unwrap();
-    let mut ed = Editor::new(Doc::from_map_file(&file).unwrap());
+    let mut ed = Editor::new(Doc::from_map_file(&extracted_map(name)).unwrap());
     let mut overrides = Vec::new();
     for (x, y, m) in [(0, 0, 1u16), (5, 7, 13), (19, 19, 468), (10, 3, 520)] {
         ed.apply(&Op::Paint {
@@ -226,7 +348,7 @@ fn cli_session(dir: &Path, primary: &str, secondary: &str, mts: &[u16]) -> (Vec<
     Paint(x: 9, y: 7, metatile: {a}),
     Undo,
     Object(x: 3, y: 4, gfx: "OBJ_EVENT_GFX_BOY_1", script: "CliTown_EventScript_Boy"),
-    Object(x: 4, y: 4, gfx: "OBJ_EVENT_GFX_BOY_1"),
+    Object(x: 4, y: 4, gfx: "OBJ_EVENT_GFX_BOY_1", id: "LOCALID_CLITOWN_BOY"),
     Delete(kind: Object, index: 0),
     Move(kind: Object, index: 0, x: 6, y: 6),
     Sign(x: 2, y: 1, script: "CliTown_EventScript_Sign"),
@@ -243,9 +365,10 @@ fn cli_session(dir: &Path, primary: &str, secondary: &str, mts: &[u16]) -> (Vec<
     let g = games.to_str().unwrap();
     let out = run(&["--games", g, "create", spec.to_str().unwrap()]).unwrap();
     assert!(out.starts_with("created "), "{out}");
+    let e = run(&["--games", g, "create", spec.to_str().unwrap()]).unwrap_err();
     assert!(
-        run(&["--games", g, "create", spec.to_str().unwrap()]).is_err(),
-        "create never replaces a map"
+        format!("{e:#}").contains("exists"),
+        "never replaces a map: {e:#}"
     );
     let out = run(&["--games", g, "apply", "CliTown", script.to_str().unwrap()]).unwrap();
     assert!(out.contains("13 ops applied, saved"), "{out}");
@@ -276,7 +399,12 @@ fn the_cli_applies_an_edit_script_deterministically() {
     assert_eq!(mt(7, 6), mts[2], "pasted");
     assert_eq!(mt(9, 7), mts[3], "the paint was undone");
     assert_eq!(doc.map.objects.len(), 1);
-    assert_eq!((doc.map.objects[0].x, doc.map.objects[0].local_id), (6, 1));
+    let o = &doc.map.objects[0];
+    assert_eq!(
+        (o.x, o.local_id, o.id.as_deref()),
+        (6, 2, Some("LOCALID_CLITOWN_BOY")),
+        "local ids stay when an earlier object is deleted"
+    );
     assert_eq!(doc.map.warps[0].dest_map, "CliTown");
 
     // A failing script saves nothing.
@@ -296,6 +424,32 @@ fn the_cli_applies_an_edit_script_deterministically() {
         first.1
     );
 
+    // Renumbering a named object is warned about.
+    let renumber = d1.join("renumber.ron");
+    let mut o = o.clone();
+    o.local_id = 9;
+    std::fs::write(
+        &renumber,
+        format!(
+            "[Replace(index: 0, event: Object({}))]",
+            to_ron(&o).unwrap().trim()
+        ),
+    )
+    .unwrap();
+    let out = run(&[
+        "--games",
+        g,
+        "apply",
+        "CliTown",
+        renumber.to_str().unwrap(),
+        "--dry-run",
+    ])
+    .unwrap();
+    assert!(
+        out.contains("warning: object 0: LOCALID_CLITOWN_BOY was local id 2, now 9"),
+        "{out}"
+    );
+
     // A render for review, outside the games dir.
     let png = d1.join("review/CliTown.png");
     let out = run(&[
@@ -313,32 +467,95 @@ fn the_cli_applies_an_edit_script_deterministically() {
     let bytes = std::fs::read(&png).unwrap();
     assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
     assert_eq!(run(&["--games", g, "list"]).unwrap(), "CliTown\n");
+    assert!(
+        run(&["--game", "../elsewhere", "list"]).is_err(),
+        "--game is a name"
+    );
     for d in [d1, d2] {
         let _ = std::fs::remove_dir_all(d);
     }
 }
 
+/// A new map never replaces a saved layout unless it shares it; a shared layout is loaded,
+/// not refilled.
 #[test]
-fn validate_fails_on_errors() {
+fn new_maps_share_layouts_only_when_asked() {
+    let c = Catalog::from_content().unwrap();
+    let (p, s, mts) = tilesets(&c);
+    let dir = temp_dir("shared");
+    let games = GamesDir::new(dir.join("games"));
+    let mut ed = Editor::new(
+        games
+            .new_doc(&new_map("First", 6, 5, &p, &s, mts[0]))
+            .unwrap(),
+    );
+    ed.apply(&Op::Paint {
+        x: 2,
+        y: 2,
+        metatile: Some(mts[1]),
+        collision: None,
+        elevation: None,
+    })
+    .unwrap();
+    games.create(ed.doc()).unwrap();
+    let layout = std::fs::read(games.layout_path("First")).unwrap();
+
+    let second = NewMap {
+        layout: Some("First".into()),
+        ..new_map("Second", 3, 3, &p, &s, mts[2])
+    };
+    let e = games.new_doc(&second).unwrap_err();
+    assert!(format!("{e:#}").contains("shared_layout"), "{e:#}");
+    // The same through the CLI.
+    let spec = dir.join("second.ron");
+    std::fs::write(
+        &spec,
+        format!(
+            "(name: \"Second\", layout: \"First\", width: 3, height: 3, primary: \"{p}\", \
+             secondary: \"{s}\", fill: {})",
+            mts[2]
+        ),
+    )
+    .unwrap();
+    let g = games.root.to_str().unwrap();
+    assert!(run(&["--games", g, "create", spec.to_str().unwrap()]).is_err());
+    // A hand-built doc with the same layout name but other blocks is refused too.
+    let mut clash = Doc::new(&second).unwrap();
+    clash.map.name = "Clash".into();
+    assert!(games.create(&clash).is_err());
+    assert_eq!(std::fs::read(games.layout_path("First")).unwrap(), layout);
+    assert!(!games.exists("Clash"));
+
+    // Shared: the saved layout, whatever the spec's size and fill.
+    std::fs::write(
+        &spec,
+        "(name: \"Second\", layout: \"First\", shared_layout: true)",
+    )
+    .unwrap();
+    let out = run(&["--games", g, "create", spec.to_str().unwrap()]).unwrap();
+    assert!(out.starts_with("created "), "{out}");
+    let doc = games.load("Second").unwrap();
+    assert_eq!((doc.width, doc.height), (6, 5));
+    assert_eq!(doc.block(2, 2).unwrap() & 0x3FF, mts[1]);
+    assert_eq!(std::fs::read(games.layout_path("First")).unwrap(), layout);
+    let e = games
+        .new_doc(&NewMap {
+            shared_layout: true,
+            layout: Some("Missing".into()),
+            ..new_map("Third", 0, 0, "", "", 0)
+        })
+        .unwrap_err();
+    assert!(format!("{e:#}").contains("Missing"), "{e:#}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn validate_fails_on_errors_and_reports_every_map() {
     let c = Catalog::from_content().unwrap();
     let (p, s, _) = tilesets(&c);
     let dir = temp_dir("invalid");
     let games = GamesDir::new(dir.join("games"));
-    let mut ed = Editor::new(
-        Doc::new(&NewMap {
-            name: "Broken".into(),
-            layout: None,
-            width: 2,
-            height: 2,
-            primary: p,
-            secondary: s,
-            fill: 0,
-            fill_collision: 0,
-            fill_elevation: 3,
-            border: None,
-        })
-        .unwrap(),
-    );
+    let mut ed = Editor::new(Doc::new(&new_map("Broken", 2, 2, &p, &s, 0)).unwrap());
     ed.apply(&Op::Warp {
         x: 0,
         y: 0,
@@ -348,17 +565,30 @@ fn validate_fails_on_errors() {
     })
     .unwrap();
     games.save(ed.doc()).unwrap();
+    // A map whose layout is gone, a layout no map uses, and a good map after them.
+    let mut lost = Doc::new(&new_map("Lost", 2, 2, &p, &s, 0)).unwrap();
+    lost.map.layout = "Gone".into();
+    std::fs::write(games.map_path("Lost"), to_ron(&lost.map).unwrap()).unwrap();
+    std::fs::write(games.layout_path("Unused"), to_ron(&lost.layout()).unwrap()).unwrap();
+    games
+        .save(&Doc::new(&new_map("Zed", 2, 2, &p, &s, 0)).unwrap())
+        .unwrap();
     let g = games.root.to_str().unwrap();
-    let e = run(&["--games", g, "validate"]).unwrap_err();
-    assert!(
-        format!("{e:#}").contains("unknown destination map \"NoSuchMap\""),
-        "{e:#}"
-    );
+    let e = format!("{:#}", run(&["--games", g, "validate"]).unwrap_err());
+    for want in [
+        "Broken: error: warp 0: unknown destination map \"NoSuchMap\"",
+        "Lost: error: map: reading",
+        "layout Unused: warning: no map uses it",
+        "2 errors in 3 maps",
+    ] {
+        assert!(e.contains(want), "{want}: {e}");
+    }
     let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Nothing under a games dir holds ROM data: only `maps/*.ron` and `layouts/*.ron` in their
-/// canonical form (names, raw block indices, event data).
+/// canonical form (names, raw block indices, event data), and no layout copied from the
+/// extract.
 #[test]
 fn games_dirs_hold_only_names_and_indices() {
     assert_eq!(hygiene(&fixture()).unwrap(), Vec::<String>::new());
@@ -399,6 +629,82 @@ fn games_dirs_hold_only_names_and_indices() {
     assert!(
         bad.iter()
             .any(|b| b.contains("Reformatted.ron: not in the canonical format"))
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+fn write_layout(g: &GamesDir, name: &str, l: &Layout) {
+    std::fs::create_dir_all(g.layouts_dir()).unwrap();
+    std::fs::write(g.layout_path(name), to_ron(l).unwrap()).unwrap();
+}
+
+/// A games dir layout that is an extracted one, or holds a varied square of one, is flagged;
+/// repainted collision does not hide it; a uniform fill of the same metatile is not.
+#[test]
+fn layouts_copied_from_the_extract_are_flagged() {
+    if !real() {
+        return;
+    }
+    let route = extracted_map("Route101").layout;
+    let dir = temp_dir("copies");
+    let g = GamesDir::new(dir.join("games"));
+    let mut planted = route.clone();
+    let mut blocks = from_rows(&planted.blocks);
+    for b in &mut blocks {
+        *b ^= 1 << 10; // other collision
+    }
+    planted.blocks = to_rows(&blocks, planted.width as usize);
+    write_layout(&g, "Planted", &planted);
+
+    // The most varied 10x10 square of Route 101, pasted at (7, 5) of a 30x24 field.
+    let cells = from_rows(&route.blocks);
+    let w = route.width as usize;
+    let distinct = |x: usize, y: usize| {
+        let mut v: Vec<u16> = (y..y + COPY_WINDOW)
+            .flat_map(|cy| (x..x + COPY_WINDOW).map(move |cx| (cx, cy)))
+            .map(|(cx, cy)| cells[cy * w + cx] & 0x3FF)
+            .collect();
+        v.sort();
+        v.dedup();
+        v.len()
+    };
+    let (sx, sy) = (0..=route.height as usize - COPY_WINDOW)
+        .flat_map(|y| (0..=w - COPY_WINDOW).map(move |x| (x, y)))
+        .max_by_key(|&(x, y)| distinct(x, y))
+        .unwrap();
+    assert!(distinct(sx, sy) >= COPY_MIN_DISTINCT);
+    let fill = cells[0];
+    let (fw, fh) = (30usize, 24usize);
+    let mut field = vec![fill; fw * fh];
+    for dy in 0..COPY_WINDOW {
+        for dx in 0..COPY_WINDOW {
+            field[(5 + dy) * fw + 7 + dx] = cells[(sy + dy) * w + sx + dx];
+        }
+    }
+    let sub = Layout {
+        width: fw as u16,
+        height: fh as u16,
+        blocks: to_rows(&field, fw),
+        ..route.clone()
+    };
+    write_layout(&g, "Patched", &sub);
+    let uniform = Layout {
+        blocks: to_rows(&vec![fill; w * route.height as usize], w),
+        ..route.clone()
+    };
+    write_layout(&g, "Uniform", &uniform);
+
+    let bad = copies(&g, &extracted_dir()).unwrap();
+    assert_eq!(bad.len(), 2, "{bad:#?}");
+    assert!(
+        bad.iter()
+            .any(|b| b.contains("Planted.ron: the blocks of extracted")),
+        "{bad:#?}"
+    );
+    assert!(
+        bad.iter()
+            .any(|b| b.contains("Patched.ron: the 10x10 cells at")),
+        "{bad:#?}"
     );
     let _ = std::fs::remove_dir_all(dir);
 }

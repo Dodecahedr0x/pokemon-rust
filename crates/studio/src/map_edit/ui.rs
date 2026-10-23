@@ -9,7 +9,7 @@ use super::games::GamesDir;
 use super::model::{Doc, Editor, NewMap};
 use super::render::{Palette, palette, png, render};
 use super::session::{Mode, Session, Tool, cell_at, cells_path, marks};
-use super::validate::{Issue, Severity, validate};
+use super::validate::{Issue, Severity, id_changes, validate};
 use dioxus::prelude::*;
 use engine::data::{block_collision, block_elevation};
 use std::collections::HashMap;
@@ -95,6 +95,9 @@ impl State {
         };
         let d = s.doc();
         self.issues = validate(d, catalog);
+        if let Some(before) = s.editor.saved() {
+            self.issues.extend(id_changes(before, d));
+        }
         match render(d, catalog, MARGIN) {
             Ok(img) => images.put("map.png", png(&img)),
             Err(_) => images.put("map.png", Vec::new()),
@@ -140,6 +143,7 @@ impl NewForm {
             fill_collision: 0,
             fill_elevation: super::model::GROUND,
             border: None,
+            shared_layout: false,
         })
     }
 }
@@ -147,8 +151,13 @@ impl NewForm {
 /// The layer toggles: metatiles (the picture), collision, elevation, events.
 const LAYERS: [&str; 4] = ["metatiles", "collision", "elevation", "events"];
 
-fn new_session(doc: Doc, catalog: &Catalog) -> Session {
-    let mut s = Session::new(Editor::new(doc));
+/// A session on `doc`: a saved map's, or (`saved` false) a new map no file holds yet.
+fn new_session(doc: Doc, saved: bool, catalog: &Catalog) -> Session {
+    let mut s = Session::new(if saved {
+        Editor::new(doc)
+    } else {
+        Editor::unsaved(doc)
+    });
     if let Some(g) = catalog.gfx.iter().next() {
         s.default_gfx = g.clone();
     }
@@ -170,7 +179,7 @@ pub fn Edit(games: GamesDir, #[props(default)] start: Option<String>) -> Element
         if let (Some(name), Ok(c)) = (&start, &catalog)
             && let Ok(d) = games.load(name)
         {
-            st.session = Some(new_session(d, c));
+            st.session = Some(new_session(d, true, c));
             st.refresh(c, &images);
         }
         st
@@ -199,12 +208,33 @@ pub fn Edit(games: GamesDir, #[props(default)] start: Option<String>) -> Element
     let primaries = catalog.tileset_names(false);
     let secondaries = catalog.tileset_names(true);
 
-    // Opens `doc` in a new session.
+    // A map waiting for its Discard click: the open one has unsaved changes.
+    let mut pending = use_signal(|| None::<(Doc, bool)>);
+    // Opens `doc` (`saved`: a file holds it) in a new session; with unsaved changes in the
+    // open map, only when `discard` (else it waits in `pending`).
     let open = {
         let (catalog, images) = (catalog.clone(), images.clone());
-        move |doc: Doc| {
+        move |doc: Doc, saved: bool, discard: bool| {
             let mut st = state.write();
-            let s = new_session(doc, &catalog);
+            if !discard
+                && let Some(s) = st.session.as_ref()
+                && s.editor.is_dirty()
+            {
+                message.set(format!(
+                    "{} has unsaved changes: Save them, or Discard them to open {}",
+                    s.doc().map.name,
+                    doc.map.name
+                ));
+                pending.set(Some((doc, saved)));
+                return;
+            }
+            pending.set(None);
+            message.set(if saved {
+                String::new()
+            } else {
+                "new map: Save writes it".into()
+            });
+            let s = new_session(doc, saved, &catalog);
             conns.set(s.connections_ron());
             inspector.set(String::new());
             st.session = Some(s);
@@ -249,10 +279,7 @@ pub fn Edit(games: GamesDir, #[props(default)] start: Option<String>) -> Element
                             onclick: {
                                 let (games, open, name) = (games.clone(), open.clone(), name.clone());
                                 move |_| match games.load(&name) {
-                                    Ok(d) => {
-                                        open.clone()(d);
-                                        message.set(String::new());
-                                    }
+                                    Ok(d) => open.clone()(d, true, false),
                                     Err(e) => message.set(format!("{e:#}")),
                                 }
                             },
@@ -285,22 +312,29 @@ pub fn Edit(games: GamesDir, #[props(default)] start: Option<String>) -> Element
             label { "fill metatile " input { value: "{form.read().fill}", oninput: move |e| form.write().fill = e.value() } }
             button {
                 onclick: {
-                    let open = open.clone();
+                    let (games, open) = (games.clone(), open.clone());
                     move |_| {
-                        let r = form.read().spec().and_then(|s| Doc::new(&s).map_err(|e| format!("{e:#}")));
+                        let r = form.read().spec().and_then(|s| games.new_doc(&s).map_err(|e| format!("{e:#}")));
                         match r {
-                            Ok(d) if list.read().contains(&d.map.name) => {
-                                message.set(format!("{} exists", d.map.name));
-                            }
-                            Ok(d) => {
-                                open.clone()(d);
-                                message.set("new map: Save writes it".into());
-                            }
+                            Ok(d) => open.clone()(d, false, false),
                             Err(e) => message.set(e),
                         }
                     }
                 },
                 "Create"
+            }
+            if pending.read().is_some() {
+                button {
+                    onclick: {
+                        let open = open.clone();
+                        move |_| {
+                            if let Some((d, saved)) = pending.take() {
+                                open.clone()(d, saved, true);
+                            }
+                        }
+                    },
+                    "Discard changes"
+                }
             }
         }
     };
@@ -364,13 +398,19 @@ pub fn Edit(games: GamesDir, #[props(default)] start: Option<String>) -> Element
     let mut edit_up = edit.clone();
     let mut edit_leave = edit.clone();
     let save = {
-        let games = games.clone();
+        let (games, catalog, images) = (games.clone(), catalog.clone(), images.clone());
         move |_| {
             let mut st = state.write();
             let Some(s) = st.session.as_mut() else {
                 return;
             };
-            match games.save(s.doc()) {
+            pending.set(None);
+            // A new map is created (never replacing a saved map or layout); a saved one saved.
+            let r = match s.editor.saved() {
+                None => games.create(s.doc()),
+                Some(_) => games.save(s.doc()),
+            };
+            match r {
                 Ok(()) => {
                     s.editor.mark_saved();
                     message.set(format!(
@@ -378,6 +418,7 @@ pub fn Edit(games: GamesDir, #[props(default)] start: Option<String>) -> Element
                         games.map_path(&s.doc().map.name).display()
                     ));
                     list.set(games.map_names().unwrap_or_default());
+                    st.refresh(&catalog, &images);
                 }
                 Err(e) => message.set(format!("{e:#}")),
             }
