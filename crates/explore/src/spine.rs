@@ -1268,10 +1268,10 @@ fn first_dir_avoiding<G: GameData>(
         if !ok {
             return None;
         }
-        // The target itself is a destination (a door, an object): no elevation rule.
+        // A target nobody walks onto (a door, an object): no elevation rule (as `path`).
         match grid.step_elevation(e, c, n) {
             Some(e2) => Some((n, e2)),
-            None if n == to => Some((n, e)),
+            None if n == to && !grid.walkable(n, false) => Some((n, e)),
             None => None,
         }
     };

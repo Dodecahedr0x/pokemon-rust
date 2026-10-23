@@ -388,13 +388,15 @@ impl<'a, G: GameData> Grid<'a, G> {
         seen[start as usize * ELEVATIONS + e0 as usize] = true;
         // (cell, carried elevation, the index in `Dir::ALL` of the path's first step).
         let mut queue: VecDeque<(u32, u8, usize)> = VecDeque::new();
+        // A target nobody walks onto (a door, an object) is a destination: no elevation
+        // rule. A walkable one is reached as any cell (Fortree's ladders).
+        let destination = !self.walkable(to, false);
         let step = |c: u32, e: u8, n: u32| -> Option<u8> {
             if n == NO_STEP || !ok[n as usize] {
                 return None;
             }
             let en = t.elevation[n as usize];
-            // The target itself is a destination (a door, an object): no elevation rule.
-            if n != goal && mismatch(e, en) {
+            if !(n == goal && destination) && mismatch(e, en) {
                 return None;
             }
             Some(carry(e, t.elevation[c as usize], en))
