@@ -8,8 +8,8 @@
 //! from `after` (or with 204 after [`LONG_POLL`]), by the slot's waiter thread
 //! ([`FrameSlot::wait_then`]), never blocking the UI thread.
 //!
-//! The [`Studio`] context holds the paths, the layered store, the materializer both panes share
-//! and the two pane threads (the native pane and the ROM pane), spawned once at launch. The
+//! The [`Studio`] context holds the paths, the layered store and the two pane threads (each
+//! with its own `Materializer` over the store's shared disk cache) (the native pane and the ROM pane), spawned once at launch. The
 //! [`Shell`] polls their statuses at about 15 Hz into signals ([`Live`]) and keeps the
 //! checkpoint tree ([`tree::TreeState`]) fresh. Store work, verifies and ROM builds run on
 //! worker threads ([`off_thread`]); the UI thread only sends commands and renders. The Explorer
@@ -30,11 +30,9 @@ use crate::pane::{self, PaneHandle, RunMode, TestPattern};
 use crate::paths::StudioPaths;
 use crate::rom::{RomCmd, RomPane, RomSource, RomStatus};
 use crate::tree::TreeModel;
-use content::Emerald;
 use dioxus::desktop::wry::http::{Response, StatusCode};
 use dioxus::desktop::{Config, LogicalSize, WindowBuilder, use_asset_handler};
 use dioxus::prelude::*;
-use game_native::checkpoints::Materializer;
 use game_native::store::Store;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -44,8 +42,7 @@ use std::time::{Duration, Instant};
 const CSS: &str = include_str!("studio.css");
 const JS: &str = include_str!("studio.js");
 
-/// Node states the shared materializer keeps in memory.
-pub const MATERIALIZER_CAPACITY: usize = 32;
+pub use crate::native::MATERIALIZER_CAPACITY;
 /// How often the UI copies the panes' statuses into its signals (about 15 Hz).
 pub const STATUS_POLL: Duration = Duration::from_millis(66);
 
@@ -53,9 +50,6 @@ pub const STATUS_POLL: Duration = Duration::from_millis(66);
 /// `data-pane`). Held in context.
 #[derive(Clone, Default)]
 pub struct Frames(pub Arc<HashMap<&'static str, FrameSlot>>);
-
-/// The materializer the panes share (it holds only checkpoints).
-pub type SharedMaterializer = Arc<Mutex<Materializer<Emerald>>>;
 
 /// The two play panes, spawned once.
 pub struct Panes {
@@ -70,7 +64,6 @@ pub struct Studio {
     pub paths: StudioPaths,
     /// The layered store: the committed tree as a read-only base, personal saves in `local`.
     pub store: Store,
-    pub materializer: SharedMaterializer,
     panes: Option<Arc<Panes>>,
     /// The tree read at start-up, or why it could not be read.
     tree: Result<TreeModel, String>,
@@ -84,12 +77,11 @@ pub struct Studio {
 impl Studio {
     /// The state without panes, with the tree read from `store` (a quick read of `nodes/`,
     /// done before the window opens).
-    pub fn new(paths: StudioPaths, store: Store, materializer: SharedMaterializer) -> Studio {
+    pub fn new(paths: StudioPaths, store: Store) -> Studio {
         let tree = TreeModel::load(&store).map_err(|e| e.to_string());
         Studio {
             paths,
             store,
-            materializer,
             panes: None,
             tree,
             explorer: RunSlot::default(),
@@ -101,22 +93,18 @@ impl Studio {
     pub fn detect() -> Result<Studio, String> {
         let paths = StudioPaths::detect();
         let store = Store::layered(&paths.shared, &paths.local).map_err(|e| e.to_string())?;
-        let m = Arc::new(Mutex::new(Materializer::new(
-            Emerald::for_shells(),
-            MATERIALIZER_CAPACITY,
-        )));
-        Ok(Studio::new(paths, store, m))
+        Ok(Studio::new(paths, store))
     }
 
     /// Spawns the native pane (playing a new game) and the ROM pane (booting `target/game.gba`
     /// as a new game; a missing ROM is a status).
     pub fn spawn_panes(mut self) -> Studio {
-        let (store, m) = (self.store.clone(), Arc::clone(&self.materializer));
-        let native = pane::spawn("native", move || NativePane::new(store, m));
+        let store = self.store.clone();
+        let native = pane::spawn("native", move || NativePane::new(store));
         native.send(NativeCmd::Mode(RunMode::Play));
         let (rom_path, scratch) = (self.paths.rom.clone(), self.paths.scratch.clone());
-        let (store, m) = (self.store.clone(), Arc::clone(&self.materializer));
-        let rom = pane::spawn("rom", move || RomPane::new(rom_path, scratch, store, m));
+        let store = self.store.clone();
+        let rom = pane::spawn("rom", move || RomPane::new(rom_path, scratch, store));
         rom.send(RomCmd::Reset(RomSource::NewGame));
         self.panes = Some(Arc::new(Panes { native, rom }));
         self
@@ -687,8 +675,7 @@ mod tests {
         let mut paths = StudioPaths::detect();
         paths.local = local.to_path_buf();
         let store = Store::layered(&paths.shared, &paths.local).unwrap();
-        let m = Arc::new(Mutex::new(Materializer::new(Emerald::for_shells(), 4)));
-        Studio::new(paths, store, m)
+        Studio::new(paths, store)
     }
 
     pub(crate) fn render(studio: Studio, start: Tab) -> String {

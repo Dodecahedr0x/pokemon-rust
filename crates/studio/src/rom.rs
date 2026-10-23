@@ -5,7 +5,7 @@
 //!
 //! No rewind and no mid-trace seek (decision 10).
 
-use crate::native::lock_materializer;
+use crate::native::MATERIALIZER_CAPACITY;
 use crate::pane::{Pane, RunMode};
 use anyhow::{Context, Result, anyhow};
 use content::Emerald;
@@ -20,7 +20,7 @@ use game_native::{SCREEN_H, SCREEN_W, Session};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Timeline entries kept (newest last).
@@ -38,8 +38,8 @@ pub enum RomSource {
     /// Erased flash.
     NewGame,
     /// A checkpoint node of the pane's layered store, materialised natively through the
-    /// shared [`Materializer`] (as the native pane loads it) and written as slot 0 of a fresh
-    /// flash.
+    /// pane's own [`Materializer`] (as the native pane loads it) and written as slot 0 of a
+    /// fresh flash.
     Node(CheckpointId),
     /// A `FLASH_SIZE` flash image.
     Sav(Vec<u8>),
@@ -233,7 +233,8 @@ pub struct RomPane {
     rom_path: PathBuf,
     scratch: PathBuf,
     store: Store,
-    materializer: Arc<Mutex<Materializer<Emerald>>>,
+    /// This pane's own (M8 Task S), over the store's shared disk cache.
+    materializer: Materializer<Emerald>,
     game: Emerald,
     native_build: BuildHash,
     emu: Option<Emu>,
@@ -264,14 +265,11 @@ pub struct RomPane {
 impl RomPane {
     /// An idle pane on `rom_path` (normally `target/game.gba`); `ExportSave` writes only under
     /// `scratch_dir` (`target/studio/`). Nodes come from `store` (the layered store) through
-    /// the materializer the native pane shares. Nothing runs until a `Reset`.
-    pub fn new(
-        rom_path: PathBuf,
-        scratch_dir: PathBuf,
-        store: Store,
-        materializer: Arc<Mutex<Materializer<Emerald>>>,
-    ) -> RomPane {
+    /// the pane's own materializer (the disk cache is the store's, shared with the native
+    /// pane). Nothing runs until a `Reset`.
+    pub fn new(rom_path: PathBuf, scratch_dir: PathBuf, store: Store) -> RomPane {
         let game = Emerald::for_shells();
+        let materializer = Materializer::new(game, MATERIALIZER_CAPACITY);
         RomPane {
             rom_file: RomFile::probe(&rom_path),
             since_probe: 0,
@@ -335,9 +333,8 @@ impl RomPane {
         let (cp, sav): (Option<Checkpoint>, Option<Vec<u8>>) = match src {
             RomSource::NewGame => (None, None),
             RomSource::Node(id) => {
-                // One `get` under the lock (it replays only what no cache holds).
-                let m = lock_materializer(&self.materializer)
-                    .get(&self.store, *id)
+                // It replays only what no cache holds.
+                let m = (self.materializer.get(&self.store, *id))
                     .map_err(|e| anyhow!("materialize {id}: {e}"))?;
                 self.diverged = m.diverged;
                 let sav = game_native::flash::encode_sav(&m.checkpoint)
@@ -551,14 +548,13 @@ mod tests {
     /// A pane over an empty store (nothing is created until a node is added).
     fn pane(rom: PathBuf, scratch: PathBuf) -> RomPane {
         let store = Store::open(scratch.join("store")).unwrap();
-        let m = Arc::new(Mutex::new(Materializer::new(Emerald::for_shells(), 4)));
-        RomPane::new(rom, scratch, store, m)
+        RomPane::new(rom, scratch, store)
     }
 
-    /// A node reset materialises through the materializer it shares with the native pane, in
-    /// the layered store (the local root only holds the snapshot cache).
+    /// A node reset materialises through the pane's own materializer, in the layered store
+    /// (the local root only holds the snapshot cache).
     #[test]
-    fn node_reset_goes_through_the_shared_materializer() {
+    fn node_reset_goes_through_the_pane_materializer() {
         if content::STALE_EXTRACT {
             println!("skipped: {}", content::STALE_EXTRACT_MSG);
             return;
@@ -572,12 +568,11 @@ mod tests {
             println!("skipped: no committed nodes");
             return;
         };
-        let m = Arc::new(Mutex::new(Materializer::new(Emerald::for_shells(), 4)));
-        let mut p = RomPane::new(rom, dir.join("studio"), store, Arc::clone(&m));
+        let mut p = RomPane::new(rom, dir.join("studio"), store);
         p.handle(RomCmd::Reset(RomSource::Node(node.meta.id)));
-        // Materialised (cached in the shared LRU), then refused by mGBA.
+        // Materialised (cached in the pane's LRU), then refused by mGBA.
         assert!(p.status().error.is_some());
-        assert!(!lock_materializer(&m).is_empty());
+        assert!(!p.materializer.is_empty());
         // An unknown node is an error status too.
         p.handle(RomCmd::Reset(RomSource::Node(CheckpointId(9999))));
         assert!(p.status().error.unwrap().contains("materialize"));
@@ -773,14 +768,8 @@ mod tests {
         let scratch = temp(tag);
         let store =
             Store::layered(Store::default_root(content::STUB), scratch.join("local")).unwrap();
-        let m = Arc::new(Mutex::new(Materializer::new(Emerald::for_shells(), 4)));
         (
-            RomPane::new(
-                workspace().join("target/game.gba"),
-                scratch.clone(),
-                store,
-                m,
-            ),
+            RomPane::new(workspace().join("target/game.gba"), scratch.clone(), store),
             scratch,
         )
     }
@@ -839,8 +828,7 @@ mod tests {
         let s = scratch.clone();
         let h = crate::pane::spawn("rom", move || {
             let store = Store::open(s.join("store")).unwrap();
-            let m = Arc::new(Mutex::new(Materializer::new(Emerald::for_shells(), 4)));
-            RomPane::new(workspace().join("target/game.gba"), s, store, m)
+            RomPane::new(workspace().join("target/game.gba"), s, store)
         });
         h.send(RomCmd::Reset(RomSource::NewGame));
         std::thread::sleep(std::time::Duration::from_secs(3));

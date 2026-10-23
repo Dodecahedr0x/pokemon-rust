@@ -2,12 +2,13 @@
 //! [`NativeCmd`]s, publishing an [`Inspector`] status with a small event timeline.
 //!
 //! Saves go to the layered store (local over the committed tree) with the current parent,
-//! which may be a committed node. Loads and seeks go through a shared [`Materializer`]: its
-//! lock is held only to fetch the checkpoint or the seek start; the session is built and
-//! stepped on this thread (`World` is `!Send`).
+//! which may be a committed node. Loads and seeks go through the pane's own [`Materializer`]
+//! (M8 Task S: one per pane thread, no lock between panes; they share the store's snapshot
+//! disk cache, whose writes are atomic renames). The session is built and stepped on this
+//! thread (`World` is `!Send`).
 
 use crate::pane::{Pane, RunMode};
-use engine::checkpoint::NotCapturable;
+use engine::checkpoint::{Checkpoint, NotCapturable};
 use engine::data::{GameData, MapId};
 use engine::{Buttons, World};
 use game_native::checkpoints::{Materializer, SeekPrep, SeekStart, Seeked, add_save};
@@ -15,12 +16,14 @@ use game_native::controls::{Controls, SaveRequest};
 use game_native::store::Store;
 use game_native::trace::{CheckpointId, Parent, Trace};
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex, MutexGuard};
 
 type Game = content::Emerald;
 
 /// Events kept in [`Inspector::events`].
 pub const EVENTS: usize = 64;
+
+/// Node states each pane's [`Materializer`] keeps in memory.
+pub const MATERIALIZER_CAPACITY: usize = 32;
 
 pub enum NativeCmd {
     /// The buttons held from now on.
@@ -39,12 +42,18 @@ pub enum NativeCmd {
         frames: u32,
     },
     NewGame,
-    /// A NewGame trace's state after `frames` frames (clamped to it), e.g. an explorer
-    /// finding (`explorer::finding_trace`). Recording goes on from there with a NewGame
-    /// parent, so a save makes a local node whose parent is the new game (M6 decision 7).
+    /// A trace's state after `frames` frames (clamped to it), e.g. an explorer finding
+    /// (`explorer::finding_trace`). Recording goes on from there with the trace's parent, so a
+    /// save makes a local node whose parent is the new game (M6 decision 7) or, for a finding
+    /// of a `--from` db, the db's root node.
+    ///
+    /// A trace whose parent is node `id` starts from `base`, that node's state (the explorer
+    /// materializes it from the db's own store); without one, the pane materializes `id` from
+    /// its store.
     OpenTrace {
         trace: Trace,
         frames: u32,
+        base: Option<Box<Checkpoint>>,
     },
     /// A line for the inspector's `last`, after what is there (e.g. "found on another build"
     /// after an `OpenTrace`'s own note).
@@ -170,33 +179,49 @@ fn changes(was: Seen, now: Seen, log: impl Iterator<Item = &'static str>) -> Vec
     out
 }
 
-/// A NewGame `trace` replayed on `game` up to `frames` frames (clamped to it), ready for
-/// `Controls::from_seek`: M6's seek path from a new game (`SeekStart::from_trace`), so the
-/// recorder holds the prefix with its real hashes and a recorded hash the replay misses sets
-/// `diverged`. Another parent is refused. The replay runs on the caller's thread (never under
-/// the `Materializer` lock) inside the explorer's panic guard: a finding's panic is an `Err`,
-/// not a dead pane thread.
-pub fn open_trace<G: GameData>(game: G, trace: Trace, frames: u32) -> Result<Seeked<G>, String> {
-    if trace.parent != Parent::NewGame {
-        return Err(format!(
-            "the trace starts at {}, not a new game",
-            trace.parent
-        ));
-    }
-    let start = SeekStart::from_trace(trace, frames);
+/// `trace` replayed on `game` up to `frames` frames (clamped to it), ready for
+/// `Controls::from_seek`: M6's seek path, so the recorder holds the prefix with its real hashes
+/// and a recorded hash the replay misses sets `diverged`.
+///
+/// A NewGame trace starts from a new game (`SeekStart::from_trace`) and takes no `base`. A
+/// trace whose parent is a node starts from `base`, that node's state, which must be at the
+/// trace's `start_frame`. The replay runs on the caller's thread inside the explorer's panic
+/// guard: a finding's panic is an `Err`, not a dead pane thread.
+pub fn open_trace<G: GameData>(
+    game: G,
+    trace: Trace,
+    base: Option<Checkpoint>,
+    frames: u32,
+) -> Result<Seeked<G>, String> {
+    let start = match (trace.parent, base) {
+        (Parent::NewGame, None) => SeekStart::from_trace(trace, frames),
+        (Parent::NewGame, Some(_)) => {
+            return Err("a new game's trace takes no parent state".into());
+        }
+        (Parent::Checkpoint(id), None) => {
+            return Err(format!("the trace starts at {id}, whose state is missing"));
+        }
+        (Parent::Checkpoint(id), Some(cp)) => {
+            if cp.header.frame != trace.start_frame {
+                return Err(format!(
+                    "{id} is at frame {}, the trace starts at {}",
+                    cp.header.frame, trace.start_frame
+                ));
+            }
+            SeekStart {
+                id,
+                parent: trace.parent,
+                recorded: trace.hashes.clone(),
+                frames: frames.min(trace.frames()),
+                trace,
+                from: 0,
+                base: Some(cp),
+                parent_diverged: false,
+            }
+        }
+    };
     explore::guard::catch(|| start.run(game))
         .map_err(|p| format!("the replay panics: {}", p.message))?
-}
-
-/// Locks the materializer the panes share. A lock poisoned by a panic on another pane thread is
-/// recovered: its caches are only changed by whole operations, but they are dropped to be safe.
-pub fn lock_materializer(m: &Mutex<Materializer<Game>>) -> MutexGuard<'_, Materializer<Game>> {
-    m.lock().unwrap_or_else(|poisoned| {
-        m.clear_poison();
-        let mut g = poisoned.into_inner();
-        g.clear();
-        g
-    })
 }
 
 pub struct NativePane {
@@ -206,15 +231,19 @@ pub struct NativePane {
     /// Frames a `Step` asked for, stepped on the next tick.
     steps: u32,
     store: Store,
-    materializer: Arc<Mutex<Materializer<Game>>>,
+    /// This pane's own (M8 Task S): loads and seeks never wait on another pane.
+    materializer: Materializer<Game>,
     seen: Seen,
     events: VecDeque<Event>,
     saved: Option<CheckpointId>,
 }
 
 impl NativePane {
-    /// A new game, paused. `store` is the layered store (`Store::layered(shared, local)`).
-    pub fn new(store: Store, materializer: Arc<Mutex<Materializer<Game>>>) -> Self {
+    /// A new game, paused. `store` is the layered store (`Store::layered(shared, local)`); the
+    /// pane materializes its nodes with its own [`Materializer`] of
+    /// [`MATERIALIZER_CAPACITY`] states.
+    pub fn new(store: Store) -> Self {
+        let materializer = Materializer::new(content::Emerald::for_shells(), MATERIALIZER_CAPACITY);
         let controls = Controls::new(content::Emerald::for_shells());
         Self {
             seen: Seen::of(controls.session().world()),
@@ -282,7 +311,7 @@ impl NativePane {
     }
 
     fn load(&mut self, id: CheckpointId) -> Result<(), String> {
-        let m = self.materializer().get(&self.store, id)?;
+        let m = self.materializer.get(&self.store, id)?;
         self.controls
             .load(id, &m.checkpoint)
             .map_err(|e| format!("restore: {e:?}"))?;
@@ -293,19 +322,18 @@ impl NativePane {
         Ok(())
     }
 
-    fn materializer(&self) -> MutexGuard<'_, Materializer<Game>> {
-        lock_materializer(&self.materializer)
+    /// Node states this pane's materializer holds.
+    pub fn materialized(&self) -> usize {
+        self.materializer.len()
     }
 
     fn seek(&mut self, id: CheckpointId, frames: u32) -> Result<(), String> {
-        // At most one `get` under the lock; a keyframe replay runs here, off the lock.
-        let prep = self.materializer().prepare_seek(&self.store, id, frames)?;
-        let start = match prep {
+        let start = match self.materializer.prepare_seek(&self.store, id, frames)? {
             SeekPrep::Ready(start) => start,
             SeekPrep::Keyframes(plan) => {
                 let built = plan.build(&content::Emerald::for_shells())?;
                 let start = built.start();
-                self.materializer().insert_keyframes(built);
+                self.materializer.insert_keyframes(built);
                 start
             }
         };
@@ -316,11 +344,40 @@ impl NativePane {
         Ok(())
     }
 
-    fn open_trace(&mut self, trace: Trace, frames: u32) -> Result<(), String> {
-        let seeked = open_trace(content::Emerald::for_shells(), trace, frames)?;
+    fn open_trace(
+        &mut self,
+        trace: Trace,
+        base: Option<Checkpoint>,
+        frames: u32,
+    ) -> Result<(), String> {
+        let mut notes = Vec::new();
+        let base = match (trace.parent, base) {
+            (Parent::Checkpoint(id), None) => {
+                let m = self.materializer.get(&self.store, id)?;
+                if m.diverged {
+                    notes.push(format!("{id} diverged on this build"));
+                }
+                Some(m.checkpoint)
+            }
+            (_, base) => base,
+        };
+        if let Parent::Checkpoint(id) = trace.parent
+            && self.store.find(&id.to_string()).is_err()
+        {
+            notes.push(format!(
+                "{id} is not in the studio's store: a save has no parent here"
+            ));
+        }
+        let seeked = open_trace(content::Emerald::for_shells(), trace, base, frames)?;
         let frames = seeked.recorder.frames();
         self.controls = Controls::from_seek(seeked);
         self.jumped(EventKind::OpenedTrace(frames));
+        if !notes.is_empty() {
+            let last = self.controls.last().to_string();
+            notes.insert(0, last);
+            notes.retain(|n| !n.is_empty());
+            self.controls.note(notes.join("; "));
+        }
         Ok(())
     }
 }
@@ -369,8 +426,12 @@ impl Pane for NativePane {
                 self.controls = Controls::new(content::Emerald::for_shells());
                 self.jumped(EventKind::NewGame);
             }
-            NativeCmd::OpenTrace { trace, frames } => {
-                if let Err(e) = self.open_trace(trace, frames) {
+            NativeCmd::OpenTrace {
+                trace,
+                frames,
+                base,
+            } => {
+                if let Err(e) = self.open_trace(trace, base.map(|b| *b), frames) {
                     self.controls.note(format!("open trace failed: {e}"));
                 }
             }
