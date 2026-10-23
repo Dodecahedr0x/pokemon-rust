@@ -31,7 +31,7 @@
     Object(x: 28, y: 21, gfx: "OBJ_EVENT_GFX_MAN_4", id: "LOCALID_GRIS_OUVRIER", movement: "MOVEMENT_TYPE_FACE_UP", script: "GrisEchec_EventScript_Ouvrier"),
     Object(x: 6, y: 15, gfx: "OBJ_EVENT_GFX_LITTLE_BOY", id: "LOCALID_GRIS_ENFANT", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "GrisEchec_EventScript_Enfant"),
     Object(x: 34, y: 10, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_GRIS_GARDE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Sc03", flag: "FLAG_SIL_HIDE_GRIS_GARDE"),
-    Object(x: 33, y: 10, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_GRIS_GWADA", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "GrisEchec_EventScript_Gwada", flag: "FLAG_SIL_HIDE_GRIS_GWADA"),
+    Object(x: 33, y: 10, gfx: "OBJ_EVENT_GFX_SIL_GWADA", id: "LOCALID_GRIS_GWADA", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "GrisEchec_EventScript_Gwada", flag: "FLAG_SIL_HIDE_GRIS_GWADA"),
     Object(x: 21, y: 13, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_GRIS_BALAYEUR", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "GrisEchec_EventScript_Balayeur", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
     Object(x: 19, y: 5, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_GRIS_SBIRE_TOIT", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "GrisEchec_EventScript_SbireToit", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
     Object(x: 38, y: 1, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_GRIS_GARDE_S3", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_EventScript_GardeS3", flag: "FLAG_SIL_HIDE_GRIS_GARDE_S3"),

@@ -19,8 +19,8 @@
     // (shown by the scene, walks left 4 and faces up), the wild Tyranitar and Crobat before the Tower, and
     // Mathieu's two guards. Nebula_OnTransition shows Mathieu, the guards and the two wild Pokemon at 126
     // only; the scene hides the Pokemon after the battle, and from 127 the OnTransition hides them all.
-    Object(x: 22, y: 9, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_NEBULA_JULIEN", local_id: 15, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_PG_Julien", flag: "FLAG_SIL_HIDE_NEBULA_JULIEN"),
-    Object(x: 20, y: 11, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_NEBULA_PG_MATHIEU", local_id: 16, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_NEBULA_PG_MATHIEU"),
+    Object(x: 22, y: 9, gfx: "OBJ_EVENT_GFX_SIL_JULIEN", id: "LOCALID_NEBULA_JULIEN", local_id: 15, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_PG_Julien", flag: "FLAG_SIL_HIDE_NEBULA_JULIEN"),
+    Object(x: 20, y: 11, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_NEBULA_PG_MATHIEU", local_id: 16, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_NEBULA_PG_MATHIEU"),
     Object(x: 36, y: 13, gfx: "OBJ_EVENT_GFX_WALLACE", id: "LOCALID_NEBULA_PG_THOMAS", local_id: 17, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_NEBULA_PG_THOMAS"),
     Object(x: 24, y: 11, gfx: "OBJ_EVENT_GFX_DUSCLOPS", id: "LOCALID_NEBULA_PG_TYRANITAR", local_id: 18, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_NEBULA_PG_TYRANITAR"),
     Object(x: 34, y: 11, gfx: "OBJ_EVENT_GFX_ZIGZAGOON_2", id: "LOCALID_NEBULA_PG_CROBAT", local_id: 19, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_NEBULA_PG_CROBAT"),

@@ -20,13 +20,13 @@
     Object(x: 22, y: 14, gfx: "OBJ_EVENT_GFX_WOMAN_4", id: "LOCALID_BOIS_ETHER_TOUX", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BoisEther_EventScript_Toux"),
     Object(x: 19, y: 12, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_BOIS_ETHER_GARDIEN", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BoisEther_Sc04"),
     Object(x: 32, y: 13, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_BOIS_ETHER_GARDE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BoisEther_Sc07", flag: "FLAG_SIL_HIDE_BOIS_ETHER_GARDE"),
-    Object(x: 17, y: 12, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_BOIS_ETHER_ADRIEN", movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_BOIS_ETHER_ADRIEN"),
+    Object(x: 17, y: 12, gfx: "OBJ_EVENT_GFX_SIL_ADRIEN", id: "LOCALID_BOIS_ETHER_ADRIEN", movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_BOIS_ETHER_ADRIEN"),
     // Bois_Ether_Sc06's actors (hidden outside the scene; their paths are re-derived in Rust).
     Object(x: 15, y: 10, gfx: "OBJ_EVENT_GFX_MAXIE", id: "LOCALID_BOIS_ETHER_GOGO", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_BOIS_ETHER_GOGO"),
     Object(x: 19, y: 10, gfx: "OBJ_EVENT_GFX_ARCHIE", id: "LOCALID_BOIS_ETHER_ROMAIN", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_BOIS_ETHER_ROMAIN"),
     Object(x: 15, y: 11, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_BOIS_ETHER_SBIRE_1", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_1"),
     Object(x: 19, y: 11, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_BOIS_ETHER_SBIRE_2", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_2"),
-    Object(x: 22, y: 11, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_BOIS_ETHER_MATHIEU", movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_BOIS_ETHER_MATHIEU"),
+    Object(x: 22, y: 11, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_BOIS_ETHER_MATHIEU", movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_BOIS_ETHER_MATHIEU"),
     Object(x: 28, y: 8, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_BOIS_ETHER_ITEM_X_DEFEND", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "BoisEther_EventScript_ItemXDefend", flag: "FLAG_SIL_ITEM_BOIS_ETHER_X_DEFEND"),
     // Bois_Ether_Sc01: the south entrance (x 12-15), one row inside the edge, VAR_SIL_STORY 9.
     Coord(x: 12, y: 24, var: "VAR_SIL_STORY", value: 9, script: "BoisEther_Sc01"),

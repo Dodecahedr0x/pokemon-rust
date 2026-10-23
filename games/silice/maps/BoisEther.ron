@@ -152,7 +152,7 @@
         (
             local_id: 10,
             id: Some("LOCALID_BOIS_ETHER_ADRIEN"),
-            gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M",
+            gfx: "OBJ_EVENT_GFX_SIL_ADRIEN",
             x: 17,
             y: 12,
             elevation: 3,
@@ -227,7 +227,7 @@
         (
             local_id: 15,
             id: Some("LOCALID_BOIS_ETHER_MATHIEU"),
-            gfx: "OBJ_EVENT_GFX_BLACK_BELT",
+            gfx: "OBJ_EVENT_GFX_SIL_MATHIEU",
             x: 22,
             y: 11,
             elevation: 3,

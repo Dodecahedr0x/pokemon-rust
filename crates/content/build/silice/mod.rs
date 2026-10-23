@@ -11,6 +11,7 @@
 //! - [`merge`]: the maps into the generator's `MapFile`s (names to numbers, headers,
 //!   `LOCALID_*`);
 //! - [`text`]: `text/fr.ron` and the Silice text encoder (with [`font`]'s glyphs);
+//! - [`gfx`]: the original tilesets and sprites (`tilesets/`, `sprites/`) over the extract's;
 //! - [`font`]: the authored glyphs (`font/*.ron`) merged into the extract's font (Task G);
 //! - [`game`]: `game.ron`: the new game, system ids and heal locations (Task E);
 //! - [`data`]: trainers, encounters, items and marts;
@@ -29,6 +30,7 @@ pub mod data;
 pub mod dispatch;
 pub mod font;
 pub mod game;
+pub mod gfx;
 pub mod ids;
 pub mod load;
 pub mod merge;
@@ -70,12 +72,14 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
         .collect::<Result<Vec<_>>>()?;
     resolver.finish()?;
     let mut w = crate::input::load_assets(extracted)?;
+    let overlay = gfx::overlay(games, &mut w).context("original graphics")?;
     font::merge(&mut w.glyphs, &mut w.widths, &font::load(games)?).context("font")?;
-    check_assets(&loaded, &w)?;
+    check_assets(&loaded, &w, &overlay.new_gfx)?;
     resolver.check_claims()?;
     check_trainer_objects(&maps, &reg, &resolver)?;
     reg.trainer_table = trainer_scripts(&reg, &ids)?;
     w.maps = maps;
+    gfx::rename_gfx(&mut w.maps, &overlay.new_gfx);
     w.ir = None;
     let mut report = Vec::new();
     let mut consts = ids.consts();
@@ -207,7 +211,7 @@ pub fn check_trainer_objects(
 }
 
 /// The extract assets the maps name: each layout's tilesets, each object's sprite.
-fn check_assets(maps: &[load::MapIn], w: &World) -> Result<()> {
+fn check_assets(maps: &[load::MapIn], w: &World, new_gfx: &BTreeMap<String, u16>) -> Result<()> {
     let tilesets: BTreeSet<&str> = w.tilesets.iter().map(|t| t.file.name.as_str()).collect();
     let sprites: BTreeSet<&str> = w.sprites.iter().map(|s| s.file.name.as_str()).collect();
     let mut bad = Vec::new();
@@ -215,13 +219,18 @@ fn check_assets(maps: &[load::MapIn], w: &World) -> Result<()> {
         let n = &m.map.name;
         for ts in [&m.layout.primary, &m.layout.secondary] {
             if !tilesets.contains(ts.as_str()) {
-                bad.push(format!("map {n}: tileset {ts} is not in the extract"));
+                bad.push(format!(
+                    "map {n}: tileset {ts} is not in the extract nor the games dir"
+                ));
             }
         }
         for o in &m.map.objects {
             // A var graphics (`OBJ_EVENT_GFX_VAR_<n>`) is picked at run time.
             let s = o.gfx.trim_start_matches("OBJ_EVENT_GFX_");
             let fixed = !s.starts_with("VAR_");
+            if new_gfx.contains_key(&o.gfx) {
+                continue;
+            }
             if crate::classify::gfx(&o.gfx).is_none() || fixed && !sprites.contains(s) {
                 bad.push(format!(
                     "map {n}: object {}: graphics {} is not in the extract",

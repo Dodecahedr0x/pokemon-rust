@@ -122,7 +122,7 @@
         (
             local_id: 20,
             id: Some("LOCALID_MANGA_SQUARE_BENOU"),
-            gfx: "OBJ_EVENT_GFX_DEVON_EMPLOYEE",
+            gfx: "OBJ_EVENT_GFX_SIL_BENOU",
             x: 37,
             y: 3,
             elevation: 3,
@@ -137,7 +137,7 @@
         (
             local_id: 22,
             id: Some("LOCALID_MANGA_SQUARE_ADRIEN"),
-            gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M",
+            gfx: "OBJ_EVENT_GFX_SIL_ADRIEN",
             x: 37,
             y: 8,
             elevation: 3,
