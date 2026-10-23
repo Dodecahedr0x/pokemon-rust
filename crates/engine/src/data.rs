@@ -238,11 +238,16 @@ pub enum Behavior {
     Blocked,
     /// Walking in `Dir` onto it jumps two cells.
     Ledge(Dir),
-    /// Animated door: entering the cell triggers its warp.
+    /// Animated door: entering the cell, or pushing north into it, triggers its warp; arriving
+    /// on one, the player is hidden during the fade-in, then walks one cell down (Gen3
+    /// `Task_ExitDoor`).
     Door,
-    /// Non-animated warp cell (stairs, ladders, holes): entering triggers its warp.
+    /// Any other warp cell entered by stepping on it (gym and hideout warps, holes): entering
+    /// triggers its warp; arriving on one is a plain arrival, facing down (Gen3
+    /// `Task_ExitNonDoor`).
     Warp,
-    /// Standing on it and pushing `Dir` triggers its warp (doormats, exits).
+    /// Standing on it and pushing `Dir` triggers its warp (doormats, exits); arriving on one,
+    /// the player faces away from `Dir`.
     ArrowWarp(Dir),
     /// Talking across it reaches the object one cell further (shop counters).
     Counter,
@@ -250,6 +255,16 @@ pub enum Behavior {
     /// Walkable, but its [`Sides`] cannot be crossed, leaving or entering (Gen3
     /// `MB_IMPASSABLE_*`, `MB_SECRET_BASE_BREAKABLE_DOOR`; see [`Behavior::walled`]).
     Impassable(Sides),
+    /// Non-animated door (stairs, cave and forest exits): entering triggers its warp; arriving
+    /// on one, the player faces `Dir`, is hidden during the fade-in, then walks one cell `Dir`
+    /// (Gen3 `MetatileBehavior_IsNonAnimDoor`, `Task_ExitNonAnimDoor`).
+    NonAnimDoor(Dir),
+    /// Ladder: entering triggers its warp; arriving on one keeps the facing the player warped
+    /// with, no exit walk (Gen3 `GetAdjustedInitialDirection`).
+    Ladder,
+    /// Escalator: entering triggers its warp; arriving on one, the player faces `Dir` and walks
+    /// one cell `Dir`, visible (Gen3 `Task_EscalatorWarpIn`, without the ride).
+    Escalator(Dir),
 }
 
 /// Sides of a cell, one bit per [`Dir`] (`1 << dir as u8`): the payload of
@@ -274,6 +289,19 @@ impl Sides {
 }
 
 impl Behavior {
+    /// Whether finishing a step on a cell of this behavior takes the cell's warp (Gen3
+    /// `IsWarpMetatileBehavior`).
+    pub const fn enters_warp(self) -> bool {
+        matches!(
+            self,
+            Behavior::Door
+                | Behavior::Warp
+                | Behavior::NonAnimDoor(_)
+                | Behavior::Ladder
+                | Behavior::Escalator(_)
+        )
+    }
+
     /// Gen3 `IsMetatileDirectionallyImpassable`: a step towards `d` from a cell with behavior
     /// `from` into one with behavior `to` crosses a wall (`from`'s side `d`, or `to`'s side
     /// opposite `d`).

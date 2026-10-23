@@ -220,7 +220,7 @@ impl GameData for Game {
     fn behavior(&self, raw: u8) -> Behavior {
         match raw as u16 {
             DOOR => Behavior::Door,
-            WARP => Behavior::Warp,
+            WARP => Behavior::NonAnimDoor(Dir::Down),
             ARROW_UP => Behavior::ArrowWarp(Dir::Up),
             ARROW_DOWN => Behavior::ArrowWarp(Dir::Down),
             COUNTER => Behavior::Counter,

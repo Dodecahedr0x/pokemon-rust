@@ -741,10 +741,8 @@ fn first_dir<G: GameData>(
         let b = block_at(game, map, c.0, c.1);
         let behavior = block_behavior(game, map, b);
         block_collision(b) == 0
-            && !matches!(
-                behavior,
-                Behavior::Blocked | Behavior::Door | Behavior::Warp
-            )
+            && behavior != Behavior::Blocked
+            && !behavior.enters_warp()
             && !(avoid_grass && behavior == Behavior::TallGrass)
     };
     let mut queue = VecDeque::new();

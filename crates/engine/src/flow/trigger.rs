@@ -4,10 +4,6 @@
 //! Positions are map cells. `behavior` arguments are the classified behavior of the cell named by
 //! the same call: the caller reads the block from the live field (`Field::block`, which includes
 //! `setmetatile` edits) and classifies it with [`block_behavior`].
-//!
-//! Note: `Behavior::Warp` lumps Gen3 stairs (`MB_NON_ANIMATED_DOOR`) with ladders, holes and
-//! escalators. Gen3 treats ladders differently on arrival (keep facing, no exit walk); telling
-//! them apart needs a future `Behavior` split.
 
 use super::Vars;
 use crate::data::{
@@ -98,9 +94,9 @@ pub fn coord_trigger(
         .map(|c| c.script)
 }
 
-/// Warp taken by finishing a step on (x, y) (Gen3 `TryStartWarpEventScript`): the cell is a
-/// `Door` or `Warp` and holds a warp event matching `elevation`. Returns the index into
-/// `map.warps`.
+/// Warp taken by finishing a step on (x, y) (Gen3 `TryStartWarpEventScript`): the cell
+/// [`Behavior::enters_warp`] (doors, non-animated doors, ladders, escalators, other warps) and
+/// holds a warp event matching `elevation`. Returns the index into `map.warps`.
 pub fn warp_on_enter(
     map: &MapData,
     x: i16,
@@ -108,7 +104,7 @@ pub fn warp_on_enter(
     elevation: u8,
     behavior: Behavior,
 ) -> Option<usize> {
-    if !matches!(behavior, Behavior::Door | Behavior::Warp) {
+    if !behavior.enters_warp() {
         return None;
     }
     warp_at(map, x, y, elevation)

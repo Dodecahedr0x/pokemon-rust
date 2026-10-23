@@ -22,7 +22,7 @@ fn behavior_from_primary_secondary_and_unknown_metatiles() {
     assert_eq!(behavior_at(&Game, m, 2, 1), Behavior::Door);
     assert_eq!(
         behavior_at(&Game, m, 4, 4),
-        Behavior::Warp,
+        Behavior::NonAnimDoor(Dir::Down),
         "elevation bits ignored"
     );
     assert_eq!(
@@ -108,6 +108,16 @@ fn warp_on_enter_needs_door_or_warp_behavior_and_a_warp() {
     let m = town();
     assert_eq!(warp_on_enter(m, 2, 1, 0, Behavior::Door), Some(0));
     assert_eq!(warp_on_enter(m, 2, 1, 0, Behavior::Warp), Some(0));
+    // Gen3 `IsWarpMetatileBehavior`: non-animated doors (deep south warps too), ladders and
+    // escalators are entered by stepping on them, whatever the step's direction.
+    for b in [
+        Behavior::NonAnimDoor(Dir::Down),
+        Behavior::NonAnimDoor(Dir::Up),
+        Behavior::Ladder,
+        Behavior::Escalator(Dir::Right),
+    ] {
+        assert_eq!(warp_on_enter(m, 2, 1, 0, b), Some(0), "{b:?}");
+    }
     assert_eq!(warp_on_enter(m, 2, 1, 0, Behavior::Normal), None);
     assert_eq!(
         warp_on_enter(m, 1, 0, 0, Behavior::ArrowWarp(Dir::Up)),

@@ -160,6 +160,9 @@ pub(super) fn behavior_code(b: Behavior) -> [u8; 2] {
         Behavior::Counter => [6, 0],
         Behavior::TallGrass => [7, 0],
         Behavior::Impassable(s) => [8, s.0],
+        Behavior::NonAnimDoor(d) => [9, d as u8],
+        Behavior::Ladder => [10, 0],
+        Behavior::Escalator(d) => [11, d as u8],
     }
 }
 

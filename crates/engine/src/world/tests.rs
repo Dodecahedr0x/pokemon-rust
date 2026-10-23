@@ -1110,6 +1110,7 @@ mod m8_g;
 mod m8_h;
 mod m8_i;
 mod m8_m;
+mod warp_exits;
 
 std::thread_local! {
     /// `World::hash` calls made on this thread (each test runs on its own thread).

@@ -1121,6 +1121,109 @@ Commits:
 - Task E: once the new game sets story flags, `b_fitness` can check them on Silice too.
 - The studio explorer pane names goals of the default act, not the db's `meta.act`. This predates Task D.
 
+#### SIL1 Task E as built: `game.ron`, the Silice root, the new game and the prelude
+
+Commits:
+- `feat(silice): load game.ron (start, system ids, heal locations, starters, new-game flags) in the build`
+- `feat(content): Silice root, new game and prelude helpers from game.ron`
+- `feat(xtask): silice check knows game.ron's heal locations`
+- a merge of master (M8 Task M) and `docs(plan): SIL1 Task E as built`
+
+Emerald's `BUILD_ID` does not move: every file touched is Silice-only (`src/silice/`, `build/silice/`, `extract/src/games/`, `games/silice/`), a test, or xtask. `content/src/lib.rs` is untouched.
+
+**`games/silice/game.ron`** (format `extract::games::GameFile`, in `extract/src/games/game.rs`; hand-written, never imported):
+
+| Field | Value | Why |
+|---|---|---|
+| `start` | `BricoBourg_Bar` (7, 4), `Down` | Bar_Sc01 opens the game in the Shaker. The source's P (7, 8) is "the free stool in front of the counter"; the built bar's stools are y 4, between Gwada (6, 4) and Adrien (9, 4). |
+| `running_flag` | `FLAG_SIL_RUNNING_SHOES` | Player_House_Sc03: Maman gives the shoes as a flag. |
+| `cleared_on_map_change` | `FLAG_SYS_ENC_UP_ITEM`, `_ENC_DOWN_ITEM`, `_USE_STRENGTH`, `_CTRL_OBJ_DELETE` | Gen3 `ClearTempFieldEventData` minus the Union Room nurse reminder. |
+| `heal_locations` | 1: `HEAL_LOCATION_SIL_BRICO_BOURG_PLAYER_HOUSE`, `BricoBourg_PlayerHouse_2F` (4, 2) | As Emerald's `..._BRENDANS_HOUSE_2F` (4, 2); "set_respawn on the house at the start". Append-only, numbered from 1. |
+| `respawn` | that heal location | |
+| `starters`, `starter_level` | Chikorita, Cyndaquil, Totodile; 5 | Brico_Bourg_Sc03 (D-18); index = `VAR_SIL_STARTER`. |
+| `new_game_flags` | `FLAG_SIL_HIDE_BAR_SBIRE_A`, `_B`, `_BAR_MALLETTE`, `_BRICO_SBIRE`, `_BRICO_MATHIEU`, `_GWADA`, `_ADRIEN`, `_BRICO_LINGE`, `_GAMIN`, `_BRICOLEUSE` | Hidden at story 0: shown by a scene (sbires, Mallette), in front of the house at story 3–4 (friends), or by day at story ≥ 3 (day NPCs; `BricoBourg_OnTransition` still owns them after that). The bar's friends and Julien start visible. |
+| `new_game_vars` | none | Every var starts at 0. |
+
+No new ids were allocated: every name already exists in `ids/`. Heal locations have no ids kind; `game.ron`'s list is their append-only allocation.
+
+**Build** (`build/silice/game.rs`; three touch points in `build/silice/mod.rs`: `pub mod game`, load and check after the maps, the consts and start into `AuthoredIn`). `START` is gone.
+- Checks: start and heal cells are walkable cells of loaded maps; facing is `Down`; flags and vars are live Silice ids, or Gen3 names in `SHARED_GEN3`; heal locations are `HEAL_LOCATION_SIL_*` and unique; the respawn is one of them; three Gen3 starters; level 1–100.
+- **Facing is `Down` only**: the shared `game_data_tables!` `new_game` hardcodes it, and reading another facing would change `lib.rs` and `codegen.rs`, which Emerald hashes. Bar_Sc01 can `ctx.turn(PLAYER, Dir::Up)` if the scene wants the player facing the counter.
+- Emitted as `content::consts`, each naming the constant it stands for, so a renamed id fails to compile: `HEAL_LOCATION_SIL_*: u8`, `SIL_HEAL_LOCATIONS`, `SIL_RESPAWN`, `SIL_START_FACING`, `SIL_RUNNING_FLAG`, `SIL_FLAGS_CLEARED_ON_MAP_CHANGE`, `SIL_STARTERS`, `SIL_STARTER_LEVEL`, `SIL_NEW_GAME_FLAGS`, `SIL_NEW_GAME_VARS`.
+- `game.ron` joins the `SHARED_GEN3` scan (`tests/sil1_w0_contracts.rs`).
+- xtask `silice check` adds `game.ron`'s heal location names to its known names, so a script naming `HEAL_LOCATION_SIL_BRICO_BOURG_PLAYER_HOUSE` is not a `sil-prefix` error.
+
+**Root** (`src/silice/mod.rs`): `special_ids` takes `flag_running`, `flags_cleared_on_map_change` and `respawn_default` from `game.ron` over `..gen3_special_ids()` (so M8 Task M's `max_money`, `multichoice_cancel` and `pocket_slots` still reach Silice); no whiteout script, no wild-set var. `heal_location(n)` is `SIL_HEAL_LOCATIONS[n - 1]`. The new-game script (`new_game.rs`) sets `SIL_NEW_GAME_FLAGS` and `SIL_NEW_GAME_VARS`.
+
+**Prelude API for Task F** (`crate::silice::prelude`, `use crate::silice::prelude::*;`). It re-exports the Gen3 prelude (`msgbox`/`MsgBox`, `give_item`, `add_item`, `find_item`, `trainer_battle`, `trainer_flag`, `buffer`, `multichoice`, `text_named`, every generated constant). Every helper takes `&Ctx`.
+
+| Helper | Does |
+|---|---|
+| `story(&ctx) -> u16`, `set_story(&ctx, n)` | `VAR_SIL_STORY` |
+| `defeated(&ctx, TrainerId) -> bool` | the trainer's beaten flag (`0x500 + id`) |
+| `gift(&ctx, flag, item, qty, Obtain::Message \| Obtain::Quiet) -> bool` | nothing if `flag` is set; else `give_item` (Gen3 messages) or `add_item` (silent: the scene's text says it), and sets `flag` when it fit |
+| `say(&ctx, T)` | one line of a locked scene (`message`, wait, button) |
+| `ask(&ctx, T) -> bool` | `msgbox(T, YesNo)` then the answer |
+| `walk(Dir)`, `walk_in_place(Dir)`, `face(Dir)` | `const fn` step builders, for `const PATH: &[Step] = &[walk(Dir::Up), …]` |
+| `move_wait(&ctx, obj, PATH)` | `move_obj` then `wait_move` |
+| `show(&ctx, obj, hide_flag)` | the source's `show_object`: clear the hide flag, `add_object` |
+| `hide(&ctx, obj)` | the source's `hide_object`: `remove_object`, which sets the hide flag |
+| `warp(&ctx, MAP, x, y)` | warp to a cell; the map load ends the script |
+| `choose_starter(&ctx) -> u8` | starter screen on `SIL_STARTERS`, `VAR_SIL_STARTER` = index, the mon at level 5, no battle |
+| `battle_wild(&ctx, SPECIES, level) -> BattleOutcome` | an ordinary wild battle (run and catch allowed) |
+| `fallback(&ctx, "name")` | `Report::Degraded(name)`, then the scene goes on |
+| `screen_shake(&ctx, mag, frames)` | fallback, then a fade to black and back |
+| `play_se(&ctx, "SE_…")` | fallback, and logs the name; nothing plays |
+| `mallette_call(&ctx, "WHO")`, `end_call(&ctx)` | fallback; the call's lines are plain `say`s |
+
+**Pseudo-script primitives in the Ch0 scenes (§3), with their mapping:**
+
+| Primitive (uses) | Mapping |
+|---|---|
+| `lock`, `lock_all`, `release`, `release_all`, `face_player` | direct: `ctx.lock()` and so on |
+| `msgbox(T, Default)` | `say` |
+| `msgbox(T, Npc)` | inside a locked scene: `say`. Gen3's `MsgBox::Npc` locks, turns the talked-to object and *releases*, so use it only for a lone NPC line (Bar_Sc02). |
+| `msgbox(T, YesNo)` + `if !yes_no` | `ask` |
+| `msgbox(A \| B \| C, Npc)` (Bar_Sc02) | `ctx.var(VAR_LAST_TALKED)` picks the text, then `msgbox(…, MsgBox::Npc)` |
+| `move_obj` + `wait_move` (16 and 9 uses) | `move_wait`, or `ctx.move_obj` per object then one `ctx.wait_move`; `Walk(D) xN` is N `walk(D)` |
+| `Face(D)`, `FacePlayer`, `WalkInPlace` | `face(D)`, `Step::FacePlayer`, `walk_in_place(D)` |
+| `show_object` (4) / `hide_object` (8) | `show(obj, FLAG_SIL_HIDE_…)` / `hide(obj)` |
+| `set_flag(F)` / `flag(F)` | direct: `ctx.set_flag(F, true)` / `ctx.flag(F)` |
+| `set_var(VAR_SIL_STORY, n)` / conditions on it | `set_story` / `story` (other vars: `ctx.set_var`, `ctx.var`) |
+| `fade(In)` / `fade(Out)` | direct: `ctx.fade(Fade::FromBlack)` / `ctx.fade(Fade::ToBlack)` |
+| `delay(n)` | direct: `ctx.delay(n)` |
+| `heal_party` | direct: `ctx.heal_party()` |
+| `give_item(ITEM, n)` (3) | `gift(FLAG_SIL_ITEM_…, ITEM, n, Quiet)` where the scene's text announces it (Sc03 T11/T12); `ITEM_SIL_MALLETTE` in Bar_Sc04 with `FLAG_SIL_HAS_MALLETTE` and T3 |
+| `let i = choose_starter([...])` + `set_var(VAR_SIL_STARTER, i)` | `choose_starter` (does both) |
+| `battle_wild(SPECIES, lvl)` | `battle_wild` |
+| `call(Brico_Bourg_Sc03)` | `BricoBourg_Sc03(ctx.clone()).await` |
+| `return` | `return` |
+| `screen_shake` (2) | fallback: `screen_shake` (fade). For Sc02's small shake, `fallback(&ctx, "screen_shake")` and `ctx.delay(10)` is closer to the source's own fallback. |
+| `play_se` (3) | fallback: `play_se` (nothing plays) |
+| `mallette_call` / `end_call` | fallback: `mallette_call`, `end_call` |
+| `set_respawn` (§2, at the start) | not needed: `game.ron`'s respawn is the house from the new game. Direct `ctx.set_respawn(HEAL_LOCATION_SIL_…)` if a scene changes it. |
+| `set_time_tint(NUIT)` (§9) | missing, no call: the maps leave the night tint out |
+| `field_move` / brambles (§9) | `if ctx.flag(FLAG_SIL_MODULE_COUPE)` then `ctx.set_metatile` (Ch1) |
+
+**Tests** (no French literals). `src/silice/game_tests.rs`:
+- a new game lands on `game.ron`'s start cell and facing;
+- the new game sets exactly `game.ron`'s flags, and nothing of the story (story 0, no shoes, no party; the bar's friends and Julien visible);
+- `special_ids` and `heal_location` are `game.ron`'s, and the respawn cell is walkable;
+- `choose_starter` gives each `game.ron` species at its level, sets `VAR_SIL_STARTER`, starts no battle, and maps an out-of-range answer to the first starter;
+- `fallback` and the fallback helpers report `Degraded` and the script runs to its end;
+- `story`, `defeated`, `gift` (once, quiet, a full bag retries) and the scene helpers' requests;
+- the Gen3 std texts and pocket strings the shared prelude prints are in the build.
+
+`tests/sil1_e_game.rs` checks the committed `game.ron` and each rule on a broken copy; `xtask/tests/silice_check.rs` checks that `game.ron`'s heal locations are known names.
+
+**What F needs to know.**
+- Bar_Sc01 runs on frame 1 of a new game: the player stands at (7, 4) facing down.
+- Set `VAR_SIL_CH0_GATE` 1 with the starter, and `VAR_TEMP_1` in Bar_Sc01 (both from the maps section).
+- Once scene scripts exist, `silice check`'s `placement-map` rule wants every given item's flag named in a map or a script. With a scratch script, it lists `FLAG_SIL_HAS_MALLETTE`, `FLAG_SIL_ITEM_PROLOGUE_BALLS` (and `_POTIONS`), `FLAG_SIL_ITEM_ROUTE_S01_ORAN`, `FLAG_SIL_RUNNING_SHOES`, and the post-game `FLAG_SIL_MAIL_SILAS`, which needs an exception until Ch12.
+- `ITEM_SIL_MALLETTE` and the texts are Task A's constants.
+
+**Gates:** fmt; clippy plain, stub, `game-native/window,studio/ui` and `PKR_GAME=silice -p content -p engine -p extract`; stub and Emerald `cargo test --workspace`; `PKR_GAME=silice cargo test -p content -p engine -p extract`; `cargo xtask silice check`; `cargo xtask parity`; `checkpoints verify`. The results after the master merge are in the task report.
+
 ### 3.2 SIL2: Ch1–Ch3 (needs M9 mart, menus and save, and M10 Cut, Strength and Flash)
 **Wave 0 engine contracts** (each new piece of state hashed and snapshotted once, with a SCHEMA bump):
 - `GameData::field_move_enabled`: the module flags gate field moves;

@@ -104,9 +104,12 @@ impl World {
                 if s.text.is_open() {
                     s.text.close(f);
                 }
+                // The facing the player warped with (kept on a ladder). Gen3 stores it when a
+                // step or push warp starts; a scripted warp reuses it too.
+                let warped_facing = s.objects.player().facing;
                 load_map_spread(game, s, f, map, x, y, true);
                 let b = s.ground(game).behavior(x, y);
-                let facing = s.transition.arrive(b);
+                let facing = s.transition.arrive(b, warped_facing);
                 s.objects.face(PLAYER, facing);
                 s.objects.freeze_all();
             }
