@@ -11,7 +11,8 @@ engine.workspace = true
 explore.workspace = true
 anyhow.workspace = true
 sha1_smol = "1"
+# The `vanilla` bin (`cargo xtask vanilla`): our Emerald world and the explore db.
+content.workspace = true
 
 [dev-dependencies]
-content.workspace = true
 game-native.workspace = true

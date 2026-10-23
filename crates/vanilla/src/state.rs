@@ -56,6 +56,7 @@ pub mod layout {
     pub const OE_LOCAL_ID: u32 = 0x08;
     pub const OE_MAP_NUM: u32 = 0x09;
     pub const OE_MAP_GROUP: u32 = 0x0A;
+    pub const OE_INITIAL_COORDS: u32 = 0x0C;
     pub const OE_CURRENT_COORDS: u32 = 0x10;
     pub const OE_FACING: u32 = 0x18; // low nibble: DIR_SOUTH 1, NORTH 2, WEST 3, EAST 4
     /// `MAP_OFFSET`: object coordinates count the 7-cell border.
@@ -87,6 +88,7 @@ pub mod layout {
     pub const BATTLE_MON_SIZE: u32 = 88;
     pub const BM_SPECIES: u32 = 0;
     pub const BM_MOVES: u32 = 12;
+    pub const BM_PP: u32 = 36;
     pub const BM_HP: u32 = 40;
     pub const BM_LEVEL: u32 = 42;
     pub const BM_MAX_HP: u32 = 44;
@@ -99,6 +101,15 @@ pub mod layout {
     pub const NS_CURRENT_PAGE: u32 = 0x1E22;
     pub const NS_CURSOR_SPRITE_ID: u32 = 0x1E23;
     pub const EWRAM: std::ops::Range<u32> = 0x0200_0000..0x0204_0000;
+    // gBattleTypeFlags
+    pub const BATTLE_TYPE_TRAINER: u32 = 1 << 3;
+    pub const BATTLE_TYPE_FIRST_BATTLE: u32 = 1 << 4;
+    // gBattleOutcome
+    pub const B_OUTCOME_LOST: u8 = 2;
+    pub const B_OUTCOME_DREW: u8 = 3;
+    // Battle script opcodes (`B_SCR_OP_*`).
+    pub const B_SCR_OP_YESNOBOXLEARNMOVE: u8 = 0x5A;
+    pub const B_SCR_OP_YESNOBOXSTOPLEARNINGMOVE: u8 = 0x5B;
 }
 
 use layout::*;
@@ -155,6 +166,8 @@ pub struct Object {
     pub gfx: u8,
     pub movement_type: u8,
     pub cell: (i16, i16),
+    /// The spawn cell (`initialCoords`).
+    pub home: (i16, i16),
     pub facing: Dir,
     pub visible: bool,
     pub is_player: bool,
@@ -252,6 +265,21 @@ pub struct Vanilla {
     /// The starter [`Vanilla::settle`] picks on Birch's screen (`sStarterMon` index: 0 Treecko,
     /// 1 Torchic, 2 Mudkip). Mudkip by default, as our engine's `Start::AfterStarter`.
     pub starter: u8,
+    /// How [`Vanilla::settle`] answers (`explore::Opts`: yes/no, battles).
+    pub answers: explore::Opts,
+    /// The map [`Vanilla::answers`]' yes/no `choice` holds on: once a warp took the player
+    /// elsewhere, yes/no is answered YES (the choice was for the interaction that warped; our
+    /// engine's macro ends at that warp, before the next map's frame script asks).
+    pub answers_map: Option<MapId>,
+    /// Our battle tables, for the move choice (`policy::first_damaging_slot_of`,
+    /// `best_damaging_slot_of`); without them the first move is used.
+    pub tables: Option<&'static engine::mon::BattleTables>,
+    /// `gBattleTypeFlags` of every battle [`Vanilla::settle`] has seen start, in order.
+    pub battles: Vec<u32>,
+    /// `gBattleOutcome` of every battle [`Vanilla::settle`] has seen end (`B_OUTCOME_*`).
+    pub outcomes: Vec<u8>,
+    /// Print every mode change [`Vanilla::settle`] sees (`PKR_VANILLA_TRACE`).
+    pub trace: bool,
 }
 
 impl Vanilla {
@@ -261,6 +289,12 @@ impl Vanilla {
             sym,
             frames: 0,
             starter: 2,
+            answers: explore::Opts::default(),
+            answers_map: None,
+            tables: None,
+            battles: Vec::new(),
+            outcomes: Vec::new(),
+            trace: std::env::var_os("PKR_VANILLA_TRACE").is_some(),
         }
     }
 
@@ -448,6 +482,10 @@ impl Vanilla {
                 s16(OE_CURRENT_COORDS) - MAP_OFFSET,
                 s16(OE_CURRENT_COORDS + 2) - MAP_OFFSET,
             ),
+            home: (
+                s16(OE_INITIAL_COORDS) - MAP_OFFSET,
+                s16(OE_INITIAL_COORDS + 2) - MAP_OFFSET,
+            ),
             facing: dir(o[OE_FACING as usize]),
             visible: o[1] & 0x20 == 0,
             is_player: o[2] & 1 != 0,
@@ -567,6 +605,10 @@ impl State {
             objects: (self.objects.iter())
                 .filter(|o| !o.is_player && o.visible && o.map == self.map)
                 .map(|o| (o.local_id, o.cell))
+                .collect(),
+            homes: (self.objects.iter())
+                .filter(|o| !o.is_player && o.visible && o.map == self.map)
+                .map(|o| (o.local_id, o.home))
                 .collect(),
         }
     }

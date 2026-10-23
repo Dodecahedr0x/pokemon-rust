@@ -104,6 +104,14 @@ symbols! {
     handle_input_choose_action = "HandleInputChooseAction" @ 0x08057588,
     handle_input_choose_move = "HandleInputChooseMove" @ 0x08057bfc,
     handle_input_choose_target = "HandleInputChooseTarget" @ 0x08057824,
+    /// `struct BackupMapLayout { s32 width, height; u16 *map; }`: the live map grid, with the
+    /// `setmetatile` changes (the planner's overrides).
+    backup_map_layout = "gBackupMapLayout" @ 0x03005dc0,
+    /// The battle script's next command (`yesnoboxlearnmove` 0x5A, `yesnoboxstoplearningmove`
+    /// 0x5B: the learn-move prompts).
+    battlescript_curr_instr = "gBattlescriptCurrInstr" @ 0x02024214,
+    /// `gBattleCommunication[1]`: the battle yes/no box's cursor.
+    battle_communication = "gBattleCommunication" @ 0x02024332,
 }
 
 /// Every address of every name in a symbol listing: any line whose first token is a hex
