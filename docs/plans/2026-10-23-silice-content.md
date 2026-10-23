@@ -1538,6 +1538,114 @@ No new flags or vars are otherwise needed.
 - 1 h drafting the six maps;
 - 0.5 h events, gates and this write-up.
 
+#### SIL2 Ch1 scripts as built (Bois-Éther)
+
+The Chapter 1 scripts, from `contenu-jeu/chapitres/01-bois-ether.md`, in `crates/content/src/silice/scripts/`. Every text is a `text/fr.ron` id (or a Gen 3 `gText_*` for the mart and the nurse); nothing is a literal.
+
+**Files.**
+- `ch01_bois_ether.rs` claims `BoisEther`.
+- `ch01_gym.rs` claims `BoisEther_Gym`.
+- `ch01_buildings.rs` claims `BoisEther_Herboriste`, `BoisEther_PokemonCenter` and `BoisEther_Mart`.
+- `ch01_labo.rs` claims `BricoBourg_Labo`.
+- `ch00_town.rs`: the Bricoleuse says `Brico_Bourg_Npc_Bricoleuse_2` while `FLAG_SIL_LABO_HINT` is set and `VAR_SIL_LABO_STATE` < 2.
+
+**Prelude additions (`src/silice/prelude.rs`, all generic).**
+- `battle_trainer(ctx, TRAINER_X, defeat) -> BattleOutcome` is a scripted battle (not a sight trainer). It sets the trainer flag unless the player lost or drew.
+- `battle_two_trainers(ctx, (a, a_defeat), (b, b_defeat))` is the fallback for a two-trainer battle: two `battle_trainer`s in sequence.
+- `show_sync(ctx, percent)` is the fallback for the sync gauge (no-op, reported).
+- `mart(ctx, &[ItemId])` is the clerk frame: `gText_HowMayIServeYou`, then the `mart` fallback (logs the stock), then `gText_PleaseComeAgain`.
+- `pokecenter_nurse(ctx)` is the Gen 3 nurse: ask, take, 60 frames, `heal`, restored, goodbye.
+
+**Map scripts.**
+- `BoisEther_OnLoad` repaints the brambles (8, 6) once cut, and opens the barrier (33, 13–14, Fortree 609) from story 17.
+- `BoisEther_OnTransition`:
+  - hides the Technicien from story 16 and the Garde from 17;
+  - shows Adrien only at story 10–11;
+  - always hides the Sc06 actors (the scene shows them);
+  - calls the `set_sky_alert` fallback while `FLAG_SIL_RED_SKY` is set.
+- `BoisEther_Gym_OnLoad` opens both airlocks once `FLAG_SIL_GYM1_VALVE` is set. `_OnTransition` hides Loïc once the badge is won.
+- `BoisEther_PokemonCenter_OnTransition` sets the respawn to the new `HEAL_LOCATION_SIL_BOIS_ETHER`, appended to `game.ron` at (27, 13), one cell below the Center door.
+- `BricoBourg_Labo_OnTransition` hides the Chimiste once `VAR_SIL_LABO_STATE` is 2, and calls the `strobes` fallback.
+
+**Scenes.**
+
+| Scene | Script | Story |
+|---|---|---|
+| Sc01 | `BoisEther_Sc01`: arrival line | 9 → 10 |
+| Sc02 | `BoisEther_Sc02`: walks the player along row 13 to Adrien, T1–T3, then calls Sc03 | 10 → 11 |
+| Sc03 | `BoisEther_Sc03`: Julien's call (`mallette_call`), Adrien leaves | 11 → 12 |
+| Sc04 | `BoisEther_Sc04`: the guardian gives the Miracle Seed once | — |
+| Sc05 | `BoisEther_Herboriste_Sc05`: Heal Powder gift, then the herb shop (badge stock with the badge) | — |
+| Gym Sc01 | `BoisEther_Gym_Sc01`: one step in | 12 → 13 |
+| Sc10 | `BoisEther_Gym_Sc10`: Loïc, `battle_trainer`, badge 1, Sc11, TM09, Loïc leaves | 13 → 14 |
+| Sc11 | `BoisEther_Gym_Sc11`: Benou's call, `FLAG_SIL_MODULE_COUPE`, `VAR_SIL_SYNC` 10 | — |
+| Sc12 | `BoisEther_Gym_Sc12`: Gwada's call, LOG 01 (`log_menu` fallback, the log text as a msgbox) | 14 → 15 |
+| Sc06 | `BoisEther_Sc06`: the ambush at the north path (sky alert, Gogo and Romain, Mathieu's 2 Super Potions) | 15 → 16 |
+| Sc07 | `BoisEther_Sc07`: the barrier guard, Benou's call, the barrier opens | 16 → 17 |
+| Sc08 | `BoisEther_Sc08`: the brambles at (8, 6) through the prelude's `cut_obstacle` | — |
+| Labo | `BricoBourg_Labo_Sc01`, the two sbires, the Chimiste (`battle_trainer`), TM06, the Silice sample, Revive, memo | `VAR_SIL_LABO_STATE` 0 → 1 → 2 |
+
+**The gym puzzle.**
+- Zone 1: every grate is a coord event that sets `FLAG_SIL_GYM1_CONTAMINE`; the shower (7, 29–30) clears it. Door D (8, 22) refuses a contaminated player and warps them back to the shower. Otherwise it opens (metatile 513).
+- Zone 2: Milo and Rose give the seal and the gauge when beaten. The fuse is in the red crate. The workbench needs all three, then opens both airlocks.
+- Zone 3: `Sas2` closes the back door, waits, opens the front door, then **re-opens the back door**. That last step is not in the source; without it a player who walks back has no way out.
+- Zone 4: the private greenhouse is a sign; Loïc stands at (7, 2).
+
+**Map fixes (needed to play the chapter; each is commented in its edit file).**
+- `BoisEther_Gym/01_terrain.ron`: the workbench moved from x 4–8 to x 2–6 (rows 13–14). At x 4–8 it covered (7, 13), the only cell below the valve door, so the greenhouse could not be reached. The workbench signs moved to (3, 14) and (5, 14).
+- `BoisEther_Gym/02_events.ron`: Iris's sight went from 3 to 2 and Jules's from 3 to 1. At sight 3, walking up to the player put each of them on the safe path ((10, 26) and (8, 23)), and the only ways on crossed a grate.
+- `BricoBourg_Labo/02_events.ron`: Sbire 2 moved from (1, 3) facing right to (2, 3) facing left. At (1, 3) she blocked the only way to the Chimiste.
+- `BoisEther/02_events.ron`: the two `HiddenItem`s became signs running `BoisEther_EventScript_HiddenSuperPotion` / `_HiddenEvoluroc` (the Ch0 hidden-item fallback).
+
+**Fallbacks** (each `// fallback:` in the code and reported through `fallback()`).
+
+| Fallback | Where | What runs instead |
+|---|---|---|
+| `battle_two_trainers` | Sc06 | two single battles, Gogo then Romain |
+| `show_sync` | Sc11 | nothing (`VAR_SIL_SYNC` is still set to 10) |
+| `log_menu` | Sc12 | the LOG 01 text as a msgbox; `FLAG_SIL_LOG_01` set |
+| `set_sky_alert` / `clear_sky_alert` | Sc06, Sc07, `OnTransition` | nothing; `FLAG_SIL_RED_SKY` carries the state |
+| `strobes` | Labo `OnTransition` | nothing |
+| `mart` | Mart clerk, Herboriste | the frame texts; the stock is logged |
+| `hidden item` | two hidden items | sign plus `hidden_item` |
+| `play_se`, `mallette_call`, `end_call` | the calls | (Ch0's) |
+
+**Ids.** None new: every flag, var, trainer, item and text the chapter needed was already allocated by Wave 0 and the Ch1 maps. The only appended data is the heal location in `game.ron`.
+
+**The spine (test support).** The playthrough is data, in `crates/content/tests/silice_spine/`, so the explorer can import it.
+- `Step` is the vocabulary:
+  - `Goto { map, x, y, avoid }`: plan over the static layout, then walk;
+  - `Enter(dir, map)`: step onto a warp and wait for the map;
+  - `Interact(dir)`;
+  - `Walk(dir)`: one raw step, used to cross cells a script opened;
+  - `Settle`: run until the field is idle, advancing text and battles (choices take the default);
+  - `Hook(Hook)`;
+  - `Check(label, fn(&Run))`.
+- `Hook::FlagDuring(script, flag)` sets a flag for one script's run. `Hook::MonBefore(script, species, level)` gives a mon before a script.
+- `ch00::steps()` is the whole Chapter 0 test, ported. `sil1_f_ch0.rs` is now three lines.
+- `ch01::steps()` is Chapter 1, in this order:
+  - the village: Sc01–Sc04, the Center, the Mart, the Herboriste, the items, the brambles blocked;
+  - the gym in full;
+  - the village again: Sc06, Sc08, the Evoluroc, Sc07, the barrier;
+  - a heal;
+  - Route S1 to Brico-Bourg and the Bricoleuse;
+  - the Labo.
+
+**The e2e test.** `crates/content/tests/sil2_ch1.rs` plays `ch00::steps()` then `ch01::steps()`, buttons only, in about 92 000 frames (limit 200 000). It asserts the story at every step (9 → 17), the flags, the badge, the bag, the trainers beaten, the scene texts by id, the respawn and heals, and at the end every fallback listed above.
+- A `MonBefore("BoisEther_Sc01", SPECIES_RAYQUAZA, 62)` hook gives the party a strong lead. The test checks the script flow; the gym's difficulty is not under test.
+
+**Author questions.**
+1. Milo and Rose: the source has no "obtained the seal / gauge" text. The pieces are set silently after the battle.
+2. The red crate after the fuse is taken, and the workbench after the valve, have no text in the source. They say nothing.
+3. The Conseiller repeats his gift line on every talk before the badge. Is a short "already given" line wanted?
+4. Sas2 re-opens the back door (anti-softlock). Is that OK, or should the chamber stay closed with another way out?
+5. The sight changes (Iris 2, Jules 1) and the moved workbench and sbire: are they acceptable, or should the room be redrawn?
+6. The Gardien repeats `Sc04_T2` after the gift. Is a third line wanted?
+7. The mart and herb-shop stocks follow §7 but have no shop names.
+8. The heal location's cell (27, 13) is my choice.
+9. Loïc's and Adrien's exit paths are re-derived from the maps; the source's paths do not fit the built layout.
+10. The source's own open questions on Ch1 stand.
+
 #### SIL2 Ch2–Ch3 maps as built
 
 The 19 maps of Chapter 2 (Gris-Échec) and Chapter 3 (Viber-City) are in `games/silice/{maps,layouts}/`. As in Ch0, they were made with the studio map editor only. Their edit scripts are under `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, and `03_allow` where needed), and the building stamps are under `games/silice/stamps/`.
