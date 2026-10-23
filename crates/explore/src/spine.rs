@@ -583,6 +583,20 @@ pub fn run<G: GameData + Clone + 'static>(
     steps: &'static [Step],
     cfg: &Config,
 ) -> SpineRun {
+    run_from(game, steps, None, cfg)
+}
+
+/// [`run`] from `from` (a position of an earlier run, possibly of another build: its index,
+/// end state and options) instead of a new game: plays `steps[from.index..]`. The run's
+/// positions start with `from` (their frames go on from its; `SpineRun::frames` counts the
+/// run's own). For working on a segment of the
+/// spine without replaying (or while something earlier fails).
+pub fn run_from<G: GameData + Clone + 'static>(
+    game: &G,
+    steps: &'static [Step],
+    from: Option<&Position>,
+    cfg: &Config,
+) -> SpineRun {
     let cfg = &play_config(cfg);
     let mut make = detectors::<G>(cfg);
     let mut out = SpineRun {
@@ -597,28 +611,36 @@ pub fn run<G: GameData + Clone + 'static>(
         error: None,
         played: Vec::new(),
     };
-    let mut live = match Live::start(game, cfg, None, &mut make) {
+    let mut live = match Live::start(game, cfg, from.map(|p| p.end.clone()), &mut make) {
         Ok(l) => l,
         Err(stop) => {
             out.error = Some(stop_error(0, "the new game", stop));
             return out;
         }
     };
-    // The settled new game is position 0.
-    if let Err(e) = live.step(&Macro::of(MacroKind::Settle)) {
-        out.error = Some(fail_error(&mut live, 0, "the new game's settle", e));
-        return finish(out, live, cfg);
-    }
     let mut x = Exec::new(game, cfg);
-    out.positions.push(Position {
-        index: 0,
-        label: None,
-        segment: None,
-        frame: live.frames(),
-        end: live.last_end().expect("settled"),
-        opts: x.opts,
-    });
-    for (i, step) in steps.iter().enumerate() {
+    if let Some(p) = from {
+        x.opts = p.opts;
+        out.positions.push(p.clone());
+    } else {
+        // The settled new game is position 0.
+        if let Err(e) = live.step(&Macro::of(MacroKind::Settle)) {
+            out.error = Some(fail_error(&mut live, 0, "the new game's settle", e));
+            return finish(out, live, cfg);
+        }
+        out.positions.push(Position {
+            index: 0,
+            label: None,
+            segment: None,
+            frame: live.frames(),
+            end: live.last_end().expect("settled"),
+            opts: x.opts,
+        });
+    }
+    let skip = from.map_or(0, |p| p.index);
+    // Frames count from the new game; a run from a position counts from there.
+    let base = from.map_or(0, |p| p.frame);
+    for (i, step) in steps.iter().enumerate().skip(skip) {
         let played = live.res.steps.len();
         let r = x.play(&mut live, step);
         for st in &live.res.steps[played..] {
@@ -642,7 +664,7 @@ pub fn run<G: GameData + Clone + 'static>(
             index: i + 1,
             label,
             segment,
-            frame: live.frames(),
+            frame: base + live.frames(),
             end: live.last_end().expect("a step was played"),
             opts: x.opts,
         });
