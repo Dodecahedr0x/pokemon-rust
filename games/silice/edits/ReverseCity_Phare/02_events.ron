@@ -1,0 +1,13 @@
+// Header, map scripts, warps and objects.
+[
+    Header((music: "MUS_MT_PYRE", region_map_section: "MAPSEC_NONE", cave: 1, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // ReverseCity_Phare_OnTransition: set_input_inverted(false), as in every Reverse-City interior.
+    Scripts((on_load: None, on_transition: Some("ReverseCity_Phare_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warps 0-1: the mat, to Reverse-City's warp 6 (the lighthouse door).
+    Warp(x: 6, y: 19, dest_map: "ReverseCity", dest_warp: 6),
+    Warp(x: 7, y: 19, dest_map: "ReverseCity", dest_warp: 6),
+    Object(x: 11, y: 13, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_PHARE_OSCAR", local_id: 1, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "ReverseCity_Phare_EventScript_Oscar", trainer_type: "TRAINER_TYPE_NORMAL", sight: 1),
+    // The TM on the lamp's base: Reverse_City_Sc06 (it reads Phare_Sign_Lampe and gives the TM).
+    Object(x: 6, y: 7, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_PHARE_ITEM_TM_ZENITH", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ReverseCity_Phare_Sc06", flag: "FLAG_SIL_ITEM_PHARE_TM_ZENITH"),
+    Object(x: 1, y: 11, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_PHARE_ITEM_MAX_ETHER", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ReverseCity_Phare_EventScript_ItemMaxEther", flag: "FLAG_SIL_ITEM_PHARE_MAX_ETHER"),
+]

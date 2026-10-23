@@ -1,0 +1,3 @@
+// Silice Ch7, MAP_REVERSE_CITY_MART: le Supermarche Cocket (12 x 9). Building + Shop (Emerald tilesets by name):
+// Viber-City's Mart with one more aisle row (the boost shelves stay two). Border: black, blocked.
+(name: "ReverseCity_Mart", width: 12, height: 9, primary: "Building", secondary: "Shop", fill: 513, border: [1025, 1025, 1025, 1025])
