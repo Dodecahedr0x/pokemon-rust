@@ -1,17 +1,22 @@
 use super::*;
 
+/// Gen3 Emerald's pockets (`include/constants/global.h`), as content gives them.
+const SIZES: [u8; 5] = [30, 30, 16, 64, 46];
+
 #[test]
-fn capacities_are_gen3_emeralds() {
-    assert_eq!(POCKET_CAPACITY.iter().sum::<usize>(), BAG_SLOTS);
-    let bag = Bag::new();
-    for (p, cap) in Pocket::ALL.into_iter().zip(POCKET_CAPACITY) {
-        assert_eq!(bag.pocket(p).len(), cap);
+fn pockets_have_the_games_sizes() {
+    let bag = Bag::new(SIZES);
+    assert_eq!(bag.slots.len(), 186);
+    for (p, n) in Pocket::ALL.into_iter().zip(SIZES) {
+        assert_eq!(bag.pocket(p).len(), n as usize);
+        assert_eq!(bag.pocket_len(p), n as usize);
     }
+    assert!(Bag::new([0; 5]).slots.is_empty());
 }
 
 #[test]
 fn digest_follows_writes_and_snapshots_round_trip() {
-    let mut bag = Bag::new();
+    let mut bag = Bag::new(SIZES);
     let empty = bag.digest;
     let potion = Slot {
         item: ItemId(13),
@@ -28,7 +33,7 @@ fn digest_follows_writes_and_snapshots_round_trip() {
     );
     assert_eq!(bag.digest, bag.full_digest());
     assert_eq!(bag.count(ItemId(13)), 3);
-    let back = Bag::from_snapshot(&bag.snapshot()).unwrap();
+    let back = Bag::from_snapshot(&bag.snapshot(), SIZES).unwrap();
     assert_eq!(back, bag);
     bag.set_slot(Pocket::Items, 2, Slot::default());
     bag.set_slot(Pocket::KeyItems, 0, Slot::default());
@@ -50,7 +55,7 @@ fn forged_snapshots_are_refused() {
         vec![slot(Pocket::Berries, 0, 1000)],
         vec![slot(Pocket::Items, 0, 1), slot(Pocket::Items, 0, 2)],
     ] {
-        assert!(Bag::from_snapshot(&BagSnap { slots: bad }).is_err());
+        assert!(Bag::from_snapshot(&BagSnap { slots: bad }, SIZES).is_err());
     }
 }
 
@@ -68,7 +73,7 @@ fn qtys(bag: &Bag, pocket: Pocket) -> alloc::vec::Vec<(u16, u16)> {
 
 #[test]
 fn adding_stacks_on_the_existing_slot_then_overflows_into_new_ones() {
-    let mut bag = Bag::new();
+    let mut bag = Bag::new(SIZES);
     assert!(bag.add(Pocket::Items, POTION, 3));
     assert!(bag.add(Pocket::Items, ANTIDOTE, 1));
     assert!(bag.add(Pocket::Items, POTION, 5));
@@ -85,7 +90,7 @@ fn adding_stacks_on_the_existing_slot_then_overflows_into_new_ones() {
 
 #[test]
 fn a_full_pocket_refuses_new_items_but_tops_up_stacks() {
-    let mut bag = Bag::new();
+    let mut bag = Bag::new(SIZES);
     for i in 0..16 {
         assert!(bag.add(Pocket::PokeBalls, ItemId(1 + i), 1));
     }
@@ -104,7 +109,7 @@ fn a_full_pocket_refuses_new_items_but_tops_up_stacks() {
 
 #[test]
 fn an_add_that_does_not_fit_whole_changes_nothing() {
-    let mut bag = Bag::new();
+    let mut bag = Bag::new(SIZES);
     for i in 0..29 {
         assert!(bag.add(Pocket::Items, ItemId(100 + i), 1));
     }
@@ -119,7 +124,7 @@ fn an_add_that_does_not_fit_whole_changes_nothing() {
 
 #[test]
 fn tms_and_berries_never_take_a_second_slot() {
-    let mut bag = Bag::new();
+    let mut bag = Bag::new(SIZES);
     assert!(bag.add(Pocket::TmHm, ItemId(289), 99));
     assert!(!bag.has_space(Pocket::TmHm, ItemId(289), 1));
     assert!(!bag.add(Pocket::TmHm, ItemId(289), 1));
@@ -129,13 +134,13 @@ fn tms_and_berries_never_take_a_second_slot() {
     assert!(bag.add(Pocket::Berries, ItemId(133), 1));
     assert!(!bag.add(Pocket::Berries, ItemId(133), 1));
     assert_eq!(qtys(&bag, Pocket::Berries), [(133, 999)]);
-    let back = Bag::from_snapshot(&bag.snapshot()).unwrap();
+    let back = Bag::from_snapshot(&bag.snapshot(), SIZES).unwrap();
     assert_eq!(back, bag, "999 berries survive a snapshot");
 }
 
 #[test]
 fn key_items_follow_the_same_rules() {
-    let mut bag = Bag::new();
+    let mut bag = Bag::new(SIZES);
     assert!(bag.add(Pocket::KeyItems, ItemId(259), 1));
     assert!(bag.add(Pocket::KeyItems, ItemId(259), 1));
     assert_eq!(qtys(&bag, Pocket::KeyItems), [(259, 2)]);
@@ -145,7 +150,7 @@ fn key_items_follow_the_same_rules() {
 
 #[test]
 fn removing_takes_from_slots_in_order_and_needs_the_whole_amount() {
-    let mut bag = Bag::new();
+    let mut bag = Bag::new(SIZES);
     assert!(bag.add(Pocket::Items, POTION, 150)); // 99 + 51
     assert!(bag.add(Pocket::Items, ANTIDOTE, 2));
     assert!(bag.has(Pocket::Items, POTION, 150));
@@ -167,19 +172,19 @@ fn removing_takes_from_slots_in_order_and_needs_the_whole_amount() {
 
 #[test]
 fn item_none_is_never_added_removed_or_had() {
-    let mut bag = Bag::new();
+    let mut bag = Bag::new(SIZES);
     assert!(!bag.add(Pocket::Items, ItemId(0), 1));
     assert!(!bag.has_space(Pocket::Items, ItemId(0), 1));
     assert!(!bag.remove(Pocket::Items, ItemId(0), 0));
     assert!(!bag.has(Pocket::Items, ItemId(0), 1));
-    assert_eq!(bag, Bag::new());
+    assert_eq!(bag, Bag::new(SIZES));
 }
 
 /// `has_space` predicts `add` (Gen3 `CheckBagHasSpace` / `AddBagItem`) over a pseudo-random
 /// sequence that fills and empties two small pockets.
 #[test]
 fn has_space_predicts_add() {
-    let mut bag = Bag::new();
+    let mut bag = Bag::new(SIZES);
     let mut x: u32 = 12345;
     for _ in 0..4000 {
         x = x.wrapping_mul(1_103_515_245).wrapping_add(12345);

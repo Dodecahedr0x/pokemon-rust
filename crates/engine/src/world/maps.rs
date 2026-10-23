@@ -66,6 +66,29 @@ impl World {
         s.objects.freeze_all();
     }
 
+    /// A debug warp, outside the game's rules (the GBA map tour, `game-gba --features tour`,
+    /// and its native mirror in `emu/tests/tour.rs`): ends any running script and starts the
+    /// warp transition to `map`, onto its warp `warp` if it has one, else onto (x, y) (as
+    /// [`crate::flow::Transition::start`]). Refused (false) during a battle or the starter
+    /// screen, while a transition runs, or for a map the game lacks. Call it between steps.
+    pub fn debug_warp(
+        &mut self,
+        game: &impl GameData,
+        map: MapId,
+        warp: Option<u8>,
+        x: i16,
+        y: i16,
+    ) -> bool {
+        if !self.field_active() || self.s.transition.is_active() || !game.has_map(map) {
+            return false;
+        }
+        self.runner = Runner::new();
+        self.s.selected = None;
+        self.s.transition.start(game, map, warp, x, y);
+        self.s.objects.freeze_all();
+        true
+    }
+
     pub(super) fn run_transition(&mut self, game: &impl GameData, f: &mut Frame) {
         let s = &mut self.s;
         let moving = !s.objects.moves_done(PLAYER) || !s.objects.player().is_settled();
@@ -81,9 +104,12 @@ impl World {
                 if s.text.is_open() {
                     s.text.close(f);
                 }
+                // The facing the player warped with (kept on a ladder). Gen3 stores it when a
+                // step or push warp starts; a scripted warp reuses it too.
+                let warped_facing = s.objects.player().facing;
                 load_map_spread(game, s, f, map, x, y, true);
                 let b = s.ground(game).behavior(x, y);
-                let facing = s.transition.arrive(b);
+                let facing = s.transition.arrive(b, warped_facing);
                 s.objects.face(PLAYER, facing);
                 s.objects.freeze_all();
             }

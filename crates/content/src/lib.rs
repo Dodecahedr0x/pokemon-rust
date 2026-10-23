@@ -140,6 +140,14 @@ pub const BUILD_ID: u64 = include!(concat!(env!("OUT_DIR"), "/build_id.rs"));
 /// id.
 pub const NEW_GAME_SCRIPT: ScriptId = ScriptId(u16::MAX);
 
+/// Gen3 `MAX_MONEY` (`include/constants/global.h`).
+pub const MAX_MONEY: u32 = 999_999;
+/// Gen3 `MULTI_B_PRESSED` (`include/constants/script_menu.h`): a multichoice's answer to B.
+pub const MULTI_B_PRESSED: u16 = 127;
+/// Gen3 `BAG_ITEMS_COUNT`, `BAG_KEYITEMS_COUNT`, `BAG_POKEBALLS_COUNT`, `BAG_TMHM_COUNT` and
+/// `BAG_BERRIES_COUNT` (`include/constants/global.h`), in `Pocket::ALL` order.
+pub const POCKET_SLOTS: [u8; 5] = [30, 30, 16, 64, 46];
+
 /// The game's content root under its old name (kept for one milestone, SIL1).
 pub type Emerald = Game;
 
@@ -222,6 +230,9 @@ pub(crate) fn gen3_special_ids() -> engine::data::SpecialIds {
         respawn_default: 0,
         var_wild_set: None,
         script_whiteout: None,
+        max_money: MAX_MONEY,
+        multichoice_cancel: MULTI_B_PRESSED,
+        pocket_slots: POCKET_SLOTS,
     }
 }
 

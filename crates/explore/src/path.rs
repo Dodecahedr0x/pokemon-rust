@@ -120,10 +120,8 @@ impl<'a, G: GameData> Grid<'a, G> {
     pub fn open(&self, c: (i16, i16)) -> bool {
         self.in_bounds(c)
             && block_collision(self.block(c)) == 0
-            && !matches!(
-                self.behavior(c),
-                Behavior::Blocked | Behavior::Door | Behavior::Warp
-            )
+            && self.behavior(c) != Behavior::Blocked
+            && !self.behavior(c).enters_warp()
     }
 
     pub fn walkable(&self, c: (i16, i16), avoid_grass: bool) -> bool {

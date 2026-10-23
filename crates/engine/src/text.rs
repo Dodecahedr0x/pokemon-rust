@@ -550,7 +550,7 @@ impl TextBox {
         self.menu.as_deref()
     }
 
-    /// The last multichoice answer (an index or `MULTI_B_PRESSED`), until it is taken, the next
+    /// The last multichoice answer (an index or `SpecialIds::multichoice_cancel`), until it is taken, the next
     /// `start_multichoice` or `close`.
     pub fn multichoice_result(&self) -> Option<u16> {
         self.menu_result

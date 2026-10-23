@@ -5,7 +5,7 @@
 use super::*;
 use crate::battle::test_data::{NORMAL, TABLES, TACKLE};
 use crate::menu::{INPUT_DELAY, MAX_WIDTH};
-use crate::script::{BufferSrc, MULTI_B_PRESSED};
+use crate::script::BufferSrc;
 use crate::str_vars::STR_VAR_LEN;
 
 /// Glyph bytes the synthetic font draws (it has glyphs 0..4).
@@ -231,7 +231,7 @@ fn unknown_items_answer_false_and_report_item_none_answers_false() {
             Report::Degraded("checkitem: unknown item"),
         ]
     );
-    assert_eq!(w.bag(), &crate::bag::Bag::new());
+    assert_eq!(w.bag(), &crate::bag::Bag::new(POCKET_SLOTS));
 }
 
 #[test]
@@ -255,6 +255,81 @@ fn money_caps_at_max_money_and_stops_at_zero() {
         Box::pin(async move { ctx.money_remove(1_000_000).await })
     });
     assert_eq!(w.money(), 0);
+}
+
+/// [`HGame`] with the default [`SpecialIds`]: no money, no bag.
+struct NoIdsGame;
+
+impl GameData for NoIdsGame {
+    fn map(&self, id: MapId) -> &'static MapData {
+        HGame.map(id)
+    }
+    fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
+        HGame.sprite(gfx)
+    }
+    fn player_sprite(&self) -> &'static SpriteData {
+        HGame.player_sprite()
+    }
+    fn font(&self) -> &'static Font {
+        HGame.font()
+    }
+    fn window(&self) -> &'static WindowGfx {
+        HGame.window()
+    }
+    fn text(&self, id: TextId) -> &'static [u8] {
+        HGame.text(id)
+    }
+    fn ui_text(&self, t: UiText) -> &'static [u8] {
+        HGame.ui_text(t)
+    }
+    fn behavior(&self, raw: u8) -> Behavior {
+        HGame.behavior(raw)
+    }
+    fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
+        HGame.script(id, ctx)
+    }
+    fn new_game(&self) -> NewGame {
+        HGame.new_game()
+    }
+    fn battle(&self) -> &'static crate::mon::BattleTables {
+        HGame.battle()
+    }
+    fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
+        HGame.heal_location(id)
+    }
+    fn item(&self, id: ItemId) -> Option<&'static ItemInfo> {
+        HGame.item(id)
+    }
+}
+
+/// The default ids are a game without money (adding some is reported, the money stays 0)
+/// and a cancel answer no list index can take.
+#[test]
+fn a_game_without_max_money_reports_money_added() {
+    let ids = SpecialIds::default();
+    assert_eq!((ids.max_money, ids.multichoice_cancel), (0, u16::MAX));
+    assert_eq!(ids.pocket_slots, [0; 5]);
+    let mut w = World::new(&NoIdsGame);
+    for _ in 0..16 {
+        w.step(&NoIdsGame, Buttons::NONE);
+    }
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.money_add(0).await;
+            ctx.money_add(500).await;
+        })
+    });
+    let mut seen = Vec::new();
+    for _ in 0..60 {
+        if !w.script_running() {
+            break;
+        }
+        w.step(&NoIdsGame, Buttons::NONE);
+        seen.extend(reports(&w));
+    }
+    assert!(!w.script_running());
+    assert_eq!(w.money(), 0);
+    assert_eq!(seen, [Report::Degraded(super::super::host::NO_MONEY)]);
 }
 
 // ---- string buffers ----
