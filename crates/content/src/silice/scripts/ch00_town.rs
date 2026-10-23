@@ -183,6 +183,8 @@ const ADRIEN_OUT: &[Step] = &[
 /// north exit (`VAR_SIL_CH0_GATE` 1, with the starter), sets the Mallette's flags and 5.
 pub async fn BricoBourg_Sc03(ctx: Ctx) {
     if story(&ctx).await != 4 {
+        // Chained inside Sc02's `lock_all`: never leave the field locked.
+        ctx.release_all().await;
         return;
     }
     // fallback: play_se (audio, M12): a no-op that reports; the source's SE_RING is the
@@ -304,10 +306,11 @@ pub async fn BricoBourg_EventScript_HiddenPotion(ctx: Ctx) {
 
 // ---- ambient NPCs ----
 
-/// The old man by the fountain: his night line at `VAR_SIL_STORY` ≤ 2 (the source says 1; the
-/// village is dark until the morning, 3).
+/// The old man by the fountain: his night line, about the explosion, at `VAR_SIL_STORY` 1 and 2
+/// (the source says 1; the village stays dark until the morning, 3). At 0 the explosion has not
+/// happened yet: his day line.
 pub async fn BricoBourg_EventScript_Vieux(ctx: Ctx) {
-    let text = if story(&ctx).await <= 2 {
+    let text = if matches!(story(&ctx).await, 1 | 2) {
         Brico_Bourg_Npc_Vieux_Nuit
     } else {
         Brico_Bourg_Npc_Vieux
