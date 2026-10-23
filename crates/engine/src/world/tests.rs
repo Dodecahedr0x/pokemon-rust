@@ -78,6 +78,11 @@ const fn route_blocks() -> [u16; 100] {
 static ROUTE_BLOCKS: [u16; 100] = route_blocks();
 
 pub const TOWN: MapId = MapId(0);
+/// The test game's `SpecialIds::max_money`, `multichoice_cancel` and `pocket_slots` (Gen3
+/// Emerald's).
+pub const MAX_MONEY: u32 = 999_999;
+pub const MULTI_B_PRESSED: u16 = 127;
+pub const POCKET_SLOTS: [u8; 5] = [30, 30, 16, 64, 46];
 pub const HOUSE: MapId = MapId(1);
 pub const ROUTE: MapId = MapId(2);
 const NPC_GFX: GfxId = GfxId(1);
@@ -412,6 +417,9 @@ impl GameData for Game {
             respawn_default: RESPAWN,
             var_wild_set: None,
             script_whiteout: None,
+            max_money: MAX_MONEY,
+            multichoice_cancel: MULTI_B_PRESSED,
+            pocket_slots: POCKET_SLOTS,
         }
     }
     fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
@@ -1101,6 +1109,8 @@ mod m8_f;
 mod m8_g;
 mod m8_h;
 mod m8_i;
+mod m8_m;
+mod warp_exits;
 
 std::thread_local! {
     /// `World::hash` calls made on this thread (each test runs on its own thread).
@@ -1178,7 +1188,7 @@ fn events_report_map_entries_scripts_and_reports_for_one_step() {
         ]
     );
     until_done(&mut w, 4);
-    assert_eq!(w.var(VAR_RESULT), crate::script::MULTI_B_PRESSED);
+    assert_eq!(w.var(VAR_RESULT), MULTI_B_PRESSED);
     assert_eq!(w.events_dropped(), 0);
 }
 

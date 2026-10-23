@@ -603,6 +603,9 @@ fn enum_variant_indices_are_pinned() {
             Behavior::Counter,
             Behavior::TallGrass,
             Behavior::Impassable(crate::data::Sides(1)),
+            Behavior::NonAnimDoor(Dir::Up),
+            Behavior::Ladder,
+            Behavior::Escalator(Dir::Right),
         ],
         |v| match v {
             Behavior::Normal => 0,
@@ -614,6 +617,9 @@ fn enum_variant_indices_are_pinned() {
             Behavior::Counter => 6,
             Behavior::TallGrass => 7,
             Behavior::Impassable(_) => 8,
+            Behavior::NonAnimDoor(_) => 9,
+            Behavior::Ladder => 10,
+            Behavior::Escalator(_) => 11,
         },
     );
     check(

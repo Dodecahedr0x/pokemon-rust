@@ -16,12 +16,10 @@ pub type Slots = SaveSlotManager<SaveMeta>;
 
 /// Declares 64 KiB flash and opens its slots. agb reformats blank or foreign flash here, which
 /// then boots as an empty slot (`debug::boot::NEW_GAME`). `None` only when that fails (no
-/// chip, or the format did not stick): the game runs without saves (`NO_MEDIA`). Timer 2
-/// bounds every flash operation.
-pub fn init(gba: &mut agb::Gba) -> Option<Slots> {
-    let timer = gba.timers.timers().timer2;
-    gba.save
-        .init_flash_64k(FLASH_SLOTS, FLASH_MAGIC, Some(timer))
+/// chip, or the format did not stick): the game runs without saves (`NO_MEDIA`). `timer`
+/// (timer 2) bounds every flash operation.
+pub fn init(save: &mut agb::save::SaveManager, timer: agb::timer::Timer) -> Option<Slots> {
+    save.init_flash_64k(FLASH_SLOTS, FLASH_MAGIC, Some(timer))
         .ok()
 }
 

@@ -238,11 +238,16 @@ pub enum Behavior {
     Blocked,
     /// Walking in `Dir` onto it jumps two cells.
     Ledge(Dir),
-    /// Animated door: entering the cell triggers its warp.
+    /// Animated door: entering the cell, or pushing north into it, triggers its warp; arriving
+    /// on one, the player is hidden during the fade-in, then walks one cell down (Gen3
+    /// `Task_ExitDoor`).
     Door,
-    /// Non-animated warp cell (stairs, ladders, holes): entering triggers its warp.
+    /// Any other warp cell entered by stepping on it (gym and hideout warps, holes): entering
+    /// triggers its warp; arriving on one is a plain arrival, facing down (Gen3
+    /// `Task_ExitNonDoor`).
     Warp,
-    /// Standing on it and pushing `Dir` triggers its warp (doormats, exits).
+    /// Standing on it and pushing `Dir` triggers its warp (doormats, exits); arriving on one,
+    /// the player faces away from `Dir`.
     ArrowWarp(Dir),
     /// Talking across it reaches the object one cell further (shop counters).
     Counter,
@@ -250,6 +255,16 @@ pub enum Behavior {
     /// Walkable, but its [`Sides`] cannot be crossed, leaving or entering (Gen3
     /// `MB_IMPASSABLE_*`, `MB_SECRET_BASE_BREAKABLE_DOOR`; see [`Behavior::walled`]).
     Impassable(Sides),
+    /// Non-animated door (stairs, cave and forest exits): entering triggers its warp; arriving
+    /// on one, the player faces `Dir`, is hidden during the fade-in, then walks one cell `Dir`
+    /// (Gen3 `MetatileBehavior_IsNonAnimDoor`, `Task_ExitNonAnimDoor`).
+    NonAnimDoor(Dir),
+    /// Ladder: entering triggers its warp; arriving on one keeps the facing the player warped
+    /// with, no exit walk (Gen3 `GetAdjustedInitialDirection`).
+    Ladder,
+    /// Escalator: entering triggers its warp; arriving on one, the player faces `Dir` and walks
+    /// one cell `Dir`, visible (Gen3 `Task_EscalatorWarpIn`, without the ride).
+    Escalator(Dir),
 }
 
 /// Sides of a cell, one bit per [`Dir`] (`1 << dir as u8`): the payload of
@@ -274,6 +289,19 @@ impl Sides {
 }
 
 impl Behavior {
+    /// Whether finishing a step on a cell of this behavior takes the cell's warp (Gen3
+    /// `IsWarpMetatileBehavior`).
+    pub const fn enters_warp(self) -> bool {
+        matches!(
+            self,
+            Behavior::Door
+                | Behavior::Warp
+                | Behavior::NonAnimDoor(_)
+                | Behavior::Ladder
+                | Behavior::Escalator(_)
+        )
+    }
+
     /// Gen3 `IsMetatileDirectionallyImpassable`: a step towards `d` from a cell with behavior
     /// `from` into one with behavior `to` crosses a wall (`from`'s side `d`, or `to`'s side
     /// opposite `d`).
@@ -481,8 +509,10 @@ pub struct NewGame {
     pub player_name: &'static [u8],
 }
 
-/// Game constants the engine needs by role, never by name (content fills them in).
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+/// Game constants the engine needs by role, never by name (content fills them in). The
+/// default is a game without any: no vars or flags, no money, no bag, and a multichoice
+/// cancel answer (`u16::MAX`) that no list index can take.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SpecialIds {
     /// Set to the player's facing (Gen3 `DIR_*` numbering: `Dir as u16 + 1`) when the player
     /// talks to an object (Gen3 `gSpecialVar_Facing`).
@@ -501,6 +531,33 @@ pub struct SpecialIds {
     pub var_wild_set: Option<VarId>,
     /// Run immediately after a whiteout (Gen3 `EventScript_WhiteOut`, from `DoWhiteOut`).
     pub script_whiteout: Option<ScriptId>,
+    /// The money cap (Gen3 `MAX_MONEY`): money added (scripts, prize money) stops there and a
+    /// restore refuses more. 0 for a game without money.
+    pub max_money: u32,
+    /// A multichoice's answer when B cancels it (Gen3 `MULTI_B_PRESSED`), also the answer of a
+    /// multichoice the engine cannot show.
+    pub multichoice_cancel: u16,
+    /// Slots per bag pocket, in [`Pocket::ALL`] order (Gen3 `BAG_ITEMS_COUNT`,
+    /// `BAG_KEYITEMS_COUNT`, `BAG_POKEBALLS_COUNT`, `BAG_TMHM_COUNT`, `BAG_BERRIES_COUNT`). All 0
+    /// for a game without a bag.
+    pub pocket_slots: [u8; 5],
+}
+
+impl Default for SpecialIds {
+    fn default() -> Self {
+        SpecialIds {
+            var_facing: None,
+            var_last_talked: None,
+            flag_running: None,
+            flags_cleared_on_map_change: &[],
+            respawn_default: 0,
+            var_wild_set: None,
+            script_whiteout: None,
+            max_money: 0,
+            multichoice_cancel: u16::MAX,
+            pocket_slots: [0; 5],
+        }
+    }
 }
 
 /// Everything game-specific the engine reads. Implemented by the `content` crate.

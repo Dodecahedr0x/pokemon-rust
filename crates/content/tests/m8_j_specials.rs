@@ -116,7 +116,7 @@ impl Rec {
             Request::PlayerPos => Response::Pos(0, 0),
             Request::CurrentMap => Response::Value(self.map),
             Request::YesNo => Response::Bool(false),
-            Request::Multichoice { .. } => Response::Value(engine::script::MULTI_B_PRESSED),
+            Request::Multichoice { .. } => Response::Value(content::MULTI_B_PRESSED),
             Request::BattleWild { .. } | Request::BattleTrainer { .. } => {
                 Response::Value(BattleOutcome::Won as u16)
             }
@@ -390,7 +390,7 @@ fn native_specials_issue_their_requests_in_order() {
             1,
             vec![
                 degraded("SPECIAL_ScriptMenu_CreatePCMultichoice"),
-                set(VAR_RESULT, engine::script::MULTI_B_PRESSED),
+                set(VAR_RESULT, content::MULTI_B_PRESSED),
             ],
             0,
         ),

@@ -60,7 +60,8 @@ pub struct Transition {
     x: i16,
     y: i16,
     facing: Dir,
-    /// The destination is a door or stairs: the player appears hidden and walks out.
+    /// The destination is a door, stairs or an escalator: the player walks out one cell
+    /// `facing` (hidden until then, but on an escalator).
     exit_walk: bool,
     player_hidden: bool,
 }
@@ -106,22 +107,32 @@ impl Transition {
 
     /// Reports the behavior of the arrival cell, read from the live field after the load and its
     /// `on_load` script (Gen3 reads it then too), and returns the facing to give the player
-    /// (Gen3 `GetAdjustedInitialDirection`, `SetUpWarpExitTask`):
-    /// - `Door` or `Warp` (Gen3 animated and non-animated doors: house doors, stairs): face down,
-    ///   hidden during the fade-in, then walk one cell down. `Warp` also covers ladders, which
-    ///   Gen3 does not walk out of; that needs a future `Behavior` split.
-    /// - `ArrowWarp(d)`: face away from `d`.
-    /// - anything else: face down.
+    /// (Gen3 `GetAdjustedInitialDirection`, `SetUpWarpExitTask`). `warped_facing` is the
+    /// player's facing when the warp started (Gen3 `StoreInitialPlayerAvatarState`).
+    /// - `Door` (animated door, `Task_ExitDoor`): face down, hidden during the fade-in, then walk
+    ///   one cell down.
+    /// - `NonAnimDoor(d)` (stairs, `MB_DEEP_SOUTH_WARP` exits, `Task_ExitNonAnimDoor`): face
+    ///   `d`, hidden during the fade-in, then walk one cell `d`.
+    /// - `Escalator(d)` (`Task_EscalatorWarpIn`, without the ride): face `d`, then walk one
+    ///   cell `d`, visible.
+    /// - `Ladder`: keep `warped_facing`, no exit walk.
+    /// - `ArrowWarp(d)`: face away from `d`, no exit walk (`Task_ExitNonDoor`).
+    /// - anything else (`Warp` included): face down, no exit walk.
     ///
     /// Without this call the arrival is a plain one (face down, no exit walk).
-    pub fn arrive(&mut self, behavior: Behavior) -> Dir {
-        self.exit_walk = matches!(behavior, Behavior::Door | Behavior::Warp);
-        self.player_hidden = self.exit_walk;
-        self.facing = match behavior {
-            Behavior::ArrowWarp(d) => d.opposite(),
-            _ => Dir::Down,
+    pub fn arrive(&mut self, behavior: Behavior, warped_facing: Dir) -> Dir {
+        let (facing, walk, hidden) = match behavior {
+            Behavior::Door => (Dir::Down, true, true),
+            Behavior::NonAnimDoor(d) => (d, true, true),
+            Behavior::Escalator(d) => (d, true, false),
+            Behavior::Ladder => (warped_facing, false, false),
+            Behavior::ArrowWarp(d) => (d.opposite(), false, false),
+            _ => (Dir::Down, false, false),
         };
-        self.facing
+        self.facing = facing;
+        self.exit_walk = walk;
+        self.player_hidden = hidden;
+        facing
     }
 
     /// [`start`](Self::start) after first walking the player one cell up into the door in front
@@ -143,7 +154,7 @@ impl Transition {
     }
 
     /// Whether the player sprite should be hidden (inside the door before the fade-out, and
-    /// during a door or stairs exit fade-in).
+    /// during a door or non-animated door exit fade-in).
     pub const fn player_hidden(&self) -> bool {
         self.player_hidden
     }
@@ -208,7 +219,7 @@ impl Transition {
                     if self.exit_walk {
                         self.player_hidden = false;
                         self.stage = Stage::WalkOut;
-                        return TransitionStep::Walk(Dir::Down);
+                        return TransitionStep::Walk(self.facing);
                     }
                     self.stage = Stage::Idle;
                     return TransitionStep::Done;
