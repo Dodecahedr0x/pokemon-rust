@@ -276,7 +276,7 @@ impl<G: GameData> Terrain for Ground<'_, G> {
 
     fn behavior(&self, x: i16, y: i16) -> crate::data::Behavior {
         let b = self.field.block(self.game, x, y);
-        block_behavior(self.game, self.game.map(self.field.map()), b)
+        block_behavior(self.game, self.field.data(self.game), b)
     }
 }
 
@@ -512,7 +512,7 @@ impl World {
             self.start_sighting(game, sighting);
             return false;
         }
-        let map = game.map(self.s.field.map());
+        let map = self.s.field.data(game);
         if let Some(id) = map_script_on_frame(map, &self.s.vars) {
             self.start_script(game, id, None);
             return false;

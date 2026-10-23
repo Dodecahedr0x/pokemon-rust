@@ -10,7 +10,7 @@
 //   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
 // Only Unsupported commands report.
 //
-// Counts: 106 Native, 42 Ignore, 14 Default, 65 Unsupported.
+// Counts: 107 Native, 42 Ignore, 14 Default, 64 Unsupported.
 //
 // Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
 {
@@ -181,7 +181,7 @@
     "setweather": Ignore,                           // weather is not drawn
     "doweather": Ignore,                            // weather is not drawn
     "setstepcallback": Ignore,                      // per-step field effects (ash, ice, footprints) are not modelled
-    "setmaplayoutindex": Unsupported,
+    "setmaplayoutindex": Native,
     "setobjectsubpriority": Ignore,                 // sprite draw order only
     "resetobjectsubpriority": Ignore,               // sprite draw order only
     "createvobject": Unsupported,

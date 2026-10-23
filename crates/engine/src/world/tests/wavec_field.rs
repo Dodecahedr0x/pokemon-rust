@@ -90,10 +90,154 @@ fn field_requests_hash_apart() {
         h(Request::FieldEffect { id: 1, frames: 0 }),
         h(Request::WaitFieldEffect(1)),
         h(Request::CopyObjectPosToTemplate(1)),
+        h(Request::SetMapLayout(1)),
     ];
     for (i, a) in all.iter().enumerate() {
         for b in &all[i + 1..] {
             assert_ne!(a, b);
         }
     }
+}
+
+/// The house's layout number of [`LGame`]'s variant.
+const HOUSE_ALT_LAYOUT: u16 = 5;
+/// The block of every cell of the variant.
+const ALT_BLOCK: u16 = GRASS;
+/// [`LGame`]'s house `on_transition` script: switches to [`HOUSE_ALT_LAYOUT`] while
+/// `VAR_HOUSE` is 1.
+const HOUSE_TRANSITION: ScriptId = ScriptId(900);
+
+/// [`Game`] whose house switches layout in `on_transition` (Gen3 `setmaplayoutindex`).
+struct LGame;
+
+/// `HOUSE` with `blocks` and `on_transition`, leaked.
+fn house_with(blocks: &'static [u16], on_transition: Option<ScriptId>) -> &'static MapData {
+    let h = Game.map(HOUSE);
+    Box::leak(Box::new(MapData {
+        name: h.name,
+        width: h.width,
+        height: h.height,
+        blocks,
+        border: h.border,
+        primary: h.primary,
+        secondary: h.secondary,
+        objects: h.objects,
+        warps: h.warps,
+        coords: h.coords,
+        bgs: h.bgs,
+        connections: h.connections,
+        scripts: MapScripts {
+            on_load: h.scripts.on_load,
+            on_transition,
+            on_resume: h.scripts.on_resume,
+            on_return_to_field: h.scripts.on_return_to_field,
+            on_frame: h.scripts.on_frame,
+            on_warp_into: h.scripts.on_warp_into,
+        },
+        allow_running: h.allow_running,
+        map_type: h.map_type,
+    }))
+}
+
+std::thread_local! {
+    static HOUSE_L: &'static MapData =
+        house_with(Game.map(HOUSE).blocks, Some(HOUSE_TRANSITION));
+    static HOUSE_ALT: &'static MapData = {
+        let n = Game.map(HOUSE).blocks.len();
+        house_with(Box::leak(alloc::vec![ALT_BLOCK; n].into_boxed_slice()), None)
+    };
+}
+
+impl GameData for LGame {
+    fn map(&self, id: MapId) -> &'static MapData {
+        match id {
+            HOUSE => HOUSE_L.with(|m| *m),
+            _ => Game.map(id),
+        }
+    }
+    fn map_layout(&self, id: MapId, layout: u16) -> Option<&'static MapData> {
+        (id == HOUSE && layout == HOUSE_ALT_LAYOUT).then(|| HOUSE_ALT.with(|m| *m))
+    }
+    fn special_ids(&self) -> SpecialIds {
+        Game.special_ids()
+    }
+    fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
+        Game.sprite(gfx)
+    }
+    fn player_sprite(&self) -> &'static SpriteData {
+        Game.player_sprite()
+    }
+    fn font(&self) -> &'static Font {
+        Game.font()
+    }
+    fn window(&self) -> &'static WindowGfx {
+        Game.window()
+    }
+    fn text(&self, id: TextId) -> &'static [u8] {
+        Game.text(id)
+    }
+    fn ui_text(&self, t: UiText) -> &'static [u8] {
+        Game.ui_text(t)
+    }
+    fn behavior(&self, raw: u8) -> Behavior {
+        Game.behavior(raw)
+    }
+    fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
+        match id {
+            HOUSE_TRANSITION => Box::pin(async move {
+                if ctx.var(VAR_HOUSE).await == 1 {
+                    ctx.set_map_layout(HOUSE_ALT_LAYOUT).await;
+                }
+            }),
+            _ => Game.script(id, ctx),
+        }
+    }
+    fn new_game(&self) -> NewGame {
+        Game.new_game()
+    }
+    fn battle(&self) -> &'static crate::mon::BattleTables {
+        Game.battle()
+    }
+}
+
+fn run_l(w: &mut World, frames: u32) {
+    for _ in 0..frames {
+        w.step(&LGame, Buttons::NONE).validate().unwrap();
+    }
+}
+
+/// Warps to `map` by a script and lets the load finish.
+fn warp_l(w: &mut World, map: MapId) {
+    let ctx = w.runner.ctx();
+    w.runner.start(Box::pin(async move {
+        ctx.warp(map, Some(0), -1, -1).await;
+    }));
+    run_l(w, 120);
+    assert_eq!(w.s.field.map(), map);
+}
+
+#[test]
+fn set_map_layout_in_on_transition_loads_the_variant_until_the_next_map() {
+    let mut w = World::new(&LGame);
+    run_l(&mut w, 16);
+    // VAR_HOUSE 0: the house keeps its own layout.
+    warp_l(&mut w, HOUSE);
+    assert_eq!(w.s.field.layout(), None);
+    assert_ne!(w.s.field.block(&LGame, 1, 1), ALT_BLOCK);
+    // VAR_HOUSE 1: on_transition switches it.
+    w.s.vars.set_var(VAR_HOUSE, 1);
+    warp_l(&mut w, TOWN);
+    assert_eq!(w.s.field.layout(), None, "the town has its own");
+    warp_l(&mut w, HOUSE);
+    assert_eq!(w.s.field.layout(), Some(HOUSE_ALT_LAYOUT));
+    assert_eq!(w.s.field.block(&LGame, 1, 1), ALT_BLOCK);
+    // A battle's return to the field keeps it.
+    w.s.field.restore_spread();
+    assert_eq!(w.s.field.layout(), Some(HOUSE_ALT_LAYOUT));
+    run_l(&mut w, 10);
+    assert_eq!(w.s.field.block(&LGame, 1, 1), ALT_BLOCK);
+    // Leaving resets it (Gen3 `LoadCurrentMapData`).
+    w.s.vars.set_var(VAR_HOUSE, 0);
+    warp_l(&mut w, TOWN);
+    assert_eq!(w.s.field.layout(), None);
 }

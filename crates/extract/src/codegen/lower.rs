@@ -205,6 +205,7 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "waitfieldeffect",
     "setfieldeffectargument",
     "copyobjectxytoperm",
+    "setmaplayoutindex",
 ];
 
 /// Commands after which execution never reaches the next instruction.

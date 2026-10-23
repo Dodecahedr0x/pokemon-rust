@@ -1252,6 +1252,7 @@ mod lowering {
             i("dofieldeffect", vec![Half(25)]),
             i("waitfieldeffect", vec![Half(25)]),
             i("copyobjectxytoperm", vec![Half(2)]),
+            i("setmaplayoutindex", vec![Half(0x105)]),
             i("goto_if", vec![Byte(5), s("N_Tail")]),
             i("gotostd_if", vec![Byte(0), c("STD_OBTAIN_ITEM")]),
             i("call", vec![s("N_Sub")]),
@@ -1366,6 +1367,7 @@ mod lowering {
             "field_effect(&ctx, 25).await;",
             "ctx.wait_field_effect(25).await;",
             "ctx.copy_object_pos_to_template(2).await;",
+            "ctx.set_map_layout(261).await;",
             "if let Some((s, l)) = wild { ctx.battle_wild(s, l, false).await; }",
             "return Flow::Continue;",
         ] {

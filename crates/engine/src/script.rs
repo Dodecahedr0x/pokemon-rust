@@ -418,6 +418,10 @@ pub enum Request {
     /// Gen3 `copyobjectxytoperm` (`TryOverrideTemplateCoordsForObjectEvent`): the object's
     /// template takes its current cell for the rest of the map visit.
     CopyObjectPosToTemplate(u8),
+    /// Gen3 `setmaplayoutindex` (`SetCurrentMapLayout`): the map being entered takes layout
+    /// `layout` ([`GameData::map_layout`](crate::data::GameData::map_layout)); scripts set it in
+    /// `on_transition`, before the layout loads.
+    SetMapLayout(u16),
 }
 
 /// Gen3 `PARTY_NOTHING_CHOSEN`: [`Request::ChoosePartyMon`]'s answer to B.
@@ -604,6 +608,7 @@ impl Request {
             Request::FieldEffect { id, frames } => (141, id, frames, 0, 0),
             Request::WaitFieldEffect(id) => (142, id, 0, 0, 0),
             Request::CopyObjectPosToTemplate(obj) => (143, obj as u16, 0, 0, 0),
+            Request::SetMapLayout(layout) => (144, layout, 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -907,6 +912,11 @@ impl Ctx {
     /// Gen3 `copyobjectxytoperm` (see [`Request::CopyObjectPosToTemplate`]).
     pub fn copy_object_pos_to_template(&self, obj: u8) -> Req<()> {
         self.req(Request::CopyObjectPosToTemplate(obj), unit)
+    }
+
+    /// Gen3 `setmaplayoutindex` (see [`Request::SetMapLayout`]).
+    pub fn set_map_layout(&self, layout: u16) -> Req<()> {
+        self.req(Request::SetMapLayout(layout), unit)
     }
 
     /// Gen3 `setfieldeffectargument` (see [`Request::FieldEffectArg`]).

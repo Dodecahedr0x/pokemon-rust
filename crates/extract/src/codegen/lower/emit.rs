@@ -787,6 +787,16 @@ impl<'a> Low<'a> {
                 };
                 out.push(format!("field_effect_arg(&ctx, {n}, {v}).await;"));
             }
+            ("setmaplayoutindex", [l]) => {
+                let Some(e) = u16_expr(l, true) else {
+                    return Ok(false);
+                };
+                let note = match l {
+                    Const { name, .. } => format!(" // {name}"),
+                    _ => String::new(),
+                };
+                out.push(format!("ctx.set_map_layout({e}).await;{note}"));
+            }
             ("copyobjectxytoperm", [id]) => {
                 let Some(id) = local_id(id) else {
                     return Ok(false);
