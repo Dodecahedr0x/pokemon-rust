@@ -1,10 +1,20 @@
-//! Chapter 4, Port-Ressac, from its entry (`VAR_SIL_STORY` 36, Chapter 3's end, on Route S4's
-//! west edge) to Gwada beaten (49) and Julien's call on the jetty.
+//! Chapter 4, Port-Ressac, from its start state ([`start`]: `VAR_SIL_STORY` 36, Chapter 3's
+//! end, on Route S4's west edge) to Gwada beaten (49) and Julien's call on the jetty:
+//! - Route S4, the Tunnel de Verre: Adrien and the Magicarpe (Sc02), the dark wall, M8 (Sc03);
+//! - Port-Ressac: the arrival (Sc01), Crow's lookout (Sc02), Gogo and Romain (Sc03), the cargo's
+//!   log (Navire Sc01), the log shown to Samuel (Sc04), the quay cleaning and the foreman (Sc05);
+//! - the Zenith-Grog: the deck's crew, the hold's barrels (pushed with Champ Magnétique) and its
+//!   explosive barrels (the shortcut back for a heal), Gus, Samuel (Gym Sc01–Sc02), Gwada on
+//!   the coupée (Sc03); Julien's call on the jetty (Sc06).
+//!
+//! **The party.** The lead trains in the port's dunes before the cleaning and before the gym;
+//! the run heals at the Taverne between the quay grunts and between the gym's fights (out by
+//! the gangway, back through the blown barrels). Every battle is won by the battle policy.
 
-use super::entry::Entry;
-use super::{Run, Step, goto};
+use super::{Run, Start, Step, goto};
 use content::consts::*;
-use engine::data::{Dir, MapId};
+use engine::data::{Dir, ItemId, MapId, SpeciesId};
+use engine::script::Ctx;
 
 const TUNNEL: MapId = MAP_ROUTE_S04;
 const PORT: MapId = MAP_PORT_RESSAC;
@@ -38,19 +48,51 @@ const HEAL: &[Step] = &[
     },
 ];
 
-/// Chapter 4's entry: Chapter 3's end.
-pub static ENTRY: Entry = Entry {
-    map: TUNNEL,
-    x: 1,
-    y: 8,
-    flags: &[
+/// Chapter 4's start: Route S4's west edge (1, 8), facing east, Chapter 3's end state
+/// ([`end_of_chapter_3`]). Chapter 3 is not chained into the spine yet.
+pub fn start() -> Start {
+    Start {
+        map: TUNNEL,
+        x: 1,
+        y: 8,
+        facing: Dir::Right,
+        setup: |ctx| Box::pin(end_of_chapter_3(ctx)),
+    }
+}
+
+/// The start state's party: Chapter 2's end party (`ch02`: QUILAVA 26, MAREEP 12, ARON 30) after
+/// a realistic Chapter 3 (Chapter 3's strongest trainers are at 34): the QUILAVA at 33, the
+/// MAREEP brought up to a FLAAFFY, the ARON evolved at 32, and one more, an ABRA from Route S2's
+/// grass (its encounter table) raised into a KADABRA. The KADABRA leads: the player's answer to
+/// a Fighting gym, and the one [`Step::Train`] raises (it trains the lead). The FLAAFFY comes
+/// second for Samuel's POLIWRATH. With a QUILAVA lead, the battle policy (no items, no switch,
+/// no new moves once four are known) loses to Samuel even at 43: tried, see the plan's Ch4
+/// section.
+pub const PARTY: &[(SpeciesId, u8)] = &[
+    (SPECIES_KADABRA, 32),
+    (SPECIES_FLAAFFY, 30),
+    (SPECIES_QUILAVA, 33),
+    (SPECIES_LAIRON, 32),
+];
+
+/// Chapter 3's end state (`04-port-ressac.md`'s prerequisites), on top of Silice's new-game
+/// script: the story at 36, the sync at 30, three badges, the Lame-Fréquence, Champ Magnétique
+/// and Flash modules, `LOG_01` to `LOG_03`; Chapter 0's Mallette, running shoes and starter
+/// (CYNDAQUIL's line); the party ([`PARTY`]), a few Potions, the respawn at Gris-Échec's Centre
+/// (the last one on the way).
+async fn end_of_chapter_3(ctx: Ctx) {
+    for f in [
+        // Chapter 0.
         FLAG_SIL_INTRO_DONE,
         FLAG_SIL_HAS_MALLETTE,
+        FLAG_SIL_HIDE_BAR_MALLETTE,
+        FLAG_SIL_MALLETTE_TRIED,
         FLAG_SIL_MALLETTE_OPEN,
         FLAG_SIL_MALLETTE_MAP,
         FLAG_SIL_MALLETTE_DEX,
         FLAG_SIL_MALLETTE_CALLS,
         FLAG_SIL_RUNNING_SHOES,
+        // Chapters 1 to 3.
         FLAG_SIL_BADGE_01,
         FLAG_SIL_BADGE_02,
         FLAG_SIL_BADGE_03,
@@ -60,27 +102,22 @@ pub static ENTRY: Entry = Entry {
         FLAG_SIL_LOG_01,
         FLAG_SIL_LOG_02,
         FLAG_SIL_LOG_03,
-    ],
-    vars: &[
-        (VAR_SIL_STORY, 36),
-        (VAR_SIL_CH0_GATE, 1),
-        (VAR_SIL_STARTER, 1),
-        (VAR_SIL_SYNC, 30),
-    ],
-    party: &[
-        (SPECIES_QUILAVA, 33),
-        (SPECIES_AMPHAROS, 32),
-        (SPECIES_KADABRA, 32),
-        (SPECIES_MAGNETON, 31),
-    ],
-    items: &[
-        (ITEM_POTION, 5),
-        (ITEM_SUPER_POTION, 3),
-        (ITEM_POKE_BALL, 5),
-    ],
-    money: 6000,
-    respawn: HEAL_LOCATION_SIL_BOIS_ETHER,
-};
+    ] {
+        ctx.set_flag(f, true).await;
+    }
+    ctx.set_var(VAR_SIL_STORY, 36).await;
+    ctx.set_var(VAR_SIL_SYNC, 30).await;
+    ctx.set_var(VAR_SIL_STARTER, 1).await;
+    ctx.set_var(VAR_SIL_CH0_GATE, 1).await;
+    ctx.item_add(ItemId(ITEM_SIL_MALLETTE), 1).await;
+    ctx.item_add(ItemId(ITEM_POTION), 5).await;
+    ctx.item_add(ItemId(ITEM_SUPER_POTION), 3).await;
+    ctx.money_add(6000).await;
+    ctx.set_respawn(HEAL_LOCATION_SIL_GRIS_ECHEC).await;
+    for &(species, level) in PARTY {
+        ctx.give_mon(species, level).await;
+    }
+}
 
 /// Chapter 4's steps.
 pub fn steps() -> Vec<Step> {
@@ -193,19 +230,23 @@ pub fn steps() -> Vec<Step> {
             Step::Train {
                 a: (11, 12),
                 b: (12, 12),
-                level: 35,
+                level: 36,
                 heal: HEAL,
             },
-            Step::Check("trained_35", |r| {
+            Step::Check("trained_36", |r| {
                 eprintln!("party before the cleaning: {:?}", party(r));
             }),
         ][..],
         HEAL,
         &[
-            // The quay cleaning: the four grunts along the corridor (a heal after the first
-            // two), then the foreman.
-            goto(PORT, 10, 20),
+            // The quay cleaning: the four grunts along the corridor, a heal after each, then
+            // the foreman.
+            goto(PORT, 12, 20),
         ][..],
+        HEAL,
+        &[goto(PORT, 10, 20)][..],
+        HEAL,
+        &[goto(PORT, 8, 20)][..],
         HEAL,
         &[goto(PORT, 6, 20)][..],
         HEAL,
@@ -238,7 +279,15 @@ pub fn steps() -> Vec<Step> {
         ][..],
         HEAL,
         &[
-            // The Zenith-Grog: the deck's crew (Patrice, Jessy), then back to the Taverne.
+            // The Zenith-Grog: the deck's crew (Patrice, then Jessy), back to the Taverne after
+            // each.
+            goto(PORT, 32, 26),
+            Step::Enter { dir: Up, map: GYM },
+            goto(GYM, 9, 17),
+        ][..],
+        OUT_OF_GYM,
+        HEAL,
+        &[
             goto(PORT, 32, 26),
             Step::Enter { dir: Up, map: GYM },
             goto(GYM, 13, 14),
@@ -295,7 +344,24 @@ pub fn steps() -> Vec<Step> {
             Step::Enter { dir: Up, map: CALE },
             goto(CALE, 8, 1),
             Step::Enter { dir: Up, map: GYM },
-            // Gus over the ladder, then Samuel at the helm.
+            // Gus over the ladder; back through the hold's shortcut for a heal; Samuel.
+            goto(GYM, 5, 5),
+            Step::Enter { dir: Up, map: CALE },
+            goto(CALE, 5, 7),
+            Step::Enter {
+                dir: Down,
+                map: GYM,
+            },
+        ][..],
+        OUT_OF_GYM,
+        HEAL,
+        &[
+            goto(PORT, 32, 26),
+            Step::Enter { dir: Up, map: GYM },
+            goto(GYM, 13, 14),
+            Step::Enter { dir: Up, map: CALE },
+            goto(CALE, 8, 1),
+            Step::Enter { dir: Up, map: GYM },
             goto(GYM, 13, 4),
             Step::Interact(Up),
             Step::Check("badge_04", |r| {
