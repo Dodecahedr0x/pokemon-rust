@@ -1,0 +1,27 @@
+// Cells: the lamp level (y 2-8, the lamp's shaft at 4-9), the wall between the levels (y 9-10, open at
+// x 12: the ramp's top), the entrance level (y 11-18): the shaft, the ramp x 12 behind a rubble wall
+// with Oscar's niche (11, 13), a dark dead end west; the mats.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "!!!!!!!!!!!!!!",
+        "##############",
+        "!$$$%&&&&($$$!",
+        "!)))*++++,)))!",
+        "!)))++++++)))!",
+        "!)))++++++)))!",
+        "!)))-..../)))!",
+        "!))))))))))))!",
+        "!))))))))))))!",
+        "!!!!!!!!!!!!)!",
+        "############)#",
+        "!)))%&&&&(00)!",
+        "!)))*++++,00)!",
+        "!1)1++++++0))!",
+        "!)))++++++00)!",
+        "!)))-..../00)!",
+        "!)))))))))00)!",
+        "!))))))))))))!",
+        "!))))))))))))!",
+        "!!!!!!23!!!!!!",
+    ], legend: {'!': (metatile: 551, collision: 1), '#': (metatile: 559, collision: 1), '$': (metatile: 702, collision: 0), '%': (metatile: 568, collision: 1), '&': (metatile: 569, collision: 1), '(': (metatile: 570, collision: 1), ')': (metatile: 701, collision: 0), '*': (metatile: 576, collision: 1), '+': (metatile: 577, collision: 1), ',': (metatile: 578, collision: 1), '-': (metatile: 585, collision: 1), '.': (metatile: 589, collision: 1), '/': (metatile: 586, collision: 1), '0': (metatile: 543, collision: 1), '1': (metatile: 527, collision: 1), '2': (metatile: 546, collision: 0), '3': (metatile: 547, collision: 0)}),
+]

@@ -1,0 +1,6 @@
+// Behaviour and reachability warnings accepted on purpose (validate and lint-reach honour these;
+// see the SIL4 Ch8 maps in docs/plans/2026-10-23-silice-content.md).
+[
+    AllowCollision(cells: [(24, 8), (25, 8), (26, 8)], reason: "the raised drawbridge over the moat: solid water at elevation 3 until Evalon_OnLoad lowers it from VAR_SIL_STORY 83 with setmetatile(..., false), so it can be neither walked nor surfed before"),
+    AllowReach(subject: "warp 6", reason: "the Citadelle door is behind the drawbridge, which Evalon_OnLoad lowers from VAR_SIL_STORY 83; the yard before it is past Evalon_Sc07's row y 10"),
+]

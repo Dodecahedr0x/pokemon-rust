@@ -2299,6 +2299,78 @@
             num: 876,
         ),
         (
+            name: "FLAG_SIL_HIDE_GYM07_PIXELS",
+            num: 900,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_REVERSE_HABITANT_ACCUEIL",
+            num: 901,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_REVERSE_ROMAIN",
+            num: 902,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_EVALON_ADRIEN",
+            num: 940,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_EVALON_GARDE_SE",
+            num: 941,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_EVALON_GWADA",
+            num: 942,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_EVALON_PIGEON",
+            num: 943,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_EVALON_ROMAIN",
+            num: 944,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_EVALON_SBIRE_1",
+            num: 945,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_EVALON_SBIRE_2",
+            num: 946,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_EVALON_SBIRE_3",
+            num: 947,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_EVALON_SCRIBE",
+            num: 948,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GYM8_COFFRE_GAUCHE",
+            num: 949,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_S08_PIGEON",
+            num: 950,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_EVALON_TAVERNE_ADRIEN",
+            num: 951,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_EVALON_TAVERNE_GWADA",
+            num: 952,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_EVALON_TAVERNE_MATHIEU",
+            num: 953,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_EVALON_MINERAI",
+            num: 954,
+        ),
+        (
             name: "FLAG_SIL_HIDE_NEBULA_MATHIEU",
             num: 1200,
         ),

@@ -1,0 +1,32 @@
+// Cells, drawn in one grid. Legend (char: metatile/collision/elevation, what):
+//   W 751/1/0 stone wall top
+//   7 707/1/0 stairs down
+//   8 708/1/0 stairs down
+//   9 709/1/0 stairs down
+//   w 740/1/0 stone wall top, buttress
+//   F 759/1/0 stone wall face
+//   a 715/1/0 stairs down
+//   b 716/0/3 stairs down (warp cell)
+//   c 717/1/0 stairs down
+//   f 748/1/0 stone wall face, buttress
+//   u 743/0/3 floor under the wall
+//   . 742/0/3 stone floor
+//   L 741/1/0 lectern
+//   d 738/0/3 copper slab
+//   s 822/1/0 step-ladder
+[
+    Ascii(x: 0, y: 0, rows: [
+        "W789WwWWWWWWW",
+        "FabcFfFFFFFFF",
+        "uuuuuuuuuuuuu",
+        ".............",
+        "L......d....L",
+        "....d........",
+        ".............",
+        ".............",
+        "L....d...d..L",
+        ".............",
+        ".............",
+        "s............",
+    ], legend: {'W': (metatile: 751, collision: 1, elevation: 0), '7': (metatile: 707, collision: 1, elevation: 0), '8': (metatile: 708, collision: 1, elevation: 0), '9': (metatile: 709, collision: 1, elevation: 0), 'w': (metatile: 740, collision: 1, elevation: 0), 'F': (metatile: 759, collision: 1, elevation: 0), 'a': (metatile: 715, collision: 1, elevation: 0), 'b': (metatile: 716, collision: 0, elevation: 3), 'c': (metatile: 717, collision: 1, elevation: 0), 'f': (metatile: 748, collision: 1, elevation: 0), 'u': (metatile: 743, collision: 0, elevation: 3), '.': (metatile: 742, collision: 0, elevation: 3), 'L': (metatile: 741, collision: 1, elevation: 0), 'd': (metatile: 738, collision: 0, elevation: 3), 's': (metatile: 822, collision: 1, elevation: 0)}),
+]

@@ -1,0 +1,4 @@
+// Silice Ch8, MAP_EVALON_CONSEIL: la Maison des Anciens (13 x 10). Building + LilycoveMuseum
+// (Emerald tilesets by name): the museum's framed paintings make the hand-drawn wall map, its
+// display table the oval council table. Out-of-map border: the void.
+(name: "Evalon_Conseil", width: 13, height: 10, primary: "Building", secondary: "LilycoveMuseum", fill: 514, fill_collision: 0, fill_elevation: 3, border: [1537, 1537, 1537, 1537])

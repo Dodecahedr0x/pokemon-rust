@@ -1,0 +1,26 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_RG_MT_MOON", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_UNDERGROUND", allow_cycling: false, allow_escaping: true, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnLoad: once FLAG_SIL_EVALON_INVASION is set, opens the breach at (3, 5) (cave floor 776) into the
+    // collapsed cul-de-sac (x 1-5, y 1-4) where Gogo and Romain broke in.
+    Scripts((on_load: Some("Evalon_Galeries_OnLoad"), on_transition: None, on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warp 0: the floor at the mine mouth, to Evalon's warp 4 (the doorway in the west cliff).
+    Warp(x: 15, y: 23, dest_map: "Evalon", dest_warp: 4),
+    // Quest Q1: the compressed-silica rock in the canal drift (Scanner de Faille). Its script sets
+    // FLAG_SIL_EVALON_Q1_ROCHER, which is also its hide flag, so it stays broken.
+    Object(x: 25, y: 15, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_GALERIES_ROCHER", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Galeries_EventScript_Rocher", flag: "FLAG_SIL_EVALON_Q1_ROCHER"),
+    // The Moon Stone by the minecart (west drift).
+    Object(x: 3, y: 16, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_GALERIES_ITEM_PIERRE_LUNE", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Galeries_EventScript_ItemPierreLune", flag: "FLAG_SIL_ITEM_EVALON_GALERIES_1"),
+    // Quest Q2: the Minerai Ferreux at the back of the dark gallery (key item, given by script).
+    Object(x: 13, y: 2, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_GALERIES_ITEM_MINERAI", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Galeries_EventScript_ItemMinerai", flag: "FLAG_SIL_ITEM_EVALON_MINERAI"),
+    // The dark gallery's neck (15, 5), its only way in: always fires (VAR_TEMP_3 0; no Galeries script
+    // writes VAR_TEMP_3). Without FLAG_SIL_MODULE_FLASH it turns the player back (the per-area darkness
+    // fallback); with it, it says the Surcharge Optique lights the gallery.
+    Coord(x: 15, y: 5, var: "VAR_TEMP_3", value: 0, script: "Evalon_Galeries_EventScript_Obscure"),
+    // The Nugget under the fallen prop.
+    HiddenItem(x: 9, y: 10, item: "ITEM_NUGGET", flag: "FLAG_SIL_ITEM_EVALON_GALERIES_2"),
+    // The Pierre Lien hidden near the ore (dark gallery).
+    HiddenItem(x: 18, y: 1, item: "ITEM_SIL_PIERRE_LIEN", flag: "FLAG_SIL_ITEM_EVALON_PIERRE_LIEN"),
+    // The canal's mouth behind the rock.
+    Sign(x: 26, y: 15, script: "Evalon_Galeries_EventScript_Canal"),
+]

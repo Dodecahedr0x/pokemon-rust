@@ -1,0 +1,4 @@
+// Silice Ch8, MAP_EVALON_GALERIES: les Galeries, the old mines under Evalon's west cliff (30 x 25,
+// the source's size). General + Lavaridge (Emerald tilesets by name): Fiery Path's red rock is the
+// red ore veins. Walls are one cell thick round an original floor plan. Out-of-map border: rock.
+(name: "Evalon_Galeries", width: 30, height: 25, primary: "General", secondary: "Lavaridge", fill: 625, fill_collision: 1, fill_elevation: 0, border: [1649, 1649, 1649, 1649])

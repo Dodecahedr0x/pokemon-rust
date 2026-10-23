@@ -1,0 +1,5 @@
+// Silice Ch8, MAP_ROUTE_S08: les Chutes du Paradoxe (40 x 80, the source's size; we climb north).
+// General + Fallarbor (Emerald tilesets by name): Route 114's pair, a gorge of rust-red iron
+// cliffs with a waterfall, a lake and tall grass, which is the source's 'gorge between two
+// rusty iron cliffs'. Three terraces joined by waterfalls. Border: the forest.
+(name: "RouteS08", width: 40, height: 80, primary: "General", secondary: "Fallarbor", fill: 633, fill_collision: 0, fill_elevation: 3, border: [619, 620, 627, 628])
