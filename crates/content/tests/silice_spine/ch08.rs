@@ -713,7 +713,9 @@ pub fn steps() -> Vec<Step> {
         Step::Check("pont", |r| assert!(r.w.flag(FLAG_SIL_EVALON_GYM_PONT))),
         goto(GYM, 5, 31),
         Step::Walk(Up),
-        Step::Check("renard", |r| assert!(r.beaten(TRAINER_SIL_EVALON_GYM_RENARD))),
+        Step::Check("renard", |r| {
+            assert!(r.beaten(TRAINER_SIL_EVALON_GYM_RENARD))
+        }),
         // Room 3: the crypt (the Surcharge Optique), Morgane.
         goto(GYM, 5, 25),
         Step::Walk(Up),
