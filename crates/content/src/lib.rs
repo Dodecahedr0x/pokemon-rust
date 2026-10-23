@@ -6,19 +6,30 @@
 //! [`blob`]) and `scripts` (the generated per-map script modules). Without an extracted dir it
 //! builds a small built-in world and sets `cfg(pkr_stub)`; without battle data (the stub, test
 //! fixtures) it uses built-in battle data and sets `cfg(pkr_stub_battle)`.
+//!
+//! **Flavours** ([`FLAVOR`], SIL1): the stub, Emerald, and Silice (`PKR_GAME=silice`,
+//! `cfg(pkr_silice)`: the authored `games/silice` on the extract's base assets, with the
+//! game root and scripts of [`silice`]). Every flavour has the same API shape: `consts`, `data`
+//! (with the script dispatch), `battle`, `scripts`, `overrides`, `prelude`, [`Game`] (the
+//! [`GameData`] root; [`Emerald`] is its old name) and [`BUILD_ID`]. Emerald-only items
+//! ([`Start`], `Game::{before_rescue, after_starter}`) are `cfg(not(pkr_silice))`.
 
 extern crate alloc;
 
-use engine::battle::{BattleGfx, Str};
-use engine::data::{
-    Behavior, Dir, Emote, Evolution, FlagId, Font, GameData, GfxId, ItemId, ItemInfo, MapData,
-    MapId, NewGame, ScriptId, SpecialIds, SpeciesId, SpriteData, TextId, TrainerId, UiText,
-    WindowGfx,
+use engine::data::{FlagId, MapId, ScriptId};
+#[cfg(not(pkr_silice))]
+use {
+    engine::battle::{BattleGfx, Str},
+    engine::data::{
+        Behavior, Dir, Emote, Evolution, Font, GameData, GfxId, ItemId, ItemInfo, MapData, NewGame,
+        SpecialIds, SpeciesId, SpriteData, TextId, TrainerId, UiText, WindowGfx,
+    },
+    engine::mon::{BattleTables, LandEncounters, TrainerData},
+    engine::script::{Ctx, Script},
 };
-use engine::mon::{BattleTables, LandEncounters, TrainerData};
-use engine::script::{Ctx, Script};
 
 pub mod blob;
+#[cfg(not(pkr_silice))]
 mod new_game;
 /// Hand-written script overrides (Milestone 8): a script the lowering cannot express as Gen3
 /// does, replaced by hand. The build digests each override's source into the script's
@@ -34,6 +45,8 @@ pub mod overrides {
 }
 pub mod prelude;
 pub mod samples;
+#[cfg(pkr_silice)]
+pub mod silice;
 
 /// Gen3 constants (`FLAG_*`, `VAR_*`, `MAP_*`, `SPECIAL_*`, `STD_*`, `ITEM_*`,
 /// `OBJ_EVENT_GFX_*`, `SPECIES_*`, `MOVE_*`, `TRAINER_*`, `HEAL_LOCATION_*`,
@@ -73,8 +86,45 @@ pub use data::script_ids;
 /// The build's script classification report (`build/scripts.rs`; Milestone 8 Task D2 fills it).
 pub const REPORT: &str = include_str!(concat!(env!("OUT_DIR"), "/report.txt"));
 
-/// Whether the content was built without an extracted dir (the small built-in world).
-pub const STUB: bool = cfg!(pkr_stub);
+/// Which game this content build is (`build/main.rs`).
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum Flavor {
+    /// No usable extracted dir: the small built-in world (`cfg(pkr_stub)`).
+    Stub,
+    /// Pokémon Emerald from the extract (the default).
+    Emerald,
+    /// Pokémon Silice: `games/silice` on the extract's base assets (`PKR_GAME=silice`,
+    /// `cfg(pkr_silice)`).
+    Silice,
+}
+
+impl Flavor {
+    pub const ALL: [Flavor; 3] = [Flavor::Stub, Flavor::Emerald, Flavor::Silice];
+
+    /// `stub`, `emerald` or `silice`: the directory name of the flavour's checkpoint tree
+    /// (`checkpoints/<name>`) and explorer db (`target/explore/<name>`).
+    pub const fn name(self) -> &'static str {
+        match self {
+            Flavor::Stub => "stub",
+            Flavor::Emerald => "emerald",
+            Flavor::Silice => "silice",
+        }
+    }
+}
+
+/// This build's flavour.
+pub const FLAVOR: Flavor = if cfg!(pkr_stub) {
+    Flavor::Stub
+} else if cfg!(pkr_silice) {
+    Flavor::Silice
+} else {
+    Flavor::Emerald
+};
+const _: () = assert!(!(cfg!(pkr_stub) && cfg!(pkr_silice)));
+
+/// Whether the content was built without an extracted dir (the small built-in world):
+/// `FLAVOR == Flavor::Stub`.
+pub const STUB: bool = matches!(FLAVOR, Flavor::Stub);
 
 /// Whether an extracted dir exists but in an older format, so the content fell back to the
 /// stub world ([`STUB`] is set too). It still builds so that `cargo xtask extract` (which links
@@ -91,11 +141,18 @@ pub const STALE_EXTRACT_MSG: &str = "content/extracted/ is in an older format, s
 /// dir, or `stub`. Never 0 (`TreeHash::finish`). [`GameData::build_id`] returns it.
 pub const BUILD_ID: u64 = include!(concat!(env!("OUT_DIR"), "/build_id.rs"));
 
-/// Script id of the new-game script ([`new_game::new_game`]); never a generated id.
+/// Script id of the new-game script (each flavour's `new_game::new_game`); never a generated
+/// id.
 pub const NEW_GAME_SCRIPT: ScriptId = ScriptId(u16::MAX);
 
+/// The game's content root under its old name (kept for one milestone, SIL1).
+pub type Emerald = Game;
+
+#[cfg(pkr_silice)]
+pub use silice::Game;
+
 /// Flags Gen3 `ClearTempFieldEventData` clears on every map change.
-static CLEARED_ON_MAP_CHANGE: [FlagId; 5] = [
+pub(crate) static CLEARED_ON_MAP_CHANGE: [FlagId; 5] = [
     consts::FLAG_SYS_ENC_UP_ITEM,
     consts::FLAG_SYS_ENC_DOWN_ITEM,
     consts::FLAG_SYS_USE_STRENGTH,
@@ -104,6 +161,7 @@ static CLEARED_ON_MAP_CHANGE: [FlagId; 5] = [
 ];
 
 /// Where a new game starts (the default: [`Start::BeforeRescue`]).
+#[cfg(not(pkr_silice))]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum Start {
     /// Littleroot after meeting the rival, sent to find Birch on Route 101: no Pokémon yet.
@@ -114,23 +172,25 @@ pub enum Start {
     AfterStarter,
 }
 
-/// The game's content root. `Emerald::default()` starts [`Start::BeforeRescue`]; the shells and
-/// the parity route run [`Emerald::for_shells`]. [`Emerald::after_starter`] is the Milestone 3
-/// start, kept for fast tests.
+/// The game's content root (Emerald and the stub; the Silice flavour's is `silice::Game`).
+/// `Game::default()` starts [`Start::BeforeRescue`]; the shells and the parity route run
+/// [`Game::for_shells`]. [`Game::after_starter`] is the Milestone 3 start, kept for fast tests.
+#[cfg(not(pkr_silice))]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub struct Emerald {
+pub struct Game {
     pub start: Start,
 }
 
-impl Emerald {
-    pub const fn before_rescue() -> Emerald {
-        Emerald {
+#[cfg(not(pkr_silice))]
+impl Game {
+    pub const fn before_rescue() -> Game {
+        Game {
             start: Start::BeforeRescue,
         }
     }
 
-    pub const fn after_starter() -> Emerald {
-        Emerald {
+    pub const fn after_starter() -> Game {
+        Game {
             start: Start::AfterStarter,
         }
     }
@@ -138,11 +198,11 @@ impl Emerald {
     /// What the shells and the parity route play: [`Start::BeforeRescue`] on the extracted
     /// world, [`Start::AfterStarter`] on the stub world (no story, no Route 101), so that the
     /// stub route has a Pokémon to battle with in its tall grass.
-    pub const fn for_shells() -> Emerald {
+    pub const fn for_shells() -> Game {
         if STUB {
-            Emerald::after_starter()
+            Game::after_starter()
         } else {
-            Emerald::before_rescue()
+            Game::before_rescue()
         }
     }
 }
@@ -153,7 +213,8 @@ pub fn has_map(id: MapId) -> bool {
     data::map(id.0).is_some()
 }
 
-impl GameData for Emerald {
+#[cfg(not(pkr_silice))]
+impl GameData for Game {
     fn map(&self, id: MapId) -> &'static MapData {
         data::map(id.0).unwrap_or(&data::MISSING_MAP)
     }
@@ -291,7 +352,8 @@ impl GameData for Emerald {
     }
 }
 
-#[cfg(test)]
+/// The Emerald and stub tables and scripts (the Silice flavour's are `silice::tests`).
+#[cfg(all(test, not(pkr_silice)))]
 mod data_tests;
 
 #[cfg(test)]
@@ -301,9 +363,18 @@ mod build_id_tests {
     /// `crates/content/tests/build_modes.rs` reads the printed id of each build mode.
     #[test]
     fn build_id_is_set() {
+        use engine::data::GameData;
         std::println!("CONTENT BUILD_ID={BUILD_ID:#018x}");
         assert_ne!(BUILD_ID, 0);
-        assert_eq!(Emerald::for_shells().build_id(), BUILD_ID);
-        assert_eq!(Emerald::after_starter().build_id(), BUILD_ID);
+        assert_eq!(Game::for_shells().build_id(), BUILD_ID);
+        assert_eq!(Emerald::default().build_id(), BUILD_ID);
+    }
+
+    #[test]
+    fn flavor_names_and_stub() {
+        let names: std::vec::Vec<_> = Flavor::ALL.iter().map(|f| f.name()).collect();
+        assert_eq!(names, ["stub", "emerald", "silice"]);
+        assert_eq!(STUB, FLAVOR == Flavor::Stub);
+        assert_eq!(cfg!(pkr_silice), FLAVOR == Flavor::Silice);
     }
 }

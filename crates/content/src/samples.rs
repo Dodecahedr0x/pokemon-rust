@@ -41,7 +41,7 @@ samples!(SPECIES, SPECIES_IDS: SpeciesId = [SPECIES_STUB_A, SPECIES_STUB_B]);
 #[cfg(pkr_stub_battle)]
 samples!(MOVES, MOVE_IDS: MoveId = [MOVE_STUB_GROWL, MOVE_STUB_HIT, MOVE_STUB_STRUGGLE]);
 
-#[cfg(not(pkr_stub))]
+#[cfg(not(any(pkr_stub, pkr_silice)))]
 samples!(
     /// The maps debug tests sample (Milestone 8 Task L): the 15 slice maps, the Act 1 maps
     /// the slice does not have (Petalburg, Route 104, Petalburg Woods, Rustboro), and one
@@ -62,18 +62,18 @@ samples!(
     MAP_SECRET_BASE_BLUE_CAVE1,
 ]);
 
-/// The stub world is small: every map (no names).
-#[cfg(pkr_stub)]
+/// The stub world is small, and the Silice world is its own: every map (no names).
+#[cfg(any(pkr_stub, pkr_silice))]
 pub const MAPS: &[&str] = &[];
 
 /// [`MAPS`] that this build has (every map of the stub world), in [`MAPS`] order.
 pub fn map_ids() -> Vec<MapId> {
-    #[cfg(not(pkr_stub))]
+    #[cfg(not(any(pkr_stub, pkr_silice)))]
     return MAP_SAMPLE
         .iter()
         .copied()
         .filter(|&m| crate::has_map(m))
         .collect();
-    #[cfg(pkr_stub)]
+    #[cfg(any(pkr_stub, pkr_silice))]
     return crate::data::MAP_IDS.to_vec();
 }

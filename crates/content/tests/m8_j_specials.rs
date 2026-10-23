@@ -460,8 +460,12 @@ fn native_specials_issue_their_requests_in_order() {
     assert!(h.log.contains(&set(VAR_TEMP_3, 1)));
     assert_eq!(h.log.last(), Some(&field_string(MOM)));
     // In the player's own house (Brendan's 1F: the player is male): Mom, with no draw.
+    #[cfg(not(pkr_silice))]
+    let house = MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F;
+    #[cfg(pkr_silice)]
+    let house = MAP_BRICO_BOURG_PLAYER_HOUSE_1F;
     let mut h = Rec {
-        map: MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F.0,
+        map: house.0,
         ..Rec::default()
     };
     run_special(&mut h, "SPECIAL_GetMomOrDadStringForTVMessage");

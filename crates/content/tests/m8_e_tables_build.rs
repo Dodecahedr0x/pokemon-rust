@@ -124,6 +124,7 @@ fn tables_and_emotes_compile_and_resolve() {
         .current_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
         .env_remove("CARGO_TARGET_DIR")
         .env_remove("CARGO_BUILD_TARGET_DIR")
+        .env_remove("PKR_GAME")
         .env("PKR_EXTRACTED_DIR", &dir)
         .args(["test", "-p", "content", "--lib", "--target-dir"])
         .arg(tmp.join("target"))

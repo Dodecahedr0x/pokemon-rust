@@ -319,7 +319,7 @@ fn m8_d2_the_worked_example_override_runs() {
 fn m8_d2_trainer_table_answers_trainer_flag_of() {
     let game = content::Emerald::for_shells();
     let rows = &content::scripts::TRAINER_SCRIPTS;
-    if content::STUB {
+    if content::FLAVOR != content::Flavor::Emerald {
         assert!(rows.is_empty());
         return;
     }
@@ -341,7 +341,7 @@ fn m8_d2_trainer_table_answers_trainer_flag_of() {
 /// The std scripts' texts (`data/text/obtain_item.inc`), which the prelude looks up by name.
 #[test]
 fn m8_d2_std_script_texts_are_built() {
-    if content::STUB {
+    if content::FLAVOR != content::Flavor::Emerald {
         return;
     }
     for t in [

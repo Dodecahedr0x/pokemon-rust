@@ -74,6 +74,37 @@ pub struct World {
     pub tables: Tables,
     /// The emote pics (`sprites/field_effects/`, Task A).
     pub emotes: Vec<EmoteIn>,
+    /// The Silice flavour's own inputs (SIL1, `build/silice/`); `None` for the stub and Emerald.
+    /// With it, `maps` are the Silice maps and `ir` is `None`.
+    pub silice: Option<SiliceIn>,
+}
+
+/// What the Silice flavour adds to a [`World`] (SIL1 Wave 0, `build/silice/mod.rs`). Plain data,
+/// so that the generator (`codegen.rs`, `scripts.rs`) and the tests that include it need no
+/// `silice` module.
+#[derive(Clone, Debug, Default)]
+pub struct SiliceIn {
+    /// The script registry (`src/silice/scripts/*.rs`), sorted by name: the index is the
+    /// `ScriptId`.
+    pub scripts: Vec<ScriptIn>,
+    /// Every script file: (module name, absolute path), sorted by module.
+    pub modules: Vec<(String, PathBuf)>,
+    /// The constants of the allocated ids (`games/silice/ids/*.ron`): (name, type, value).
+    pub consts: Vec<(String, &'static str, String)>,
+    /// The new game's map (file name) and cell.
+    pub start: (String, i16, i16),
+    /// Script names the maps use that no script defines, dropped from the maps (the Wave 0
+    /// allowlist mode, `build/silice/registry.rs`); empty when the build is strict.
+    pub unwritten: std::collections::BTreeSet<String>,
+}
+
+/// One registered Silice script: `pub async fn <name>(ctx: Ctx)` in `scripts/<module>.rs`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ScriptIn {
+    pub name: String,
+    pub module: String,
+    /// Its `SCRIPT_DIGESTS` value (`build/silice/registry.rs`).
+    pub digest: u64,
 }
 
 /// `read_ron` of a file added within the format (`FORMAT_MINOR`), or the default when an older
@@ -181,6 +212,16 @@ pub fn format_of(manifest: &Path) -> Option<u32> {
 /// Reads an extracted dir written by `cargo xtask extract` (plus Task B's scripts and texts
 /// when present).
 pub fn load(dir: &Path) -> Result<World> {
+    load_with(dir, true)
+}
+
+/// [`load`] without the Emerald game: no maps, no script IR. The Silice flavour's base
+/// assets (tilesets, sprites, font, window, texts, battle data, tables, emotes).
+pub fn load_assets(dir: &Path) -> Result<World> {
+    load_with(dir, false)
+}
+
+fn load_with(dir: &Path, game: bool) -> Result<World> {
     let manifest: Manifest = read_ron(&dir.join("manifest.ron"))?;
     ensure!(
         manifest.format == FORMAT_VERSION,
@@ -207,11 +248,14 @@ pub fn load(dir: &Path) -> Result<World> {
         );
     }
     let lang = lang(&manifest.language)?;
-    let maps = manifest
-        .maps
-        .iter()
-        .map(|m| read_map(dir, m))
-        .collect::<Result<Vec<_>>>()?;
+    let maps = match game {
+        true => manifest
+            .maps
+            .iter()
+            .map(|m| read_map(dir, m))
+            .collect::<Result<Vec<_>>>()?,
+        false => Vec::new(),
+    };
     let mut tilesets = Vec::new();
     for name in &manifest.tilesets {
         let file = read_tileset(dir, name)?;
@@ -273,7 +317,10 @@ pub fn load(dir: &Path) -> Result<World> {
             texts.insert(k, bytes);
         }
     }
-    let ir = crate::scripts::read_ir(dir, &manifest)?;
+    let ir = match game {
+        true => crate::scripts::read_ir(dir, &manifest)?,
+        false => None,
+    };
     let tables = read_tables(dir)?;
     let emotes = read_emotes(dir)?;
     let battle = if dir.join("battle/species.ron").exists() {
@@ -297,6 +344,7 @@ pub fn load(dir: &Path) -> Result<World> {
         battle,
         tables,
         emotes,
+        silice: None,
     })
 }
 
