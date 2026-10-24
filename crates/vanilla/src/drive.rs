@@ -724,16 +724,36 @@ impl Vanilla {
         let end = self.frames + max_frames;
         let at = self.player_object().map(|o| o.cell);
         let map = self.current_map()?;
-        while self.mode() == Mode::FieldIdle
-            && self.player_object().map(|o| o.cell) == at
-            && self.current_map()? == map
-        {
-            if self.frames >= end {
-                return Err(anyhow!("step {dir:?}: never moved"));
+        loop {
+            // The object on the cell ahead (a boulder Strength pushes).
+            let ahead = at.map(|(x, y)| (x + dir.delta().0, y + dir.delta().1));
+            let blocker = (0..OBJECT_EVENTS)
+                .filter_map(|i| self.object_event(i))
+                .find(|o| !o.is_player && o.map == map && Some(o.cell) == ahead)
+                .map(|o| o.local_id);
+            while self.mode() == Mode::FieldIdle
+                && self.player_object().map(|o| o.cell) == at
+                && self.current_map()? == map
+            {
+                if self.frames >= end {
+                    return Err(anyhow!("step {dir:?}: never moved"));
+                }
+                self.step(button(dir))?;
             }
-            self.step(button(dir))?;
+            self.settle(end.saturating_sub(self.frames))?;
+            // Gen3's push (`Task_PushBoulder`) walks the player in place while the boulder
+            // moves on; the walk then steps after it (the spine's `Walk` into a boulder, as
+            // `expand`'s walk keeps pressing until the player moves).
+            let pushed = blocker.is_some_and(|id| {
+                (0..OBJECT_EVENTS)
+                    .filter_map(|i| self.object_event(i))
+                    .any(|o| o.local_id == id && o.map == map && Some(o.cell) != ahead)
+            });
+            let still = self.player_object().map(|o| o.cell) == at;
+            if !(pushed && still && self.current_map()? == map) {
+                return Ok(());
+            }
         }
-        self.settle(end.saturating_sub(self.frames))
     }
 
     /// Holds `keys` for `frames` frames, then settles.
