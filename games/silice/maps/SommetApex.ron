@@ -678,18 +678,18 @@
             x: 3,
             y: 4,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_PP_MAX",
-                flag: "FLAG_SIL_ITEM_APEX_HIDDEN_PP_MAX",
+            kind: Script(
+                facing: 0,
+                script: Some("SommetApex_EventScript_HiddenPpMax"),
             ),
         ),
         (
             x: 17,
             y: 14,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_MAX_ELIXIR",
-                flag: "FLAG_SIL_ITEM_APEX_HIDDEN_ELIXIR",
+            kind: Script(
+                facing: 0,
+                script: Some("SommetApex_EventScript_HiddenElixir"),
             ),
         ),
     ],
@@ -705,6 +705,16 @@
                 var: "VAR_SIL_STORY",
                 value: 109,
                 script: "SommetApex_Sc01",
+            ),
+            (
+                var: "VAR_SIL_FIN_SCENE",
+                value: 3,
+                script: "SommetApex_Elysium_E3",
+            ),
+            (
+                var: "VAR_SIL_FIN_SCENE",
+                value: 8,
+                script: "SommetApex_Sc08_Lose",
             ),
         ],
         on_warp_into: [],

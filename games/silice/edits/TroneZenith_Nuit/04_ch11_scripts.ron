@@ -1,0 +1,6 @@
+// SIL Ch11 scripts: the source's night fallback (11-apex-zenith.md §9 set_palette: the map variant and a
+// warp on black). Trone_Zenith_Sc09 ends on black at (6, 8) here, and Sc10-Sc11 play on the first frame
+// at VAR_SIL_STORY 116 (Sc11 sets 117 and leaves for the cabin).
+[
+    ScriptsSet(on_frame: [(var: "VAR_SIL_STORY", value: 116, script: "TroneZenith_Nuit_Sc10")]),
+]

@@ -7,7 +7,7 @@
 
 use super::{Hook, Step, TeachTm};
 use content::Game;
-use core::cell::RefCell;
+use core::cell::{Cell, RefCell};
 use engine::World;
 use engine::battle::calc::type_effect;
 use engine::battle::scene::OpenMenu;
@@ -272,8 +272,13 @@ impl GameData for Spy {
     fn dive_emerge_script(&self) -> Option<ScriptId> {
         Game.dive_emerge_script()
     }
-    fn dive_warp(&self, map: MapId, emerge: bool) -> Option<(MapId, Option<(i16, i16)>)> {
-        Game.dive_warp(map, emerge)
+    fn dive_warp(
+        &self,
+        map: MapId,
+        emerge: bool,
+        at: (i16, i16),
+    ) -> Option<(MapId, Option<(i16, i16)>)> {
+        Game.dive_warp(map, emerge, at)
     }
     fn fly_destination(&self, i: u8) -> Option<engine::data::FlyDestination> {
         Game.fly_destination(i)
@@ -317,6 +322,13 @@ pub struct Run {
     pub degraded: BTreeSet<&'static str>,
     /// The index the next choice takes ([`Step::Choose`]; the starter screen's ball).
     choice: u8,
+    /// How many of the next yes/no boxes answer yes even when their cursor starts on No
+    /// ([`Step::Yes`]), and whether UP was pressed on the open one.
+    yes_next: Cell<u8>,
+    yes_up: Cell<bool>,
+    /// Whether the world asked the shell to reload the last save (`Event::ReloadLastSave`): the
+    /// run ends there (the world waits for the shell).
+    pub reloaded: bool,
     /// Whether a lost (or drawn) battle is expected: a run that tests a defeat branch. Off by
     /// default: a spine wins every battle, and a loss fails the run at once.
     pub allow_losses: bool,
@@ -347,6 +359,9 @@ impl Run {
             battles: Vec::new(),
             degraded: BTreeSet::new(),
             choice: 0,
+            yes_next: Cell::new(0),
+            yes_up: Cell::new(false),
+            reloaded: false,
             allow_losses: false,
         }
     }
@@ -365,10 +380,12 @@ impl Run {
                 Step::Interact(d) => self.interact(d),
                 Step::Walk(d) => self.step_toward(d),
                 Step::Choose(i) => self.choice = i,
+                Step::Yes(n) => self.yes_next.set(n),
                 Step::Train { a, b, level, heal } => self.train(a, b, level, heal),
                 Step::Settle => self.settle(),
                 Step::Swap(a, b) => self.swap(a, b),
                 Step::Teach(t) => self.teach(t),
+                Step::Mend(n) => self.mend(n),
                 Step::UseOn { item, mon } => self.use_on(item, mon),
                 Step::Hook(h) => {
                     let name = match h {
@@ -394,6 +411,9 @@ impl Run {
         for e in self.w.events() {
             if let Event::Report(Report::Degraded(name)) = e {
                 self.degraded.insert(*name);
+            }
+            if matches!(e, Event::ReloadLastSave) {
+                self.reloaded = true;
             }
             if let Event::BattleEnded(o) = e {
                 if std::env::var_os("SPINE_DEBUG").is_some() {
@@ -430,8 +450,8 @@ impl Run {
         for m in self.w.party().iter() {
             let (hp, max) = (m.hp, m.stats[0]);
             eprintln!(
-                "  {:?} lv {} hp {hp}/{max} {:?}",
-                m.species, m.level, m.moves
+                "  {:?} lv {} hp {hp}/{max} {:?} pp {:?}",
+                m.species, m.level, m.moves, m.pp
             );
         }
         if let Some((_, b, _)) = self.w.battle() {
@@ -448,13 +468,15 @@ impl Run {
 
     fn busy(&self) -> bool {
         let w = &self.w;
-        w.script_running()
-            || w.in_battle()
-            || w.transition_active()
-            || w.starter().is_some()
-            || !w.field_active()
-            || w.text().is_open()
-            || !w.objects().player().is_settled()
+        !self.reloaded
+            && (w.script_running()
+                || w.in_battle()
+                || w.transition_active()
+                || w.field_move_active()
+                || w.starter().is_some()
+                || !w.field_active()
+                || w.text().is_open()
+                || !w.objects().player().is_settled())
     }
 
     /// Presses keys every other frame while anything but the free field runs ([`Run::key`]:
@@ -466,12 +488,13 @@ impl Run {
         while quiet < 6 {
             if self.busy() {
                 quiet = 0;
-                let press = self.key();
-                self.step(if i.is_multiple_of(2) {
-                    press
+                // `key` keeps state ([`Step::Yes`]'s UP then A): asked only for a pressed frame.
+                let press = if i.is_multiple_of(2) {
+                    self.key()
                 } else {
                     Buttons::NONE
-                });
+                };
+                self.step(press);
             } else {
                 quiet += 1;
                 self.step(Buttons::NONE);
@@ -485,12 +508,30 @@ impl Run {
     /// [`learn_slot`]'s move, or keeps the known moves (B, then "stop learning?" yes);
     /// everything else is A (text, yes/no on yes).
     fn key(&self) -> Buttons {
+        // [`Step::Yes`]: UP onto yes (the cursor may start on No), then A.
+        if self.yes_next.get() > 0 && self.w.text().is_yes_no_active() {
+            if !self.yes_up.get() {
+                self.yes_up.set(true);
+                return Buttons::UP;
+            }
+            self.yes_up.set(false);
+            self.yes_next.set(self.yes_next.get() - 1);
+            return Buttons::A;
+        }
         if let Some(st) = self.w.starter() {
             return match st.selection().cmp(&self.choice) {
                 core::cmp::Ordering::Less => Buttons::RIGHT,
                 core::cmp::Ordering::Greater => Buttons::LEFT,
                 core::cmp::Ordering::Equal => Buttons::A,
             };
+        }
+        // A shop (the mart screen): leave without buying (B on BUY/SELL/QUIT); the spine's
+        // money and bag stay as the chapter's own gifts leave them.
+        if matches!(
+            self.w.screens().and_then(|s| s.top()).map(|(_, st)| st),
+            Some(engine::ui::ScreenState::Mart(_))
+        ) {
+            return Buttons::B;
         }
         let Some((_, battle, scene)) = self.w.battle() else {
             return Buttons::A;
@@ -708,6 +749,49 @@ impl Run {
         );
     }
 
+    /// [`Step::Mend`]: Revives on the fainted first `n` slots, then the smallest potion that is
+    /// not wasted (else the largest) while a slot misses HP, as long as the bag holds them.
+    fn mend(&mut self, n: u8) {
+        use content::consts::*;
+        self.settle();
+        for slot in 0..n {
+            let hp = |r: &Run| {
+                let m = r.w.party().get(slot as usize).expect("the slot");
+                (m.hp, m.stats[0])
+            };
+            if hp(self).0 == 0 {
+                match [ITEM_REVIVE, ITEM_MAX_REVIVE]
+                    .into_iter()
+                    .find(|&i| self.count(i) > 0)
+                {
+                    Some(i) => self.use_on(i, slot),
+                    None => continue,
+                }
+            }
+            loop {
+                let (now, max) = hp(self);
+                let missing = max - now;
+                if missing == 0 {
+                    break;
+                }
+                let potions = [
+                    (ITEM_SUPER_POTION, 50),
+                    (ITEM_HYPER_POTION, 200),
+                    (ITEM_MAX_POTION, u16::MAX),
+                ];
+                let have: Vec<_> = potions
+                    .into_iter()
+                    .filter(|&(i, _)| self.count(i) > 0)
+                    .collect();
+                let pick = have.iter().find(|&&(_, h)| h >= missing).or(have.last());
+                match pick {
+                    Some(&(i, _)) => self.use_on(i, slot),
+                    None => break,
+                }
+            }
+        }
+    }
+
     /// Turns the player toward `d` (a tap) without stepping.
     fn face(&mut self, d: Dir) {
         self.settle();
@@ -799,9 +883,18 @@ impl Run {
                 self.step(self.w.input_map(&self.g).key_for(d));
                 n += 1;
             }
-            if self.pos() == p {
+            // A turn in place (the first press toward a new direction) does not move: only
+            // presses that never move in a row count.
+            if self.pos() != p {
+                stuck = 0;
+            } else {
                 stuck += 1;
-                assert!(stuck < 20, "stuck at {p:?} walking to {target:?}");
+                if stuck >= 20 {
+                    let objs: Vec<_> = (self.w.objects().iter())
+                        .map(|o| (o.local_id, o.x, o.y))
+                        .collect();
+                    panic!("stuck at {p:?} walking to {target:?} (objects {objs:?})");
+                }
             }
         }
     }
@@ -1013,6 +1106,8 @@ struct Grid<'a> {
     overrides: Vec<((i16, i16), u16)>,
     occupied: BTreeSet<(i16, i16)>,
     avoid: &'a [(i16, i16)],
+    /// The player surfs: a move from the water onto land is planned (the engine dismounts).
+    surfing: bool,
 }
 
 impl<'a> Grid<'a> {
@@ -1032,6 +1127,7 @@ impl<'a> Grid<'a> {
             overrides,
             occupied,
             avoid,
+            surfing: w.objects().surfing(),
         }
     }
 
@@ -1135,7 +1231,14 @@ impl<'a> Grid<'a> {
         }
         let en = self.elevation(n);
         let onto = Some(n) != target || self.walkable(n, false);
-        if onto && e != 0 && en != 0 && en != 15 && en != e {
+        // Surfing, the water's elevation 1 meets the land's 3 at the shore: the engine dismounts
+        // onto land (Gen3 `CanStopSurfing`); the plan goes on, on foot. Land onto water is never
+        // planned: Surf is an A press on the water ([`Step::Interact`]).
+        let dismount = self.surfing
+            && e == 1
+            && matches!(self.behavior(c), Behavior::Water(_))
+            && !matches!(self.behavior(n), Behavior::Water(_));
+        if onto && e != 0 && en != 0 && en != 15 && en != e && !dismount {
             return None;
         }
         let e2 = if en == 15 || self.elevation(c) == 15 {

@@ -73,6 +73,8 @@ pub enum ScreenKind {
     FlyMap,
     /// Gen3 `CB2_DoHallOfFameScreen` then the credits (`special GameClear`; Task S).
     HallOfFame,
+    /// The Hall of Fame screen from its credits: no record, no save (`Request::Credits`).
+    Credits,
     /// Gen3 `ShowEasyChatScreen` (`special ShowEasyChatScreen`) of `EASY_CHAT_TYPE_*` (Wave G).
     EasyChat(u8),
 }
@@ -166,6 +168,7 @@ pub enum ScreenKindTag {
     Naming,
     FlyMap,
     HallOfFame,
+    Credits,
     EasyChat,
 }
 
@@ -186,6 +189,7 @@ impl ScreenKind {
             ScreenKind::FlyMap => ScreenKindTag::FlyMap,
             ScreenKind::HallOfFame => ScreenKindTag::HallOfFame,
             ScreenKind::EasyChat(_) => ScreenKindTag::EasyChat,
+            ScreenKind::Credits => ScreenKindTag::Credits,
         }
     }
 
@@ -200,7 +204,8 @@ impl ScreenKind {
             | ScreenKind::SaveDialog
             | ScreenKind::MainMenu
             | ScreenKind::FlyMap
-            | ScreenKind::HallOfFame => {}
+            | ScreenKind::HallOfFame
+            | ScreenKind::Credits => {}
             ScreenKind::Party(m) => {
                 let (tag, v) = match m {
                     PartyMode::Field => (0, 0),
@@ -380,6 +385,7 @@ impl ScreenState {
             ScreenKind::FlyMap => ScreenState::FlyMap(fly_map::FlyMap::new()),
             ScreenKind::HallOfFame => ScreenState::HallOfFame(hall_of_fame::HallOfFame::new()),
             ScreenKind::EasyChat(k) => ScreenState::EasyChat(easy_chat::EasyChat::new(k)),
+            ScreenKind::Credits => ScreenState::HallOfFame(hall_of_fame::HallOfFame::credits()),
         }
     }
 

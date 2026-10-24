@@ -1,0 +1,6 @@
+// SIL Ch11 scripts: the endings' scenes on Nebula's Place (VAR_SIL_FIN_SCENE): 13 Nebula_Sc13 (the people's
+// waking, set by Ascenseur_Sc12 with VAR_SIL_STORY 118), 2 Elysium_E2 (Nebula in gold, set by Elysium_E1).
+// ScriptsSet replaces the whole on_frame list: Chapter 9's Sc01 (92) and Chapter 12's PG_Sc10 (126) are kept.
+[
+    ScriptsSet(on_frame: [(var: "VAR_SIL_STORY", value: 92, script: "Nebula_Sc01"), (var: "VAR_SIL_STORY", value: 126, script: "Nebula_PG_Sc10"), (var: "VAR_SIL_FIN_SCENE", value: 13, script: "Nebula_Sc13"), (var: "VAR_SIL_FIN_SCENE", value: 2, script: "Nebula_Elysium_E2")]),
+]

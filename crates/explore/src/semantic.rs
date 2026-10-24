@@ -406,7 +406,10 @@ mod tests {
         let d = diff(&base(), &v, Tolerance::default());
         assert_eq!(d.len(), 1, "{d:?}");
         assert_eq!(d[0].field, "layout");
-        assert_eq!((d[0].ours.as_str(), d[0].vanilla.as_str()), ("None", "Some(419)"));
+        assert_eq!(
+            (d[0].ours.as_str(), d[0].vanilla.as_str()),
+            ("None", "Some(419)")
+        );
     }
 
     #[test]

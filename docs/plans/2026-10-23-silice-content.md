@@ -3873,6 +3873,117 @@ The walk model treats `MB_NO_SURFACING` floor as blocked water and skips Dive, s
 - `CARGO_TARGET_DIR=target/silice PKR_GAME=silice cargo test -p content` passes.
 - `cargo test -p content -p xtask -p studio` passes except `studio` `map_edit_tools::reach_tools_on_the_committed_silice_maps`. That test fails on master too (its inputs are identical there): the Ch1 map fixes cut Jules's sight in `BoisEther_Gym` to 1 cell, and the test still expects 3. No Ch9 file is involved.
 
+#### SIL4 Ch9 scripts as built (Route S9 and Nébula)
+
+Chapter 9 (`09-nebula.md`, story 86 → 99) is in three script files. Each claims its maps, so those maps are strict:
+- `ch09_route_s09.rs`: RouteS09, RouteS09_Station and RouteS09_Underwater.
+- `ch09_nebula.rs`: Nebula and its Centre, Mart and Gargote.
+- `ch09_tour.rs`: Nebula_TourHall_B1F and Nebula_TourHall.
+
+Every map change goes through an edit script (`edits/<Map>/06_ch9_scripts.ron`). Each one replaces a hidden-item bg with a Script bg that runs `hidden_item`, the same fallback as Ch0–Ch8. Each edit records how to restore the original. `game.ron` gains `HEAL_LOCATION_SIL_NEBULA` (Nebula (17, 34)). `check-exceptions.ron` gains two placement-map entries, `FLAG_SIL_ITEM_PG_SALAMENCITE` and `FLAG_SIL_LIBERATION_JULIEN`. Both are Ch12 gifts placed on Nebula, which is now claimed.
+
+**Commits.**
+- `1d17987` `feat(engine)`: `GameData::dive_warp` takes the player's cell.
+- `f3fccc9`: the water modules on the field (superseded by SIL-M's at the merge).
+- `874ac84` `feat(engine)`: `World::field_move_active`.
+- `6a84ae7`: the scripts, maps and edits.
+- `938a4af`: the spine and the driver.
+
+**Water modules on the field.**
+- My `f3fccc9` gated Surf, Waterfall and Dive by their module flags with Gen3-worded prompts (`field_moves.rs`).
+- SIL-M's Mallette (`mallette.rs`, `scripts/mallette.rs`, merged from master) does the same with authored texts, so at the merge I kept SIL-M's and removed mine: `field_moves.rs`, `FIELD_MOVE_TEXTS`, and the four `GameData` hooks.
+- Ch9 keeps `GameData::dive_warp`. It uses the map's dive connection when the cell is inside the target map. Otherwise it uses the fixed `DIVE_WARPS` table, which holds Nébula's two dives:
+  - the Bassin (50–52, 10–13) dives to B1F (6, 10);
+  - the canal (29–30, 54–55) dives to the conduit (39, 72);
+  - B1F's pool (5–7, 9–11) dives back up to the Bassin (51, 11).
+
+**Screen effects (SIL-M).**
+- Route S9's Sc01 uses the real `screen_flash(WHITE)`.
+- Nébula's Sc03 uses `camera_pan` from the player to the Grande Porte (28, 10), then back after the guards' chief speaks.
+- The spine asserts that neither is reported as a fallback any more.
+
+**Route S9 (86 → 92).**
+- Sc01 (86 → 90): the signal. The screen flash and Benou's call are fallbacks.
+- Sc02 (90 → 91): Julien's call.
+- Trainers: Anselme, Marin, Océane and the two Cocket divers.
+- The security cables are an `Obstacle` that needs Lame-Fréquence (COUPE). `FLAG_SIL_S09_CABLES` records them, and `OnLoad` repaints them.
+- The lakeside containers push only inside the shore area, excluding solid cells, so no push can wall off the route.
+- The station:
+  - Pump A asks its question.
+  - The cabinet pushes along its row (y 2, x 1–8) off the breaker. The breaker runs once.
+  - Pump B says T4 without the breaker. With it, it switches off without asking.
+  - With both pumps off: T3 and story 92.
+  - Pump C is a warning. The items are TM24 and an Elixir.
+- Gérard, the technician, sees pump B's row. After the battle he steps aside (one or two cells east, then faces west) and his template is updated. **Softlock fixed:** without the template update he respawned on (11, 11) and blocked pump B's console.
+- The conduit (`RouteS09_Underwater`): `OnLoad` calms currents A and B (metatile 681) once their pumps are off. A strong current says its text and pushes the player back two cells. Sc04's first-dive text runs once. Also on this map: the porthole, the Max Revive and three hidden items.
+
+**Nébula (92 → 96).**
+- Sc01 (on-frame 92): the drone and the announcement; story 93.
+- The Gargote's Sc02 (93 → 94): Mathieu and the friends, two Full Restores. Mme Fenouil gives Leftovers once, from 94.
+- The Centre: the robot nurse heals, `OnTransition` sets the respawn, and the vending machine opens a real mart (Fresh Water, Soda Pop, Lemonade).
+- The Comptoir: a real mart with 15 items.
+- The Élecsprintite, and two hidden items.
+- Sc03, the diversion at the Bassin's fence (94 → 95):
+  - Mathieu and Adrien appear; under a fade the guards move to the gate (position and template).
+  - The Bassin's guard is hidden.
+  - The flags `DIVERSION`, `AMIS_GARGOTE`, `GARGOTE_ADRIEN` and `GARGOTE_GWADA` are set.
+  - From 95, `OnTransition` puts the guards' templates back at the gate.
+- Julien is hidden before 120. The PG cast is hidden unless the story is 126.
+- `OnLoad` handles 126's door and crack. Ch12's PG scripts and Ch11's Eveil1–4 are stubs in `ch12_stubs.rs`.
+
+**The Tower (96 → 99).**
+- B1F's Sc04 (on-frame 95 → 96). The two sbires use `Tour_Sbire{1,2}_Intro_Ch09` (**§5.6, provisional**). B1F also holds the Max Elixir.
+- The hall's security corridor has three sas (metatile 537), each opened by its trainers:
+  - Sbire 3 opens sas 1;
+  - Viktor and Nadia open sas 2 once both are beaten;
+  - Kroll opens sas 3 and sets story 97.
+
+  Every opening is guarded by `defeated()`. `OnLoad` reopens the sas from the trainer flags.
+- `Tour_Hall_Sc02` (97 → 99): two lines, a heal, story 99, then a warp to **`TourNebulaAscenseur` (3, 6) (§5.7's proposal, flagged in code)**.
+- The elevator door warps to the cabin from 99.
+
+**The spine** (`silice_spine/ch09.rs`, test `sil10_ch9`, about 82k of its 200k frames) starts from Ch8's end:
+- the state comes from `ch08::chapter_7_state`, a split of `end_of_chapter_7`;
+- plus the Ch8 badge, the Plongée module, the Cœur, TM19, TM23 and TM31 (Ch4's Port gift, which the spines had not been carrying);
+- the party is KADABRA 69, TYPHLOSION 76, LAIRON 35, MAREEP 14, PORYGON 25 and DUGTRIO 26.
+
+It plays every story beat, all 12 trainers, both marts and three dives, and ends in the cabin at (3, 6) with story 99, healed.
+
+Two extra steps:
+- Before Kroll, the run swims back to the Centre to heal: B1F's pool, the Bassin, the Centre, then the same way in.
+- The TYPHLOSION learns Brick Break. Kroll's TYRANITAR is immune to Psychic, resists Flamethrower and uses Dragon Dance; without Brick Break the run lost every time.
+
+Driver changes:
+- A mart screen is left with B.
+- While surfing, a step from water onto land is planned (the engine dismounts).
+- `busy()` waits on `field_move_active`. Dive's script ends before its warp, so the driver used to move on too early.
+
+The earlier spines, sil1 to sil9, still pass.
+
+**Softlock review.**
+- Gérard's respawn (fixed, see above).
+- The containers and the cabinet stay inside their areas.
+- The cables use a flag (not a temp flag), so they stay cut.
+- The sas reopen on load from the trainer flags.
+- Every trainer that opens a way is guarded by `defeated()`, because a loss returns false without a battle.
+- The hall's coord row runs Sc02 only at 97.
+- Leaving the Tower after 96 is possible through B1F's pool (the spine does it).
+
+**Author questions.**
+1. (Resolved at the merge: SIL-M's Mallette scripts carry the modules' own wording.)
+2. Pump B with the breaker: the source gives no question, so it switches off silently. Is that intended?
+3. These NPCs have no lines in the source, so they say a nearby line or nothing:
+   - the crowd, the guards, the barricade and the drone;
+   - the Comptoir's client;
+   - the Grande Porte and the maintenance door.
+4. Tour_Hall_Sc02 heals the party, as the source's comfort note asks. Ch10 should confirm.
+5. §5.7: does Sc02 land in the cabin `TourNebulaAscenseur` (3, 6), or in the source's `MAP_TOUR_NEBULA_1F` (10, 14)?
+6. §5.6: the duplicate `Tour_Sbire{1,2}_Intro` are renamed `_Ch09` for now.
+7. Sc03: the camera pans to the Grande Porte, but the guards are still moved under a fade, because the source's `Walk(Left) x4` takes them away from the door. Which direction do they run?
+8. The red security-light metatile: the sas use 537. What tile should it be?
+9. The hall's elevator door script, `Nebula_TourHall_EventScript_Ascenseur`, belongs to Ch10. SIL-10 writes it in `ch10_ascenseur.rs` (cabin for story 99..=117). **Merge:** keep Ch10's and delete Ch9's. Likewise, SIL-10's `ch11_endings.rs` writes `Nebula_EventScript_Eveil1–4`, so delete the `ch12_stubs.rs` stubs.
+10. Gérard's step-aside after his battle is my addition, to keep pump B reachable.
+
 #### SIL1 Task A as built: the authored-data loader
 
 `build/silice/` loads all of `games/silice` into the generator's `World`. The generator sees Silice only through `input::AuthoredIn`, which gained `map_numbers`, `item_bases`, `rules` and `data_rs`.
@@ -5159,6 +5270,121 @@ The branch was merged with master (the Ch8 maps, the Ch3–Ch6 reach fixes, the 
 | `lint-reach --all` | 89 maps: 5 warnings (GrisEchec_Usine, RouteS02: master's), 35 infos, 78 allowed; none on the nine maps |
 | `PKR_GAME=silice cargo test -p content` | all passed |
 | `cargo test -p content -p xtask` | 243 passed, 0 failed |
+
+#### SIL5 Ch10–Ch11 scripts as built (the Tower, the Apex, the Zenith, the endings)
+
+**What was built.**
+- Scripts:
+  - `ch10_ascenseur.rs`: the cabin, its dispatch and Mathieu and Gwada's calls; the hall's elevator door.
+  - `ch10_cave.rs`: 1F.
+  - `ch10_studio.rs`: 2F.
+  - `ch10_horizon.rs`: 3F.
+  - `ch10_reflets.rs`: 4F, including the threshold's scripted save.
+  - `ch11_apex.rs`, `ch11_zenith.rs`: the Zenith, its cabin and its night variant.
+  - `ch11_endings.rs`: the canonical end and the five Elysium scenes.
+  - `ch12_stubs.rs`: Chapter 12's names on these maps, as silent stubs.
+- Every scripted step comes from `10-tour-piliers.md` and `11-apex-zenith.md` §3. Each is cited at its function, and the deviations are written next to them.
+- Map changes go only through edit scripts: `TourNebula_1F`–`4F`, `SommetApex`, `TroneZenith`, `TroneZenith_Nuit`, `Nebula`/`07_ch11_scenes`, `BricoBourg_PlayerHouse_1F`/`2F`. These edits cover the on-frame tables, the hidden items as signs, and the house epilogue's five objects and coords.
+- Ids, all appended:
+  - `FLAG_SIL_HIDE_HOUSE_EPILOGUE_2` (1275), `FLAG_SIL_HIDE_HOUSE_ELYSIUM_2`/`_3` (1276–1277).
+  - `VAR_SIL_FIN_SCENE` (16460). This is the endings' scene var. Each scene sets the next value and warps; the on-frame entry of the next map picks it up:
+    - canonical: 13 → 14;
+    - Elysium: 2 → 3 → 4 → 5;
+    - the Zenith loss: 8.
+  - `new_game_flags` hides the five house objects.
+- Engine hooks, generic and covered by synthetic tests:
+  - `Request::SaveGame`: a save without the dialog, raising `Event::Saved`.
+  - `Request::Credits`: the Hall of Fame screen's credits alone, with no record and no save.
+  - `Request::ReloadLastSave`: raises `Event::ReloadLastSave` once and is never answered. The native shell restores its last save, or starts a new game if there is none. The GBA shell reads the flash slot as CONTINUE does, without writing it.
+  - `BattleTrainer { no_whiteout }`: honoured, so a loss answers `Lost` to the script. Master's SIL-B took the same approach.
+  - `World::use_item` now also opens the party menu on medicine, as the bag's USE does. The spine needs this for `Step::Mend`.
+- SIL-B's rules replaced four fallbacks: the prism (`PRISM`), the Cœur's ward on 1F (`HEART`), the Mega lines of Kimiko and Arthur, and ARTHUR_1's Full Restores (the trainer AI bag).
+- SIL-M's screen effects replaced four more:
+  - `screen_flash` with the source's colours. GOLD is drawn as `YELLOW`, since the prelude has no gold.
+  - `screen_shake` in `Trone_Zenith_Sc09`.
+  - `show_text_on_black` for `Fin_Texte_*` and `Elysium_Fin_*`. The alternate end's gold-on-white lettering is shown white on black.
+  - `camera_pan` in `Nebula_Sc13`: up 4, and back before the black.
+- Merged with SIL-9. Chapter 10's `Nebula_TourHall_EventScript_Ascenseur` and Chapter 11's `Nebula_EventScript_Eveil1`–`4` are the ones kept; Ch9's placeholders are gone. Ch9's `Tour_Hall_Sc02` heals, sets 99 and warps to the cabin (3, 6), which is where the Ch10 spine starts. The Ch10 start state respawns at `HEAL_LOCATION_SIL_NEBULA`.
+- Spine:
+  - `silice_spine/ch10.rs` / `sil11_ch10.rs`: the cabin (3, 6) at story 99 → the Apex at 109.
+  - `silice_spine/ch11.rs` / `sil12_ch11.rs`: the Apex at 109 → the epilogue at 119. It covers the scripted save, the credits, and `GAME_CLEAR`.
+  - Two Elysium runs, from the console and from the throne. Each answers yes to the two default-No boxes (`Step::Yes`), plays E1–E5 and the credits, and ends on `Event::ReloadLastSave` (`Run::reloaded`).
+  - Driver additions:
+    - `Step::Yes(n)`.
+    - `Step::Mend(n)`: Revives, then potions, from the bag.
+    - The settle loop's `key` is asked only on pressed frames. Before this, `Step::Yes`'s UP was lost on the odd frames.
+    - A walk counts only presses that never move as stuck. A turn in place no longer adds up over a long, winding path.
+
+**Deviations**, each one marked at its function:
+- The Tower:
+  - Mathieu comes down one cell in the cabin, and the 2F drone one cell (not two and three), because the rooms are too short for more.
+  - The 4F step back from the threshold goes left from (11, 1), not down onto the statue.
+  - `Tour_4F_Sc06` lands the vault elevator in the cabin's hall cell (3, 6), not the source's (6, 6), and `Sc00` dispatches from there.
+- The Studio's set: each cut segment stays solid until all three are cut, and then the three open at once. Otherwise one console opened a way to Kimiko.
+- The Apex:
+  - The console is one row north. Poussin walks up 1 (not 3), then east 7 (not 10).
+  - At trigger A, Julien walks two cells west along row 3 behind the console. His step toward the player is in place.
+  - Gogo and Romain come up two cells, not three.
+  - The Sc08 loss wakes the player at the tube's foot (11, 3), with Romain beside them, at `FIN_SCENE` 8.
+- `Ascenseur_Sc12` lands on Nébula's Place (30, 31) for `Nebula_Sc13`, not on the tower's exit.
+- `Trone_Zenith_Sc09` leaves the player at (6, 8) on the night map, and `Sc10` walks one cell south (not three, which would run into the terminals).
+- The canonical save is made on the house's 2F, three days later (`Brico_Bourg_Sc14`'s first half), not on Nébula right after the credits. Continue then resumes at home with the epilogue ahead.
+- The house 1F's `Sc14` coords are the three cells off the stairs' foot: (7, 2), (9, 2), (8, 3). The stairs land the player on (8, 2) itself.
+- `Elysium_E3` puts the player at (10, 17), beside the crates. The review found (8, 18) is a pylon.
+
+**Degraded, reported with `fallback` / `Report::Degraded`.** These are the visual and audio parts. The flow is correct without them:
+- Battle-related:
+  - `kimiko_emotion`: her lead's SpAtk −1 at the start has no battle hook.
+  - `battle_lines`: Kimiko's send-out lines, Poussin's and Cocorico's mid-battle lines (first KO, Perish Song, weather, under 25 %) and their Primal staging lines. None of these has extracted text.
+- Sound and screen effects:
+  - `play_music`, `play_se`.
+  - `palette` (the gold and night palettes): the texts say the colours.
+  - `weather` (the Apex fog, the drought).
+  - `sky_crack`: a white flash, then the night map.
+  - `cabin_background`, `hide_player`.
+- The Mallette's calls:
+  - `mallette_call`: plain messages.
+  - `show_sync`: the sync is set, and only its display is missing.
+- The endings:
+  - `credits_montage`: the engine's credits roll, without Silice's own montage.
+  - `show_title`: the gold title state is not shown; the reload follows directly. The title in two states is degraded to a correct flow: the canonical end reaches `GAME_CLEAR` with its save, and Elysium reloads the last save without writing.
+  - `elysium_free_roam`: the Elysium scenes hold the player.
+- Field mechanics:
+  - `strength`: Strength is an A press on the barrel.
+  - `hidden item`: the hidden items are signs.
+- Missing tiles: `CRISTAL_ON` (the lit tube), `PRISME_BRISE`, the prism orientation tiles, and the vault door's open tile. The story values gate the scripts, not the tiles.
+
+**Questions for the author.**
+1. Resolved by the SIL-9 merge: Ch9's `Tour_Hall_Sc02` now warps to the cabin (3, 6), so the hall's door and the first climb are Chapter 10's. The open question is the colours: should GOLD (the flashes) and GOLD_ON_WHITE (the Elysium end text) get their own engine colours, or do YELLOW and white-on-black do?
+2. Silent stubs:
+   - Poussin, Julien and the diffuser have no idle line in the source.
+   - Chapter 12's `SommetApex_PG_*`, `Socle` and `Rayquaza` names wait for SIL6.
+3. The canonical save is on 2F, not on Nébula (see Deviations). Is that acceptable?
+4. Should the Studio's set open all at once, or segment by segment with Kimiko walled in some other way?
+5. Is Poussin's and Julien's shortened choreography acceptable on this map?
+6. **Difficulty.** The Tower's leaders and the Apex's bosses are six 240-IV mons each, with items, Megas, Primals and the prism. Chapter 8's spine roster (two strong mons and four under level 36) cannot beat them under the spine's battle policy at any level. Kimiko's HO-OH (Calm Mind, Recover, Leftovers) beat KADABRA / TYPHLOSION at 88/92.
+   - The Ch10 and Ch11 spines therefore start from a constructed six-member party at 89 (TYPHLOSION 91): ALAKAZAM, TYPHLOSION, AMPHAROS with TM24, AGGRON, DUGTRIO, PORYGON2. They mend from the bag between leaders, because the Tower has one heal.
+   - Measured: 87–91 all win; 85 loses to Revenge.
+   - When the chapters are rechained, Ch9 must train to there (Route S9's grass is 45–46), or the rosters must come down. Which should it be?
+   - After the SIL-9 merge, chaining from Ch9's end was tried as a design question, and it is not feasible as things stand:
+     - Ch9 ends with KADABRA 69, TYPHLOSION 76, LAIRON 35, MAREEP 14, PORYGON 25 and DUGTRIO 26.
+     - The Tower has no grass, and the cabin climbs as soon as the story reaches 99.
+     - Training six mons to about 89 on Route S9's lv45 grass would add millions of frames to Ch9's tail. It also needs three evolutions: Lairon → Aggron, Mareep → Ampharos, Kadabra → Alakazam by Link Stone.
+     - So the Ch10 spine keeps a constructed start: Ch9's flags and story 99 at the cabin, with the constructed party.
+
+**Gates** (`cargo xtask gates`, after the SIL-9 merge): all seven lanes pass.
+
+| Lane | Result |
+|---|---|
+| fmt | pass |
+| clippy | pass |
+| clippy-ui | pass |
+| test | pass, 106 binaries |
+| test-stub | pass, 106 binaries |
+| test-silice | pass, 51 binaries |
+| parity | pass |
+
+`sil10_ch9` now ends through Chapter 10's first climb: `Tour_Hall_Sc02` lands in the cabin, whose on-frame `Tour_Ascenseur_Sc00a` plays on arrival. Its end therefore asserts 1F at story 100.
 
 #### SIL6 Ch12 maps as built (the post-game)
 

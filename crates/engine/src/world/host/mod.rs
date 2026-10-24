@@ -101,6 +101,9 @@ impl<G: GameData> Host<'_, G> {
             // Never answered: the warp's map load ends the script (Gen3 `warp` returns TRUE
             // and `CB2_LoadMap` resets the script context).
             Request::Warp { .. } | Request::WarpHole(_) => false,
+            // Never answered: the shells replace the World.
+            Request::ReloadLastSave => false,
+            Request::SaveGame => s.answer.is_some(),
             // Never answered: `World::step_script` whites out when the count reaches 0.
             Request::FieldWhiteOut => {
                 s.delay = s.delay.saturating_sub(1);
@@ -235,6 +238,22 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             }
             Request::RockSmashEncounter => {
                 Some(Response::Bool(s.rock_smash_encounter(game, self.f)))
+            }
+            Request::SaveGame if self.immediate => {
+                s.log("save in a map script answered false");
+                Some(Response::Bool(false))
+            }
+            Request::SaveGame => {
+                s.answer = None;
+                self.wait(r)
+            }
+            Request::ReloadLastSave if self.immediate => {
+                s.log("reload in a map script ignored");
+                UNIT
+            }
+            Request::ReloadLastSave => {
+                s.event(Event::ReloadLastSave);
+                self.wait(r)
             }
             Request::FieldWhiteOut if self.immediate => {
                 s.log("whiteout in a map script ignored");
@@ -487,6 +506,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::SaveDialog
             | Request::HallOfFame
             | Request::EasyChat { .. }
+            | Request::Credits
             | Request::Evolve { .. } => screens::begin(self, r),
             Request::ScreenFlash { .. }
             | Request::ScreenShake { .. }
@@ -566,9 +586,14 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
         | Request::SaveDialog
         | Request::HallOfFame
         | Request::EasyChat { .. }
+        | Request::Credits
         | Request::Evolve { .. } = r
         {
             return screens::resume(self, r);
+        }
+        if let Request::SaveGame = r {
+            // Answered by `World::step_script` once it has saved.
+            return self.s.answer.take().map(|v| Response::Bool(v == 1));
         }
         if let Request::ScreenFlash { .. }
         | Request::ScreenShake { .. }

@@ -1,0 +1,18 @@
+// SIL Ch11 scripts on Chapter 0's house (11-apex-zenith.md section 2 "Cartes empruntees"):
+// - Brico_Bourg_Sc14's second half: Gwada (8, 4) and Julien (7, 3) in plain clothes, one hide flag each
+//   (FLAG_SIL_HIDE_HOUSE_EPILOGUE, _2; set at the start, cleared by the 2F's half); coords round the stairs'
+//   foot on VAR_SIL_STORY 118 (the scene checks that the 2F's half ran). The stairs land the player on
+//   the foot (8, 2) itself, so the coords are the three cells off it: (7, 2), (9, 2), (8, 3).
+// - Elysium_E4: Mathieu (2, 4), Adrien (5, 4) and Gwada (3, 5) round the table, frozen, one hide flag each
+//   (FLAG_SIL_HIDE_HOUSE_ELYSIUM, _2, _3; set at the start); the scene on VAR_SIL_FIN_SCENE 4 (Sc01 stays).
+[
+    Object(x: 8, y: 4, gfx: "OBJ_EVENT_GFX_SIL_GWADA", id: "LOCALID_HOUSE_GWADA_EPI", local_id: 10, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_HOUSE_EPILOGUE"),
+    Object(x: 7, y: 3, gfx: "OBJ_EVENT_GFX_SIL_JULIEN", id: "LOCALID_HOUSE_JULIEN_EPI", local_id: 11, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_HOUSE_EPILOGUE_2"),
+    Object(x: 2, y: 4, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_HOUSE_MATHIEU_ELY", local_id: 12, movement: "MOVEMENT_TYPE_FACE_RIGHT", flag: "FLAG_SIL_HIDE_HOUSE_ELYSIUM"),
+    Object(x: 5, y: 4, gfx: "OBJ_EVENT_GFX_SIL_ADRIEN", id: "LOCALID_HOUSE_ADRIEN_ELY", local_id: 13, movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_HOUSE_ELYSIUM_2"),
+    Object(x: 3, y: 5, gfx: "OBJ_EVENT_GFX_SIL_GWADA", id: "LOCALID_HOUSE_GWADA_ELY", local_id: 14, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_HOUSE_ELYSIUM_3"),
+    Coord(x: 7, y: 2, var: "VAR_SIL_STORY", value: 118, script: "BricoBourg_PlayerHouse_1F_Sc14"),
+    Coord(x: 9, y: 2, var: "VAR_SIL_STORY", value: 118, script: "BricoBourg_PlayerHouse_1F_Sc14"),
+    Coord(x: 8, y: 3, var: "VAR_SIL_STORY", value: 118, script: "BricoBourg_PlayerHouse_1F_Sc14"),
+    ScriptsSet(on_frame: [(var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_PlayerHouse_1F_Sc01"), (var: "VAR_SIL_FIN_SCENE", value: 4, script: "BricoBourg_PlayerHouse_1F_Elysium_E4")]),
+]

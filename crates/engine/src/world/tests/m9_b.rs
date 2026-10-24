@@ -435,6 +435,22 @@ fn a_potion_heals_twenty_hp_and_is_used_up_on_a_hurt_mon_only() {
     assert_eq!(w.s.bag.count(POTION), 1);
 }
 
+/// `World::use_item` (the bag's USE for tools and the explorer) on medicine: the party menu
+/// opens on it, as the bag's USE does, and the chosen mon is healed.
+#[test]
+fn use_item_opens_the_party_menu_on_medicine_too() {
+    let mut w = world();
+    add(&mut w, POTION, 1);
+    w.s.party.get_mut(0).unwrap().hp = 5;
+    assert!(w.use_item(&G, POTION));
+    until(&mut w, party_on_top);
+    tap(&mut w, Buttons::A);
+    through(&mut w, |w| w.screens_open() == 0);
+    assert_eq!(w.s.party.get(0).unwrap().hp, 25);
+    assert_eq!(w.s.bag.count(POTION), 0);
+    assert!(!w.use_item(&G, ESCAPE_ROPE), "no party use");
+}
+
 #[test]
 fn status_heals_revive_full_restore_rare_candy_and_vitamins() {
     let t = G.battle();

@@ -126,3 +126,63 @@ pub async fn ReverseCity_Phare_PG_Sc04(_ctx: Ctx) {
 pub async fn ReverseCity_Phare_PG_Thomas(_ctx: Ctx) {
     // fallback: Ch12 post-game scripts not written yet.
 }
+
+// ---- TourNebula_2F (claimed by ch10_studio.rs) ----
+
+/// Ch12: Gwada at the Studio's post-game console (hidden until then).
+pub async fn TourNebula_2F_PG_Gwada(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12: the Studio's post-game PC (the bg (PG)): silent before.
+pub async fn TourNebula_2F_PG_PC(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+// ---- SommetApex (claimed by ch11_apex.rs) ----
+// Ch11's `SommetApex_OnTransition` already clears `FLAG_SIL_HIDE_APEX_SOCLE` from 120.
+
+/// Ch12 `Sommet_Apex_PG_Sc16c`, Poussin's daily rematch on his stage (hidden until then).
+pub async fn SommetApex_PG_Sc16c(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12 `Sommet_Apex_PG_Sc19`, the Purity Beacon: row 16 at `VAR_SIL_STORY` 129.
+pub async fn SommetApex_PG_Sc19(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet: the step does nothing.
+}
+
+/// Ch12 `Sommet_Apex_PG_Sc32`, Rayquaza: the socle's four neighbours (`VAR_TEMP_1` 0, so it
+/// fires on every step; the scene checks `VAR_SIL_STORY >= 130` and the capture flag).
+pub async fn SommetApex_PG_Sc32(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet: the step does nothing.
+}
+
+/// Ch12: the empty socle (hidden until 120).
+pub async fn SommetApex_EventScript_Socle(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12: Rayquaza on the stage (hidden outside `SommetApex_PG_Sc32`).
+pub async fn SommetApex_EventScript_Rayquaza(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+// ---- Nebula (claimed by ch09_nebula.rs) ----
+// Ch9's `Nebula_OnLoad` already opens the MAINTENANCE door and draws the crack from 126, and
+// `Nebula_OnTransition` shows Julien from 120 and Nebula_PG_Sc10's cast at 126 only.
+
+/// Ch12 `Nebula_PG_Sc10`, the sky splits: the on-frame script at `VAR_SIL_STORY` 126.
+pub async fn Nebula_PG_Sc10(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet: the frame does nothing.
+}
+
+/// Ch12: Julien at his tent (hidden before `VAR_SIL_STORY` 120).
+pub async fn Nebula_PG_Julien(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12: Julien's workbench (the lamp post at (21, 8)), read before the post-game too.
+pub async fn Nebula_PG_Etabli(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet: the sign is silent.
+}

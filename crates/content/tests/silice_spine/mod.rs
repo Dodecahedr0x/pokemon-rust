@@ -6,8 +6,10 @@
 //! start state ([`driver::Start`], e.g. [`ch02::start`]) instead of the chapters before it;
 //! Chapter 4 (`sil5_ch4.rs`, [`ch04::steps`]) only does so for now ([`ch04::start`]), as do
 //! Chapter 5 (`sil6_ch5.rs`), Chapter 6 (`sil7_ch6.rs`, [`ch06::start`]), Chapter 7
-//! (`sil8_ch7.rs`, [`ch07::start`]) and Chapter 8 (`sil9_ch8.rs`, [`ch08::start`] and
-//! [`ch08::route_start`]).
+//! (`sil8_ch7.rs`, [`ch07::start`]), Chapter 8 (`sil9_ch8.rs`, [`ch08::start`] and
+//! [`ch08::route_start`]), Chapter 9 (`sil10_ch9.rs`, [`ch09::start`]), Chapter 10
+//! (`sil11_ch10.rs`, [`ch10::start`]) and Chapter 11 (`sil12_ch11.rs`, [`ch11::start`], and
+//! the alternate ending's [`ch11::elysium_apex_start`] and [`ch11::elysium_zenith_start`]).
 //!
 //! **The vocabulary** (minimal on purpose):
 //! - [`Step::Goto`]: walk to a cell of the current map (asserted), on a shortest path that avoids
@@ -19,6 +21,8 @@
 //! - [`Step::Walk`]: one step (a bump into a scripted cell, a coord event stepped on).
 //! - [`Step::Choose`]: the index the next choice takes (the starter screen's ball); a player
 //!   decision, so it is spine data.
+//! - [`Step::Yes`]: the next yes/no boxes answer yes even when their cursor starts on No (the
+//!   alternate ending's choices, Gen3 `DisplayYesNoMenuDefaultNo`).
 //! - [`Step::Train`]: pace between two tall-grass cells until the lead Pokémon reaches a level,
 //!   playing the `heal` steps whenever it is below half its HP or has a status (the training a
 //!   player does between two story beats; the explorer's grind goal). `SPINE_LEVEL_<l>=<n>`
@@ -28,6 +32,9 @@
 //!   leads a battle (two lead a double) and whom [`Step::Train`] raises.
 //! - [`Step::Teach`]: teach a TM from the bag (`World::use_item` stands for the bag's USE, as in
 //!   the explorer; then the party menu and the summary's move pick by buttons).
+//! - [`Step::Mend`]: the first party slots topped up with medicine from the bag (Revives, then
+//!   potions; `World::use_item`, the bag's USE, then the party menu by buttons), where the path
+//!   has no heal between two battles.
 //! - [`Step::Hook`]: a test-only grant around one script's next run ([`Hook`]); the explorer
 //!   leaves these out, or replays them as its own setup. A spine holds one only where a
 //!   buttons-only run cannot do without it (documented at the hook: [`ch01::SECOND`]); probes
@@ -36,7 +43,7 @@
 //!   explorer's `Checkpoint(label)`.
 //!
 //! Every step first settles: scripts run to their end, messages advance, yes/no boxes answer
-//! yes, the starter screen takes the [`Step::Choose`] ball, and battles fight (the explorer's
+//! A at their cursor (yes; No for the few that start on No, unless [`Step::Yes`]), the starter screen takes the [`Step::Choose`] ball, and battles fight (the explorer's
 //! `WaitScript`, `Choose` and `Battle(policy)` are this settle policy, applied everywhere).
 //!
 //! **The battle policy** (deterministic, from the battle's state only):
@@ -57,7 +64,9 @@
 //!
 //! **The planner** ([`Step::Goto`]) walks as the engine does: collision, behaviours, ledges,
 //! objects and elevations (Gen3 `IsElevationMismatchAt`: on foot, water is elevation 1 under
-//! the land's 3, so it is never planned through; a bridge's 15 keeps the elevation) and
+//! the land's 3, so it is never planned through; surfing, water is planned through and a step
+//! ashore dismounts, while Surf itself is an A press, [`Step::Interact`], as Dive is on deep
+//! water; a bridge's 15 keeps the elevation) and
 //! forced movement (ice, walk and slide arrows, the muddy slope, currents carry the player on
 //! until the next cell is blocked: a step is planned to where the player comes to rest). A walk
 //! that keeps moving without arriving fails instead of eating the frames.
@@ -76,6 +85,9 @@ pub mod ch05;
 pub mod ch06;
 pub mod ch07;
 pub mod ch08;
+pub mod ch09;
+pub mod ch10;
+pub mod ch11;
 pub mod driver;
 
 use engine::data::{Dir, FlagId, GameData, MapId, MoveId, SpeciesId};
@@ -134,6 +146,10 @@ pub enum Step {
     Interact(Dir),
     Walk(Dir),
     Choose(u8),
+    /// The next `n` yes/no boxes answer yes, even those whose cursor starts on No (the
+    /// alternate ending's choices); a player decision, so it is spine data. Without it, A
+    /// answers each box at its cursor (yes, or No for the boxes that start on No).
+    Yes(u8),
     Train {
         a: (i16, i16),
         b: (i16, i16),
@@ -147,6 +163,10 @@ pub enum Step {
     /// A TM or HM taught from the bag to party slot `mon`, forgetting move slot `forget` when
     /// its four are full ([`TeachTm`]).
     Teach(TeachTm),
+    /// The first `n` party slots topped up from the bag (the bag's USE out of battle): a
+    /// fainted one revived (Revive, then Max Revive), then potions (Super, Hyper, Max) while
+    /// it is missing HP and the bag holds one; between two battles with no heal between them.
+    Mend(u8),
     /// An item used from the bag on party slot `mon` (a medicine, an evolution stone, the
     /// PIERRE LIEN): `World::use_item`, the party menu on the slot, and the messages.
     UseOn {

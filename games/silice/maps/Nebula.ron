@@ -681,18 +681,18 @@
             x: 20,
             y: 38,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_PP_UP",
-                flag: "FLAG_SIL_ITEM_NEBULA_CACHE_1",
+            kind: Script(
+                facing: 0,
+                script: Some("Nebula_EventScript_HiddenPpUp"),
             ),
         ),
         (
             x: 10,
             y: 44,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_REVIVE",
-                flag: "FLAG_SIL_ITEM_NEBULA_CACHE_2",
+            kind: Script(
+                facing: 0,
+                script: Some("Nebula_EventScript_HiddenRevive"),
             ),
         ),
         (
@@ -722,6 +722,16 @@
                 var: "VAR_SIL_STORY",
                 value: 126,
                 script: "Nebula_PG_Sc10",
+            ),
+            (
+                var: "VAR_SIL_FIN_SCENE",
+                value: 13,
+                script: "Nebula_Sc13",
+            ),
+            (
+                var: "VAR_SIL_FIN_SCENE",
+                value: 2,
+                script: "Nebula_Elysium_E2",
             ),
         ],
         on_warp_into: [],

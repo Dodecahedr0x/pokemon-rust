@@ -1,0 +1,12 @@
+// SIL Ch11 scripts: the map changes the Chapter 11 scripts need.
+[
+    // The endings' scenes on the roof (VAR_SIL_FIN_SCENE, set by the scene before): 3 Elysium_E3 (the eternal
+    // party), 8 Trone_Zenith_Sc08_Lose's waking at the tube's foot. Sc01 stays on VAR_SIL_STORY 109.
+    ScriptsSet(on_frame: [(var: "VAR_SIL_STORY", value: 109, script: "SommetApex_Sc01"), (var: "VAR_SIL_FIN_SCENE", value: 3, script: "SommetApex_Elysium_E3"), (var: "VAR_SIL_FIN_SCENE", value: 8, script: "SommetApex_Sc08_Lose")]),
+    // The hidden-item fallback (as Ch0-Ch10): the engine ignores BgKind::HiddenItem, so the hidden items are
+    // signs running hidden_item. To restore once the engine picks hidden items up:
+    // Replace(index: 14, event: Bg((x: 3, y: 4, elevation: 0, kind: HiddenItem(item: "ITEM_PP_MAX", flag: "FLAG_SIL_ITEM_APEX_HIDDEN_PP_MAX")))),
+    // Replace(index: 15, event: Bg((x: 17, y: 14, elevation: 0, kind: HiddenItem(item: "ITEM_MAX_ELIXIR", flag: "FLAG_SIL_ITEM_APEX_HIDDEN_ELIXIR")))).
+    Replace(index: 14, event: Bg((x: 3, y: 4, elevation: 0, kind: Script(facing: 0, script: Some("SommetApex_EventScript_HiddenPpMax"))))),
+    Replace(index: 15, event: Bg((x: 17, y: 14, elevation: 0, kind: Script(facing: 0, script: Some("SommetApex_EventScript_HiddenElixir"))))),
+]

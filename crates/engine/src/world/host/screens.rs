@@ -26,6 +26,7 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
         // `special GameClear`'s record and credits (Task S); the save waits for the field.
         Request::HallOfFame => ScreenKind::HallOfFame,
         Request::EasyChat { kind } => ScreenKind::EasyChat(kind),
+        Request::Credits => ScreenKind::Credits,
         // The evolution scene (Task E's screen): until it lands, the species change of the
         // scene without it (`Pokemon::evolve`), reported as the bag's item evolutions are.
         Request::Evolve { slot, into, .. } => {

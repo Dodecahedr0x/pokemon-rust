@@ -210,7 +210,7 @@ macro_rules! forward_game_data {
     (@ $f:tt waterfall_refused_script) => { fn waterfall_refused_script(&self) -> ::core::option::Option<::engine::data::ScriptId> { self.$f.waterfall_refused_script() } };
     (@ $f:tt dive_emerge_script) => { fn dive_emerge_script(&self) -> ::core::option::Option<::engine::data::ScriptId> { self.$f.dive_emerge_script() } };
     (@ $f:tt fly_destination) => { fn fly_destination(&self, i: u8) -> ::core::option::Option<::engine::data::FlyDestination> { self.$f.fly_destination(i) } };
-    (@ $f:tt dive_warp) => { fn dive_warp(&self, map: ::engine::data::MapId, emerge: bool) -> ::core::option::Option<(::engine::data::MapId, ::core::option::Option<(i16, i16)>)> { self.$f.dive_warp(map, emerge) } };
+    (@ $f:tt dive_warp) => { fn dive_warp(&self, map: ::engine::data::MapId, emerge: bool, at: (i16, i16)) -> ::core::option::Option<(::engine::data::MapId, ::core::option::Option<(i16, i16)>)> { self.$f.dive_warp(map, emerge, at) } };
     (@ $f:tt water_encounters) => { fn water_encounters(&self, map: ::engine::data::MapId, wild_set: u16) -> ::core::option::Option<&'static ::engine::mon::WaterEncounters> { self.$f.water_encounters(map, wild_set) } };
     (@ $f:tt rock_smash_encounters) => { fn rock_smash_encounters(&self, map: ::engine::data::MapId, wild_set: u16) -> ::core::option::Option<&'static ::engine::mon::WaterEncounters> { self.$f.rock_smash_encounters(map, wild_set) } };
     (@ $f:tt pushable_boulder) => { fn pushable_boulder(&self) -> ::core::option::Option<(::engine::data::GfxId, ::engine::data::FlagId)> { self.$f.pushable_boulder() } };

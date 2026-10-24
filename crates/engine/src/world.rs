@@ -112,6 +112,10 @@ pub enum Event {
     },
     /// A party mon evolved into this species.
     Evolved(crate::data::SpeciesId),
+    /// A script asked for the last save to be reloaded (`Request::ReloadLastSave`): the shells
+    /// replace the World by it (GBA: the flash slot, without writing it; native: the last save
+    /// they persisted, else a new game).
+    ReloadLastSave,
 }
 
 /// The last script log lines (`Request::Log`), for tests and debugging.
@@ -563,6 +567,16 @@ impl World {
             self.s.stash = host::Stash::default();
             self.s.pair = sight::Pair::default();
         }
+        // Silice `save_game`: the dialog's save without the dialog, then the answer.
+        if matches!(
+            self.runner.waiting_on(),
+            Some(crate::script::Request::SaveGame)
+        ) && self.s.answer.is_none()
+        {
+            let ok = save::dialog_save(self, game);
+            self.s.answer = Some(ok as u16);
+            self.s.event(Event::Saved { ok });
+        }
         // Gen3 `CB2_WhiteOut` (`special SetCB2WhiteOut`): its 120 frames are over.
         if matches!(
             self.runner.waiting_on(),
@@ -886,6 +900,12 @@ impl World {
 
     pub fn transition_active(&self) -> bool {
         self.s.transition.is_active()
+    }
+
+    /// Whether a field-move effect runs (Surf's jump, Waterfall's climb, Dive's warp): the
+    /// controls stay locked until it ends.
+    pub fn field_move_active(&self) -> bool {
+        self.s.field_move_busy()
     }
 
     /// The player's party.

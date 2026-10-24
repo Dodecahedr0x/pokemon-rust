@@ -306,9 +306,9 @@
             x: 21,
             y: 9,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_MAX_ELIXIR",
-                flag: "FLAG_SIL_ITEM_TOUR_1F_MAX_ELIXIR",
+            kind: Script(
+                facing: 0,
+                script: Some("TourNebula_1F_EventScript_HiddenMaxElixir"),
             ),
         ),
     ],
