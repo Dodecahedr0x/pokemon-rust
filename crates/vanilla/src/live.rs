@@ -70,7 +70,7 @@ const MAP_TYPE_UNDERGROUND: u8 = 4;
 const MAP_TYPE_INDOOR: u8 = 8;
 
 /// Replays of a step whose battle vanilla lost ([`Live::play`]).
-pub const REROLLS: u32 = 6;
+pub const REROLLS: u32 = 16;
 
 impl<'g, G: GameData> Live<'g, G> {
     pub fn new(mut v: Vanilla, game: &'g G) -> Self {
