@@ -726,11 +726,22 @@ impl World {
             .filter(|&(_, fl)| s.vars.flag(fl))
             .map(|(g, _)| g);
         s.objects.set_pushable(pushable);
+        // The rotating gates (Gen3 `rotating_gate.c`), their orientations in the temp vars.
+        let gates = game.rotating_gates(s.field.map());
+        let gate_state =
+            (!gates.is_empty()).then(|| (gates, crate::gates::read(|v| s.vars.var(v), gates)));
+        s.objects.set_gates(gate_state);
         let ground = Ground {
             game,
             field: &s.field,
         };
-        match s.objects.update_player(&ground, input) {
+        let event = s.objects.update_player(&ground, input);
+        if let Some(o) = s.objects.gate_orientations()
+            && gate_state.is_some_and(|(_, o0)| o0 != o)
+        {
+            crate::gates::write(&mut s.vars, gates, o);
+        }
+        match event {
             PlayerEvent::StepStarted { .. } => {
                 let (x, y) = s.objects.player().pos();
                 if !crate::grid::in_bounds(map, x, y)
