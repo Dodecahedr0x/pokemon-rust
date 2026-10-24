@@ -194,7 +194,7 @@ impl ScreenKind {
             | ScreenKind::Options
             | ScreenKind::SaveDialog
             | ScreenKind::MainMenu
-            | ScreenKind::FlyMap => {}
+            | ScreenKind::FlyMap
             | ScreenKind::HallOfFame => {}
             ScreenKind::Party(m) => {
                 let (tag, v) = match m {

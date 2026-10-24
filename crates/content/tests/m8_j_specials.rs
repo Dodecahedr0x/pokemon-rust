@@ -635,8 +635,8 @@ fn native_specials_issue_their_requests_in_order() {
         );
     }
     covered.insert("SPECIAL_Script_DoRayquazaScene");
-    // Wave F: `GameClear` (degraded): healed, `FLAG_SYS_GAME_CLEAR`, then the CONTINUE warp to
-    // the (male) player's room.
+    // Wave F + Task S: `GameClear` (degraded): healed, `FLAG_SYS_GAME_CLEAR`, the Hall of Fame
+    // screen and credits, then the CONTINUE warp to the (male) player's room.
     #[cfg(not(pkr_silice))]
     {
         let mut h = Rec::default();
@@ -654,8 +654,7 @@ fn native_specials_issue_their_requests_in_order() {
                 degraded("SPECIAL_GameClear"),
                 Request::HealParty,
                 Request::SetFlag(FLAG_SYS_GAME_CLEAR, true),
-                Request::Fade(Fade::ToBlack),
-                Request::Delay(120),
+                Request::HallOfFame,
                 Request::Warp {
                     map,
                     warp: None,
