@@ -23,6 +23,14 @@ const SALLE_3: (i16, i16) = (6, 10);
 
 // ---- map scripts ----
 
+/// Chapter 12: Reverse (Thomas) stands in his gym for his rematches between his reflection at the
+/// lighthouse (122) and the sky's split (127), when Thomas sets up his camp in the Breach for the
+/// rest of the game (G-49, the author's ruling of 2026-10-24: Reverse is not in his gym while
+/// Thomas is at the Breach).
+fn reverse_in_gym(story: u16) -> bool {
+    (123..127).contains(&story)
+}
+
 /// The inverted controls until Reverse is beaten (`set_input_inverted` on load, §4), and the
 /// hide flags: Reverse until his flight (`FLAG_SIL_REVERSE_BATTU`), Benou only in Gym_Sc02, the
 /// black pixels from Reverse's flight until Benou extracts the badge (`VAR_SIL_STORY` 74).
@@ -30,8 +38,9 @@ pub async fn ReverseCity_Gym_OnTransition(ctx: Ctx) {
     let battu = ctx.flag(FLAG_SIL_REVERSE_BATTU).await;
     set_input_inverted(&ctx, !battu).await;
     // Chapter 12: Reverse back in his gym for his rematches from 123 (after his reflection at the
-    // lighthouse, `Reverse_City_PG_Sc04`, at 122).
-    let rematch = story(&ctx).await >= 123;
+    // lighthouse, `Reverse_City_PG_Sc04`, at 122), but not while Thomas (Reverse himself) is at the
+    // Breach's camp, from 127 on (`Breche_PG_Sc10b`): G-49, the author's ruling.
+    let rematch = reverse_in_gym(story(&ctx).await);
     ctx.set_flag(FLAG_SIL_HIDE_GYM07_REVERSE, battu && !rematch).await;
     ctx.set_flag(FLAG_SIL_HIDE_GYM07_BENOU, true).await;
     let pixels = story(&ctx).await == 74;
@@ -143,6 +152,10 @@ pub async fn ReverseCity_Gym_EventScript_Nomis(ctx: Ctx) {
 /// (the controls and the vault's lock fall with him). Sets 74, then Gym_Sc02 follows at once.
 pub async fn ReverseCity_Gym_Sc01(ctx: Ctx) {
     if story(&ctx).await >= 123 {
+        // Hidden outside [`reverse_in_gym`]'s range; the coord row behind him does nothing then.
+        if !reverse_in_gym(story(&ctx).await) {
+            return;
+        }
         super::ch12_revanches::revanche(&ctx, &super::ch12_revanches::REVERSE).await;
         return;
     }

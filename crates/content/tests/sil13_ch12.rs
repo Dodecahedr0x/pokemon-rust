@@ -4,7 +4,7 @@
 //! Buttons only, the spine's Chapter 12 segments (`silice_spine::ch12`), each from its documented
 //! start state: the main quest from Chapter 11's canonical end (119, at home) to the last ceiling
 //! (131), then the optional goals the post-game opens (Benou, the Zone 404's Core, Crow's Lounge,
-//! a gym leader's rematch, the Stele's « Dominant », an Antenna, a Code Fragment).
+//! the Friends' Tournament in the Dojo, a gym leader's rematch, the Stele's « Dominant », an Antenna, a Code Fragment).
 
 #![cfg(pkr_silice)]
 
@@ -104,6 +104,11 @@ fn optional_the_clone_and_mewtwo() {
 #[test]
 fn optional_crows_lounge() {
     play(ch12::lounge_start(), ch12::lounge());
+}
+
+#[test]
+fn optional_the_friends_tournament_in_the_dojo() {
+    play(ch12::tournoi_start(), ch12::tournoi());
 }
 
 #[test]

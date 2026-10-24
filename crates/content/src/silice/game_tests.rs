@@ -337,6 +337,10 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_ANTENNE_ETA_2,
         FLAG_SIL_HIDE_ANTENNE_ETA_3,
         FLAG_SIL_HIDE_MANGA_TAK,
+        FLAG_SIL_HIDE_DOJO_PG_TAK,
+        FLAG_SIL_HIDE_DOJO_PG_MATHIEU,
+        FLAG_SIL_HIDE_DOJO_PG_GWADA,
+        FLAG_SIL_HIDE_DOJO_PG_ADRIEN,
     ] {
         assert!(w.flag(f), "{f:?}");
     }
