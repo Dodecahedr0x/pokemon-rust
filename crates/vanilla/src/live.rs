@@ -452,7 +452,14 @@ impl<'g, G: GameData> Live<'g, G> {
                 self.v.settle(MACRO_FRAMES)?;
             }
             MacroKind::Enter { x, y, dir } => self.enter((x, y), dir)?,
-            MacroKind::Cross { x, y, dir } => self.cross((x, y), dir)?,
+            MacroKind::Cross { x, y, dir } => {
+                // A crossing that does not happen (water past the edge, no Surf) is no error
+                // for our Driver's macro either: the end states tell.
+                if let Err(e) = self.cross((x, y), dir) {
+                    self.note = Some(format!("vanilla's cross did not happen: {e:#}"));
+                    self.v.settle(MACRO_FRAMES)?;
+                }
+            }
             MacroKind::Talk { local_id } => self.talk_with(local_id, true)?,
             MacroKind::Inspect { x, y, dir } => {
                 let (dx, dy) = dir.delta();
