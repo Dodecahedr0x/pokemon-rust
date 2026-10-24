@@ -21,17 +21,16 @@ fn water(name: &str) -> Option<&'static str> {
         "MB_NORTHWARD_CURRENT" => "Current(Dir::Up)",
         "MB_SOUTHWARD_CURRENT" => "Current(Dir::Down)",
         "MB_UNUSED_6F" => "Unused6F",
+        // Surfable warps (Wave F): the water door (a non-animated door) and the south arrow
+        // warp out of the Aqua Hideout's pool.
+        "MB_WATER_DOOR" => "Door",
+        "MB_WATER_SOUTH_ARROW_WARP" => "SouthArrowWarp",
         _ => return None,
     })
 }
 
 /// Behaviors that are never walkable for now.
-pub const BLOCKED: &[&str] = &[
-    // Surfable warps (Gen3 `TILE_FLAG_SURFABLE`): Dive's and the Seafloor Cavern's.
-    "MB_WATER_DOOR",
-    "MB_WATER_SOUTH_ARROW_WARP",
-    "MB_SECRET_BASE_IMPASSABLE",
-];
+pub const BLOCKED: &[&str] = &["MB_SECRET_BASE_IMPASSABLE"];
 
 /// Sides a behavior walls off (Gen3 `MetatileBehavior_Is{North,South,West,East}Blocked`), as
 /// `Dir::` names.
@@ -55,7 +54,7 @@ fn walls(name: &str) -> Option<&'static [&'static str]> {
 
 /// Warp cells entered by stepping on them, as Gen3 `IsWarpMetatileBehavior`
 /// (`field_control_avatar.c`) minus `MetatileBehavior_IsWarpDoor` (`MB_ANIMATED_DOOR`, our
-/// `Door`) and `MB_WATER_DOOR` (surfable, `Blocked`): ladders, escalators, non-animated doors
+/// `Door`) and `MB_WATER_DOOR` (surfable, `Water(Water::Door)`): ladders, escalators, non-animated doors
 /// (stairs), `MB_DEEP_SOUTH_WARP` (both in `IsNonAnimDoor`), the gym and hideout warps, Mt.
 /// Pyre holes, and `MB_BRIDGE_OVER_OCEAN`, which Gen3 reuses as the Union Room exit
 /// (`MetatileBehavior_IsUnionRoomWarp`; there is no `MB_UNION_ROOM_WARP`). [`behavior`] tells
@@ -181,9 +180,10 @@ pub fn map_type(raw: u8, map_name: &str) -> &'static str {
 /// [`behavior`], and whether it is exact. Exact: plain ground (`MB_NORMAL`, unnamed bytes),
 /// tall grass and the other encounter floors (but ash grass), sand, mountain tops, ledges,
 /// doors, warps, arrow warps, counters, ice, walk and slide arrows, which the engine
-/// implements as Gen3 does, and surfable water (Wave C). Every other named behavior is an
-/// approximation: its Gen3 effect (Waterfall, Dive, bikes, puddles, hot springs, secret bases,
-/// …) is missing, so it is `Normal`, `Blocked` (water warps) or plain `Water`. The directional walls are exact, except the
+/// implements as Gen3 does, and surfable water (Wave C; waterfalls, Dive's water and the water
+/// warps since Wave F). Every other named behavior is an approximation: its Gen3 effect (bikes,
+/// puddles, hot springs, secret bases, the currents' speed, …) is missing, so it is `Normal`,
+/// `Blocked` or plain `Water`. The directional walls are exact, except the
 /// secret base's breakable door (walls only; breaking it is missing). The muddy slope is
 /// approximate (no Mach Bike climb, no metatile animation), and so are thin and cracked ice,
 /// cracked floors and their holes: the engine implements them, but they act only on maps whose
@@ -198,11 +198,8 @@ pub fn behavior_class(name: &str) -> (String, bool) {
             "Normal" => name == "MB_NORMAL" || name.starts_with("MB_0x"),
             _ if name == "MB_SECRET_BASE_BREAKABLE_DOOR" => false,
             "MuddySlope" | "ThinIce" | "CrackedIce" | "CrackedFloor" | "CrackedFloorHole" => false,
-            // Waterfall climbing, Dive (the no-surfacing water) and the currents' 6-frame
-            // steps (walk_fast here) are missing.
-            "Water(Water::Waterfall)"
-            | "Water(Water::NoSurfacing)"
-            | "Water(Water::SeaweedNoSurfacing)" => false,
+            // The currents' 6-frame steps (walk_fast here) are missing. (Waterfall's climb,
+            // Dive's no-surfacing water and the water warps are native since Wave F.)
             v if v.starts_with("Water(Water::Current") => false,
             // The ash pickup (the cell turns into plain grass) is missing.
             _ if name == "MB_ASHGRASS" => false,

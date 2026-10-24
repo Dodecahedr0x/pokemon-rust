@@ -494,7 +494,7 @@ impl World {
             player_updated = self.control(game, f);
         }
         // Gen3 runs the field-move task after the script context and the field input.
-        self.s.field_move_tick();
+        self.s.field_move_tick(game);
         let s = &mut self.s;
         let ground = Ground {
             game,
@@ -594,6 +594,13 @@ impl World {
             // Gen3 `GetPlayerPosition` / `GetInFrontOfPlayerPosition`: `PlayerGetElevation`.
             let ((x, y), facing, elevation) = (p.pos(), p.facing, p.position_elevation());
             let pushing = s.input.dpad() == Some(facing);
+            // Gen3 `TrySetupDiveEmergeScript` (B underwater), before the step checks.
+            if s.input.is_pressed(Buttons::B)
+                && let Some(id) = s.dive_emerge_prompt(game)
+            {
+                self.start_script(game, id, None);
+                return false;
+            }
             let here = s.field.block(game, x, y);
             if pushing
                 && let Some(w) = warp_on_push(
@@ -643,8 +650,11 @@ impl World {
                         _ => None,
                     }
                 });
-                // Gen3 `GetInteractedWaterScript` after the bg events (Wave C): Surf.
-                let script = script.or_else(|| s.surf_prompt(game).map(|id| (id, None)));
+                // Gen3 `GetInteractedWaterScript` after the bg events (Wave C): Surf, then
+                // Waterfall.
+                let script = script
+                    .or_else(|| s.surf_prompt(game).map(|id| (id, None)))
+                    .or_else(|| s.waterfall_prompt(game).map(|id| (id, None)));
                 if let Some((id, talked)) = script {
                     self.start_script(game, id, talked);
                     return false;
@@ -652,6 +662,13 @@ impl World {
             }
             if pushing && let Some(w) = door_warp(map, fx, fy, fe, front, facing) {
                 self.start_warp(game, map, w, true);
+                return false;
+            }
+            // Gen3 `TrySetupDiveDownScript` (A on diveable water), after the door warp.
+            if self.s.input.is_pressed(Buttons::A)
+                && let Some(id) = self.s.dive_down_prompt(game)
+            {
+                self.start_script(game, id, None);
                 return false;
             }
             // Gen3 `ProcessPlayerFieldInput`: START (`ShowStartMenu`), then SELECT

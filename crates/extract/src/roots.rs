@@ -198,8 +198,8 @@ pub fn std_scripts(rom: &Rom) -> Result<Option<Vec<u32>>> {
 /// by decomp label: `GetInteractedWaterScript`'s `EventScript_UseSurf` (Wave C), then the
 /// Match Call registrations `TryStartStepCountScript` (`field_control_avatar.c`) starts
 /// ([`STEP_CALL_SCRIPTS`], Wave E), then its field poison script (`EventScript_FieldPoison`,
-/// format 5.10).
-pub const FIELD_SCRIPTS: [&str; 7] = [
+/// format 5.11), then Waterfall's and Dive's (Wave F: [`water_scripts`], format 5.12).
+pub const FIELD_SCRIPTS: [&str; 11] = [
     "EventScript_UseSurf",
     "RustboroCity_Gym_EventScript_RegisterRoxanne",
     "MauvilleCity_EventScript_RegisterWallyCall",
@@ -207,6 +207,10 @@ pub const FIELD_SCRIPTS: [&str; 7] = [
     "LittlerootTown_ProfessorBirchsLab_EventScript_ScottAboardSSTidalCall",
     "MossdeepCity_SpaceCenter_2F_EventScript_RivalRayquazaCall",
     "EventScript_FieldPoison",
+    "EventScript_UseWaterfall",
+    "EventScript_CannotUseWaterfall",
+    "EventScript_UseDive",
+    "EventScript_UseDiveUnderwater",
 ];
 
 /// Gen3 `SPECIAL_TryFieldPoisonWhiteOut` (`data/specials.inc`).
@@ -233,8 +237,10 @@ pub fn field_root_name(i: usize) -> String {
     format!("FieldScript{i}")
 }
 
-/// Gen3 `MOVE_SURF`.
+/// Gen3 `MOVE_SURF`, `MOVE_WATERFALL`, `MOVE_DIVE`.
 const MOVE_SURF: u16 = 57;
+const MOVE_WATERFALL: u16 = 127;
+const MOVE_DIVE: u16 = 291;
 /// Gen3 `PARTY_SIZE`, `VAR_RESULT`.
 const PARTY_SIZE: u16 = 6;
 const VAR_RESULT: u16 = 0x800D;
@@ -245,16 +251,21 @@ const VAR_RESULT: u16 = 0x800D;
 /// found once.
 pub fn field_scripts(rom: &Rom) -> Result<Vec<Option<u32>>> {
     let op = |n: &str| crate::scripts::opcode(n).context(n.to_string());
-    let mut surf = vec![op("checkpartymove")?];
-    surf.extend(MOVE_SURF.to_le_bytes());
-    surf.push(op("compare_var_to_value")?);
-    surf.extend(VAR_RESULT.to_le_bytes());
-    surf.extend(PARTY_SIZE.to_le_bytes());
-    surf.extend([op("goto_if")?, 1]);
-    let found: Vec<u32> = (rom.find_all(&surf).into_iter())
-        .filter(|&at| matches!(crate::scripts::decode(rom, at), Ok(Some(_))))
-        .collect();
-    let mut out = vec![match found.as_slice() {
+    // `checkpartymove <mv>; goto_if_eq VAR_RESULT, PARTY_SIZE, ...`, decoding, in ROM order.
+    let check = |mv: u16| -> Result<Vec<u32>> {
+        let mut sig = vec![op("checkpartymove")?];
+        sig.extend(mv.to_le_bytes());
+        sig.push(op("compare_var_to_value")?);
+        sig.extend(VAR_RESULT.to_le_bytes());
+        sig.extend(PARTY_SIZE.to_le_bytes());
+        sig.extend([op("goto_if")?, 1]);
+        let mut found: Vec<u32> = (rom.find_all(&sig).into_iter())
+            .filter(|&at| matches!(crate::scripts::decode(rom, at), Ok(Some(_))))
+            .collect();
+        found.sort();
+        Ok(found)
+    };
+    let mut out = vec![match check(MOVE_SURF)?.as_slice() {
         [at] => Some(*at),
         _ => None,
     }];
@@ -272,6 +283,43 @@ pub fn field_scripts(rom: &Rom) -> Result<Vec<Option<u32>>> {
         [at] => Some(*at),
         _ => None,
     });
+    out.extend(water_scripts(
+        rom,
+        &check(MOVE_WATERFALL)?,
+        &check(MOVE_DIVE)?,
+    )?);
+    Ok(out)
+}
+
+/// [`FIELD_SCRIPTS`]`[7..]`' offsets from their party checks (`waterfall`: the one
+/// `checkpartymove MOVE_WATERFALL`, `dive`: the two `checkpartymove MOVE_DIVE`, in ROM order),
+/// each script opening with `lockall` one byte before its check:
+/// - `EventScript_UseWaterfall`, and `EventScript_CannotUseWaterfall`: the `lockall` just
+///   before the target of its `goto_if` (`EventScript_CantWaterfall`);
+/// - `EventScript_UseDive`, then `EventScript_UseDiveUnderwater` (decomp order).
+fn water_scripts(rom: &Rom, waterfall: &[u32], dive: &[u32]) -> Result<[Option<u32>; 4]> {
+    let lockall = crate::scripts::opcode("lockall").context("lockall")?;
+    let opened = |at: u32| -> Result<Option<u32>> {
+        Ok((at > 0 && rom.u8(at - 1)? == lockall).then(|| at - 1))
+    };
+    let mut out = [None; 4];
+    if let [at] = waterfall
+        && let Some(start) = opened(*at)?
+    {
+        out[0] = Some(start);
+        // `checkpartymove` (3 bytes), `compare_var_to_value` (5), then `goto_if 1, <ptr>`.
+        let ptr = rom.u32(at + 3 + 5 + 2)?;
+        if let Some(target) = ptr.checked_sub(crate::ROM_BASE)
+            && target > 0
+            && rom.u8(target - 1)? == lockall
+        {
+            out[1] = Some(target - 1);
+        }
+    }
+    if let [down, up] = dive {
+        out[2] = opened(*down)?;
+        out[3] = opened(*up)?;
+    }
     Ok(out)
 }
 

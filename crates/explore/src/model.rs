@@ -25,6 +25,15 @@ pub struct Opts {
     /// one (the spine's `Battle(BestLearn)`); else keep the known moves.
     #[serde(default)]
     pub learn: bool,
+    /// A wild mon of this species (`SpeciesId`; 0 = none) is caught: BAG throws a ball each
+    /// turn while the bag has one (the battle scene's degraded bag); any other wild mon is run
+    /// from (the spine's `Catch`).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub catch: u16,
+}
+
+fn is_zero(n: &u16) -> bool {
+    *n == 0
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
@@ -65,6 +74,10 @@ pub enum MacroKind {
     /// `forget` if a move must go (a TM or HM); then out of every screen to the field, and
     /// resolve. Reads the screens' state each frame (`engine::ui`). A spine step.
     UseItem { item: u16, mon: u8, forget: u8 },
+    /// From the settled field: START, POKéMON, party slot `mon`, its FLY, then the fly map's
+    /// cursor on destination `dest` (a `GameData::fly_destination` index) and A; through the
+    /// fly warp to the settled field, and resolve. A spine step.
+    Fly { mon: u8, dest: u8 },
     /// Talk to clerk `local_id` (walk next to it, face it, A), then in the mart: BUY, `item`
     /// (an `ItemId`), `qty` of it, yes; out of the mart, and resolve the clerk's script.
     /// Reads the mart's state each frame (`engine::ui::mart`). A spine step.
@@ -328,6 +341,7 @@ mod tests {
                 mon: 0,
                 forget: 2,
             },
+            MacroKind::Fly { mon: 3, dest: 9 },
             MacroKind::Buy {
                 local_id: 3,
                 item: 19,

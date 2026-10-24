@@ -13,7 +13,7 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 104_523;
 
 /// The whole Emerald spine's frame count (to its last step, to its last checkpoint).
-const EMERALD_FRAMES: u64 = 3_006_097;
+const EMERALD_FRAMES: u64 = 3_031_502;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -63,19 +63,7 @@ const EMERALD_LABELS: &[&str] = &[
 /// The engine gaps the Emerald spine steps over with `Step::Bypass`, in spine order: the
 /// "Spine blockers" table of `docs/plans/2026-10-23-emerald-parity.md`. Fixing a gap means
 /// deleting its bypass (and its line here).
-const SPINE_BLOCKERS: &[&str] = &[
-    "fly-mauville",
-    "fly-slateport",
-    "fly-lilycove",
-    "water-door-in",
-    "water-door-out",
-    "dive-seafloor",
-    "dive-sootopolis",
-    "dive-out-sootopolis",
-    "dive-sootopolis",
-    "dive-out-sootopolis",
-    "waterfall-ever-grande",
-];
+const SPINE_BLOCKERS: &[&str] = &[];
 
 /// The Silice spine's frame count to the end of Chapter 0 (21,821 until `2fc4c16` redrew
 /// Brico-Bourg on its own tileset: the walks are 8 frames shorter).
@@ -189,4 +177,203 @@ fn spine_reaches_ch0_end() {
     );
     assert_eq!(s.frames, SILICE_CH0_FRAMES);
     branch_from(&s, "starter", 6);
+}
+
+/// A spine segment from a saved position, for working on a stretch of a long spine without
+/// replaying it from a new game (`--ignored`, Emerald). `PKR_SPINE_SAVE` names the save file:
+/// when it is missing, the spine plays from a new game up to step `PKR_SPINE_FROM` and saves
+/// that position there (the encoded checkpoint, then the step options); then the steps from
+/// `PKR_SPINE_FROM` to `PKR_SPINE_TO` (default: the end) play from it, and the test prints
+/// where they stopped.
+/// `spine::run_from` at step `at` from `cp` with `opts`.
+fn run_at(
+    game: &Emerald,
+    steps: &'static [spine::Step],
+    cfg: &Config,
+    at: usize,
+    cp: std::sync::Arc<engine::checkpoint::Checkpoint>,
+    opts: spine::StepOpts,
+) -> SpineRun {
+    let start = spine::Start {
+        end: cp,
+        index: at,
+        opts,
+        frame: 0,
+    };
+    spine::run_from(game, steps, cfg, Some(start))
+}
+
+#[test]
+#[ignore]
+fn spine_segment() {
+    if content::FLAVOR != content::Flavor::Emerald {
+        return;
+    }
+    let var = |k: &str| std::env::var(k).ok();
+    let from: usize = var("PKR_SPINE_FROM")
+        .expect("PKR_SPINE_FROM")
+        .parse()
+        .unwrap();
+    let save = var("PKR_SPINE_SAVE").expect("PKR_SPINE_SAVE");
+    let steps = spine::steps();
+    // `PKR_SPINE_LIST=1`: the steps with their indices, and nothing else.
+    if var("PKR_SPINE_LIST").is_some() {
+        for (i, s) in steps.iter().enumerate() {
+            println!("step {i} {s:?}");
+        }
+        return;
+    }
+    let to = var("PKR_SPINE_TO").map_or(steps.len(), |t| {
+        t.parse::<usize>().unwrap().min(steps.len())
+    });
+    let game = Emerald::for_shells();
+    let mut cfg = Config::default();
+    // `PKR_SPINE_ROUNDTRIP=0`: no round-trip detector (a stretch across a known checkpoint gap).
+    if var("PKR_SPINE_ROUNDTRIP").is_some_and(|v| v == "0") {
+        cfg.detect.roundtrip_every = 0;
+    }
+    let load = |path: &str| {
+        let bytes = std::fs::read(path).unwrap();
+        let (cp, o) = bytes.split_at(bytes.len() - 4);
+        let cp = engine::checkpoint::decode(cp).unwrap();
+        let opts = spine::StepOpts {
+            run_wild: o[0] != 0,
+            best_move: o[1] != 0,
+            learn: o[2] != 0,
+            choice: (o[3] != 0xFF).then_some(o[3]),
+        };
+        (std::sync::Arc::new(cp), opts)
+    };
+    // The party healed (HP, status, PP), outside the game's rules: a red spine's workaround.
+    let heal = |cp: &engine::checkpoint::Checkpoint| {
+        let mut cp = cp.clone();
+        for m in &mut cp.world.party {
+            use engine::data::GameData;
+            m.hp = m.stats[0];
+            m.status = Default::default();
+            for (pp, mv) in m.pp.iter_mut().zip(m.moves) {
+                *pp = mv.map_or(0, |mv| game.battle().move_info(mv).pp);
+            }
+        }
+        cp.header.build = engine::checkpoint::BuildHash {
+            engine: 0,
+            content: 0,
+        };
+        let w = engine::world::World::restore(&game, &cp).unwrap();
+        w.checkpoint(&game).unwrap()
+    };
+    let dump = |s: &SpineRun| {
+        if !s.complete() {
+            for p in s.positions.iter().rev().take(12) {
+                let hp: Vec<_> = (p.end.world.party.iter())
+                    .map(|m| (m.hp, m.level, m.status, m.pp, m.moves))
+                    .collect();
+                println!("{} {:?} {:?} {hp:?}", p.index, p.map(), p.pos());
+            }
+            for m in s.played.iter().rev().take(20) {
+                println!("played {m:?}");
+            }
+            for n in s.notes.iter().rev().take(10) {
+                println!("note {n:?}");
+            }
+        }
+    };
+    let write = |s: &SpineRun| {
+        dump(s);
+        assert!(s.complete(), "{:?}", s.error);
+        let p = s.positions.last().unwrap();
+        let mut bytes = engine::checkpoint::encode(&p.end);
+        let o = p.opts;
+        bytes.extend([
+            o.run_wild as u8,
+            o.best_move as u8,
+            o.learn as u8,
+            o.choice.unwrap_or(0xFF),
+        ]);
+        std::fs::write(&save, bytes).unwrap();
+        println!("saved step {from} at frame {}", p.frame);
+    };
+    // `PKR_SPINE_BASE=<step>:<save>`: the save is made from that other save instead.
+    if !std::path::Path::new(&save).exists()
+        && let Some(base) = var("PKR_SPINE_BASE").filter(|b| !b.is_empty())
+    {
+        let (at, path) = base.split_once(':').expect("<step>:<save>");
+        let (cp, opts) = load(path);
+        write(&run_at(
+            &game,
+            &steps[..from],
+            &cfg,
+            at.parse().unwrap(),
+            cp,
+            opts,
+        ));
+    }
+    if !std::path::Path::new(&save).exists() {
+        // `PKR_SPINE_HEAL_AT=<step>,<step>,...`: a red spine's workaround (outside the game's
+        // rules): the party is healed (HP, status, PP) at those steps on the way.
+        let heals: Vec<usize> = var("PKR_SPINE_HEAL_AT")
+            .map(|h| h.split(',').map(|n| n.parse().unwrap()).collect())
+            .unwrap_or_default();
+        let mut s = spine::run(
+            &game,
+            &steps[..heals.first().copied().unwrap_or(from)],
+            &cfg,
+        );
+        for (k, &h) in heals.iter().enumerate() {
+            assert!(s.complete(), "{:?}", s.error);
+            let p = s.positions.last().unwrap();
+            let cp = heal(&p.end);
+            let next = heals.get(k + 1).copied().unwrap_or(from);
+            s = run_at(
+                &game,
+                &steps[..next],
+                &cfg,
+                h,
+                std::sync::Arc::new(cp),
+                p.opts,
+            );
+        }
+        write(&s);
+    }
+    let (mut cp, mut opts) = load(&save);
+    // `PKR_SPINE_SEG_HEAL=<step>,...`: heals (as `PKR_SPINE_HEAL_AT`) inside the segment.
+    let mut at = from;
+    for h in var("PKR_SPINE_SEG_HEAL")
+        .filter(|h| !h.is_empty())
+        .map(|h| {
+            h.split(',')
+                .map(|n| n.parse::<usize>().unwrap())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+    {
+        let s = run_at(&game, &steps[..h], &cfg, at, cp, opts);
+        dump(&s);
+        assert!(s.complete(), "{:?}", s.error);
+        let p = s.positions.last().unwrap();
+        cp = std::sync::Arc::new(heal(&p.end));
+        opts = p.opts;
+        at = h;
+    }
+    let s = run_at(&game, &steps[..to], &cfg, at, cp, opts);
+    let last = s.positions.last().unwrap();
+    println!(
+        "segment {from}..{to}: reached step {} ({:?} at {:?}), {} frames, labels {:?}",
+        last.index,
+        last.map(),
+        last.pos(),
+        s.frames,
+        s.labels(),
+    );
+    for m in &last.end.world.party {
+        println!(
+            "party {:?} lv {} hp {} moves {:?}",
+            m.species, m.level, m.hp, m.moves
+        );
+    }
+    for r in s.reports.iter().take(40) {
+        println!("report: {r:?}");
+    }
+    dump(&s);
+    assert!(s.complete(), "{:?}", s.error);
 }

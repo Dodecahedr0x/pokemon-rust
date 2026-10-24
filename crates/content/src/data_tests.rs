@@ -221,7 +221,10 @@ fn behaviors_follow_the_names_table() {
         Emerald.behavior(mb("MB_EASTWARD_CURRENT")),
         Behavior::Water(engine::data::Water::Current(Dir::Right))
     );
-    assert_eq!(Emerald.behavior(mb("MB_WATER_DOOR")), Behavior::Blocked);
+    assert_eq!(
+        Emerald.behavior(mb("MB_WATER_DOOR")),
+        Behavior::Water(engine::data::Water::Door)
+    );
     assert_eq!(Emerald.behavior(mb("MB_NORMAL")), Behavior::Normal);
     // Forced movement (Gen3 `sForcedMovementTestFuncs`) and the per-step puzzles.
     assert_eq!(Emerald.behavior(mb("MB_ICE")), Behavior::Ice);

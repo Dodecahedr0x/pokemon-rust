@@ -71,6 +71,7 @@ impl BattleScene {
         battle: &Battle,
         f: &mut Frame,
     ) -> Option<Choice> {
+        let can_throw = self.can_throw();
         let w = &mut self.parts.as_mut().expect(super::LOADED).windows;
         match self.menu {
             Menu::None => match battle.need() {
@@ -102,7 +103,14 @@ impl BattleScene {
                     self.menu = Menu::None;
                     return Some(Choice::Run);
                 }
-                // No bag nor party screen in the slice: back to the menu.
+                // The degraded bag: a ball at once (`BattleScene::set_balls`).
+                Some(Action::Bag) if can_throw => {
+                    self.thrown += 1;
+                    self.menu = Menu::None;
+                    return Some(Choice::Ball);
+                }
+                // No bag screen for the other pockets nor party screen in the slice: back to
+                // the menu.
                 Some(Action::Bag | Action::Pokemon) => {
                     w.action_menu(game, &names(game, battle, &self.player), f);
                 }

@@ -16,6 +16,10 @@ pub(super) const HM: ItemId = ItemId(301);
 pub(super) const TM_MOVE: MoveId = crate::battle::test_data::EMBER;
 pub(super) const HM_MOVE: MoveId = crate::battle::test_data::MUD_SLAP;
 pub(super) const FLAG_POKEMON_MENU: FlagId = FlagId(0x30);
+/// The move Fly's gate wants, and the visited flags of the two fly destinations.
+pub(super) const FLY_MOVE: MoveId = crate::battle::test_data::SWIFT;
+pub(super) const FLAG_VISITED_TOWN: FlagId = FlagId(0x31);
+pub(super) const FLAG_VISITED_ROUTE: FlagId = FlagId(0x32);
 /// Species that cannot learn [`TM`].
 pub(super) const NO_TM: SpeciesId = crate::battle::test_data::WATER;
 
@@ -112,8 +116,26 @@ impl GameData for UiGame {
                 move_id: HM_MOVE,
                 badge: None,
             },
+            FieldMove::Fly => FieldMoveGate::PartyMove {
+                move_id: FLY_MOVE,
+                badge: None,
+            },
             _ => FieldMoveGate::Never,
         }
+    }
+    fn fly_destination(&self, i: u8) -> Option<crate::data::FlyDestination> {
+        let (visited, map, x, y) = match i {
+            0 => (FLAG_VISITED_TOWN, TOWN, 3, 3),
+            1 => (FLAG_VISITED_ROUTE, ROUTE, 2, 4),
+            _ => return None,
+        };
+        Some(crate::data::FlyDestination {
+            name: &[0xBB, 0xFF],
+            visited,
+            map,
+            x,
+            y,
+        })
     }
 }
 

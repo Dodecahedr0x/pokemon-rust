@@ -137,6 +137,8 @@ pub enum Pending {
     Script(ScriptId),
     /// Every screen closes, then the item's field use (`ScreenOut::UseOnField`).
     Item(ItemId),
+    /// Every screen closes, then Fly (`ScreenOut::Fly`).
+    Fly(u8),
 }
 
 /// What `world/screens.rs` keeps between frames while screens are open: the fade, what waits
@@ -185,6 +187,7 @@ impl Hosting {
                 h.write(&[4]);
                 h.write_u16(id.0);
             }
+            Pending::Fly(i) => h.write(&[5, i]),
         }
     }
 }

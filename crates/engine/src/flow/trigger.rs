@@ -121,7 +121,7 @@ pub fn warp_on_push(
     behavior: Behavior,
     dir: Dir,
 ) -> Option<usize> {
-    if behavior != Behavior::ArrowWarp(dir) {
+    if behavior.arrow_warp() != Some(dir) {
         return None;
     }
     warp_at(map, x, y, elevation)
