@@ -543,6 +543,18 @@ pub enum Request {
     /// wild battle starts (`BattleSetup_StartWildBattle`, a field battle: the script's
     /// `waitstate` waits for its end). Answers `Bool` at once (whether a battle started).
     RockSmashEncounter,
+    // ---- SIL Ch10–11: the scripted save and the endings ----
+    /// A save without the dialog (Silice `save_game`, R-6): the world is saved as the dialog
+    /// saves it (`world/save.rs`, a normalised copy: CONTINUE comes back field idle) and
+    /// `Event::Saved` is raised for the shells. Answers `Bool` (saved) on the next frame.
+    SaveGame,
+    /// The credits alone (the Hall of Fame screen from its credits, no record, no save):
+    /// answers `Unit` once THE END is dismissed.
+    Credits,
+    /// Reload the last save as if the game had been reset (Silice's alternate ending): raises
+    /// `Event::ReloadLastSave` once; the shells replace the World (GBA: the flash slot, read,
+    /// not written; native: the last save it persisted, else a new game). Never answered.
+    ReloadLastSave,
 }
 
 /// Gen3 `PARTY_SIZE`: [`Query::PartyMoveSlot`]'s answer when no party mon knows the move.
@@ -862,6 +874,10 @@ impl Request {
             // Wave E2: tags 180 and up.
             Request::FieldWhiteOut => (180, 0, 0, 0, 0),
             Request::RockSmashEncounter => (181, 0, 0, 0, 0),
+            // SIL Ch10–11: tags 210 and up.
+            Request::SaveGame => (210, 0, 0, 0, 0),
+            Request::Credits => (211, 0, 0, 0, 0),
+            Request::ReloadLastSave => (212, 0, 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -1603,6 +1619,21 @@ impl Ctx {
     /// Gen3 `SetCB2WhiteOut` (see [`Request::FieldWhiteOut`]): never answered.
     pub fn field_whiteout(&self) -> Req<()> {
         self.req(Request::FieldWhiteOut, unit)
+    }
+
+    /// A save without the dialog (see [`Request::SaveGame`]): whether it saved.
+    pub fn save_game(&self) -> Req<bool> {
+        self.req(Request::SaveGame, Response::bool)
+    }
+
+    /// The credits alone (see [`Request::Credits`]).
+    pub fn credits(&self) -> Req<()> {
+        self.req(Request::Credits, unit)
+    }
+
+    /// Reloads the last save (see [`Request::ReloadLastSave`]): never answered.
+    pub fn reload_last_save(&self) -> Req<()> {
+        self.req(Request::ReloadLastSave, unit)
     }
 
     /// Gen3 `RockSmashWildEncounter` (see [`Request::RockSmashEncounter`]): whether a wild

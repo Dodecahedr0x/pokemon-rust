@@ -25,6 +25,7 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
         Request::SaveDialog => ScreenKind::SaveDialog,
         // `special GameClear`'s record and credits (Task S); the save waits for the field.
         Request::HallOfFame => ScreenKind::HallOfFame,
+        Request::Credits => ScreenKind::Credits,
         _ => return Some(default_answer(r)),
     };
     if h.immediate {

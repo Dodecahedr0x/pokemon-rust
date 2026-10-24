@@ -105,6 +105,15 @@ impl HallOfFame {
         }
     }
 
+    /// The credits alone (`ScreenKind::Credits`): the black pages, then THE END.
+    pub fn credits() -> Self {
+        HallOfFame {
+            stage: Stage::Credits,
+            left: CREDITS_FRAMES,
+            ..HallOfFame::new()
+        }
+    }
+
     pub fn stage(&self) -> Stage {
         self.stage
     }

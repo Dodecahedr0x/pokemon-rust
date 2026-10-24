@@ -72,6 +72,8 @@ pub enum ScreenKind {
     FlyMap,
     /// Gen3 `CB2_DoHallOfFameScreen` then the credits (`special GameClear`; Task S).
     HallOfFame,
+    /// The Hall of Fame screen from its credits: no record, no save (`Request::Credits`).
+    Credits,
 }
 
 /// The question the save dialog asks after "Would you like to save the game?" yes (Gen3
@@ -163,6 +165,7 @@ pub enum ScreenKindTag {
     Naming,
     FlyMap,
     HallOfFame,
+    Credits,
 }
 
 impl ScreenKind {
@@ -181,6 +184,7 @@ impl ScreenKind {
             ScreenKind::Naming(_) => ScreenKindTag::Naming,
             ScreenKind::FlyMap => ScreenKindTag::FlyMap,
             ScreenKind::HallOfFame => ScreenKindTag::HallOfFame,
+            ScreenKind::Credits => ScreenKindTag::Credits,
         }
     }
 
@@ -195,7 +199,8 @@ impl ScreenKind {
             | ScreenKind::SaveDialog
             | ScreenKind::MainMenu
             | ScreenKind::FlyMap
-            | ScreenKind::HallOfFame => {}
+            | ScreenKind::HallOfFame
+            | ScreenKind::Credits => {}
             ScreenKind::Party(m) => {
                 let (tag, v) = match m {
                     PartyMode::Field => (0, 0),
@@ -372,6 +377,7 @@ impl ScreenState {
             ScreenKind::Naming(k) => ScreenState::Naming(naming::NamingScreen::new(k)),
             ScreenKind::FlyMap => ScreenState::FlyMap(fly_map::FlyMap::new()),
             ScreenKind::HallOfFame => ScreenState::HallOfFame(hall_of_fame::HallOfFame::new()),
+            ScreenKind::Credits => ScreenState::HallOfFame(hall_of_fame::HallOfFame::credits()),
         }
     }
 
