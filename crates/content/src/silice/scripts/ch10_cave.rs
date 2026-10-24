@@ -113,9 +113,8 @@ pub async fn TourNebula_1F_Sc03(ctx: Ctx) {
     say(&ctx, Tour_1F_Sc03_T1).await;
     if ctx.flag(FLAG_SIL_COEUR_EVALON).await {
         say(&ctx, Tour_1F_Sc03_T2).await;
-        // fallback: the Cœur's "Isolant" battle effect (§4.1, §9): the source's own fallback, the
-        // three berries (the text says them).
-        fallback(&ctx, "coeur_evalon").await;
+        // The Cœur's "Isolant" is the 1F battles' own rule (`silice::rules::HEART`); the three
+        // berries the source gave as its fallback stay, since the text gives them.
         add_item(&ctx, ITEM_PERSIM_BERRY, 3).await;
     }
     ctx.set_flag(FLAG_SIL_TOUR_COEUR_PULSE, true).await;

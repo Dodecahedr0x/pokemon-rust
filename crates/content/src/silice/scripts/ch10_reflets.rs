@@ -113,10 +113,8 @@ pub async fn TourNebula_4F_Sc03(ctx: Ctx) {
     ctx.turn(LOCALID_TOUR_4F_REVENGE, Dir::Down).await;
     say(&ctx, Tour_4F_Sc03_T2).await;
     say(&ctx, Tour_4F_Sc03_T3).await;
-    // fallback: the Prisme de l'Ombre (the first three turns: half damage taken, 25 % recoil)
-    // has no battle rule hook; its source fallback (Forretress's Reflect / Light Screen set) is
-    // battle data the import keeps as written. Revenge says it before the battle; reported.
-    fallback(&ctx, "prisme_ombre").await;
+    // The Prisme de l'Ombre (the first three turns: half damage taken, 25 % recoil) is the
+    // battle's own rule (`silice::rules::PRISM`, `trainer_rules`); Revenge says it before.
     if lost(battle_trainer(&ctx, TRAINER_SIL_REVENGE_1, Tour_4F_Sc03_Defeat).await) {
         return;
     }

@@ -232,8 +232,8 @@ pub async fn TourNebula_2F_Sc04(ctx: Ctx) {
     // the source's fallback (iv 200 instead of 240) is battle data the import keeps at 240.
     // Reported; the battle is the full-strength one.
     fallback(&ctx, "kimiko_emotion").await;
-    // fallback: the Mega line (Tour_2F_Sc04_Mega) and the send-out lines are mid-battle lines
-    // (§9); the Mega Evolution itself is the battle's.
+    // The Mega line (Tour_2F_Sc04_Mega) is the battle's own (`silice::rules::trainer_lines`);
+    // fallback: the send-out lines of §4.2 have no extracted text.
     fallback(&ctx, "battle_lines").await;
     if lost(battle_trainer(&ctx, TRAINER_SIL_KIMIKO_1, Tour_2F_Sc04_Defeat).await) {
         return;

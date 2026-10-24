@@ -105,12 +105,8 @@ pub async fn TourNebula_3F_Sc04(ctx: Ctx) {
     }
     say(&ctx, Tour_3F_Sc04_T4).await;
     let rendue = ctx.flag(FLAG_SIL_ARTHUR_BOUSSOLE_RENDUE).await;
-    // fallback: the Mega line (Tour_3F_Sc04_Mega) is a mid-battle line (§9); the trainer's
-    // healing items (ARTHUR_1's "2 Guérisons") need the trainer item AI: held items only.
-    fallback(&ctx, "battle_lines").await;
-    if !rendue {
-        fallback(&ctx, "trainer_items").await;
-    }
+    // The Mega line (Tour_3F_Sc04_Mega, `silice::rules::trainer_lines`) and ARTHUR_1's two Full
+    // Restores (the trainer's AI bag, `trainer_items`) are the battle's own.
     let who = if rendue {
         TRAINER_SIL_ARTHUR_2
     } else {
