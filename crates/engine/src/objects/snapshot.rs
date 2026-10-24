@@ -56,10 +56,6 @@ impl Objects {
     /// Every hashed field. Live movement scripts are not kept: capture requires
     /// [`Objects::any_moves`] to be `None`.
     pub(crate) fn snapshot(&self) -> ObjectsSnap {
-        debug_assert!(
-            self.any_moves().is_none(),
-            "movement scripts are not captured"
-        );
         ObjectsSnap {
             map: self.map,
             run_state: match (self.run_state, self.forced) {
@@ -146,6 +142,18 @@ impl Objects {
                 | RunStateSnap::MovingCentered => ForcedState::Centered,
             },
         }
+    }
+
+    /// Every object (local id) with a live movement script, a trainer approach or an emote
+    /// bubble (the in-game save ends them on their cells, `world/save.rs`).
+    pub(crate) fn scripted_ids(&self) -> alloc::vec::Vec<u8> {
+        let mut ids: alloc::vec::Vec<u8> = (self.objs.iter())
+            .filter(|o| o.moves.is_some())
+            .map(|o| o.local_id)
+            .collect();
+        ids.extend(self.approaching());
+        ids.extend(self.emotes.iter().map(|e| e.local_id));
+        ids
     }
 
     /// First object (local id) with a live movement script, else the one a trainer approach or

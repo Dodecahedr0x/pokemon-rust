@@ -15,6 +15,7 @@
 pub mod bag;
 pub mod evolution;
 pub mod fly_map;
+pub mod hall_of_fame;
 pub mod kit;
 pub mod main_menu;
 pub mod mart;
@@ -69,6 +70,21 @@ pub enum ScreenKind {
     Naming(NamingKind),
     /// Fly's destination picker (Gen3 `CB2_OpenFlyMap`), from the party menu's FLY.
     FlyMap,
+    /// Gen3 `CB2_DoHallOfFameScreen` then the credits (`special GameClear`; Task S).
+    HallOfFame,
+}
+
+/// The question the save dialog asks after "Would you like to save the game?" yes (Gen3
+/// `SaveConfirmInputCallback` on `gSaveFileStatus` and `gDifferentSaveFile`; Task S).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum SaveQuestion {
+    /// A new game and no save in flash: straight to "SAVING…".
+    #[default]
+    None,
+    /// "There is already a saved file. Is it okay to overwrite it?" (default yes).
+    Overwrite,
+    /// "WARNING! There is a different game file…" (default no).
+    Different,
 }
 
 /// The party menu's modes (Gen3 `PARTY_MENU_TYPE_*` / `PARTY_ACTION_*`).
@@ -146,6 +162,7 @@ pub enum ScreenKindTag {
     MainMenu,
     Naming,
     FlyMap,
+    HallOfFame,
 }
 
 impl ScreenKind {
@@ -163,6 +180,7 @@ impl ScreenKind {
             ScreenKind::MainMenu => ScreenKindTag::MainMenu,
             ScreenKind::Naming(_) => ScreenKindTag::Naming,
             ScreenKind::FlyMap => ScreenKindTag::FlyMap,
+            ScreenKind::HallOfFame => ScreenKindTag::HallOfFame,
         }
     }
 
@@ -177,6 +195,7 @@ impl ScreenKind {
             | ScreenKind::SaveDialog
             | ScreenKind::MainMenu
             | ScreenKind::FlyMap => {}
+            | ScreenKind::HallOfFame => {}
             ScreenKind::Party(m) => {
                 let (tag, v) = match m {
                     PartyMode::Field => (0, 0),
@@ -284,6 +303,8 @@ pub struct ScreenCx<'a, G: GameData> {
     pub frame: u32,
     /// The result of the last [`ScreenOut::Save`], given once on the frame after it.
     pub saved: Option<bool>,
+    /// The save dialog's question after its first yes (Task S, `world/save.rs`).
+    pub save_question: SaveQuestion,
     /// The result of the screen this one pushed, given once on the frame it closed.
     pub child: Option<ScreenResult>,
     /// Reports raised this frame (the World logs them and raises `Event::Report`).
@@ -326,6 +347,7 @@ pub enum ScreenState {
     MainMenu(main_menu::MainMenu),
     Naming(naming::NamingScreen),
     FlyMap(fly_map::FlyMap),
+    HallOfFame(hall_of_fame::HallOfFame),
 }
 
 impl ScreenState {
@@ -349,6 +371,7 @@ impl ScreenState {
             ScreenKind::MainMenu => ScreenState::MainMenu(main_menu::MainMenu::new()),
             ScreenKind::Naming(k) => ScreenState::Naming(naming::NamingScreen::new(k)),
             ScreenKind::FlyMap => ScreenState::FlyMap(fly_map::FlyMap::new()),
+            ScreenKind::HallOfFame => ScreenState::HallOfFame(hall_of_fame::HallOfFame::new()),
         }
     }
 
@@ -366,6 +389,7 @@ impl ScreenState {
             ScreenState::MainMenu(s) => s.step(cx, input),
             ScreenState::Naming(s) => s.step(cx, input),
             ScreenState::FlyMap(s) => s.step(cx, input),
+            ScreenState::HallOfFame(s) => s.step(cx, input),
         }
     }
 
@@ -384,6 +408,7 @@ impl ScreenState {
             ScreenState::MainMenu(s) => s.hash(h),
             ScreenState::Naming(s) => s.hash(h),
             ScreenState::FlyMap(s) => s.hash(h),
+            ScreenState::HallOfFame(s) => s.hash(h),
         }
     }
 }

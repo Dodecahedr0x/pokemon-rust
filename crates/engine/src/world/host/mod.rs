@@ -421,6 +421,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::ChoosePartyMon(_)
             | Request::PlayerPc(_)
             | Request::SaveDialog
+            | Request::HallOfFame
             | Request::Evolve { .. } => screens::begin(self, r),
             Request::ScreenFlash { .. }
             | Request::ScreenShake { .. }
@@ -481,6 +482,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
         | Request::ChoosePartyMon(_)
         | Request::PlayerPc(_)
         | Request::SaveDialog
+        | Request::HallOfFame
         | Request::Evolve { .. } = r
         {
             return screens::resume(self, r);

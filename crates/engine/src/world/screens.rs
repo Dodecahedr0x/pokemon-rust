@@ -145,6 +145,7 @@ impl World {
                     map: s.field.map(),
                     frame,
                     saved,
+                    save_question: s.save.question(),
                     child,
                     reports: &mut reports,
                 };
@@ -284,7 +285,7 @@ impl World {
                 stack.host.pending = Pending::Fly(i);
             }
             ScreenOut::Save => {
-                let ok = super::save::save_now(self, game).is_ok();
+                let ok = super::save::dialog_save(self, game);
                 stack.saved = Some(ok);
                 self.s.event(Event::Saved { ok });
             }

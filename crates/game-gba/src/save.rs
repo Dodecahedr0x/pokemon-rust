@@ -10,7 +10,7 @@ use engine::checkpoint::{
 use engine::debug::{boot, save};
 use engine::{Buttons, GameData, World};
 
-use crate::save_logic::{BootChoice, SlotSeen, boot_choice};
+use crate::save_logic::{BootChoice, SlotSeen, boot_choice, in_game_meta, shown_meta};
 
 pub type Slots = SaveSlotManager<SaveMeta>;
 
@@ -41,14 +41,54 @@ pub fn boot_world(
     };
     match boot_choice(seen, held_at_boot) {
         BootChoice::NewGame(code) => new_game(code),
-        // Task S boots into the main menu; until then it is a restore.
-        BootChoice::Restore | BootChoice::MainMenu => match slots.read::<Checkpoint>(0) {
-            Err(_) => new_game(boot::CORRUPT),
-            Ok(cp) => match World::restore(game, &cp) {
-                Ok(world) => (world, boot::RESTORED),
-                Err(_) => new_game(boot::REJECTED),
-            },
+        BootChoice::MainMenu => match seen {
+            SlotSeen::Valid(meta) => (World::main_menu(game, shown_meta(meta)), boot::MAIN_MENU),
+            _ => new_game(boot::CORRUPT),
         },
+        BootChoice::Restore => restore(game, slots).unwrap_or_else(new_game),
+    }
+}
+
+/// Slot 0 restored, or the `debug::boot` code saying why not.
+fn restore(game: &impl GameData, slots: &mut Slots) -> Result<(World, u32), u32> {
+    match slots.read::<Checkpoint>(0) {
+        Err(_) => Err(boot::CORRUPT),
+        Ok(cp) => match World::restore(game, &cp) {
+            Ok(world) => Ok((world, boot::RESTORED)),
+            Err(_) => Err(boot::REJECTED),
+        },
+    }
+}
+
+/// The World the main menu's choice starts (Gen3 `Task_HandleMainMenuAPressed`): CONTINUE
+/// restores slot 0, NEW GAME starts over (the slot stays until the first save overwrites it).
+pub fn chosen_world(
+    game: &impl GameData,
+    slots: Option<&mut Slots>,
+    choice: engine::world::MainMenuChoice,
+) -> World {
+    let fresh = || {
+        let mut w = World::new(game);
+        w.set_save_present(true);
+        w
+    };
+    match (choice, slots) {
+        (engine::world::MainMenuChoice::Continue, Some(slots)) => {
+            restore(game, slots).map_or_else(|_| fresh(), |(w, _)| w)
+        }
+        _ => fresh(),
+    }
+}
+
+/// Writes the in-game save `cp` to slot 0 with its main-menu metadata. Returns a `debug::save`
+/// code.
+pub fn write_in_game(slots: &mut Slots, cp: &Checkpoint, ids: &engine::data::SpecialIds) -> u32 {
+    if encoded_len(cp) > MAX_ENCODED {
+        return save::TOO_LARGE;
+    }
+    match slots.write(0, cp, &in_game_meta(cp, ids)) {
+        Ok(()) => save::OK,
+        Err(_) => save::STORAGE,
     }
 }
 
