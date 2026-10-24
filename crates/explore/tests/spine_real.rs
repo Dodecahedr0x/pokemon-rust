@@ -67,8 +67,9 @@ const EMERALD_LABELS: &[&str] = &[
 const SPINE_BLOCKERS: &[&str] = &[];
 
 /// The Silice spine's frame count to the end of Chapter 0 (21,821 until `2fc4c16` redrew
-/// Brico-Bourg on its own tileset: the walks are 8 frames shorter).
-const SILICE_CH0_FRAMES: u64 = 21_813;
+/// Brico-Bourg on its own tileset: the walks are 8 frames shorter; 21,813 until the bar's and
+/// the town's shakes became `Request::ScreenShake` in place of a fade out and in: 34 shorter).
+const SILICE_CH0_FRAMES: u64 = 21_779;
 
 fn play() -> SpineRun {
     let s = spine::run(&Emerald::for_shells(), spine::steps(), &Config::default());
