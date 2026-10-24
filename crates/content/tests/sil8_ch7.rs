@@ -43,3 +43,23 @@ fn the_lighthouse_shows_thomas_at_story_122_only() {
         }),
     ]);
 }
+
+/// D-30: the PIERRE LIEN used from the bag on the KADABRA evolves it (an ALAKAZAM keeps its
+/// moves) and is used up.
+#[test]
+fn the_pierre_lien_evolves_the_kadabra_from_the_bag() {
+    let mut r = Run::starting_at(20_000, ch07::with_pierre_lien());
+    r.play(&[
+        Step::Settle,
+        Step::UseOn {
+            item: ITEM_SIL_PIERRE_LIEN,
+            mon: 0,
+        },
+        Step::Check("alakazam", |r| {
+            let lead = r.w.party().iter().next().unwrap();
+            assert_eq!(lead.species, SPECIES_ALAKAZAM);
+            assert!(lead.moves.contains(&Some(MOVE_SHOCK_WAVE)));
+            assert_eq!(r.count(ITEM_SIL_PIERRE_LIEN), 0);
+        }),
+    ]);
+}

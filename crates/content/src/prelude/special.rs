@@ -550,7 +550,8 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             // `ShakeCamera` (`field_specials.c`): `Task_ShakeCamera` pans the camera by
             // `VAR_0x8004` (vertical) / `VAR_0x8005` (horizontal), flipping it every
             // `VAR_0x8007` frames, `VAR_0x8006` times, then `ScriptContext_Enable`. The frames are
-            // kept (a delay), the pan is not drawn (`Request::ScreenShake`).
+            // kept (`Request::ScreenShake` waits them out); the shake is drawn vertical, flipping
+            // every frame (degraded: not Gen3's axes and flip delay).
             degraded(ctx, id).await;
             let vertical = ctx.var(VAR_0x8004).await as i16;
             let horizontal = ctx.var(VAR_0x8005).await as i16;
@@ -562,7 +563,6 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
                 .max(horizontal.unsigned_abs())
                 .min(255) as u8;
             ctx.screen_shake(magnitude, frames).await;
-            ctx.delay(frames).await;
         }
         id if id == SPECIAL_SetCB2WhiteOut => {
             // `SetCB2WhiteOut`: `CB2_WhiteOut` then `DoWhiteOut`; the script ends there.

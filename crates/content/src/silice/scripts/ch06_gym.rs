@@ -4,6 +4,7 @@
 //! (the gym open) → 65 (the fifth door) → 66 (Tak beaten).
 
 use crate::silice::prelude::*;
+use crate::silice::rules::WITH_PETALS_BLINK;
 
 /// The maps whose scripts this file owns: strict (every script they name must exist).
 pub const MAPS: &[&str] = &["MangaSquare_Gym"];
@@ -42,7 +43,6 @@ pub async fn MangaSquare_Gym_OnLoad(ctx: Ctx) {
 struct Samurai {
     obj: u8,
     trainer: TrainerId,
-    hatif: TrainerId,
     intro: TextId,
     defeat: TextId,
     /// The way the player faces to talk to him from the alley.
@@ -55,7 +55,6 @@ fn samurai_at(y: i16) -> Option<Samurai> {
         25 => Some(Samurai {
             obj: LOCALID_GYM06_MUSASHI,
             trainer: TRAINER_SIL_SAMOURAI_MUSASHI,
-            hatif: TRAINER_SIL_SAMOURAI_MUSASHI_HATIF,
             intro: Gym_Sc01_T1_MUSASHI,
             defeat: Gym_Sc01_D_MUSASHI,
             side: Dir::Right,
@@ -63,7 +62,6 @@ fn samurai_at(y: i16) -> Option<Samurai> {
         22 => Some(Samurai {
             obj: LOCALID_GYM06_KOJIRO,
             trainer: TRAINER_SIL_SAMOURAI_KOJIRO,
-            hatif: TRAINER_SIL_SAMOURAI_KOJIRO_HATIF,
             intro: Gym_Sc01_T1_KOJIRO,
             defeat: Gym_Sc01_D_KOJIRO,
             side: Dir::Left,
@@ -77,10 +75,13 @@ fn samurai_at(y: i16) -> Option<Samurai> {
 /// the samurai talked to (from that same cell). Once beaten, the coord does nothing and the
 /// samurai says his defeat line.
 ///
-/// fallback: `wait_input_or_timeout(180)` and `set_battle_malus` (§9): the source's own fallback,
-/// a yes/no "Do you draw first?": yes (impatient) is the battle against
-/// `TRAINER_SIL_SAMOURAI_<NOM>_HATIF` (+2 levels), no the normal one. Either win marks the
-/// samurai beaten (his normal trainer flag).
+/// `wait_input_or_timeout(180)`: a button before the gong is a blink (T3), else T4.
+/// A blink is the source's `set_battle_malus(PLAYER_LEAD, SPEED, -1)`: the same samurai under
+/// `rules::PETALS_BLINK` (the petals and the lead's Speed −1); no blink is his normal battle.
+/// `TRAINER_SIL_SAMOURAI_<NOM>_HATIF` (+2 levels), the source's fallback for the malus, is no
+/// longer fought (author question: drop it, or keep it as well?). Either win marks the samurai beaten (his normal
+/// trainer flag). (`Gym_Sc01_Repli_Q`, the yes/no of the fallback without the timed wait, is
+/// no longer said.)
 pub async fn MangaSquare_Gym_Sc01(ctx: Ctx) {
     let (_, y) = ctx.player_pos().await;
     let Some(s) = samurai_at(y) else {
@@ -98,12 +99,12 @@ pub async fn MangaSquare_Gym_Sc01(ctx: Ctx) {
     ctx.turn(PLAYER, s.side).await;
     say(&ctx, s.intro).await;
     say(&ctx, Gym_Sc01_T2).await;
+    let blinked = ctx.wait_input_or_timeout(180).await;
     // The gong (the source's SE_GONG, not in Gen3): the Battle Arena's judge.
     play_se(&ctx, "SE_ARENA_TIMEUP1").await;
-    fallback(&ctx, "wait_input_or_timeout").await;
-    let outcome = if ask(&ctx, Gym_Sc01_Repli_Q).await {
+    let outcome = if blinked {
         say(&ctx, Gym_Sc01_T3).await;
-        battle_trainer(&ctx, s.hatif, s.defeat).await
+        battle_trainer_with(&ctx, s.trainer, s.defeat, false, &WITH_PETALS_BLINK).await
     } else {
         say(&ctx, Gym_Sc01_T4).await;
         battle_trainer(&ctx, s.trainer, s.defeat).await
@@ -246,9 +247,8 @@ pub async fn MangaSquare_Gym_Sc03(ctx: Ctx) {
     // fallback: show_sync (the Mallette's gauge screen): T10 gives the value.
     show_sync(&ctx, 60).await;
     ctx.set_flag(FLAG_SIL_LOG_06, true).await;
-    // fallback: the Mallette's log screen (`msgbox(Gym_Sc03_Log06, Sign)`, read at once): the
-    // log in the message box, inside the scene's lock.
-    fallback(&ctx, "log_menu").await;
+    // The log (`msgbox(Gym_Sc03_Log06, Sign)`, read at once): the log as a message, as the Mallette's RAPPORTS reads it again, inside the
+    // scene's lock.
     say(&ctx, Gym_Sc03_Log06).await;
     say(&ctx, Gym_Sc03_T11).await;
     set_story(&ctx, 66).await;

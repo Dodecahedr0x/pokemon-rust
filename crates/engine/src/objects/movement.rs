@@ -52,8 +52,8 @@ const fn horizontal(d: Dir) -> bool {
 
 /// How a turning type picks its next direction.
 enum Pick {
-    /// `directions[Random() & (len - 1)]`; walks there if free.
-    Wander(&'static [Dir]),
+    /// `directions[Random() & (len - 1)]`; walks there if free (backwards: facing away).
+    Wander(&'static [Dir], bool),
     /// `directions[Random() & (len - 1)]`; only turns.
     Look(&'static [Dir]),
     /// Gen3 `MovementType_FaceDownUpAndLeft` …: `all_but` with `Random() & 3`.
@@ -95,12 +95,16 @@ impl Objects {
             MovementType::WalkBackAndForth(d) => return self.back_and_forth(terrain, i, d),
             MovementType::WalkSequence(route) => return self.walk_sequence(terrain, i, route),
             MovementType::LookAround => (Pick::Look(&Dir::ALL), &DELAYS_MEDIUM),
-            MovementType::Wander => (Pick::Wander(&Dir::ALL), &DELAYS_MEDIUM),
+            MovementType::Wander => (Pick::Wander(&Dir::ALL, false), &DELAYS_MEDIUM),
+            MovementType::WanderBackwards => (Pick::Wander(&Dir::ALL, true), &DELAYS_MEDIUM),
             // `gUpAndDownDirections` / `gLeftAndRightDirections`.
-            MovementType::WanderVertical => (Pick::Wander(&[Dir::Down, Dir::Up]), &DELAYS_MEDIUM),
-            MovementType::WanderHorizontal => {
-                (Pick::Wander(&[Dir::Left, Dir::Right]), &DELAYS_MEDIUM)
+            MovementType::WanderVertical => {
+                (Pick::Wander(&[Dir::Down, Dir::Up], false), &DELAYS_MEDIUM)
             }
+            MovementType::WanderHorizontal => (
+                Pick::Wander(&[Dir::Left, Dir::Right], false),
+                &DELAYS_MEDIUM,
+            ),
             MovementType::FaceTwo(p) => (Pick::Look(pair(p)), &DELAYS_MEDIUM),
             MovementType::FaceAllBut(m) => (Pick::LookAllBut(m), &DELAYS_SHORT),
             MovementType::Rotate { clockwise } => (Pick::Rotate(clockwise), &DELAYS_MEDIUM),
@@ -108,16 +112,21 @@ impl Objects {
         let random = |rng: &mut Rng| (rng.next_u32() >> 16) as u16;
         if let Idle::Wait(_) = o.idle {
             // Delay over: pick a direction, and walk if the type wanders and the way is free.
-            let (d, walks) = match pick {
-                Pick::Wander(dirs) => (dirs[random(rng) as usize & (dirs.len() - 1)], true),
-                Pick::Look(dirs) => (dirs[random(rng) as usize & (dirs.len() - 1)], false),
-                Pick::LookAllBut(m) => (all_but(m)[random(rng) as usize & 3], false),
-                Pick::Rotate(cw) => (rotate(o.facing, cw), false),
+            let (d, walks, backwards) = match pick {
+                Pick::Wander(dirs, back) => {
+                    (dirs[random(rng) as usize & (dirs.len() - 1)], true, back)
+                }
+                Pick::Look(dirs) => (dirs[random(rng) as usize & (dirs.len() - 1)], false, false),
+                Pick::LookAllBut(m) => (all_but(m)[random(rng) as usize & 3], false, false),
+                Pick::Rotate(cw) => (rotate(o.facing, cw), false, false),
             };
-            o.set_dir(d);
+            o.set_dir(if backwards { d.opposite() } else { d });
             if walks && self.collision(terrain, self.objs[i].local_id, d) == Collision::None {
                 let o = &mut self.objs[i];
                 o.begin(ActionKind::Walk(Speed::Normal), d);
+                if backwards {
+                    o.set_dir(d.opposite());
+                }
                 o.idle = Idle::Start;
                 return;
             }

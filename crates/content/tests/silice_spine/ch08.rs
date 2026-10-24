@@ -27,7 +27,7 @@
 //! the hidden items are signs.
 //!
 //! **The party** ([`PARTY`]): Chapter 7's end as `sil8_ch7` leaves it (KADABRA 62 leading, with
-//! Chapter 6's Shock Wave taught again first; TYPHLOSION 66; LAIRON 35, MAREEP 14, PORYGON 25,
+//! Chapter 6's Shock Wave, `givemon`'s moves; TYPHLOSION 66; LAIRON 35, MAREEP 14, PORYGON 25,
 //! DUGTRIO 26). No hook. The chapter's trainers (46–53) train the lead; the run heals at the
 //! Taverne before the guards, before the bell, and between Élise and the leaders (out of the
 //! Citadelle and back: its trials stay done). The leaders' double (Registeel and Latias, 50–53)
@@ -38,7 +38,7 @@
 //! Latias, which resists Fire and Psychic and Recovers). The run ends with the KADABRA at 69 and
 //! the TYPHLOSION at 76.
 
-use super::{Run, Start, Step, TeachTm, goto, goto_avoiding};
+use super::{Run, Start, Step, goto, goto_avoiding};
 use content::consts::*;
 use engine::data::{Dir, ItemId, MapId, SpeciesId};
 use engine::script::Ctx;
@@ -104,10 +104,9 @@ pub async fn end_of_chapter_7(ctx: Ctx) {
     ctx.item_add(ItemId(ITEM_HYPER_POTION), 3).await;
     ctx.money_add(20000).await;
     ctx.set_respawn(HEAL_LOCATION_SIL_REVERSE_CITY).await;
-    // The start state cannot set moves (`givemon`'s extras are not applied yet): the bag holds
-    // Chapter 6's TM34 again, and the spine teaches it first (the lead's Shock Wave).
-    ctx.item_add(ItemId(ITEM_TM34), 1).await;
-    for &(species, level) in PARTY {
+    // The lead with Chapter 6's Shock Wave (`givemon`'s moves), then the others.
+    super::give_kadabra_with_shock_wave(&ctx, PARTY[0].1).await;
+    for &(species, level) in &PARTY[1..] {
         ctx.give_mon(species, level).await;
     }
 }
@@ -354,11 +353,15 @@ const PIGEONNIER: &[Step] = &[
 pub fn steps() -> Vec<Step> {
     use Dir::*;
     let mut s = vec![
-        // Chapter 6's Shock Wave over Role Play (see [`end_of_chapter_7`]).
-        Step::Teach(TeachTm {
-            item: ITEM_TM34,
-            mon: 0,
-            forget: 1,
+        Step::Check("lead_shock_wave", |r| {
+            assert!(
+                r.w.party()
+                    .iter()
+                    .next()
+                    .unwrap()
+                    .moves
+                    .contains(&Some(MOVE_SHOCK_WAVE))
+            );
         }),
         // ---- Route S8, palier 3 ----
         Step::Walk(Left),
@@ -878,7 +881,6 @@ pub fn check_end(r: &Run) {
     assert_eq!(r.w.events_dropped(), 0);
     for name in [
         "play_se",
-        "screen_shake",
         "strength",
         "dark_map",
         "hidden item",

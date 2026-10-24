@@ -2093,6 +2093,8 @@ Both assert the story at each step (28 → 30 → 31 → 32 → 33 → 34 → 35
 11. The scene paths (the player to Mathieu's stand, Adrien to the Center, PRAUGECT and the guard, Tauber at the door) are re-derived from the built maps.
 12. The leaders' Raikou (Rain Dance, Calm Mind, Thunder) is hard for a party without a Ground type, and Ch3's wild lists have none: is a Ground Pokémon wanted on Route S3 or in the garden?
 
+- **Field and UI wave** ("Silice field and UI mechanics as built"): the Casino's PORYGON has its own moves and holds the Up-Grade (`give_mon_with`); the smoke bomb is a white fade. Question there: 7 (the OT id).
+
 #### SIL2 Ch3 scripts: review, and the spine's learn policy
 
 A review of the Ch3 scripts (the ten strict maps, the edits, `game.ron`, `check-exceptions.ron`, `silice_spine/ch03.rs`, `sil4_ch3.rs`), after merging master (the Ch10–Ch11 maps; `check-exceptions.ron` kept master's `FLAG_SIL_ARTHUR_BOUSSOLE_PRISE` entry and still drops the casino coins one).
@@ -3427,6 +3429,8 @@ Measured:
   11. When the engine gains inverted controls, should Route S7 (and Route S8) get an `OnTransition` that turns them off, or should the inversion be tied to Reverse-City's map in the engine?
   12. The e2e party is a guess at Chapter 6's end (above). Is a WAILORD on the team, and the AMPHAROS as Ch6's trained lead, the intended Ch7 party?
 
+- **Field and UI wave** ("Silice field and UI mechanics as built"): the inverted controls and the backward-walking residents are real; the spine walks them. Question 11 above is answered (the input map clears on every map change). Questions there: 3 (`NEGATIF`), 8 (the emitters' full design), 9 (the residents after Reverse falls).
+
 #### SIL4 Ch8 maps as built (Évalon)
 
 The 12 maps of Chapter 8 (le Bourg d'Évalon) are in `games/silice/{maps,layouts}/`. They were made with the studio map editor only; their edit scripts are under `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`). A scratch generator drew each grid as one `Ascii` op with a legend comment (char: metatile/collision/elevation, what). No map needed a `03_allow.ron`.
@@ -4748,7 +4752,7 @@ No prelude or driver change. The chapter's helpers (`join_queue`, the `Fan` and 
 - `play_music`, `play_fanfare`, `play_se` (audio, M12). The source's invented SEs map to decomp ones: the servers' hum `SE_PC_ON`, the gong `SE_ARENA_TIMEUP1`, the shoji `SE_SLIDING_DOOR`, the rock `SE_M_ROCK_THROW`.
 - `dawn_tint`: the Secteur Zêta's dawn sky.
 - `show_book`: the tale in the message box (the source's own fallback).
-- `wait_input_or_timeout` and `set_battle_malus`: the samurai's yes/no "draw first?" (the source's own fallback): yes fights the `_HATIF` variant (+2 levels), no the normal one; either win marks the samurai beaten.
+- ~~`wait_input_or_timeout` and `set_battle_malus`~~ (field and UI wave, merged with SIL3): the samurai's staring duel is a 180-frame `wait_input_or_timeout`; a press is a blink (T3) and the normal samurai under `rules::PETALS_BLINK` (the petals and the lead's Speed −1), no press is T4 and his normal battle. The `_HATIF` variants are no longer fought (author question).
 - `multichoice`: see the quiz below.
 - `set_battle_weather` (petals; the source's fallback is none) and `mega_evolution` (Silice has no `form_changes` data yet: Charizard fights unevolved, as Ch2's Alakazam).
 - `show_sync`, `log_menu`: the gauge and the log read in the message box.
@@ -4800,6 +4804,8 @@ No prelude or driver change. The chapter's helpers (`join_queue`, the `Fan` and 
   1. The MAREEP line is never trained by a spine (MAREEP 12 in Ch4, FLAAFFY 21 in Ch5), yet Ch6 leads with an AMPHAROS 44 and Ch7 carries it at 53. Should Ch5's start state carry a FLAAFFY near 35, or Ch6 lead with another member (the ALAKAZAM needs about 57 for Tak)?
   2. Ch5 ends with its hooked LANTURN and Ch6 starts with a WAILORD instead (Route S5's sea, not playable without Surf). Keep the WAILORD in the chain, or carry the LANTURN on?
   3. Seiji can be walked round by (11, 5–7). Should he block the alley, as the samurai do?
+
+- **Field and UI wave** ("Silice field and UI mechanics as built"): the samurai's `wait_input_or_timeout(180)` and the groomer's `add_friendship` are real. Questions there: 5 (the groomer short of 500 ₽) and 6 (`Gym_Sc01_Repli_Q` and the `_HATIF` trainers unused; the blink is the malus).
 
 #### Silice engine: held items, Fairy, Mega/Primal, abilities (as built)
 Engine side of the three SIL3 battle features, ahead of SIL3 (branch of `db07b1d`). It is game-agnostic, and Emerald does not move: parity is identical (route loop 166 of 217, hash 46 of 65), and the four committed checkpoint nodes verify as `valid (rehash)`. Every new behaviour is gated on data Emerald lacks: an item with a hold effect, a form change, a weather or post-Gen3 ability, or the Fairy type.
@@ -4889,6 +4895,83 @@ Engine side of the three SIL3 battle features, ahead of SIL3 (branch of `db07b1d
   - After the review fixes, on top of master with M8 Task L (the full 518-map import, so the ROM is 9,545,968 B and not comparable): engine `.text` 259,754 B (+1,056 over the number above, merge included); IWRAM and EWRAM +0.
   - The battle probe ROM (`target/battle-probe.gba`) is built by `cargo xtask rom` and read by `cargo xtask parity`.
   - The Wave 0 battle digest test leaves out `TrainerMon::item` (all `None`), so its value is unchanged.
+
+#### Silice field and UI mechanics as built (the Mallette, screen effects, givemon extras, inverted controls)
+The §1.1 rows "Mallette modules", "Mallette menu", "screen_flash … camera_pan", "PIERRE LIEN", "give_mon with moves", "Inverted controls", "`wait_input_or_timeout`" and "add_friendship; NPC evolution scene", built on master `4048f83`. The engine stays game-agnostic: every new state is a hashed `Request` or a `GameData` hook, tested on synthetic data (`world/tests/m9_r.rs`, `fx/tests.rs`, `flow/fade/tests.rs`, `input/tests.rs`). Silice's data is in `crates/content/src/silice/` and `games/silice/`; no map was edited.
+
+- **Engine.**
+  - **Screen effects** (`crate::fx`, applied last in `World::step`; hashed only while active):
+    - `ScreenFlash { color, frames }`: the frame filled with the colour (brightness 16, lightened when the colour is light) for `frames`; the script waits.
+    - `ScreenShake { magnitude, frames }`: BG1–3 and the objects move ±magnitude on alternate frames and end at rest; the script waits. Emerald's `ShakeCamera` special now issues the shake alone: the `delay` after it is gone, because the shake waits the same frames.
+    - `SetTint`: blends the frame's palette uploads toward a colour; answers at once.
+    - White fades: `Fade::ToWhite` / `FromWhite` (`Fader.white`, `Frame.lighten`).
+    - `TextOnBlack(bool)`: BG1–3 and the objects hidden, brightness 0; the text box still draws. Visuals degraded (the box is the normal one, not centred white text).
+    - `CameraPan { x, y, speed }`: the field and objects offset toward (x, y) pixels at `speed` per frame; `(0, 0)` pans back; the script waits. Visuals degraded: an offset of the drawn field, not a real camera (no map streaming past the screen's edge).
+    - In a map script (immediate), the waiting effects are skipped and logged.
+  - `WaitInputOrTimeout(frames)`: `true` on A or B before the timeout, `false` after it.
+  - `MoneyGet`, `CoinsGet`/`CoinsAdd`/`CoinsRemove` (capped at `SpecialIds::max_coins`), `AddFriendship { slot, n }` (0..255; slot 0xFF is the whole party), `PartyMonSpecies`.
+  - **`GiveMon` extras** (`GiveMonExtra`): the moves (with their max PP), the held item, the OT id and the nickname are applied. The OT name is not stored: `Pokemon` has no field for it.
+  - **`Evolve { slot, into }`** evolves the party mon silently, sets the Pokédex flags and reports `Degraded("evolution scene")`: the evolution scene is still Task E's stub.
+  - **`ItemUse::TradeEvolution`**: used on a party mon, it evolves an `EvoMethod::Trade` species (param 0), or a trade-with-item one holding that item (the item is used up). An Everstone blocks it. `World::use_item` (the bag's USE for tools and the explorer) now opens the party menu for any item with a party use, not only TMs.
+  - **Input map** (`engine::InputMap`: `Normal`, `Inverted`, `MirrorHorizontal`, `MirrorVertical`):
+    - `Request::SetInputMap` writes `SpecialIds::var_input_map`, so it is hashed and snapshotted with the vars.
+    - Every map change clears it (`State::clear_temp`); each map's `on_transition` says which it wants.
+    - The field's held d-pad goes through it before walking and pushing.
+    - `World::input_map(game)` lets the planners press the mapped key: the explorer (`expand.rs::dkey`) and the Silice spine driver do.
+  - **Idle counter**: `SpecialIds::var_idle_frames` counts field-control frames without a button and resets on any press. Scripts read it as a var.
+  - **`MovementType::WanderBackwards`**: Wander's draws and steps, facing away from each step (appended last: snapshots stay compatible).
+  - **`GameData::field_move_label`**: the party menu's label for a flag-gated field move (`FieldMoveGate::Flag` has no move to name).
+  - **`no_whiteout`** on `BattleTrainer`: a loss answers `Lost` without a whiteout.
+- **Silice.**
+  - **The Mallette** (`silice/mallette.rs`, `scripts/mallette.rs`):
+    - The START menu's first entry, MALLETTE (`shown_if FLAG_SIL_MALLETTE_OPEN`), replaces the POKéDEX; the rest are Gen3's (`data::START_MENU[1..]`). `game_data_tables!` now asks `flavor_start_menu` / `flavor_multichoice`, so the flavour picks its menu and lists.
+    - `Mallette_Menu`: ANALYSE, CARTE, APPELS, MODULES, RAPPORTS, SYNCHRO, RETOUR (multichoice list 0xE0), looping until RETOUR or B.
+      - ANALYSE (`FLAG_SIL_MALLETTE_DEX`): seen and caught counts. A fallback: no Analyse screen.
+      - CARTE (`_MAP`) and APPELS (`_CALLS`): one line each. Fallbacks: no region map or call window. Portraits would need graphics, which this wave does not touch.
+      - MODULES: each installed module's name.
+      - RAPPORTS (from `FLAG_SIL_LOG_01`): the logs list (0xE1). An unlocked log is read again with its scene's own text; LOG_08 has a new illegible line (bible: "Illisible").
+      - SYNCHRO: "SYNCHRONISATION: n%" from `VAR_SIL_SYNC`.
+      - A locked entry says it is not available yet.
+    - The chapters' `log_menu` fallbacks are gone: each scene still shows its log once, and the Mallette reads it again.
+    - `show_sync` (the animated gauge) stays a fallback.
+  - **Modules as field moves** (`GameData::field_move_gate`): Surf, Waterfall, Dive and Fly are `FieldMoveGate::Flag(FLAG_SIL_MODULE_SURF / _CASCADE / _PLONGEE / _VOL)`.
+    - `field_move_script` runs `Mallette_UseSurf`, `_UseWaterfall` and `_UseDive`; `waterfall_refused_script` runs `Mallette_CannotUseWaterfall`; `dive_emerge_script` runs `Mallette_UseDiveUnderwater`. These are Gen3's `EventScript_Use*` without the party check: a question, a line, then the field effect.
+    - Fly is used from the party menu (the fly map), labelled with Gen3's move name.
+    - Cut, Strength, Flash and Rock Smash stay `Never`: their obstacles are map scripts (`module_obstacle`, `push_object`, `bloc`), as the bible's "un `field_move` déclenché quand le joueur interagit avec un obstacle". A flag gate would list them in the party menu, where the engine cannot use them.
+  - **PIERRE LIEN** (D-30): `ITEM_SIL_PIERRE_LIEN` is `ItemUse::TradeEvolution` (`build/ui.rs`). `sil8_ch7::the_pierre_lien_evolves_the_kadabra_from_the_bag` uses it from the bag on Ch7's lead KADABRA: it becomes an ALAKAZAM with its moves, and the stone is used up. The spines keep the KADABRA (their levels were measured with it).
+  - **Prelude**:
+    - `screen_shake(m, frames)` is real; 0 frames means `SHAKE_FRAMES` (20).
+    - `screen_flash(ctx, color)` is real for `FLASH_FRAMES` (16), with `WHITE`, `YELLOW`, `BLACK`, and `NEGATIF` (= white).
+    - `fade_white`, `show_text_on_black` and `camera_pan` (in cells, 2 px a frame) are new. They are ready for Ch9 (`camera_pan(GRANDE_PORTE)`) and Ch11 (`show_text_on_black`, `camera_pan(Up, 4)`).
+    - `InputMap` is re-exported.
+  - **The chapters, fallback by fallback**:
+    - Ch0 bar and town shakes, Ch4 ship roll and rail, Ch5 footbridge, Ch8 Évalon: `screen_shake`.
+    - Ch2 Route S2 yellow flash, Ch2 gym thunder, Ch4 barrel, Ch7 Reverse's black pixels, Ch7 welcome (`NEGATIF`): `screen_flash`.
+    - Ch3 smoke bomb: a white fade around the grunts' exit. Ch2 MAREEP → FLAAFFY on an NPC: white fades around the swap (`play_evolution` is still reported: no scene for an NPC's Pokémon).
+    - Ch4 Route S4's `use_field_module(FLASH)`: a white flash.
+    - Ch6 samurai: `wait_input_or_timeout(180)`. A press is a blink (T3): the same samurai under `rules::PETALS_BLINK` (SIL3's petals plus `stage(Start, PLAYER, Speed, −1)`, the source's `set_battle_malus`); else T4 and the normal battle. The `_HATIF` (+2 levels) variants, the source's fallback for the malus, are no longer fought. The spine blinks.
+    - Ch6 groomer: `add_friendship(0, 30)`, free once, then 500 ₽; the Soothe Bell fallback is gone.
+    - Ch3 Casino PORYGON: `give_mon_with` (CONVERSION 2, PSYBEAM, RECOVER, AGILITY; the Up-Grade held; OT "COCKET", id 0).
+    - Ch7 Reverse-City: `set_input_inverted` is `ctx.set_input_map`. Habitant 1 and 2 are set to `WanderBackwards` on every load.
+    - Left as fallbacks, out of this wave: the Ch1 lab strobes (a map script, where effects do not run), `set_sky_alert`/`set_time_tint`/`dawn_tint` (tints that last across maps), `mallette_call`/`end_call`, and Ch7's idle-timer emitters (see the questions).
+  - **Spines**:
+    - Ch7's driver walks Reverse-City with inverted controls (`reverse_sc01` asserts `InputMap::Inverted`); the explorer presses the mapped key too.
+    - Ch7's and Ch8's start states give the KADABRA its level's moves with Shock Wave over Role Play (`give_kadabra_with_shock_wave`, `givemon`'s moves), so the TM34 re-teach steps are gone.
+    - The fallback lists drop what is now real (`screen_shake`, `screen_flash`, `log_menu`, `give_mon custom`, `use_field_module`, `set_input_inverted`, `walk_backwards`); Ch6 drops `wait_input_or_timeout` and `set_battle_malus`. Merged with SIL3 (master 0243470): its levels (Ch7 60/64, Ch8 62/66) with this wave's `give_kadabra_with_shock_wave`.
+    - All of `sil1_*`, `sil2_ch1` to `sil9_ch8` pass.
+  - **Ids and texts**: `VAR_SIL_INPUT_MAP` (16450) and `VAR_SIL_IDLE_FRAMES` (16451), clear of `SHARED_GEN3`. 41 new `Mallette_*` texts and `Casino_B1F_Porygon_DO` are in `text/fr.ron` and `speakers.ron`. The menu's log titles read "LOG 01 …": the charmap has no `_` (§4 item 8).
+- **Author questions** (also in §5):
+  1. The module prompts (`Mallette_Surf_Ask`, `_Cascade_Ask`, `_Cascade_Bloque`, `_Plongee_Ask`, `_Plongee_Remonter` and the "activé!" lines) are not in the source. Gen3's `gText_WantToUseSurf` names a Pokémon, which a module has none of. Keep these wordings?
+  2. The Mallette's menu labels and lines (ANALYSE … RETOUR, "Aucun appel en attente.", "Cette fonction n'est pas encore disponible.", "{module}\nModule installé.", "SYNCHRONISATION: n%", the log titles, LOG_08's "BZZT… Fichier illisible.") are not in the source. What should APPELS list (calls to replay?) and CARTE show (the RDV signal per story step)?
+  3. `screen_flash(NEGATIF)` (Ch7 welcome) is a white flash: the engine fills one colour and has no palette inversion. Is that enough?
+  4. Durations the source leaves out: a flash is 16 frames; `screen_shake(m)` without frames is 20 (the Ch4 ship roll and Samuel's rail).
+  5. Ch6 groomer: no line exists for a player short of 500 ₽. The refusal (`Toiletteur_T3`) stands in, and nothing is taken.
+  6. Ch6 samurai: `Gym_Sc01_Repli_Q` (the yes/no of the fallback) is no longer said, and the `_HATIF` (+2 levels) trainers are no longer fought: a blink is the normal samurai with the lead's Speed −1 (`rules::PETALS_BLINK`). Drop the text and the two trainers, or keep the hasty variant as well (answers SIL3's question in Ch6)?
+  7. Ch3 PORYGON: the source gives the OT "COCKET" but no id (0 used), and the engine keeps no OT name yet.
+  8. Ch7 emitters: the full design (300 still frames in a 3-cell zone → `Emetteur_T1` and a confused lead; the Scanner destroys them without a battle) needs the emitters as non-trainer objects (a map edit), an `on_frame` on `VAR_SIL_IDLE_FRAMES`, and a battle-start confusion (the battle-setup task). The counter exists; the trainer-object fallback stays. Move to the full design?
+  9. Ch7 residents walk backwards on every visit, also after Reverse falls. Should they stop with the inversion?
+  10. The party menu lists the four field modules on every Pokémon (the engine's rule for a flag gate), labelled SURF, VOL, CASCADE and PLONGÉE; only VOL can be used there. Should Silice hide them from the party menu (the bible: "les modules s'utilisent depuis la Mallette") and add a Mallette FLY entry instead?
+- Plan §3.4's question 11 (Ch7) is answered by the engine: the input map is cleared on every map change, so Route S7 and S8 need no `OnTransition`.
 
 #### SIL3 battle mechanics as built (§1.1 P2, §3.4)
 The P2 battle rows, checked against the engine first, then filled; the Silice content wired to them. Emerald does not move: every new state is hashed only when set, `GameData`'s new hooks default to nothing, and the content build changes only Silice's tables.
@@ -5372,6 +5455,7 @@ The "two floors" of an antenna may be one 9 × 9 map with both rooms, or a secon
 5. **Mega forms** (blocks SIL3 data): canonical types and abilities (add a Fairy type and about 14 abilities newer than Gen3), or Gen3-adapted forms?
 6. **Duplicate text ids (SIL1 Task A, provisional):** `Tour_Sbire1_Intro` and `Tour_Sbire2_Intro` are defined in both ch02 and ch09, with different bodies. The ch09 ones are renamed `..._Ch09` (`text/fr.ron`, `text/speakers.ron`). Should we keep these names, pick others, or merge the texts? The rename is reversible: undo it, and the loader rejects the duplicate again.
 7. **Ch9 → Ch10 elevator (contradiction between chapters, found in the Ch9 maps review):** Ch9's `Tour_Hall_Sc02` sets `VAR_SIL_STORY` 99 and warps straight to `MAP_TOUR_NEBULA_1F` (10, 14), while Ch10 routes the first climb through the crystal cabin's first-climb scene, which sets 100. Proposed fix: the hall script warps to `TourNebulaAscenseur` (3, 6), and the cabin scene takes the player on to 1F. The maps need no change either way (the hall has no elevator warp; the warp is in the script).
+8. **The field and UI wave's authored strings and rulings** ("Silice field and UI mechanics as built", §3.4): the Mallette's menu texts and module prompts (not in the source), `NEGATIF` as a white flash, the default flash and shake lengths, the groomer short of money, the unused `Gym_Sc01_Repli_Q` and `_HATIF` samurai, the PORYGON's OT id, the Ch7 emitters' full design (a map edit and a battle-start confusion), whether Reverse-City's residents walk backwards after Reverse falls, and whether the field modules belong in the party menu.
 
 ### Critical files for implementation
 - /Users/dode/Documents/pokemon/pokemon-rust/crates/content/build/main.rs

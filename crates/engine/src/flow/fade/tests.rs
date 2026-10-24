@@ -65,3 +65,36 @@ fn hash_covers_level_and_target() {
     assert_ne!(h(&a), h(&b));
     assert_ne!(h(&b), h(&c));
 }
+
+#[test]
+fn white_fades_brighten_with_the_black_timing_and_hash_only_while_white() {
+    let hash = |f: &Fader| {
+        let mut h = Fnv64::new();
+        f.hash(&mut h);
+        h.finish()
+    };
+    let black = {
+        let mut f = Fader::new();
+        f.start(Fade::ToBlack);
+        f.update();
+        f
+    };
+    let mut f = Fader::new();
+    f.start(Fade::ToWhite);
+    assert!(f.is_white());
+    let levels: alloc::vec::Vec<u8> = (0..16).map(|_| f.update()).collect();
+    assert_eq!(levels, (1..=16).collect::<alloc::vec::Vec<u8>>());
+    f.start(Fade::FromWhite);
+    assert_eq!(f.level(), FADE_MAX);
+    for _ in 0..15 {
+        f.update();
+        assert!(f.is_white());
+    }
+    assert_eq!(f.update(), 0);
+    assert!(!f.is_white(), "back to normal");
+    assert_eq!(hash(&f), hash(&Fader::new()));
+    let mut w = Fader::new();
+    w.start(Fade::ToWhite);
+    w.update();
+    assert_ne!(hash(&w), hash(&black));
+}

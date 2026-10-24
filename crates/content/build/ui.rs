@@ -248,6 +248,9 @@ fn item_use(id: &str, tms: &std::collections::BTreeMap<&str, u32>) -> String {
         "ITEM_ESCAPE_ROPE" => plain("EscapeRope"),
         "ITEM_FIRE_STONE" | "ITEM_THUNDER_STONE" | "ITEM_WATER_STONE" | "ITEM_LEAF_STONE"
         | "ITEM_MOON_STONE" | "ITEM_SUN_STONE" => plain("Evolution"),
+        // Silice's D-30 (`bible/decisions.md`): used like a stone, it evolves a trade evolver
+        // (and uses up the item a trade-with-item evolution holds).
+        "ITEM_SIL_PIERRE_LIEN" => plain("TradeEvolution"),
         "ITEM_MACH_BIKE" | "ITEM_ACRO_BIKE" => key("Bike"),
         "ITEM_OLD_ROD" => key("Rod(0)"),
         "ITEM_GOOD_ROD" => key("Rod(1)"),

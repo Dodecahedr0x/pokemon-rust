@@ -1129,6 +1129,10 @@
             chapter: "03-viber-city",
         ),
         (
+            id: "Casino_B1F_Porygon_DO",
+            chapter: "03-viber-city",
+        ),
+        (
             id: "Casino_B1F_Sbire1_Apres",
             chapter: "03-viber-city",
         ),
@@ -3591,6 +3595,170 @@
             id: "Loulpix_Doris_PG_Revanche_Intro",
             chapter: "12-post-game",
             speaker: Some("LOULPIX"),
+        ),
+        (
+            id: "Mallette_Analyse",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Appels",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Carte",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Cascade_Ask",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Cascade_Bloque",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Cascade_Used",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Label",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Log08_Texte",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Log_01",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Log_02",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Log_03",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Log_04",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Log_05",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Log_06",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Log_07",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Log_08",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Log_Chiffre",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Menu_Analyse",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Menu_Appels",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Menu_Carte",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Menu_Modules",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Menu_Rapports",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Menu_Retour",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Menu_Synchro",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Module_Cascade",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Module_Coupe",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Module_EclateRoc",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Module_Flash",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Module_Force",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Module_Plongee",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Module_Pret",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Module_Surf",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Module_Vol",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Modules_Aucun",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Plongee_Ask",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Plongee_Remonter",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Plongee_Used",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Surf_Ask",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Surf_Used",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Sync",
+            chapter: "00-prologue",
+        ),
+        (
+            id: "Mallette_Verrouille",
+            chapter: "00-prologue",
         ),
         (
             id: "Manga_Square_Dojo_Sc01_D1",

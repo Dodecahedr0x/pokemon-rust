@@ -545,6 +545,7 @@ pub const fn movement_code(m: MovementType) -> [u8; 2] {
         MovementType::JogInPlace(d) => [12, d as u8],
         MovementType::RunInPlace(d) => [13, d as u8],
         MovementType::WalkSlowlyInPlace(d) => [14, d as u8],
+        MovementType::WanderBackwards => [15, 0],
     }
 }
 

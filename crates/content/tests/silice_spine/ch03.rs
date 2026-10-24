@@ -590,12 +590,12 @@ fn casino() -> Vec<Step> {
             assert!(r.w.flag(FLAG_SIL_CASINO_LOYAL));
             assert!(r.w.flag(FLAG_SIL_PORYGON_LIBERE));
             let party = r.w.party();
-            assert!(
-                party
-                    .iter()
-                    .any(|m| m.species == SPECIES_PORYGON && m.level == 25)
-            );
-            assert_eq!(r.count(ITEM_UP_GRADE), 1);
+            // §9: the Casino's own moves, the Up-Grade held.
+            assert!(party.iter().any(|m| m.species == SPECIES_PORYGON
+                && m.level == 25
+                && m.held == Some(ItemId(ITEM_UP_GRADE))
+                && m.moves[0] == Some(MOVE_CONVERSION_2)
+                && m.moves[3] == Some(MOVE_AGILITY)));
             r.printed_in_order(&[Casino_B1F_Sc02_T1, Casino_B1F_Sc02_T3, Casino_B1F_Sc02_T4]);
         }),
         goto(B1F, 10, 10),
@@ -742,7 +742,6 @@ pub fn check_end(r: &Run) {
         (ITEM_LEMONADE, 2),
         (ITEM_GREAT_BALL, 1),
         (ITEM_COIN_CASE, 1),
-        (ITEM_UP_GRADE, 1),
         (ITEM_SIL_PIERRE_LIEN, 1),
         (ITEM_FRESH_WATER, 1),
     ] {
@@ -752,7 +751,6 @@ pub fn check_end(r: &Run) {
     for name in [
         "strength",
         "battle_two_trainers",
-        "screen_flash",
         "stop_music",
         "set_flash_level",
         "neon tiles",
@@ -760,11 +758,9 @@ pub fn check_end(r: &Run) {
         "multichoice",
         "hidden coins message",
         "capsule metatile",
-        "give_mon custom",
         "play_music",
         "party_valid_count",
         "show_sync",
-        "log_menu",
         "play_se",
         "mallette_call",
         "end_call",

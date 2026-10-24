@@ -74,7 +74,9 @@ pub fn field_use(game: &impl GameData, item: ItemId) -> FieldUse {
         return FieldUse::Party;
     }
     match game.item_use(item) {
-        ItemUse::Medicine(_) | ItemUse::Evolution | ItemUse::Tm(_) => FieldUse::Party,
+        ItemUse::Medicine(_) | ItemUse::Evolution | ItemUse::TradeEvolution | ItemUse::Tm(_) => {
+            FieldUse::Party
+        }
         ItemUse::Repel(n) => FieldUse::Repel(n),
         ItemUse::EscapeRope => FieldUse::OnField,
         ItemUse::Key(k) => match k {
@@ -328,6 +330,28 @@ pub fn use_on_mon(
                 .iter()
                 .find(|e| e.method == EvoMethod::Item && e.param == item.0)?
                 .target;
+            mon.evolve(t, into);
+            reports.push(Report::Degraded("evolution scene"));
+            Some(MonUse {
+                text: UiText::ItemUsed,
+                var2: Vec::new(),
+                evolved: Some(into),
+            })
+        }
+        ItemUse::TradeEvolution => {
+            // `EVO_TRADE` (param 0) or `EVO_TRADE_ITEM` (param: the item the mon must hold);
+            // an Everstone stops it as it stops a trade.
+            if hold == Some(crate::mon::HoldEffect::PreventEvolve) {
+                return None;
+            }
+            let e = game.evolutions(mon.species).iter().find(|e| {
+                matches!(e.method, EvoMethod::Trade | EvoMethod::TradeItem)
+                    && (e.param == 0 || mon.held.is_some_and(|h| h.0 == e.param))
+            })?;
+            if e.param != 0 {
+                mon.held = None;
+            }
+            let into = e.target;
             mon.evolve(t, into);
             reports.push(Report::Degraded("evolution scene"));
             Some(MonUse {

@@ -34,7 +34,7 @@ pub mod wild;
 pub mod world;
 
 pub use data::GameData;
-pub use input::Buttons;
+pub use input::{Buttons, InputMap};
 pub use rng::Rng;
 pub use video::Tile;
 pub use world::World;

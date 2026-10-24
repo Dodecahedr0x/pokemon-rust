@@ -405,7 +405,8 @@ pub fn steps() -> Vec<Step> {
         CENTER_HEAL,
         INTO_GYM,
         &[
-            // The Allée des Regards: each samurai (yes to "draw first?": the hasty variant),
+            // The Allée des Regards: each samurai (the driver's press is a blink: the lead's
+            // Speed −1),
             // a heal at the Center after each fight of the gym.
             goto(GYM, 10, 26),
             Step::Walk(Up),
@@ -420,9 +421,7 @@ pub fn steps() -> Vec<Step> {
         &[
             Step::Check("samourais", |r| {
                 assert!(r.beaten(TRAINER_SIL_SAMOURAI_MUSASHI));
-                assert!(r.beaten(TRAINER_SIL_SAMOURAI_MUSASHI_HATIF));
                 assert!(r.beaten(TRAINER_SIL_SAMOURAI_KOJIRO));
-                assert!(r.beaten(TRAINER_SIL_SAMOURAI_KOJIRO_HATIF));
                 assert_eq!(r.times(Gym_Sc01_T3), 2);
             }),
             // The scroll desks, then the Kunoichi's sight line walked into.
@@ -546,11 +545,9 @@ const FALLBACKS: &[&str] = &[
     "dawn_tint",
     "show_book",
     "play_se",
-    "wait_input_or_timeout",
     "multichoice",
     "play_fanfare",
     "show_sync",
-    "log_menu",
 ];
 
 /// The party's species and levels (for the log).

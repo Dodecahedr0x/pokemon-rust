@@ -15,6 +15,9 @@ pub const FADE_MAX: u8 = 16;
 pub struct Fader {
     level: u8,
     target: u8,
+    /// The level brightens towards white (Gen3 `FADE_TO_WHITE` / `FADE_FROM_WHITE`). Cleared
+    /// once a fade back ends at the normal picture.
+    white: bool,
 }
 
 impl Fader {
@@ -22,14 +25,15 @@ impl Fader {
         Self {
             level: 0,
             target: 0,
+            white: false,
         }
     }
 
     /// `ToBlack` fades from the current level; `FromBlack` first snaps to black, as Gen3
     /// `FillPalBufferBlack` before `FADE_FROM_BLACK`.
     pub fn start(&mut self, fade: Fade) {
-        // Milestone 9 Wave 0: the white fades run as the black ones until Task R lightens
-        // them (`Frame::lighten`); no Emerald script issues them before Task J.
+        // The white fades brighten (`Frame::lighten`) with the black fades' timing.
+        self.white = matches!(fade, Fade::ToWhite | Fade::FromWhite);
         match fade {
             Fade::ToBlack | Fade::ToWhite => self.target = FADE_MAX,
             Fade::FromBlack | Fade::FromWhite => {
@@ -46,14 +50,16 @@ impl Fader {
         } else if self.level > self.target {
             self.level -= 1;
         }
+        if self.level == 0 && self.target == 0 {
+            self.white = false;
+        }
         self.level
     }
 
     /// Whether the level brightens towards white (`Frame::lighten`) rather than darkens: a
-    /// `ToWhite` / `FromWhite` fade (Task R). `draw_field` copies it into the frame. Wave 0:
-    /// never (the white fades run as black ones).
+    /// `ToWhite` / `FromWhite` fade. `draw_field` copies it into the frame.
     pub const fn is_white(&self) -> bool {
-        false
+        self.white
     }
 
     pub const fn level(&self) -> u8 {
@@ -67,6 +73,10 @@ impl Fader {
     #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
         h.write(&[self.level, self.target]);
+        // Only while white, so the black fades keep their bytes.
+        if self.white {
+            h.write(&[0xFF]);
+        }
     }
 }
 
@@ -83,6 +93,7 @@ impl Fader {
         Fader {
             level: s.level,
             target: s.target,
+            white: false,
         }
     }
 }

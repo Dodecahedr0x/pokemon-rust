@@ -414,6 +414,19 @@ pub enum Request {
     },
     /// Until A or B, or `frames` frames: answers `Bool` (true when A or B came first).
     WaitInputOrTimeout(u16),
+    // ---- Silice wave: game rules and effects Gen3 does not have ----
+    /// The text window alone on a black screen (`true`) or the field back (`false`); messages
+    /// print as usual (Silice `show_text_on_black`).
+    TextOnBlack(bool),
+    /// The camera moves to `(x, y)` pixels off the player's view, `speed` pixels a frame, and
+    /// the script waits until it is there; `(0, 0)` brings it back (Silice `camera_pan`).
+    CameraPan {
+        x: i16,
+        y: i16,
+        speed: u8,
+    },
+    /// The field's d-pad mapping (`SpecialIds::var_input_map`; nothing in a game without one).
+    SetInputMap(crate::input::InputMap),
     // ---- Milestone 9: party and money (`world/host/party.rs`, Task R) ----
     /// Answers `Word` (the money).
     MoneyGet,
@@ -805,6 +818,10 @@ impl Request {
                 ..
             } => (63, banks, obj_banks, color, frames),
             Request::WaitInputOrTimeout(n) => (64, n, 0, 0, 0),
+            // Silice wave: tags 225 and up.
+            Request::TextOnBlack(on) => (225, on as u16, 0, 0, 0),
+            Request::CameraPan { x, y, speed } => (226, i(x), i(y), speed as u16, 0),
+            Request::SetInputMap(m) => (227, m.code(), 0, 0, 0),
             Request::MoneyGet => (65, 0, 0, 0, 0),
             Request::CoinsGet => (66, 0, 0, 0, 0),
             Request::CoinsAdd(n) => (67, n, 0, 0, 0),
@@ -1588,6 +1605,21 @@ impl Ctx {
     /// Whether A or B came before `frames` frames passed.
     pub fn wait_input_or_timeout(&self, frames: u16) -> Req<bool> {
         self.req(Request::WaitInputOrTimeout(frames), Response::bool)
+    }
+
+    /// [`Request::TextOnBlack`].
+    pub fn text_on_black(&self, on: bool) -> Req<()> {
+        self.req(Request::TextOnBlack(on), unit)
+    }
+
+    /// [`Request::CameraPan`].
+    pub fn camera_pan(&self, x: i16, y: i16, speed: u8) -> Req<()> {
+        self.req(Request::CameraPan { x, y, speed }, unit)
+    }
+
+    /// [`Request::SetInputMap`].
+    pub fn set_input_map(&self, m: crate::input::InputMap) -> Req<()> {
+        self.req(Request::SetInputMap(m), unit)
     }
 
     pub fn money_get(&self) -> Req<u32> {

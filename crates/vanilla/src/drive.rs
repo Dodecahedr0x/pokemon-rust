@@ -15,7 +15,7 @@
 use crate::state::{Mode, Vanilla, layout::*};
 use anyhow::{Result, anyhow};
 use engine::Buttons;
-use engine::data::{Dir, GameData, MapId, MoveId, SpeciesId};
+use engine::data::{Behavior, Dir, GameData, MapData, MapId, MoveId, SpeciesId, Water};
 use explore::oracle::{Planner, overrides_from_grid};
 use explore::policy::{
     YES_ONCE, best_damaging_slot_of, first_damaging_slot_of, forget_slot_of, toward,
@@ -32,6 +32,26 @@ fn vertical(c: u8, want: u8) -> Buttons {
         std::cmp::Ordering::Equal => Buttons::A,
     }
 }
+
+/// The key that moves a 2-column grid menu's cursor (`menu.c`, row-major) from `c` to
+/// `want`, or A once it is there.
+fn grid_key(c: u8, want: u8) -> Buttons {
+    match c.cmp(&want) {
+        std::cmp::Ordering::Equal => Buttons::A,
+        std::cmp::Ordering::Greater if c - want >= 2 => Buttons::UP,
+        std::cmp::Ordering::Greater => Buttons::LEFT,
+        std::cmp::Ordering::Less if want - c >= 2 => Buttons::DOWN,
+        std::cmp::Ordering::Less => Buttons::RIGHT,
+    }
+}
+
+/// Frames a script runs without input before [`Vanilla::settle`] presses B now and then (a
+/// native window waiting for A or B: the Berry Crush rankings).
+const SCRIPT_STUCK: u32 = 1200;
+
+/// The times a walk with no path waits for the objects in the way, and the frames of a wait.
+const OBJECT_WAITS: u32 = 8;
+const OBJECT_WAIT_FRAMES: u32 = 32;
 
 /// How a [`Vanilla::walk_to`] ended.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -81,10 +101,19 @@ impl Vanilla {
         let mut idle = 0;
         let mut in_battle = false;
         let mut last = None;
+        // Frames a script has waited without a message (a native window that takes A or B,
+        // such as the Berry Crush rankings sign).
+        let mut scripted = 0u32;
         // The script position of the last multichoice, and the times it was asked again.
         let (mut asked, mut reasked, mut in_multichoice) = (None, 0u8, false);
         let mut in_yes_no = false;
         loop {
+            if self.hall_of_fame || self.at_hall_of_fame() {
+                // `GameClear`'s screens: the Hall of Fame, the credits, then a reset to the
+                // title. The run ends at the Hall of Fame.
+                self.hall_of_fame = true;
+                return Ok(());
+            }
             let mode = self.mode();
             if self.trace && last != Some(mode) {
                 let inputs = self.mode_inputs();
@@ -100,6 +129,11 @@ impl Vanilla {
                 }
             }
             in_multichoice = mode == Mode::Multichoice;
+            scripted = if mode == Mode::Script {
+                scripted + 1
+            } else {
+                0
+            };
             if mode == Mode::YesNo && !in_yes_no {
                 self.yes_nos += 1;
             }
@@ -117,11 +151,16 @@ impl Vanilla {
                 self.outcomes.push(outcome);
             }
             in_battle = battle || (in_battle && mode == Mode::Transition);
+            let mart = self.mart_key();
             let keys = match mode {
+                _ if mart.is_some() => mart.unwrap_or(Buttons::NONE),
                 // Confirmed on a second frame: the field runs on-frame map scripts and triggers
                 // only once it processes the player's (here: no) input.
                 Mode::FieldIdle if idle >= SETTLE_IDLE => return Ok(()),
                 Mode::FieldIdle => Buttons::NONE,
+                Mode::Script if scripted > SCRIPT_STUCK && scripted.is_multiple_of(16) => {
+                    Buttons::B
+                }
                 Mode::Script | Mode::Transition => Buttons::NONE,
                 Mode::BattleAction
                 | Mode::BattleMove
@@ -181,12 +220,44 @@ impl Vanilla {
         let s = self.sym.clone();
         let flags = self.emu.read_u32(s.battle_type_flags);
         let wild = flags & BATTLE_TYPE_TRAINER == 0;
-        let run = self.answers.run_wild && wild && flags & BATTLE_TYPE_FIRST_BATTLE == 0;
+        let random = wild && flags & BATTLE_TYPE_FIRST_BATTLE == 0;
+        // `Opts::catch`: a ball (BAG) at that species, RUN from every other wild mon.
+        let catch = self.answers.catch;
+        let foe = self
+            .emu
+            .read_u16(s.battle_mons + BATTLE_MON_SIZE + BM_SPECIES);
+        let ball = random && catch != 0 && foe == catch;
+        // A random encounter on a walk (no script waits on it: not a scripted wild battle)
+        // with the lead under half its HP: RUN. Vanilla's RNG meets more wild mons than our
+        // spine on the same walks; fighting them all wears a one-mon party down to a lost
+        // trainer battle further on (Rusturf Tunnel). Not while training or catching.
+        let scripted = self.emu.read_u8(s.script_context_status) != CONTEXT_SHUTDOWN;
+        let worn = {
+            let me = s.battle_mons;
+            2 * self.emu.read_u16(me + BM_HP) < self.emu.read_u16(me + BM_MAX_HP)
+        };
+        let flee = !self.training && !scripted && worn;
+        let run = random && (self.answers.run_wild || catch != 0 || flee) && !ball;
         match mode {
             Mode::BattleAction => toward(
                 self.emu.read_u8(s.action_selection_cursor),
-                if run { 3 } else { 0 },
+                if run {
+                    3
+                } else if ball {
+                    1
+                } else {
+                    0
+                },
             ),
+            Mode::BattleTarget => {
+                // RIGHT through the targets until the cursor is on the foe to aim at.
+                let want = self.target_foe();
+                if self.emu.read_u8(s.multi_use_player_cursor) == want {
+                    Buttons::A
+                } else {
+                    Buttons::RIGHT
+                }
+            }
             Mode::BattleMove if run => Buttons::B,
             Mode::BattleMove => {
                 let slot = self.move_slot();
@@ -217,6 +288,8 @@ impl Vanilla {
                             std::cmp::Ordering::Greater => Buttons::UP,
                         }
                     }
+                    // "Give a nickname to the caught <mon>?": no (B).
+                    B_SCR_OP_TRYGIVECAUGHTMONNICK => Buttons::B,
                     B_SCR_OP_YESNOBOXSTOPLEARNINGMOVE => {
                         if self.emu.read_u8(s.battle_communication + 1) == 0 {
                             Buttons::A
@@ -260,19 +333,89 @@ impl Vanilla {
         vertical(self.emu.read_u8(pss + PSS_FIRST_MOVE_INDEX), slot)
     }
 
-    /// The policy's move slot, from `gBattleMons[0]` (ours) and `[1]` (the foe).
+    /// Whether the battle is a double one (`BATTLE_TYPE_DOUBLE`).
+    fn double_battle(&mut self) -> bool {
+        self.emu.read_u32(self.sym.battle_type_flags) & BATTLE_TYPE_DOUBLE != 0
+    }
+
+    /// `gBattleMons[b]`'s address.
+    fn battle_mon(&self, b: u8) -> u32 {
+        self.sym.battle_mons + u32::from(b) * BATTLE_MON_SIZE
+    }
+
+    /// The battler choosing (`gActiveBattler`: 0, or 2 in doubles).
+    fn choosing(&mut self) -> u8 {
+        if self.double_battle() {
+            self.emu.read_u8(self.sym.active_battler) & 3
+        } else {
+            0
+        }
+    }
+
+    /// The foe to aim at (our policy's `target_foe`): in doubles the standing opponent
+    /// (battler 1 or 3) with the least HP, else battler 1.
+    fn target_foe(&mut self) -> u8 {
+        if !self.double_battle() {
+            return 1;
+        }
+        let absent = self.emu.read_u8(self.sym.absent_battler_flags);
+        [1u8, 3]
+            .into_iter()
+            .filter(|&b| absent & (1 << b) == 0)
+            .map(|b| (b, self.emu.read_u16(self.battle_mon(b) + BM_HP)))
+            .filter(|&(_, hp)| hp > 0)
+            .min_by_key(|&(_, hp)| hp)
+            .map_or(1, |(b, _)| b)
+    }
+
+    /// The policy's move slot, from the choosing battler's `gBattleMons` and the targeted
+    /// foe's ([`Vanilla::target_foe`]); in doubles not a move that also hits a standing ally
+    /// (Earthquake) while another is usable (our policy's `selectable`).
     fn move_slot(&mut self) -> u8 {
         let Some(t) = self.tables else {
             return 0;
         };
-        let me = self.sym.battle_mons;
-        let foe = me + BATTLE_MON_SIZE;
+        let active = self.choosing();
+        let me = self.battle_mon(active);
+        let target = self.target_foe();
+        let foe = self.battle_mon(target);
         let species = SpeciesId(self.emu.read_u16(me + BM_SPECIES));
         let moves: [Option<MoveId>; 4] = std::array::from_fn(|i| {
             let m = self.emu.read_u16(me + BM_MOVES + 2 * i as u32);
             (m != 0).then_some(MoveId(m))
         });
-        let pp: [u8; 4] = std::array::from_fn(|i| self.emu.read_u8(me + BM_PP + i as u32));
+        let mut pp: [u8; 4] = std::array::from_fn(|i| self.emu.read_u8(me + BM_PP + i as u32));
+        let ally = active ^ 2;
+        let absent = self.emu.read_u8(self.sym.absent_battler_flags);
+        if self.double_battle()
+            && absent & (1 << ally) == 0
+            && self.emu.read_u16(self.battle_mon(ally) + BM_HP) > 0
+        {
+            let hits_ally = |i: usize| {
+                moves[i]
+                    .is_some_and(|m| t.move_info(m).target == engine::mon::MoveTarget::FoesAndAlly)
+            };
+            let other = (0..4).any(|i| !hits_ally(i) && moves[i].is_some() && pp[i] > 0);
+            if other {
+                for (i, p) in pp.iter_mut().enumerate() {
+                    if hits_ally(i) {
+                        *p = 0;
+                    }
+                }
+            }
+        }
+        if self.trace {
+            eprintln!(
+                "  battle move: {species:?} L{} hp {}/{} moves {moves:?} pp {pp:?} vs {} L{} hp {} best {}",
+                self.emu.read_u8(me + BM_LEVEL),
+                self.emu.read_u16(me + BM_HP),
+                self.emu.read_u16(me + BM_MAX_HP),
+                self.emu.read_u16(foe + BM_SPECIES),
+                self.emu.read_u8(foe + BM_LEVEL),
+                self.emu.read_u16(foe + BM_HP),
+                self.answers.best_move,
+            );
+        }
         if self.answers.best_move {
             let theirs = SpeciesId(self.emu.read_u16(foe + BM_SPECIES));
             best_damaging_slot_of(species, &moves, &pp, theirs, t)
@@ -307,15 +450,52 @@ impl Vanilla {
                 Some(_) => Buttons::START,
             };
         }
+        if self.callback2() == s.cb2_bag_menu_run && self.answers.catch != 0 {
+            // The battle's bag (only a catch opens it): the POKé BALLS pocket's first ball,
+            // USE (`Opts::catch`; our battle scene's degraded BAG throws the same ball).
+            return self.ball_key();
+        }
         if self.callback2() == s.cb2_pokenav {
             return self.pokenav_key();
         }
+
         if self.callback2() == s.cb2_update_party_menu
             && tasks.contains(&s.task_handle_choose_mon_input)
         {
             // A fainted lead's replacement (or a script's choice): the first mon that can
             // fight. A on a fainted one only prints "no will to fight" and asks again.
-            let want = (self.party().iter()).position(|m| m.hp > 0).unwrap_or(0) as u8;
+            // In battle (`PARTY_MENU_TYPE_IN_BATTLE`), not one already out: in a double
+            // battle the partner is alive and "already in battle" (`gBattlerPartyIndexes` of
+            // the player's battlers 0 and 2).
+            let out: Vec<u8> = if self.emu.read_u8(s.party_menu + PM_MENU_TYPE) & 0xF
+                == PARTY_MENU_TYPE_IN_BATTLE
+            {
+                let n = self.emu.read_u8(s.battlers_count).min(4) as u32;
+                (0..n)
+                    .step_by(2)
+                    .map(|b| self.emu.read_u16(s.battler_party_indexes + 2 * b) as u8)
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            let mut want = (self.party().iter().enumerate())
+                .position(|(i, m)| m.hp > 0 && !out.contains(&(i as u8)))
+                .unwrap_or(0) as u8;
+            if self.emu.read_u8(s.party_menu + PM_MENU_TYPE) & 0xF == PARTY_MENU_TYPE_CHOOSE_HALF {
+                // The choose-half menu (Steven's multi battle, `ChooseHalfPartyForBattle`):
+                // ENTER the mons that can fight in party order (up to 3: `max`, then the
+                // menu moves to CONFIRM itself), then CONFIRM (slot `PARTY_SIZE`), as our
+                // explorer's policy does.
+                let order = self.emu.read_bytes(s.selected_order_from_party, 3);
+                let party = self.party();
+                let next = (party.iter().enumerate())
+                    .find(|(i, m)| m.hp > 0 && !order.contains(&(*i as u8 + 1)))
+                    .map(|(i, _)| i as u8);
+                want = match next {
+                    Some(i) if order.contains(&0) => i,
+                    _ => PARTY_SIZE as u8,
+                };
+            }
             let slot = self.emu.read_u8(s.party_menu + PM_SLOT_ID);
             if self.trace {
                 let hp: Vec<_> = self.party().iter().map(|m| (m.species, m.hp)).collect();
@@ -358,9 +538,116 @@ impl Vanilla {
     pub fn occupied(&mut self, map: MapId) -> Vec<(i16, i16)> {
         (0..OBJECT_EVENTS)
             .filter_map(|i| self.object_event(i))
-            .filter(|o| !o.is_player && o.visible && o.map == map)
+            // Gen3 collides with invisible objects too (`ObjectEventCollidesWithObjectAt`
+            // checks `active` only): Route 120's hidden Kecleon blocks its cell.
+            .filter(|o| !o.is_player && o.map == map)
             .map(|o| o.cell)
             .collect()
+    }
+
+    /// Whether `map` (our data, as the planner reads it) has water currents.
+    fn has_currents<G: GameData>(&mut self, game: &G, map: MapId) -> bool {
+        if !game.has_map(map) {
+            return false;
+        }
+        let (w, h) = {
+            let m = game.map(map);
+            (m.width as i16, m.height as i16)
+        };
+        let overrides = self.overrides(game, map);
+        let planner = self.planner(game, map, &overrides, Vec::new());
+        (0..h).any(|y| {
+            (0..w).any(|x| matches!(planner.behavior((x, y)), Behavior::Water(Water::Current(_))))
+        })
+    }
+
+    /// `gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_SURFING`.
+    pub fn surfing(&mut self) -> bool {
+        self.emu.read_u8(self.sym.player_avatar + PA_FLAGS) & PLAYER_AVATAR_FLAG_SURFING != 0
+    }
+
+    /// The rotating gate puzzle of the current map and the gates' orientations (Gen3
+    /// `GetCurrentMapRotatingGatePuzzleType`: Fortree's Gym, `MAP_FORTREE_CITY_GYM` 12.1, and
+    /// the Trick House's sixth puzzle, `MAP_ROUTE110_TRICK_HOUSE_PUZZLE6` 29.8), read from
+    /// RAM and the ROM's tables ([`crate::gates`]); `None` elsewhere.
+    pub fn rotating_gates(&mut self) -> Option<(crate::gates::Gates, u32)> {
+        let map = self.current_map().ok()?;
+        if !matches!(map.0, 0x0C01 | 0x1D08) {
+            return None;
+        }
+        let config = self.emu.read_u32(self.sym.rotating_gate_puzzle_config);
+        let count = self.emu.read_u8(self.sym.rotating_gate_puzzle_count) as usize;
+        if config >> 24 != 8 || count == 0 || count > 16 {
+            return None;
+        }
+        // `struct RotatingGatePuzzle`: x, y (s16), shape, orientation; 8 bytes with agbcc.
+        let raw = self.emu.read_bytes(config, 8 * count);
+        let gates: Vec<crate::gates::Gate> = (raw.chunks(8))
+            .map(|g| crate::gates::Gate {
+                x: i16::from_le_bytes([g[0], g[1]]) + MAP_OFFSET,
+                y: i16::from_le_bytes([g[2], g[3]]) + MAP_OFFSET,
+                shape: g[4],
+            })
+            .collect();
+        let shapes = 1 + gates.iter().map(|g| g.shape as usize).max()?;
+        let layout = self
+            .emu
+            .read_bytes(self.sym.rotating_gate_arm_layout, 8 * shapes);
+        let arm_layout = layout
+            .chunks(8)
+            .map(|c| <[u8; 8]>::try_from(c).unwrap_or_default())
+            .collect();
+        let mut rotation = [[0u8; 16]; 4];
+        // By `gates::table`'s order: up (north), down (south), left (west), right (east).
+        let tables = [
+            self.sym.rotating_gate_rotation_north,
+            self.sym.rotating_gate_rotation_south,
+            self.sym.rotating_gate_rotation_west,
+            self.sym.rotating_gate_rotation_east,
+        ];
+        for (r, at) in rotation.iter_mut().zip(tables) {
+            self.emu.read_into(at, r);
+        }
+        let mut arm_positions = [[(0i8, 0i8); 8]; 2];
+        let tables = [
+            self.sym.rotating_gate_arms_anticlockwise,
+            self.sym.rotating_gate_arms_clockwise,
+        ];
+        for (p, at) in arm_positions.iter_mut().zip(tables) {
+            // `struct Coords8` (two s8): 4 bytes apart with agbcc (the symbol is 0x20 long).
+            let b = self.emu.read_bytes(at, 32);
+            for (i, c) in p.iter_mut().enumerate() {
+                *c = (b[4 * i] as i8, b[4 * i + 1] as i8);
+            }
+        }
+        let at = self.sym.backup_map_layout;
+        let (w, h) = (
+            self.emu.read_u32(at) as usize,
+            self.emu.read_u32(at + 4) as usize,
+        );
+        let ptr = self.emu.read_u32(at + 8);
+        if !EWRAM.contains(&ptr) || w * h > 0x8000 {
+            return None;
+        }
+        let bytes = self.emu.read_bytes(ptr, 2 * w * h);
+        let collision = (bytes.chunks(2))
+            .map(|b| ((u16::from_le_bytes([b[0], b[1]]) & 0x0C00) >> 10) as u8)
+            .collect();
+        // The orientations: the temp vars from `VAR_TEMP_0`, a byte per gate.
+        let sb1 = self.save_block1().ok()?;
+        let o = self.emu.read_bytes(sb1 + SB1_VARS, count);
+        let orientations =
+            (o.iter().enumerate()).fold(0u32, |acc, (i, &b)| acc | (u32::from(b & 3) << (2 * i)));
+        let g = crate::gates::Gates {
+            gates,
+            arm_layout,
+            rotation,
+            arm_positions,
+            collision,
+            w: w as i16,
+            h: h as i16,
+        };
+        Some((g, orientations))
     }
 
     /// The `setmetatile` overrides of the current map: the cells of `gBackupMapLayout` whose
@@ -379,7 +666,54 @@ impl Vanilla {
         let grid: Vec<u16> = (bytes.chunks(2))
             .map(|b| u16::from_le_bytes([b[0], b[1]]))
             .collect();
-        overrides_from_grid(game.map(map), w, h, &grid).unwrap_or_default()
+        let data = self.layout_data(game, map);
+        overrides_from_grid(data, w, h, &grid).unwrap_or_default()
+    }
+
+    /// `gSaveBlock1Ptr->mapLayoutId`: the layout the current map is loaded with (its own, or
+    /// a `setmaplayoutindex` override).
+    pub fn layout_id(&mut self) -> Option<u16> {
+        let sb1 = self.save_block1().ok()?;
+        Some(self.emu.read_u16(sb1 + SB1_MAP_LAYOUT_ID))
+    }
+
+    /// Our data for map `map` as vanilla has it loaded: its layout override's variant
+    /// ([`Vanilla::layout_id`], `GameData::map_layout`), else its own.
+    pub fn layout_data<G: GameData>(&mut self, game: &G, map: MapId) -> &'static MapData {
+        let own = game.map(map);
+        match self.layout_id() {
+            Some(l) => game.map_layout(map, l).unwrap_or(own),
+            None => own,
+        }
+    }
+
+    /// The player's elevation (`ObjectEvent.currentElevation`): on a bridge or under it.
+    pub fn player_elevation(&mut self) -> Option<u8> {
+        let id = u32::from(
+            self.emu
+                .read_u8(self.sym.player_avatar + PA_OBJECT_EVENT_ID),
+        );
+        if id >= OBJECT_EVENTS {
+            return None;
+        }
+        let at = self.sym.object_events + id * OBJECT_EVENT_SIZE + OE_ELEVATION;
+        Some(self.emu.read_u8(at) & 0xF)
+    }
+
+    /// Our planner on `map` as vanilla has it now: its layout (the override), the player's
+    /// elevation, `overrides` and the `occupied` cells.
+    pub fn planner<'a, G: GameData>(
+        &mut self,
+        game: &'a G,
+        map: MapId,
+        overrides: &'a [((i16, i16), u16)],
+        occupied: Vec<(i16, i16)>,
+    ) -> Planner<'a, G> {
+        let layout = self.layout_id();
+        let elevation = self.player_elevation();
+        Planner::new(game, map, overrides, occupied)
+            .with_layout(map, layout)
+            .with_elevation(elevation)
     }
 
     /// Walks to `to` on the current map (`game`'s collision data), settling whenever a script
@@ -406,6 +740,8 @@ impl Vanilla {
         self.settle(max_frames)?;
         let start = self.current_map()?;
         let mut stalls = 0;
+        let mut waits = 0;
+        let currents = self.has_currents(game, start);
         loop {
             let me = self.player_object().ok_or_else(|| anyhow!("no player"))?;
             let map = self.current_map()?;
@@ -418,11 +754,60 @@ impl Vanilla {
             let overrides = self.overrides(game, start);
             let mut occupied = self.occupied(start);
             occupied.extend_from_slice(avoid);
-            let dir = Planner::new(game, start, &overrides, occupied)
-                .first_dir(me.cell, to)
-                .ok_or_else(|| {
-                    anyhow!("walk_to: no path from {:?} to {to:?} on {start:?}", me.cell)
-                })?;
+            let occupied_n = occupied.len();
+            let planner = self.planner(game, start, &overrides, occupied);
+            // Rotating gates (our engine has none): a walk that pushes them where they turn.
+            let gated = self.rotating_gates().and_then(|(g, o)| {
+                let at = |(x, y): (i16, i16)| (x + MAP_OFFSET, y + MAP_OFFSET);
+                g.first_dir(at(me.cell), at(to), o, |(x, y)| {
+                    planner.walkable((x - MAP_OFFSET, y - MAP_OFFSET))
+                })
+            });
+            // Currents (Seafloor Cavern): a walk that rides them, and surfs from land.
+            let surfing = self.surfing();
+            let current = currents
+                .then(|| {
+                    crate::currents::first_dir(me.cell, to, surfing, |c| {
+                        use crate::currents::Cell;
+                        if !planner.walkable(c) {
+                            return Cell::Blocked;
+                        }
+                        match planner.behavior(c) {
+                            Behavior::Water(Water::Current(d)) => Cell::Current(d),
+                            Behavior::Water(_) => Cell::Water,
+                            _ => Cell::Land,
+                        }
+                    })
+                })
+                .flatten();
+            if let Some(d) = current
+                && !surfing
+                && matches!(
+                    planner.behavior((me.cell.0 + d.delta().0, me.cell.1 + d.delta().1)),
+                    Behavior::Water(_)
+                )
+            {
+                // Onto the water from land: Surf (A, then YES).
+                self.interact(d, end.saturating_sub(self.frames))?;
+                continue;
+            }
+            let (elevation, layout) = (self.player_elevation(), self.layout_id());
+            let Some(dir) = gated.or(current).or_else(|| planner.first_dir(me.cell, to)) else {
+                // Objects in the way (a wandering one in a corridor): wait for them a while.
+                if occupied_n > avoid.len() && waits < OBJECT_WAITS {
+                    waits += 1;
+                    for _ in 0..OBJECT_WAIT_FRAMES {
+                        self.step(Buttons::NONE)?;
+                    }
+                    continue;
+                }
+                return Err(anyhow!(
+                    "walk_to: no path from {:?} to {to:?} on {start:?} (elevation \
+                     {elevation:?}, layout {layout:?}, {} objects in the way)",
+                    me.cell,
+                    occupied_n
+                ));
+            };
             // Hold the direction until the player leaves the cell, or the field stops idling;
             // a bump (an object stepped in the way) re-plans after a while.
             let mut held = 0;
@@ -506,16 +891,44 @@ impl Vanilla {
         let end = self.frames + max_frames;
         let at = self.player_object().map(|o| o.cell);
         let map = self.current_map()?;
-        while self.mode() == Mode::FieldIdle
-            && self.player_object().map(|o| o.cell) == at
-            && self.current_map()? == map
-        {
-            if self.frames >= end {
-                return Err(anyhow!("step {dir:?}: never moved"));
+        loop {
+            // The object on the cell ahead (a boulder Strength pushes).
+            let ahead = at.map(|(x, y)| (x + dir.delta().0, y + dir.delta().1));
+            let blocker = (0..OBJECT_EVENTS)
+                .filter_map(|i| self.object_event(i))
+                .find(|o| !o.is_player && o.map == map && Some(o.cell) == ahead)
+                .map(|o| o.local_id);
+            let mut held = 0;
+            while self.mode() == Mode::FieldIdle
+                && self.player_object().map(|o| o.cell) == at
+                && self.current_map()? == map
+            {
+                if self.frames >= end {
+                    return Err(anyhow!("step {dir:?}: never moved"));
+                }
+                if held > 4 * BUMP_FRAMES && blocker.is_none() {
+                    // A bump and nothing else (the field idles): vanilla cannot take this
+                    // step (ours could). The cell delta tells it; the run goes on.
+                    self.bumped = at;
+                    return Ok(());
+                }
+                self.step(button(dir))?;
+                held += 1;
             }
-            self.step(button(dir))?;
+            self.settle(end.saturating_sub(self.frames))?;
+            // Gen3's push (`Task_PushBoulder`) walks the player in place while the boulder
+            // moves on; the walk then steps after it (the spine's `Walk` into a boulder, as
+            // `expand`'s walk keeps pressing until the player moves).
+            let pushed = blocker.is_some_and(|id| {
+                (0..OBJECT_EVENTS)
+                    .filter_map(|i| self.object_event(i))
+                    .any(|o| o.local_id == id && o.map == map && Some(o.cell) != ahead)
+            });
+            let still = self.player_object().map(|o| o.cell) == at;
+            if !(pushed && still && self.current_map()? == map) {
+                return Ok(());
+            }
         }
-        self.settle(end.saturating_sub(self.frames))
     }
 
     /// Holds `keys` for `frames` frames, then settles.
@@ -649,12 +1062,13 @@ impl Vanilla {
                     return Ok(Some(Buttons::B));
                 }
                 // USE is the first cell of the context menus that have it (`item_menu.c`
-                // `sContextMenuItems_*Pocket`, a 2-column grid).
-                return Ok(Some(match self.emu.read_u8(s.menu + 2) {
-                    0 => Buttons::A,
-                    1 => Buttons::LEFT,
-                    _ => Buttons::UP,
-                }));
+                // `sContextMenuItems_*Pocket`, a 2-column grid), but the berries' (CHECK TAG,
+                // -, USE, GIVE, TOSS, CANCEL: the third).
+                let berries = self
+                    .bag_slot(item)
+                    .is_some_and(|(p, _)| p == BAG_POCKET_BERRIES);
+                let want = if berries { 2 } else { 0 };
+                return Ok(Some(grid_key(self.emu.read_u8(s.menu + 2), want)));
             }
             if tasks.contains(&s.task_yes_no) {
                 return Ok(Some(self.yes()));
@@ -723,5 +1137,287 @@ impl Vanilla {
                 }
             }
         }
+    }
+}
+
+/// Frames a [`Vanilla::fly`] may take (the start menu, the party menu, the fly map, the
+/// flight).
+pub const FLY_FRAMES: u64 = 6_000;
+
+impl Vanilla {
+    /// Whether `GameClear`'s screens run: the Hall of Fame (`CB2_DoHallOfFameScreen`,
+    /// `CB2_HallOfFame`) or the credits after it.
+    pub fn at_hall_of_fame(&mut self) -> bool {
+        let s = self.sym.clone();
+        let cb2 = self.callback2();
+        [
+            s.cb2_do_hall_of_fame_screen,
+            s.cb2_hall_of_fame,
+            s.cb2_start_credits_sequence,
+            s.cb2_credits,
+        ]
+        .contains(&cb2)
+    }
+
+    /// The quantity of `item` in the bag (every slot).
+    pub fn bag_count(&mut self, item: u16) -> u16 {
+        self.state().map_or(0, |st| {
+            (st.bag.iter())
+                .filter(|&&(_, it, _)| it == item)
+                .map(|&(_, _, q)| q)
+                .sum()
+        })
+    }
+
+    /// The Poké Mart's key (`shop.c`) while it is open, per [`Vanilla::buying`]: BUY on the
+    /// shop menu (`Task_ShopMenu`, `sMenu`), the item in the list (`sMartInfo.itemList`, the
+    /// list's `sShopData` scroll and row), the quantity (`tItemCount`: UP +1, DOWN -1), A
+    /// through the confirm and the messages; once bought (or with nothing to buy), B out of the
+    /// list and QUIT. `None`: no mart screen.
+    pub fn mart_key(&mut self) -> Option<Buttons> {
+        let s = self.sym.clone();
+        let cb2 = self.callback2();
+        if cb2 != s.cb2_overworld && cb2 != s.cb2_buy_menu {
+            return None;
+        }
+        let tasks = self.tasks();
+        let shop_menu = cb2 == s.cb2_overworld && tasks.contains(&s.task_shop_menu);
+        if !shop_menu && cb2 != s.cb2_buy_menu {
+            return None;
+        }
+        if self.fade_active() {
+            return Some(Buttons::NONE);
+        }
+        let pending = match self.buying {
+            Some((item, qty, had)) => {
+                (self.bag_count(item) < had.saturating_add(qty)).then_some((item, qty))
+            }
+            None => None,
+        };
+        if shop_menu {
+            // BUY / SELL / QUIT.
+            let at = self.emu.read_u8(s.menu + 2);
+            return Some(vertical(at, if pending.is_some() { 0 } else { 2 }));
+        }
+        if tasks.contains(&s.task_buy_menu) {
+            let Some((item, _)) = pending else {
+                return Some(Buttons::B);
+            };
+            let mi = s.mart_info;
+            let list = self.emu.read_u32(mi + MI_ITEM_LIST);
+            let n = self.emu.read_u16(mi + MI_ITEM_COUNT);
+            let at = (0..n).find(|&i| self.emu.read_u16(list + 2 * u32::from(i)) == item);
+            let Some(at) = at else {
+                // Not sold here: leave.
+                self.buying = None;
+                return Some(Buttons::B);
+            };
+            let sd = self.emu.read_u32(s.shop_data);
+            let pos =
+                self.emu.read_u16(sd + SD_SCROLL_OFFSET) + self.emu.read_u16(sd + SD_SELECTED_ROW);
+            return Some(list_key(pos, at));
+        }
+        if let Some(d) = self.task_data(s.task_buy_how_many) {
+            let Some((_, qty)) = pending else {
+                return Some(Buttons::B);
+            };
+            return Some(match (d[1] as u16).cmp(&qty) {
+                std::cmp::Ordering::Less => Buttons::UP,
+                std::cmp::Ordering::Greater => Buttons::DOWN,
+                std::cmp::Ordering::Equal => Buttons::A,
+            });
+        }
+        Some(Buttons::A)
+    }
+
+    /// The battle bag's key for a catch: the POKé BALLS pocket, its first ball, USE.
+    fn ball_key(&mut self) -> Buttons {
+        let s = self.sym.clone();
+        if self.fade_active() {
+            return Buttons::NONE;
+        }
+        let tasks = self.tasks();
+        if tasks.contains(&s.task_bag_menu_handle_input) {
+            let bp = s.bag_position;
+            let cur = self.emu.read_u8(bp + BP_POCKET);
+            if cur != BAG_POCKET_BALLS {
+                return if cur < BAG_POCKET_BALLS {
+                    Buttons::RIGHT
+                } else {
+                    Buttons::LEFT
+                };
+            }
+            let p = u32::from(BAG_POCKET_BALLS);
+            let pos = self.emu.read_u16(bp + BP_SCROLL_POSITION + 2 * p)
+                + self.emu.read_u16(bp + BP_CURSOR_POSITION + 2 * p);
+            return list_key(pos, 0);
+        }
+        if tasks.contains(&s.task_item_context_multiple_rows)
+            || tasks.contains(&s.task_item_context_single_row)
+        {
+            return match self.emu.read_u8(s.menu + 2) {
+                0 => Buttons::A,
+                1 => Buttons::LEFT,
+                _ => Buttons::UP,
+            };
+        }
+        Buttons::A
+    }
+
+    /// The key [`Vanilla::fly`] presses on this frame, from RAM: START, the start menu's
+    /// POKéMON, party slot `mon`, FLY in its action list (`sPartyMenuInternal->actions`), then
+    /// the fly map's cursor (`sFlyMap->regionMap.cursorPos`) onto `MAPSEC` `dest`'s cell
+    /// (`gRegionMapEntries`) and A. `None`: back on the field after the flight.
+    fn fly_key(&mut self, flown: &mut bool, mon: u8, dest: u8) -> Result<Option<Buttons>> {
+        let s = self.sym.clone();
+        let cb2 = self.callback2();
+        let tasks = self.tasks();
+        if cb2 == s.cb2_overworld {
+            let mode = self.mode();
+            let start_menu = mode != Mode::FieldIdle
+                && (self.emu.read_u32(s.menu_callback) & !1) == s.handle_start_menu_input
+                && !self.fade_active();
+            if start_menu {
+                if *flown {
+                    return Ok(Some(Buttons::B));
+                }
+                let n = self.emu.read_u8(s.num_start_menu_actions).min(9);
+                let actions = (self.emu).read_bytes(s.current_start_menu_actions, usize::from(n));
+                let want = (actions.iter().position(|&a| a == MENU_ACTION_POKEMON))
+                    .ok_or_else(|| anyhow!("fly: no POKéMON in the start menu {actions:?}"))?;
+                let at = self.emu.read_u8(s.start_menu_cursor_pos);
+                return Ok(Some(vertical(at, want as u8)));
+            }
+            return Ok(match mode {
+                Mode::FieldIdle if *flown => None,
+                Mode::FieldIdle => Some(Buttons::START),
+                Mode::Message => Some(Buttons::A),
+                _ => Some(Buttons::NONE),
+            });
+        }
+        if self.fade_active() {
+            return Ok(Some(Buttons::NONE));
+        }
+        if cb2 == s.cb2_update_party_menu {
+            if *flown {
+                return Ok(Some(Buttons::B));
+            }
+            if tasks.contains(&s.task_handle_choose_mon_input) {
+                let slot = self.emu.read_u8(s.party_menu + PM_SLOT_ID);
+                return Ok(Some(if slot == mon {
+                    Buttons::A
+                } else {
+                    Buttons::DOWN
+                }));
+            }
+            if tasks.contains(&s.task_handle_selection_menu_input) {
+                let pmi = self.emu.read_u32(s.party_menu_internal);
+                let n = self.emu.read_u8(pmi + PMI_NUM_ACTIONS).min(8);
+                let actions = self.emu.read_bytes(pmi + PMI_ACTIONS, usize::from(n));
+                let want = (actions.iter().position(|&a| a == MENU_FIELD_MOVE_FLY))
+                    .ok_or_else(|| anyhow!("fly: party slot {mon} has no FLY {actions:?}"))?;
+                return Ok(Some(vertical(self.emu.read_u8(s.menu + 2), want as u8)));
+            }
+            // "Can't use that here" and the like.
+            return Ok(Some(Buttons::A));
+        }
+        if cb2 == s.cb2_fly_map {
+            let fm = self.emu.read_u32(s.fly_map);
+            if fm == 0 || self.emu.read_u16(fm + FM_STATE) != 0 {
+                return Ok(Some(Buttons::NONE));
+            }
+            let rm = fm + FM_REGION_MAP;
+            if self.emu.read_u32(rm + RM_INPUT_CALLBACK) & !1 != s.process_region_map_input_full {
+                // The cursor is moving.
+                return Ok(Some(Buttons::NONE));
+            }
+            let e = s.region_map_entries + 8 * u32::from(dest);
+            let want = (
+                u16::from(self.emu.read_u8(e)) + MAPCURSOR_X_MIN,
+                u16::from(self.emu.read_u8(e + 1)) + MAPCURSOR_Y_MIN,
+            );
+            let at = (
+                self.emu.read_u16(rm + RM_CURSOR_X),
+                self.emu.read_u16(rm + RM_CURSOR_Y),
+            );
+            let key = match (at.0.cmp(&want.0), at.1.cmp(&want.1)) {
+                (std::cmp::Ordering::Less, _) => Buttons::RIGHT,
+                (std::cmp::Ordering::Greater, _) => Buttons::LEFT,
+                (_, std::cmp::Ordering::Less) => Buttons::DOWN,
+                (_, std::cmp::Ordering::Greater) => Buttons::UP,
+                _ => {
+                    let sec = self.emu.read_u16(rm + RM_MAP_SEC_ID);
+                    if sec != u16::from(dest) {
+                        return Err(anyhow!(
+                            "fly: the cursor at {at:?} is on MAPSEC {sec}, not {dest}"
+                        ));
+                    }
+                    *flown = true;
+                    Buttons::A
+                }
+            };
+            return Ok(Some(key));
+        }
+        // The flight's screens and set-ups.
+        Ok(Some(Buttons::NONE))
+    }
+
+    /// Flies with party slot `mon` to fly destination `dest` (its `MAPSEC`), from the field:
+    /// START → POKéMON → the slot → FLY → the fly map (Gen3 `CB2_OpenFlyMap`), every input read
+    /// from RAM ([`Vanilla::fly_key`]), then settles.
+    pub fn fly(&mut self, mon: u8, dest: u8, max_frames: u64) -> Result<()> {
+        self.settle(max_frames)?;
+        let end = self.frames + max_frames;
+        let mut flown = false;
+        let mut idle = 0;
+        loop {
+            if self.frames >= end {
+                let inputs = self.mode_inputs();
+                return Err(anyhow!(
+                    "fly to {dest}: not back on the field after {max_frames} frames (flown \
+                     {flown}): {inputs}"
+                ));
+            }
+            match self.fly_key(&mut flown, mon, dest)? {
+                None => {
+                    idle += 1;
+                    if idle > SETTLE_IDLE {
+                        return self.settle(max_frames);
+                    }
+                    self.step(Buttons::NONE)?;
+                }
+                Some(Buttons::NONE) => {
+                    idle = 0;
+                    self.step(Buttons::NONE)?;
+                }
+                Some(k) => {
+                    idle = 0;
+                    self.tap(k)?;
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_grid_cursor_walks_rows_then_columns() {
+        // Berries' context menu: CHECK TAG (0), -, USE (2), GIVE, TOSS, CANCEL.
+        assert_eq!(grid_key(0, 2), Buttons::DOWN);
+        assert_eq!(grid_key(1, 2), Buttons::RIGHT);
+        assert_eq!(grid_key(3, 2), Buttons::LEFT);
+        assert_eq!(grid_key(5, 2), Buttons::UP);
+        assert_eq!(grid_key(2, 2), Buttons::A);
+    }
+
+    #[test]
+    fn list_cursors_step_toward_the_target() {
+        assert_eq!(vertical(0, 2), Buttons::DOWN);
+        assert_eq!(vertical(3, 2), Buttons::UP);
+        assert_eq!(vertical(2, 2), Buttons::A);
+        assert_eq!(list_key(4, 1), Buttons::UP);
     }
 }

@@ -421,7 +421,7 @@ pub async fn PortRessac_Sc04(ctx: Ctx) {
     say(&ctx, Port_Ressac_Sc04_T3).await;
     move_wait(&ctx, LOCALID_PORT_SAMUEL, SAMUEL_READS).await;
     say(&ctx, Port_Ressac_Sc04_T4).await;
-    // fallback: screen_shake (Samuel strikes the rail; `Request::ScreenShake`): a fade.
+    // Samuel strikes the rail (no duration in the source: the prelude's).
     screen_shake(&ctx, 4, 0).await;
     say(&ctx, Port_Ressac_Sc04_T5).await;
     // fallback: play_se (audio, M12). SE_SIFFLET is the decomp's SE_M_GRASSWHISTLE.

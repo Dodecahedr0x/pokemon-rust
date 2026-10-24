@@ -1195,3 +1195,36 @@ fn wander_vertical_picks_south_then_north_as_gen3() {
 }
 
 mod m8_i;
+
+#[test]
+fn wander_backwards_walks_facing_away_with_wanders_draws() {
+    let g = Grid::open();
+    let run = |m: MovementType| {
+        let mut o = player_at(0, 0, Dir::Down);
+        o.add(&npc(1, 8, 8, m, (2, 2)), |_| 0);
+        let mut rng = Rng::new(42);
+        let mut steps = Vec::new();
+        let mut prev = o.get(1).unwrap().pos();
+        for _ in 0..3000 {
+            o.update(&g, &mut rng, false);
+            let n = o.get(1).unwrap();
+            if n.pos() != prev {
+                let d = (n.x - prev.0, n.y - prev.1);
+                steps.push((d, n.facing));
+                prev = n.pos();
+            }
+        }
+        steps
+    };
+    let fwd = run(MovementType::Wander);
+    let back = run(MovementType::WanderBackwards);
+    assert!(back.len() > 3);
+    assert_eq!(
+        fwd.iter().map(|s| s.0).collect::<Vec<_>>(),
+        back.iter().map(|s| s.0).collect::<Vec<_>>(),
+        "the same walk"
+    );
+    for ((dx, dy), facing) in back {
+        assert_eq!(facing.opposite().delta(), (dx, dy));
+    }
+}
