@@ -426,8 +426,9 @@ pub fn tour() -> Vec<Step> {
         // (11, 8), then the gas sheet (7, 4).
         goto(MAP_TOUR_NEBULA_1F_RUINE, 6, 10),
         Step::Interact(Right),
+        Step::Push(Right),
         goto(MAP_TOUR_NEBULA_1F_RUINE, 9, 8),
-        Step::Interact(Right),
+        Step::Push(Right),
         goto(MAP_TOUR_NEBULA_1F_RUINE, 7, 5),
         Step::Interact(Up),
         goto(MAP_TOUR_NEBULA_1F_RUINE, 7, 3),
@@ -538,12 +539,13 @@ pub fn dehors() -> Vec<Step> {
         // The steel beam (37, 30) shut the way east: four pushes clear the gap.
         goto(NML, 36, 30),
         Step::Interact(Right),
+        Step::Push(Right),
         goto(NML, 37, 30),
-        Step::Interact(Right),
+        Step::Push(Right),
         goto(NML, 38, 30),
-        Step::Interact(Right),
+        Step::Push(Right),
         goto(NML, 39, 30),
-        Step::Interact(Right),
+        Step::Push(Right),
         // The north-east field, past gas 05.
         goto(NML, 47, 19),
         Step::Interact(Up),

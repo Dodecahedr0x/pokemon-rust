@@ -147,6 +147,9 @@ pub enum Step {
         map: MapId,
     },
     Interact(Dir),
+    /// A Strength push: one frame towards `Dir` into a pushable object, then settled (the
+    /// player walks in place while the object moves; `silice::push`).
+    Push(Dir),
     Walk(Dir),
     Choose(u8),
     /// The next `n` yes/no boxes answer yes, even those whose cursor starts on No (the

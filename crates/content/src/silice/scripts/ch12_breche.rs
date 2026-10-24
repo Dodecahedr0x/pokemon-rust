@@ -15,7 +15,7 @@
 //! `<Map>_PG_<Name>_Intro` / `_Defeat` (the source's own naming rule). The beaten trainers repeat
 //! their defeat line (the chapters write no post-battle lines).
 
-use super::ch04_port::{Pushable, push_object};
+use super::ch04_port::{Puzzle, push_object};
 use super::ch10_ascenseur::{LANDING_2F, LANDING_APEX};
 use super::ch12_reveil::legendaire;
 use crate::silice::mallette::{LIST_ASCENSEUR, LIST_ASCENSEUR_FERME, LIST_ASCENSEUR_TOIT};
@@ -521,20 +521,24 @@ pub async fn TourNebula_1F_Ruine_EventScript_Gus(ctx: Ctx) {
 
 /// The two overturned barrels (§2: the Champ Magnétique opens the middle aisle) and their cells
 /// once pushed (`VAR_TEMP_2`, `VAR_TEMP_3`).
-const FUTS: &[Pushable] = &[
+pub(crate) const FUTS: Puzzle = Puzzle {
+    map: MAP_TOUR_NEBULA_1F_RUINE,
+    objects: &[
     (LOCALID_RUINE1_FUT_1, VAR_TEMP_2, (10, 8)),
     (LOCALID_RUINE1_FUT_2, VAR_TEMP_3, (7, 10)),
-];
+],
+    free: fut_free,
+};
 
 /// East only (the plan's review): the second barrel (7, 10) into (8, 10), the first (10, 8) into
 /// (11, 8); no push strands the player.
-fn fut_free(c: (i16, i16)) -> bool {
+fn fut_free(_: (i16, i16), c: (i16, i16)) -> bool {
     matches!(c, (8, 10) | (11, 8))
 }
 
 /// A barrel: the Champ Magnétique (`FLAG_SIL_MODULE_FORCE`), as Chapter 3's server blocks.
 pub async fn TourNebula_1F_Ruine_EventScript_Fut(ctx: Ctx) {
-    push_object(&ctx, FUTS, fut_free).await;
+    push_object(&ctx).await;
 }
 
 /// Entei by the still (`PG_Legendaire`, level 75; shown by `Nebula_PG_Sc03c`).

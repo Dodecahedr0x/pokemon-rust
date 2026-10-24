@@ -445,14 +445,15 @@ pub fn steps() -> Vec<Step> {
             // The hold's barrels: B up twice, D right, A up twice.
             goto(CALE, 2, 7),
             Step::Interact(Up),
+            Step::Push(Up),
             Step::Walk(Up),
-            Step::Interact(Up),
+            Step::Push(Up),
             goto(CALE, 3, 4),
-            Step::Interact(Right),
+            Step::Push(Right),
             goto(CALE, 4, 4),
-            Step::Interact(Up),
+            Step::Push(Up),
             Step::Walk(Up),
-            Step::Interact(Up),
+            Step::Push(Up),
             Step::Check("barrels", |r| {
                 assert!(r.has_text(Depot_Bloc_T2));
                 assert_eq!(r.pos(), (4, 3));
@@ -559,7 +560,6 @@ pub fn check_end(r: &Run) {
 /// The fallbacks the chapter's path reports.
 const FALLBACKS: &[&str] = &[
     "dark_map",
-    "strength",
     "play_fanfare",
     "play_se",
     "mallette_call",

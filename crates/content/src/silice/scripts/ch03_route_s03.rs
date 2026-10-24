@@ -5,6 +5,7 @@
 //! exit) to 31 (Gogo & Romain beaten at the depot). The wild encounters are
 //! `battle/encounters.ron`'s.
 
+use super::ch04_port::Puzzle;
 use crate::silice::prelude::*;
 
 /// The maps whose scripts this file owns: strict (every script they name must exist).
@@ -131,126 +132,68 @@ const DEPOT_FLOOR: [&str; 14] = [
 /// The first row of the south corridor (7, 10–12), between the rest area and the south portal.
 const SOUTH_CORRIDOR: i16 = 10;
 
-/// A block: its object, its home cell, its solved cell, its temp var.
-type Bloc = (u8, (i16, i16), (i16, i16), VarId);
-
-/// The three blocks: each object, its home cell, its cell once the puzzle is solved (§2.2's
-/// solution: A1 pushed up to (7, 6) then right, B1 up into the dock, B2 right), and the temp var
-/// that holds its cell on this load (`x + 16 y`; temp vars clear on every load, as the blocks
-/// reset).
-const BLOCS: [Bloc; 3] = [
-    (LOCALID_DEPOT_BLOC_A1, (7, 11), (8, 6), VAR_TEMP_4),
-    (LOCALID_DEPOT_BLOC_B1, (7, 4), (7, 3), VAR_TEMP_5),
-    (LOCALID_DEPOT_BLOC_B2, (7, 2), (8, 2), VAR_TEMP_6),
+/// The three blocks: each object, its home cell and its cell once the puzzle is solved (§2.2's
+/// solution: A1 pushed up to (7, 6) then right, B1 up into the dock, B2 right).
+const BLOCS: [(u8, (i16, i16), (i16, i16)); 3] = [
+    (LOCALID_DEPOT_BLOC_A1, (7, 11), (8, 6)),
+    (LOCALID_DEPOT_BLOC_B1, (7, 4), (7, 3)),
+    (LOCALID_DEPOT_BLOC_B2, (7, 2), (8, 2)),
 ];
 
-fn cell_var((x, y): (i16, i16)) -> u16 {
-    (x + 16 * y) as u16
-}
-
-fn var_cell(v: u16) -> (i16, i16) {
-    ((v % 16) as i16, (v / 16) as i16)
-}
-
-/// The depot's other objects that a block cannot be pushed onto while they are shown: Gogo,
-/// Romain and the sbire before Depot_Sc02, the two item balls until taken.
-const DEPOT_OTHERS: [((i16, i16), FlagId); 5] = [
-    ((5, 7), FLAG_SIL_HIDE_DEPOT_GOGO_ROMAIN),
-    ((9, 7), FLAG_SIL_HIDE_DEPOT_ROMAIN),
-    ((4, 8), FLAG_SIL_HIDE_DEPOT_SBIRE),
-    ((3, 6), FLAG_SIL_ITEM_DEPOT_METAL_COAT),
-    ((11, 8), FLAG_SIL_ITEM_DEPOT_GREAT_BALL),
-];
+/// The blocks' push puzzle (`silice::push`): their cells in `VAR_TEMP_4`–`_6` once pushed.
+pub(crate) const DEPOT: Puzzle = Puzzle {
+    map: MAP_ROUTE_S03_DEPOT,
+    objects: &[
+        (LOCALID_DEPOT_BLOC_A1, VAR_TEMP_4, (7, 11)),
+        (LOCALID_DEPOT_BLOC_B1, VAR_TEMP_5, (7, 4)),
+        (LOCALID_DEPOT_BLOC_B2, VAR_TEMP_6, (7, 2)),
+    ],
+    free: depot_free,
+};
 
 /// The blocks start at home; from `VAR_SIL_STORY` 31 (Gogo & Romain beaten) in the solved
 /// layout (Gen3 `setobjectxyperm`), so that a player coming back from Viber-City can cross to
 /// the south portal (A1 at home only goes down, onto (7, 12), before the portal). The magnet is
 /// off again: `FLAG_SIL_DEPOT_MAGNET_ON` is the source's temporary flag, cleared on every load.
 pub async fn RouteS03_Depot_OnTransition(ctx: Ctx) {
-    let solved = story(&ctx).await >= 31;
-    for (obj, home, done, var) in BLOCS {
-        let at = if solved { done } else { home };
-        if solved {
-            ctx.set_object_template_pos(obj, at.0, at.1).await;
+    if story(&ctx).await >= 31 {
+        for (obj, _, done) in BLOCS {
+            ctx.set_object_template_pos(obj, done.0, done.1).await;
         }
-        ctx.set_var(var, cell_var(at)).await;
     }
     ctx.set_flag(FLAG_SIL_DEPOT_MAGNET_ON, false).await;
 }
 
-static PUSH_UP: [Step; 1] = [walk(Dir::Up)];
-static PUSH_DOWN: [Step; 1] = [walk(Dir::Down)];
-static PUSH_LEFT: [Step; 1] = [walk(Dir::Left)];
-static PUSH_RIGHT: [Step; 1] = [walk(Dir::Right)];
-
 /// Depot_Sc01, a server block (all three): without `FLAG_SIL_MODULE_FORCE`, `Depot_Bloc_T1`;
 /// with it, the first block talked to on this load switches the magnet on (`Depot_Bloc_T2`,
-/// `FLAG_SIL_DEPOT_MAGNET_ON`); after that each press pushes the block one cell away from the
-/// player, when that cell is free floor.
+/// `FLAG_SIL_DEPOT_MAGNET_ON`) and with it Strength (`FLAG_SYS_USE_STRENGTH`): the player then
+/// pushes a block by walking into it, onto free depot floor ([`depot_free`]).
 pub async fn RouteS03_Depot_EventScript_Bloc(ctx: Ctx) {
     if !ctx.flag(FLAG_SIL_MODULE_FORCE).await {
         msgbox(&ctx, Depot_Bloc_T1, MsgBox::Sign).await;
         return;
     }
+    if ctx.flag(FLAG_SIL_DEPOT_MAGNET_ON).await {
+        return;
+    }
     ctx.lock().await;
-    if !ctx.flag(FLAG_SIL_DEPOT_MAGNET_ON).await {
-        say(&ctx, Depot_Bloc_T2).await;
-        ctx.set_flag(FLAG_SIL_DEPOT_MAGNET_ON, true).await;
-        ctx.release().await;
-        return;
-    }
-    // fallback: field_move Champ Magnétique (the engine pushes no boulder: no Strength before
-    // M10): each A press on a block pushes it one cell in the player's facing, with Gen3's
-    // boulder rule (free floor, no object, no warp). The blocks still reset on every load.
-    fallback(&ctx, "strength").await;
-    let talked = ctx.var(VAR_LAST_TALKED).await;
-    let dir = ctx.player_facing().await;
-    let (dx, dy) = dir.delta();
-    let Some(&(obj, _, _, var)) = BLOCS.iter().find(|b| u16::from(b.0) == talked) else {
-        ctx.release().await;
-        return;
-    };
-    let (x, y) = var_cell(ctx.var(var).await);
-    let to = (x + dx, y + dy);
-    // Never down into the south corridor (rows 10–12): a block there walls off the south
-    // portal, the only way out of a botched layout (Depot_Panneau_T1's promise; the source's
-    // grid allows it, a softlock within one visit).
-    let corridor = dir == Dir::Down && to.1 >= SOUTH_CORRIDOR;
-    if !corridor && depot_free(&ctx, to).await {
-        let path: &'static [Step] = match dir {
-            Dir::Up => &PUSH_UP,
-            Dir::Down => &PUSH_DOWN,
-            Dir::Left => &PUSH_LEFT,
-            Dir::Right => &PUSH_RIGHT,
-        };
-        move_wait(&ctx, obj, path).await;
-        ctx.set_var(var, cell_var(to)).await;
-    }
+    say(&ctx, Depot_Bloc_T2).await;
+    ctx.set_flag(FLAG_SIL_DEPOT_MAGNET_ON, true).await;
+    ctx.set_flag(FLAG_SYS_USE_STRENGTH, true).await;
     ctx.release().await;
 }
 
-/// Whether a block may be pushed onto `(x, y)`: depot floor, and no other block or shown object
-/// there.
-async fn depot_free(ctx: &Ctx, (x, y): (i16, i16)) -> bool {
+/// Whether a block may be pushed from `from` onto `to`: depot floor (the other blocks and the
+/// shown objects block it as any object does), and never down into the south corridor (rows
+/// 10–12): a block there walls off the south portal, the only way out of a botched layout
+/// (Depot_Panneau_T1's promise; the source's grid allows it, a softlock within one visit).
+fn depot_free(from: (i16, i16), (x, y): (i16, i16)) -> bool {
     let floor = usize::try_from(y)
         .ok()
         .and_then(|y| DEPOT_FLOOR.get(y))
         .and_then(|row| usize::try_from(x).ok().and_then(|x| row.as_bytes().get(x)))
         == Some(&b'.');
-    if !floor {
-        return false;
-    }
-    for (_, _, _, var) in BLOCS {
-        if var_cell(ctx.var(var).await) == (x, y) {
-            return false;
-        }
-    }
-    for (cell, hidden) in DEPOT_OTHERS {
-        if cell == (x, y) && !ctx.flag(hidden).await {
-            return false;
-        }
-    }
-    true
+    floor && !(y > from.1 && y >= SOUTH_CORRIDOR)
 }
 
 // ---- the depot: Gogo & Romain (Depot_Sc02) ----

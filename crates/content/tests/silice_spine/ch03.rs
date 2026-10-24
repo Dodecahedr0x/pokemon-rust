@@ -273,9 +273,9 @@ fn depot() -> Vec<Step> {
             assert!(r.has_text(Depot_Bloc_T2));
             assert!(r.w.flag(FLAG_SIL_DEPOT_MAGNET_ON));
         }),
-        Step::Interact(Up),
+        Step::Push(Up),
         Step::Walk(Up),
-        Step::Interact(Up),
+        Step::Push(Up),
         Step::Walk(Up),
         // ---- Gogo & Romain (Depot_Sc02) on (7, 10) ----
         Step::Check("depot_sc02", |r| {
@@ -296,11 +296,11 @@ fn depot() -> Vec<Step> {
             ]);
         }),
         // A1 on up to (7, 6).
-        Step::Interact(Up),
+        Step::Push(Up),
         Step::Walk(Up),
-        Step::Interact(Up),
+        Step::Push(Up),
         Step::Walk(Up),
-        Step::Interact(Up),
+        Step::Push(Up),
         Step::Walk(Up),
         Step::Check("depot_a1", |r| assert_eq!(r.pos(), (7, 7))),
         // The rest area's items.
@@ -315,11 +315,11 @@ fn depot() -> Vec<Step> {
         }),
         // A1 aside, B1 up, B2 aside.
         goto(DEPOT, 6, 6),
-        Step::Interact(Right),
+        Step::Push(Right),
         goto(DEPOT, 7, 5),
-        Step::Interact(Up),
+        Step::Push(Up),
         goto(DEPOT, 6, 2),
-        Step::Interact(Right),
+        Step::Push(Right),
         goto(DEPOT, 7, 1),
         Step::Check("depot_solved", |r| assert_eq!(r.pos(), (7, 1))),
         Step::Enter {
@@ -749,7 +749,6 @@ pub fn check_end(r: &Run) {
     }
     assert_eq!(r.w.events_dropped(), 0);
     for name in [
-        "strength",
         "battle_two_trainers",
         "stop_music",
         "set_flash_level",

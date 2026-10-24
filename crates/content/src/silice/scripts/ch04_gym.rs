@@ -3,7 +3,7 @@
 //! Port_Ressac_Gym_Sc01 to Sc03 (the breath test, Samuel, Gwada l'Enjaillé) and §4 (the guide,
 //! the crew, the barrels' trial). `VAR_SIL_STORY` runs 47 (the gym open) to 49 (Gwada beaten).
 
-use super::ch04_port::{Pushable, push_object};
+use super::ch04_port::{Puzzle, push_object};
 use crate::silice::prelude::*;
 use crate::silice::rules::{WITH_ROLL, WITH_ROLL_CONFUSED};
 
@@ -277,16 +277,20 @@ const FUT_2: (i16, i16) = (8, 3);
 const TIMOTHE: (i16, i16) = (6, 1);
 
 /// The three movable barrels A (4, 3), D (4, 4) and B (2, 6).
-const FUTS: &[Pushable] = &[
+pub(crate) const FUTS: Puzzle = Puzzle {
+    map: MAP_PORT_RESSAC_GYM_CALE,
+    objects: &[
     (LOCALID_CALE_FUT_A, VAR_TEMP_1, (4, 3)),
     (LOCALID_CALE_FUT_D, VAR_TEMP_2, (4, 4)),
     (LOCALID_CALE_FUT_B, VAR_TEMP_3, (2, 6)),
-];
+],
+    free: fut_free,
+};
 
 /// Whether a barrel can be pushed onto `(x, y)`: a plank, not Timothé's cell. A blown barrel's
 /// cell is floor only once blown, which [`fut_free`] cannot read (a `fn`): the explosive cells
 /// count as solid, as the barrels they were (a barrel never needs to go there).
-fn fut_free((x, y): (i16, i16)) -> bool {
+fn fut_free(_: (i16, i16), (x, y): (i16, i16)) -> bool {
     let row = usize::try_from(y).ok().and_then(|y| CALE.get(y));
     let cell = row.and_then(|r| usize::try_from(x).ok().and_then(|x| r.as_bytes().get(x)));
     cell == Some(&b'.') && (x, y) != TIMOTHE
@@ -300,7 +304,7 @@ pub async fn PortRessac_Gym_Cale_OnLoad(ctx: Ctx) {
 
 /// A movable barrel (A, D or B): Champ Magnétique pushes it one cell (`push_object`).
 pub async fn PortRessac_Gym_Cale_EventScript_Fut(ctx: Ctx) {
-    push_object(&ctx, FUTS, fut_free).await;
+    push_object(&ctx).await;
 }
 
 /// An explosive barrel: it blows (the source's `screen_flash`), a wild Pokémon jumps out, and

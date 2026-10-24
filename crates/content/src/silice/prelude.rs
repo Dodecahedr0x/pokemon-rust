@@ -10,7 +10,7 @@
 //! beaten flag), [`trainer`] (a route trainer; the registry lists its script for sight) and
 //! [`post_battle`] (its line once beaten),
 //! [`gift`] (an item given once, behind its `FLAG_SIL_ITEM_*`), [`hidden_item`] (a hidden item
-//! as a sign script, a fallback).
+//! behind a story condition; the others are `BgKind::HiddenItem` bg events).
 //!
 //! **Module obstacles:** [`cut_obstacle`] (the generic Lame-Frequence obstacle) and
 //! [`repaint_if`] (its `on_load` repaint), with [`METATILE_RONCES_COUPEES`]; [`Obstacle`] with
@@ -344,6 +344,9 @@ pub use crate::silice::sky::{
     SKY_ALERT_RED, SKY_CRACK, SKY_CRACK_FRAMES, STROBES, WEATHER_PETALS, clear_palette, negatif,
     set_palette, set_weather,
 };
+
+// The Champ Magnétique (`silice::push`).
+pub use crate::silice::push::PUSH_FRAMES;
 
 /// How long a flash stays on screen when the source gives no duration (16 frames).
 pub const FLASH_FRAMES: u16 = 16;

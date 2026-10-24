@@ -3,9 +3,10 @@
 //! iron crates on the copper slabs and the Copiste (2F), the Chronique de la Clôture (3F), the
 //! Scribe's validation.
 //!
-//! **The Champ Magnétique** is Chapter 4's push (`ch04_port::push_object`: an A press on the
-//! object, which moves one cell the way the player faces; reported `strength`). The objects are
-//! back on their template cells on every load (Gen3's Strength boulders), so:
+//! **The Champ Magnétique** is Gen3's Strength (`silice::push`: an A press on the object puts it
+//! in use, `ch04_port::push_object`; then the player pushes it by walking into it, and
+//! `scripts::field::Mallette_Pushed` runs [`rayonnage_pushed`] / [`caisse_pushed`]). The
+//! objects are back on their template cells on every load (Gen3's Strength boulders), so:
 //! - 1F: once both bookcases are in their niches, `FLAG_SIL_EVALON_TOUR_RAYONNAGES` keeps them
 //!   there (`Evalon_TourScribe_OnTransition`), or a player coming down from 2F would be shut
 //!   in behind them;
@@ -13,9 +14,9 @@
 //!   open (`Evalon_TourScribe_2F_OnLoad`); the crates go home, which blocks nothing.
 //!
 //! Temp vars: 1F `VAR_TEMP_1`, `_2`, `_5` (the bookcases' cells), 2F `VAR_TEMP_1`, `_2`, `_5`,
-//! `_6` (the crates'), and `VAR_TEMP_4` (`push_object`'s first-push line).
+//! `_6` (the crates').
 
-use super::ch04_port::{Pushable, push_object};
+use super::ch04_port::{Puzzle, push_object};
 use super::ch08_evalon::{add_renom, epreuves_finies};
 use crate::silice::prelude::*;
 
@@ -26,25 +27,26 @@ pub const MAPS: &[&str] = &[
     "Evalon_TourScribe_3F",
 ];
 
-/// A pushed object's cell as `push_object` stores it (`y * 64 + x + 1`).
-const fn cell_var((x, y): (i16, i16)) -> u16 {
-    (y * 64 + x + 1) as u16
-}
+use crate::silice::push::cell_var;
 
 // ---- 1F: the bookcases ----
 
 /// The three bookcases: 1 (5, 7) goes left into its niche (4, 7), 2 (8, 4) up into its niche
 /// (8, 3), 3 (4, 5) is the decoy against the wall ("SIL4 Ch8 maps as built").
-const RAYONNAGES: &[Pushable] = &[
+pub(crate) const RAYONNAGES: Puzzle = Puzzle {
+    map: MAP_EVALON_TOUR_SCRIBE,
+    objects: &[
     (LOCALID_TOUR_RAYONNAGE_1, VAR_TEMP_1, (5, 7)),
     (LOCALID_TOUR_RAYONNAGE_2, VAR_TEMP_2, (8, 4)),
     (LOCALID_TOUR_RAYONNAGE_3, VAR_TEMP_5, (4, 5)),
-];
+],
+    free: rayonnage_free,
+};
 const NICHE_1: (i16, i16) = (4, 7);
 const NICHE_2: (i16, i16) = (8, 3);
 
 /// Each bookcase moves only the right way: into its niche.
-fn rayonnage_free(c: (i16, i16)) -> bool {
+fn rayonnage_free(_: (i16, i16), c: (i16, i16)) -> bool {
     c == NICHE_1 || c == NICHE_2
 }
 
@@ -65,11 +67,17 @@ pub async fn Evalon_TourScribe_EventScript_Rayonnage(ctx: Ctx) {
     if ctx.flag(FLAG_SIL_EVALON_TOUR_RAYONNAGES).await {
         return;
     }
-    push_object(&ctx, RAYONNAGES, rayonnage_free).await;
+    push_object(&ctx).await;
+}
+
+/// After a bookcase's push (`scripts::field::Mallette_Pushed`): both in their niches, the flag,
+/// and Strength no more on this load.
+pub(crate) async fn rayonnage_pushed(ctx: &Ctx) {
     if ctx.var(VAR_TEMP_1).await == cell_var(NICHE_1)
         && ctx.var(VAR_TEMP_2).await == cell_var(NICHE_2)
     {
         ctx.set_flag(FLAG_SIL_EVALON_TOUR_RAYONNAGES, true).await;
+        ctx.set_flag(FLAG_SYS_USE_STRENGTH, false).await;
     }
 }
 
@@ -101,17 +109,21 @@ pub async fn Evalon_Sc03(ctx: Ctx) {
 
 /// The four crates, from the source's 7 × 7 grid at offset (3, 3): A (5, 5) goes left onto
 /// (4, 5), B (7, 5) up onto (7, 4), C (5, 7) down onto (5, 8), D (8, 8) right onto (9, 8).
-const CAISSES: &[Pushable] = &[
+pub(crate) const CAISSES: Puzzle = Puzzle {
+    map: MAP_EVALON_TOUR_SCRIBE_2F,
+    objects: &[
     (LOCALID_TOUR2_CAISSE_A, VAR_TEMP_1, (5, 5)),
     (LOCALID_TOUR2_CAISSE_B, VAR_TEMP_2, (7, 5)),
     (LOCALID_TOUR2_CAISSE_C, VAR_TEMP_5, (5, 7)),
     (LOCALID_TOUR2_CAISSE_D, VAR_TEMP_6, (8, 8)),
-];
+],
+    free: caisse_free,
+};
 const DALLES: [(i16, i16); 4] = [(4, 5), (7, 4), (5, 8), (9, 8)];
 
 /// The room's floor (x 0–12, y 2–11) without the lecterns' and the stepladder's wall cells, the
 /// Copiste's cell, and the cells below the two stair warps (a crate there would wall them off).
-fn caisse_free((x, y): (i16, i16)) -> bool {
+fn caisse_free(_: (i16, i16), (x, y): (i16, i16)) -> bool {
     (0..=12).contains(&x)
         && (2..=11).contains(&y)
         && !matches!(
@@ -150,16 +162,23 @@ pub async fn Evalon_TourScribe_2F_EventScript_Caisse(ctx: Ctx) {
     if ctx.flag(FLAG_SIL_EVALON_TOUR_TRAPPE).await {
         return;
     }
-    push_object(&ctx, CAISSES, caisse_free).await;
-    for (i, &(_, var, _)) in CAISSES.iter().enumerate() {
+    push_object(&ctx).await;
+}
+
+/// After a crate's push (`scripts::field::Mallette_Pushed`): the four on the four slabs, the
+/// trapdoor (once the crate has stopped), and Strength no more on this load.
+pub(crate) async fn caisse_pushed(ctx: &Ctx) {
+    for (i, &(_, var, _)) in CAISSES.objects.iter().enumerate() {
         if ctx.var(var).await != cell_var(DALLES[i]) {
             return;
         }
     }
+    ctx.set_flag(FLAG_SYS_USE_STRENGTH, false).await;
+    ctx.delay(PUSH_FRAMES).await;
     ctx.lock_all().await;
     // The source has no line for the trapdoor: its sound alone (SE_DOOR, the decomp's).
-    play_se(&ctx, "SE_DOOR").await;
-    open_trappe(&ctx).await;
+    play_se(ctx, "SE_DOOR").await;
+    open_trappe(ctx).await;
     ctx.redraw_map().await;
     ctx.set_flag(FLAG_SIL_EVALON_TOUR_TRAPPE, true).await;
     ctx.release_all().await;
@@ -195,7 +214,7 @@ pub async fn Evalon_TourScribe_2F_EventScript_Copiste(ctx: Ctx) {
         say(&ctx, Evalon_Sc03_Copiste_T1).await;
         if !ctx.flag(FLAG_SIL_EVALON_TOUR_TRAPPE).await {
             ctx.fade(Fade::ToBlack).await;
-            for &(obj, var, (x, y)) in CAISSES {
+            for &(obj, var, (x, y)) in CAISSES.objects {
                 ctx.set_object_pos(obj, x, y).await;
                 ctx.set_var(var, 0).await;
             }

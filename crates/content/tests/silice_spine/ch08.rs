@@ -20,8 +20,7 @@
 //! Waterfall and Surf, which the spine does not drive yet, so the chapter's main list starts on
 //! palier 3's first row ([`start`]).
 //!
-//! **The fallbacks the path relies on** (`ch08_*.rs`): the Champ Magnétique is an A press on a
-//! bookcase, a crate or a golem; the dark gallery and the crypt are lit, their coords only test
+//! **The fallbacks the path relies on** (`ch08_*.rs`): the dark gallery and the crypt are lit, their coords only test
 //! the module; the skull slabs are coord traps; the multichoices are yes/no (the honest answer,
 //! Mathieu as partner, the right riddle); the Multi battle is two single battles with a heal.
 //!
@@ -488,8 +487,9 @@ pub fn steps() -> Vec<Step> {
         // Bookcase 1 left into its niche, bookcase 2 up into its niche.
         goto(TOUR, 6, 7),
         Step::Interact(Left),
+        Step::Push(Left),
         goto(TOUR, 8, 5),
-        Step::Interact(Up),
+        Step::Push(Up),
         Step::Check("rayonnages", |r| {
             assert!(r.w.flag(FLAG_SIL_EVALON_TOUR_RAYONNAGES));
             r.printed_in_order(&[Evalon_Sc03_Scribe_T1, Evalon_Sc03_Lutrin_T1, Depot_Bloc_T2]);
@@ -502,12 +502,13 @@ pub fn steps() -> Vec<Step> {
         // The crates onto the slabs: A left, B up, C down, D right.
         goto_avoiding(TOUR_2F, 6, 5, COPISTE_SIGHT),
         Step::Interact(Left),
+        Step::Push(Left),
         goto_avoiding(TOUR_2F, 7, 6, COPISTE_SIGHT),
-        Step::Interact(Up),
+        Step::Push(Up),
         goto_avoiding(TOUR_2F, 5, 6, COPISTE_SIGHT),
-        Step::Interact(Down),
+        Step::Push(Down),
         goto_avoiding(TOUR_2F, 7, 8, COPISTE_SIGHT),
-        Step::Interact(Right),
+        Step::Push(Right),
         Step::Check("trappe", |r| {
             assert!(r.w.flag(FLAG_SIL_EVALON_TOUR_TRAPPE));
         }),
@@ -753,12 +754,13 @@ pub fn steps() -> Vec<Step> {
         // Room 2: each golem twice up onto its plate.
         goto(GYM, 3, 37),
         Step::Interact(Up),
+        Step::Push(Up),
         Step::Walk(Up),
-        Step::Interact(Up),
+        Step::Push(Up),
         goto(GYM, 7, 37),
-        Step::Interact(Up),
+        Step::Push(Up),
         Step::Walk(Up),
-        Step::Interact(Up),
+        Step::Push(Up),
         Step::Check("pont", |r| assert!(r.w.flag(FLAG_SIL_EVALON_GYM_PONT))),
         goto(GYM, 5, 31),
         Step::Walk(Up),
@@ -881,7 +883,6 @@ pub fn check_end(r: &Run) {
     assert_eq!(r.w.events_dropped(), 0);
     for name in [
         "play_se",
-        "strength",
         "dark_map",
         "read_item",
         "multichoice",

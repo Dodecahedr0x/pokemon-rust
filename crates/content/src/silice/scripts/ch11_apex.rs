@@ -15,7 +15,7 @@
 //! 5–8 inside its ring, its steps (10–13, 9); Poussin (11, 6), Julien (14, 3) hidden, Gogo (8, 17)
 //! and Romain (9, 17).
 
-use super::ch04_port::{Pushable, push_object};
+use super::ch04_port::{Puzzle, push_object};
 use super::ch08_evalon::lost;
 use super::ch11_endings::{elysium_e1, ElysiumFrom};
 use crate::silice::prelude::*;
@@ -471,14 +471,18 @@ pub async fn SommetApex_EventScript_ItemMaxRevive(ctx: Ctx) {
 }
 
 /// The two metal crates (19, 11), (20, 11) and their cells (`VAR_TEMP_2`, `VAR_TEMP_3`).
-const CAISSES: &[Pushable] = &[
+pub(crate) const CAISSES: Puzzle = Puzzle {
+    map: MAP_SOMMET_APEX,
+    objects: &[
     (LOCALID_APEX_CAISSE_1, VAR_TEMP_2, (19, 11)),
     (LOCALID_APEX_CAISSE_2, VAR_TEMP_3, (20, 11)),
-];
+],
+    free: caisse_free,
+};
 
 /// The floor the crates may be pushed onto: the pocket east of the stage (19–22, 9–10), row 11
 /// west of the wall (4–20), rows 12–13.
-fn caisse_free((x, y): (i16, i16)) -> bool {
+fn caisse_free(_: (i16, i16), (x, y): (i16, i16)) -> bool {
     matches!((x, y), (19..=22, 9..=10) | (4..=20, 11) | (1..=22, 12..=13))
 }
 
@@ -489,7 +493,7 @@ pub async fn SommetApex_EventScript_Caisse(ctx: Ctx) {
         msgbox(&ctx, Sommet_Apex_Sign_Caisses_NoMallette, MsgBox::Sign).await;
         return;
     }
-    push_object(&ctx, CAISSES, caisse_free).await;
+    push_object(&ctx).await;
 }
 
 pub async fn SommetApex_EventScript_Ampli(ctx: Ctx) {

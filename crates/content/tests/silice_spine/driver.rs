@@ -322,6 +322,15 @@ impl GameData for Spy {
     fn hidden_item_script(&self) -> Option<ScriptId> {
         Game.hidden_item_script()
     }
+    fn pushable_objects(&self) -> &'static [GfxId] {
+        Game.pushable_objects()
+    }
+    fn push_allowed(&self, map: MapId, local_id: u8, from: (i16, i16), to: (i16, i16)) -> bool {
+        Game.push_allowed(map, local_id, from, to)
+    }
+    fn pushed_script(&self, map: MapId) -> Option<ScriptId> {
+        Game.pushed_script(map)
+    }
 }
 
 // ---- the runner ----
@@ -396,6 +405,7 @@ impl Run {
                 }
                 Step::Enter { dir, map } => self.enter(dir, map),
                 Step::Interact(d) => self.interact(d),
+                Step::Push(d) => self.push(d),
                 Step::Walk(d) => self.step_toward(d),
                 Step::Choose(i) => self.choice = i,
                 Step::Menu(i) => self.menu.set(Some(i)),
@@ -845,6 +855,16 @@ impl Run {
         self.step(Buttons::A);
         self.step(Buttons::NONE);
         self.settle();
+    }
+
+    /// A Strength push towards `d` ([`Step::Push`]): faces `d`, then one frame of `d` into the
+    /// object, settled. The player stays on its cell.
+    fn push(&mut self, d: Dir) {
+        self.face(d);
+        let p = self.pos();
+        self.step(self.w.input_map(&self.g).key_for(d));
+        self.settle();
+        assert_eq!(self.pos(), p, "a push leaves the player on its cell");
     }
 
     /// One step toward `d` (held until the player leaves its cell or a script starts), settled.

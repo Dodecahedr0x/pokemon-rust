@@ -15,7 +15,7 @@
 //! liberation (`Nebula_PG_Sc03c`, which also lifts the Heart's boulder and opens the Relay's
 //! trapdoor).
 
-use super::ch04_port::{Pushable, push_object};
+use super::ch04_port::{Puzzle, push_object};
 use super::ch12_breche::gaz;
 use super::ch12_reveil::{battle_lost, legendaire};
 use crate::silice::prelude::*;
@@ -195,17 +195,21 @@ pub async fn NoMansLand_EventScript_PanneauCentrale(ctx: Ctx) {
 }
 
 /// The steel beam on the broken bridge (37, 30) (`VAR_TEMP_2`).
-const POUTRE: &[Pushable] = &[(LOCALID_NML_POUTRE, VAR_TEMP_2, (37, 30))];
+pub(crate) const POUTRE: Puzzle = Puzzle {
+    map: MAP_NO_MANS_LAND,
+    objects: &[(LOCALID_NML_POUTRE, VAR_TEMP_2, (37, 30))],
+    free: poutre_free,
+};
 
 /// East along the bridge's row, up to Latios's cell (the plan's review: the beam opens the bridge
 /// and strands nothing).
-fn poutre_free((x, y): (i16, i16)) -> bool {
+fn poutre_free(_: (i16, i16), (x, y): (i16, i16)) -> bool {
     y == 30 && (38..=54).contains(&x)
 }
 
 /// The steel beam: the Champ Magnétique (`FLAG_SIL_MODULE_FORCE`), as Chapter 3's blocks.
 pub async fn NoMansLand_EventScript_Poutre(ctx: Ctx) {
-    push_object(&ctx, POUTRE, poutre_free).await;
+    push_object(&ctx).await;
 }
 
 /// A cracked rock (the Scanner de Faille).

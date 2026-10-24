@@ -32,8 +32,7 @@
 //! heal (Mathieu's meal, 104): between two leaders the run mends with the bag's medicine
 //! ([`Step::Mend`]: Revives and potions, Chapter 9's marts).
 //!
-//! **The fallbacks the path relies on**: Strength is an A press on the barrel; the hidden items
-//! are not taken here; Kimiko's send-out lines and her "émotion" are not played. The
+//! **The fallbacks the path relies on**: the hidden items are not taken here; Kimiko's send-out lines and her "émotion" are not played. The
 //! Mega lines, ARTHUR_1's Full Restores, the Cœur's ward on 1F and Revenge's prism are the
 //! battles' own rules (`silice::rules`).
 
@@ -199,8 +198,9 @@ pub fn steps() -> Vec<Step> {
         goto_avoiding(F1, 17, 12, F1_AVOID),
         Step::Walk(Up),
         Step::Interact(Up),
+        Step::Push(Up),
         Step::Check("barrel", |r| {
-            assert!(r.degraded.contains("strength"));
+            assert!(!r.degraded.contains("strength"));
             assert_ne!(r.w.var(VAR_TEMP_5), 0, "the barrel moved");
         }),
         goto_avoiding(F1, 13, 8, F1_AVOID),
@@ -358,7 +358,6 @@ pub fn check_end(r: &Run) {
     assert!(r.w.var(VAR_SIL_STORY) >= 109);
     assert_eq!(r.w.events_dropped(), 0);
     for name in [
-        "strength",
         "mallette_call",
         "show_sync",
         "battle_lines",

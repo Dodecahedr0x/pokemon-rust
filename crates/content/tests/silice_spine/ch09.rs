@@ -20,8 +20,7 @@
 //! flags, `scripts/mallette.rs`), the dismount by walking ashore, the south arrow warp, Nébula's
 //! fixed dive warps (`DIVE_WARPS`), and two mart screens (the driver leaves a shop with B).
 //!
-//! **The fallbacks the path relies on** (`ch09_*.rs`): the Champ Magnétique is an A press on the
-//! cabinet; Benou's and Julien's calls are plain messages; no script
+//! **The fallbacks the path relies on** (`ch09_*.rs`): Benou's and Julien's calls are plain messages; no script
 //! changes the music. Sc01's white flash and Sc03's camera pan to the Grande Porte are real.
 //!
 //! **The party** ([`PARTY`]): Chapter 8's end as `sil9_ch8` leaves it (KADABRA 69 leading,
@@ -206,6 +205,7 @@ pub fn steps() -> Vec<Step> {
         // The glass office: the cabinet pushed east off the breaker, the breaker, TM24.
         goto(STATION, 1, 2),
         Step::Interact(Right),
+        Step::Push(Right),
         goto(STATION, 2, 2),
         Step::Interact(Up),
         goto(STATION, 7, 4),
@@ -543,13 +543,7 @@ pub fn check_end(r: &Run) {
         assert!(r.beaten(t), "{t:?}");
     }
     assert_eq!(r.w.events_dropped(), 0);
-    for name in [
-        "play_music",
-        "mallette_call",
-        "end_call",
-        "strength",
-        "play_se",
-    ] {
+    for name in ["play_music", "mallette_call", "end_call", "play_se"] {
         assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);
     }
     // Sc01's flash and Sc03's camera pan are the engine's own (SIL-M).
