@@ -25,6 +25,7 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
         Request::SaveDialog => ScreenKind::SaveDialog,
         // `special GameClear`'s record and credits (Task S); the save waits for the field.
         Request::HallOfFame => ScreenKind::HallOfFame,
+        Request::EasyChat { kind } => ScreenKind::EasyChat(kind),
         // The evolution scene (Task E's screen): until it lands, the species change of the
         // scene without it (`Pokemon::evolve`), reported as the bag's item evolutions are.
         Request::Evolve { slot, into, .. } => {
@@ -71,7 +72,9 @@ pub(super) fn resume<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Re
         } else {
             v
         }),
-        Request::SaveDialog | Request::Evolve { .. } => Response::Bool(v == 1),
+        Request::SaveDialog | Request::EasyChat { .. } | Request::Evolve { .. } => {
+            Response::Bool(v == 1)
+        }
         _ => Response::Unit,
     })
 }
@@ -80,7 +83,9 @@ fn default_answer(r: &Request) -> Response {
     match r {
         Request::ChoosePartyMon(PartyMode::ChooseHalf { .. }) => Response::Value(0),
         Request::ChoosePartyMon(_) => Response::Value(PARTY_NOTHING_CHOSEN),
-        Request::SaveDialog | Request::Evolve { .. } => Response::Bool(false),
+        Request::SaveDialog | Request::EasyChat { .. } | Request::Evolve { .. } => {
+            Response::Bool(false)
+        }
         _ => Response::Unit,
     }
 }
