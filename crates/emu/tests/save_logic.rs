@@ -109,3 +109,24 @@ fn scanlines_wrap_mod_one_frame() {
     assert_eq!(scanlines(5, 5), 0);
     assert_eq!(scanlines(0, 227), 227);
 }
+
+/// Milestone 9 Task S: an in-game save (its metadata marked) boots into the main menu; the mark
+/// is the same on the GBA and the host (`game_native::flash`), and B still skips it.
+#[test]
+fn in_game_saves_boot_into_the_main_menu() {
+    use save_logic::{IN_GAME_SAVE, shown_meta};
+    assert_eq!(IN_GAME_SAVE, game_native::flash::IN_GAME_SAVE);
+    let mut m = meta(SCHEMA);
+    m.badges = 3 | IN_GAME_SAVE;
+    assert_eq!(
+        boot_choice(SlotSeen::Valid(m), Buttons::NONE),
+        BootChoice::MainMenu
+    );
+    assert_eq!(
+        boot_choice(SlotSeen::Valid(m), Buttons::B),
+        BootChoice::NewGame(boot::SKIPPED)
+    );
+    assert_eq!(shown_meta(m).badges, 3);
+    // The GBA shell writes slots with it (`game_native::flash::in_game_meta` on the host).
+    let _ = save_logic::in_game_meta;
+}

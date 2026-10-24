@@ -48,6 +48,20 @@ fn save(store: &Store, c: &mut Controls<content::Emerald>, req: Option<SaveReque
     }
 }
 
+/// Writes the in-game save `cp` over `saves/<flavor>/game.sav` (created on erased flash).
+fn write_game_sav(cp: &engine::checkpoint::Checkpoint) -> Result<(), String> {
+    use engine::data::GameData;
+    let dir = std::path::Path::new("saves").join(format!("{:?}", content::FLAVOR).to_lowercase());
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join("game.sav");
+    let old = std::fs::read(&path).unwrap_or_else(|_| game_native::flash::blank_sav());
+    let ids = content::Emerald::for_shells().special_ids();
+    let sav = game_native::flash::write_in_game_sav(&old, cp, &ids).or_else(|_| {
+        game_native::flash::write_in_game_sav(&game_native::flash::blank_sav(), cp, &ids)
+    })?;
+    std::fs::write(&path, sav).map_err(|e| e.to_string())
+}
+
 /// The node states F9 reloads (one chain of a few nodes is plenty for one player).
 const MATERIALIZED: usize = 8;
 
@@ -153,6 +167,14 @@ fn main() -> ExitCode {
             .fold(Buttons::NONE, |acc, &(_, b)| Buttons(acc.0 | b.0));
         let req = controls.step(keys);
         save(&store, &mut controls, req);
+        // Milestone 9 Task S: the in-game save goes to `saves/<flavor>/game.sav`, the ROM's
+        // flash image (a failed write answers "not saved").
+        if let Some(cp) = controls.session_mut().take_save()
+            && let Err(e) = write_game_sav(&cp)
+        {
+            controls.session_mut().save_failed();
+            controls.note(format!("in-game save failed: {e}"));
+        }
         for (dst, &c) in buf.iter_mut().zip(controls.session_mut().framebuffer()) {
             *dst = rgb555_to_0rgb(c);
         }
