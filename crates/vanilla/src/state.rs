@@ -86,6 +86,7 @@ pub mod layout {
     pub const CTX_SCRIPT_PTR: u32 = 8;
     /// `sGlobalScriptContextStatus`: CONTEXT_RUNNING 0, CONTEXT_WAITING 1, CONTEXT_SHUTDOWN 2.
     pub const CONTEXT_SHUTDOWN: u8 = 2;
+    pub const CONTEXT_WAITING: u8 = 1;
     // struct BattlePokemon (88 bytes)
     pub const BATTLE_MON_SIZE: u32 = 88;
     pub const BM_SPECIES: u32 = 0;
@@ -495,7 +496,11 @@ impl Vanilla {
             {
                 return Mode::Message;
             }
-            if running
+            // A context left waiting with the controls free is no script: Gen3 takes field
+            // input whenever the context does not run (`ScriptContext_IsEnabled`), as after a
+            // Rock Smash encounter (`CB2_EndWildBattle` returns with no script to resume).
+            let waiting = status == CONTEXT_WAITING;
+            if (running && !waiting)
                 || self.emu.read_u8(s.lock_field_controls) != 0
                 || self.callback1() != s.cb1_overworld
             {
