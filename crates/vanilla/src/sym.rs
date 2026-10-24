@@ -174,6 +174,9 @@ symbols! {
     /// The choose-half party menu (`PARTY_MENU_TYPE_CHOOSE_HALF`) and its order.
     selected_order_from_party = "gSelectedOrderFromParty" @ 0x0203cef8,
     battler_party_indexes = "gBattlerPartyIndexes" @ 0x0202406e,
+    active_battler = "gActiveBattler" @ 0x02024064,
+    absent_battler_flags = "gAbsentBattlerFlags" @ 0x02024210,
+    multi_use_player_cursor = "gMultiUsePlayerCursor" @ 0x03005d74,
     // Rotating gates (`rotating_gate.c`): the puzzle and its ROM tables.
     rotating_gate_puzzle_config = "sRotatingGate_PuzzleConfig" @ 0x0203a044,
     rotating_gate_puzzle_count = "sRotatingGate_PuzzleCount" @ 0x0203a048,

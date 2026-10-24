@@ -230,6 +230,15 @@ impl Vanilla {
                     0
                 },
             ),
+            Mode::BattleTarget => {
+                // RIGHT through the targets until the cursor is on the foe to aim at.
+                let want = self.target_foe();
+                if self.emu.read_u8(s.multi_use_player_cursor) == want {
+                    Buttons::A
+                } else {
+                    Buttons::RIGHT
+                }
+            }
             Mode::BattleMove if run => Buttons::B,
             Mode::BattleMove => {
                 let slot = self.move_slot();
@@ -305,19 +314,77 @@ impl Vanilla {
         vertical(self.emu.read_u8(pss + PSS_FIRST_MOVE_INDEX), slot)
     }
 
-    /// The policy's move slot, from `gBattleMons[0]` (ours) and `[1]` (the foe).
+    /// Whether the battle is a double one (`BATTLE_TYPE_DOUBLE`).
+    fn double_battle(&mut self) -> bool {
+        self.emu.read_u32(self.sym.battle_type_flags) & BATTLE_TYPE_DOUBLE != 0
+    }
+
+    /// `gBattleMons[b]`'s address.
+    fn battle_mon(&self, b: u8) -> u32 {
+        self.sym.battle_mons + u32::from(b) * BATTLE_MON_SIZE
+    }
+
+    /// The battler choosing (`gActiveBattler`: 0, or 2 in doubles).
+    fn choosing(&mut self) -> u8 {
+        if self.double_battle() {
+            self.emu.read_u8(self.sym.active_battler) & 3
+        } else {
+            0
+        }
+    }
+
+    /// The foe to aim at (our policy's `target_foe`): in doubles the standing opponent
+    /// (battler 1 or 3) with the least HP, else battler 1.
+    fn target_foe(&mut self) -> u8 {
+        if !self.double_battle() {
+            return 1;
+        }
+        let absent = self.emu.read_u8(self.sym.absent_battler_flags);
+        [1u8, 3]
+            .into_iter()
+            .filter(|&b| absent & (1 << b) == 0)
+            .map(|b| (b, self.emu.read_u16(self.battle_mon(b) + BM_HP)))
+            .filter(|&(_, hp)| hp > 0)
+            .min_by_key(|&(_, hp)| hp)
+            .map_or(1, |(b, _)| b)
+    }
+
+    /// The policy's move slot, from the choosing battler's `gBattleMons` and the targeted
+    /// foe's ([`Vanilla::target_foe`]); in doubles not a move that also hits a standing ally
+    /// (Earthquake) while another is usable (our policy's `selectable`).
     fn move_slot(&mut self) -> u8 {
         let Some(t) = self.tables else {
             return 0;
         };
-        let me = self.sym.battle_mons;
-        let foe = me + BATTLE_MON_SIZE;
+        let active = self.choosing();
+        let me = self.battle_mon(active);
+        let target = self.target_foe();
+        let foe = self.battle_mon(target);
         let species = SpeciesId(self.emu.read_u16(me + BM_SPECIES));
         let moves: [Option<MoveId>; 4] = std::array::from_fn(|i| {
             let m = self.emu.read_u16(me + BM_MOVES + 2 * i as u32);
             (m != 0).then_some(MoveId(m))
         });
-        let pp: [u8; 4] = std::array::from_fn(|i| self.emu.read_u8(me + BM_PP + i as u32));
+        let mut pp: [u8; 4] = std::array::from_fn(|i| self.emu.read_u8(me + BM_PP + i as u32));
+        let ally = active ^ 2;
+        let absent = self.emu.read_u8(self.sym.absent_battler_flags);
+        if self.double_battle()
+            && absent & (1 << ally) == 0
+            && self.emu.read_u16(self.battle_mon(ally) + BM_HP) > 0
+        {
+            let hits_ally = |i: usize| {
+                moves[i]
+                    .is_some_and(|m| t.move_info(m).target == engine::mon::MoveTarget::FoesAndAlly)
+            };
+            let other = (0..4).any(|i| !hits_ally(i) && moves[i].is_some() && pp[i] > 0);
+            if other {
+                for (i, p) in pp.iter_mut().enumerate() {
+                    if hits_ally(i) {
+                        *p = 0;
+                    }
+                }
+            }
+        }
         if self.trace {
             eprintln!(
                 "  battle move: {species:?} L{} hp {}/{} moves {moves:?} pp {pp:?} vs {} L{} hp {} best {}",

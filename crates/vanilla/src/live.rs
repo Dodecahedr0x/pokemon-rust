@@ -270,6 +270,19 @@ impl<'g, G: GameData> Live<'g, G> {
                     .map(|w| w.dest_map)
                     .filter(|&m| self.game.has_map(m));
                 let on = self.map()?;
+                // Vanilla's settle already ran the destination's scene through its next warp
+                // (the Champion's room walking the player into the Hall of Fame): one map ahead.
+                if let Some(m) = want.filter(|&m| m != on)
+                    && (self.game.map(m).warps.iter()).any(|w| w.dest_map == on)
+                {
+                    self.ahead = true;
+                    self.note = Some(format!(
+                        "vanilla's settle went on through {} to {}",
+                        map_name(m),
+                        map_name(on)
+                    ));
+                    return Ok(());
+                }
                 if want.is_some_and(|m| m != on) || (want.is_none() && on == start) {
                     bail!(
                         "entered ({x}, {y}) but on {}, not {:?}",
@@ -310,26 +323,11 @@ impl<'g, G: GameData> Live<'g, G> {
                 }
             }
             Step::Path { dirs, .. } => {
-                // KNOWN ENGINE GAP (double sight): two trainers seeing the player at once fight
-                // one double battle on Gen3; our engine (no double battles) fights two singles,
-                // the second sighting taking the press of the path's next key, which the spine
-                // adds (Mossdeep's gym). Vanilla skips that key after each double battle.
-                let mut skip = 0;
                 for &dir in dirs {
-                    if skip > 0 {
-                        skip -= 1;
-                        continue;
-                    }
-                    let battles = self.v.battles.len();
                     self.v.walk_dir(dir, MACRO_FRAMES)?;
                     if let Some(at) = self.v.bumped.take() {
                         self.note = Some(format!("vanilla bumped {dir:?} at {at:?}"));
                     }
-                    use crate::state::layout::{BATTLE_TYPE_DOUBLE, BATTLE_TYPE_TRAINER};
-                    let double = BATTLE_TYPE_DOUBLE | BATTLE_TYPE_TRAINER;
-                    skip += (self.v.battles[battles..].iter())
-                        .filter(|&&f| f & double == double)
-                        .count();
                 }
             }
             Step::Exit { dir, to } => {
