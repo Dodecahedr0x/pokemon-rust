@@ -32,6 +32,8 @@ use crate::script::Fade;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TransitionStep {
     Walk(Dir),
+    /// Start the player jumping one cell `Dir` (a [`Behavior::PopOutWarp`] arrival).
+    Jump(Dir),
     Walking,
     FadingOut,
     Load(MapId, i16, i16),
@@ -64,6 +66,9 @@ pub struct Transition {
     /// `facing` (hidden until then, but on an escalator).
     exit_walk: bool,
     player_hidden: bool,
+    /// The exit is a one-cell jump ([`Behavior::PopOutWarp`]); set only from the arrival to the
+    /// end of the jump, so an idle transition never has it (not snapshotted).
+    exit_jump: bool,
 }
 
 impl Default for Transition {
@@ -82,6 +87,7 @@ impl Transition {
             facing: Dir::Down,
             exit_walk: false,
             player_hidden: false,
+            exit_jump: false,
         }
     }
 
@@ -117,6 +123,8 @@ impl Transition {
     ///   cell `d`, visible.
     /// - `Ladder`: keep `warped_facing`, no exit walk.
     /// - `ArrowWarp(d)`: face away from `d`, no exit walk (`Task_ExitNonDoor`).
+    /// - `PopOutWarp(d)` (`FieldCB_LavaridgeGymB1FWarpExit`): face `d`, hidden during the
+    ///   fade-in, then jump one cell `d`.
     /// - anything else (`Warp` included): face down, no exit walk.
     ///
     /// - the water door (`MB_WATER_DOOR`, a non-animated door): as `NonAnimDoor(Down)`.
@@ -143,9 +151,11 @@ impl Transition {
             Behavior::Ladder => (warped_facing, false, false),
             Behavior::ArrowWarp(d) => (d.opposite(), false, false),
             Behavior::Water(crate::data::Water::SouthArrowWarp) => (Dir::Up, false, false),
+            Behavior::PopOutWarp(d) => (d, true, true),
             _ if swapped => (warped_facing, false, false),
             _ => (Dir::Down, false, false),
         };
+        self.exit_jump = matches!(behavior, Behavior::PopOutWarp(_));
         self.facing = facing;
         self.exit_walk = walk;
         self.player_hidden = hidden;
@@ -236,6 +246,9 @@ impl Transition {
                     if self.exit_walk {
                         self.player_hidden = false;
                         self.stage = Stage::WalkOut;
+                        if self.exit_jump {
+                            return TransitionStep::Jump(self.facing);
+                        }
                         return TransitionStep::Walk(self.facing);
                     }
                     self.stage = Stage::Idle;
@@ -245,6 +258,7 @@ impl Transition {
                     if player_moving {
                         return TransitionStep::Walking;
                     }
+                    self.exit_jump = false;
                     self.stage = Stage::Idle;
                     return TransitionStep::Done;
                 }
@@ -271,6 +285,10 @@ impl Transition {
         h.write_u16(self.map.0);
         h.write_u16(self.x as u16);
         h.write_u16(self.y as u16);
+        // Wave E2: only during a pop-out arrival, so other hashes are unchanged.
+        if self.exit_jump {
+            h.write(&[0xE7]);
+        }
     }
 }
 
@@ -300,6 +318,7 @@ impl Transition {
             facing: s.facing,
             exit_walk: s.exit_walk,
             player_hidden: s.player_hidden,
+            exit_jump: false,
         }
     }
 }

@@ -38,7 +38,11 @@ static SHIFT: [[Step; 3]; 4] = [
 ];
 
 const fn shift(d: Dir) -> [Step; 3] {
-    [Step::LockFacing, Step::Walk(d, Speed::Normal), Step::UnlockFacing]
+    [
+        Step::LockFacing,
+        Step::Walk(d, Speed::Normal),
+        Step::UnlockFacing,
+    ]
 }
 
 /// Gen3 `sMovement_Face*`, by direction.
@@ -140,7 +144,8 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
                 }
                 let d = arrow_dir(tile);
                 let (dx, dy) = d.delta();
-                s.templates.edit(t.local_id, |t| (t.x, t.y) = (t.x + dx, t.y + dy));
+                s.templates
+                    .edit(t.local_id, |t| (t.x, t.y) = (t.x + dx, t.y + dy));
                 if s.objects.get(t.local_id).is_some() {
                     p.moved.push((i, tile));
                     mover = t.local_id;
@@ -149,12 +154,16 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
                     // Gen3 `TurnUnsavedRotatingTileObject` ("never reached in normal gameplay"):
                     // the template turns, by the arrow it now stands on.
                     let now = (s.templates[i].x, s.templates[i].y);
-                    let off = block_metatile(s.field.block(game, now.0, now.1))
-                        .wrapping_sub(p.start);
+                    let off =
+                        block_metatile(s.field.block(game, now.0, now.1)).wrapping_sub(p.start);
                     let turn = rotation((off % METATILE_ROW_WIDTH) as u8, tile);
                     s.templates.edit(t.local_id, |t| {
                         if let (MovementType::Face(f), Some(ccw)) = (t.movement, turn) {
-                            let f = if ccw { counterclockwise(f) } else { clockwise(f) };
+                            let f = if ccw {
+                                counterclockwise(f)
+                            } else {
+                                clockwise(f)
+                            };
                             t.movement = MovementType::Face(f);
                         }
                     });

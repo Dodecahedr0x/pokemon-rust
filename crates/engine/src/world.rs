@@ -296,6 +296,14 @@ impl<G: GameData> Terrain for Ground<'_, G> {
 }
 
 /// One forced step per direction (warp walk-in/out).
+/// Gen3 `MOVEMENT_ACTION_JUMP_*` (one cell), by `Dir`: a pop-out arrival's jump.
+static JUMP: [[Step; 1]; 4] = [
+    [Step::Jump(Dir::Down, 1)],
+    [Step::Jump(Dir::Up, 1)],
+    [Step::Jump(Dir::Left, 1)],
+    [Step::Jump(Dir::Right, 1)],
+];
+
 static WALK: [[Step; 1]; 4] = [
     [Step::Walk(Dir::Down, Speed::Normal)],
     [Step::Walk(Dir::Up, Speed::Normal)],
@@ -532,6 +540,14 @@ impl World {
             self.s.objects.unfreeze(crate::data::PLAYER);
             // The backup and the order belong to the script that made them (see `Stash`).
             self.s.stash = host::Stash::default();
+        }
+        // Gen3 `CB2_WhiteOut` (`special SetCB2WhiteOut`): its 120 frames are over.
+        if matches!(
+            self.runner.waiting_on(),
+            Some(crate::script::Request::FieldWhiteOut)
+        ) && self.s.delay == 0
+        {
+            self.whiteout(game, f);
         }
     }
 

@@ -393,9 +393,10 @@ fn the_terrain_table_answers_as_the_per_edge_rules_on_the_game_maps() {
 }
 
 #[test]
+#[cfg(not(pkr_silice))]
 fn a_surfer_gets_off_the_water_onto_elevation_3_land() {
     // Route 131's Sky Pillar islet (elevation 3) in its water (elevation 1), no shore between
-    // (Gen3 `CanStopSurfing`). Emerald only.
+    // (Gen3 `CanStopSurfing`). Emerald only (Silice has no `MAP_ROUTE131`).
     if content::FLAVOR != content::Flavor::Emerald {
         return;
     }

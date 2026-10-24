@@ -51,7 +51,11 @@ fn a_switch_moves_its_colours_objects_along_the_arrows_then_turns_them() {
     let t = template(&w, 1);
     assert_eq!((t.x, t.y), (6, 6));
     assert_eq!(t.movement, MovementType::Face(Dir::Down));
-    assert_eq!(w.objects().get(3).unwrap().pos(), (2, 5), "yellow did not move");
+    assert_eq!(
+        w.objects().get(3).unwrap().pos(),
+        (2, 5),
+        "yellow did not move"
+    );
     assert_eq!(w.s.last_mover, 1, "the waitmovement 0 object");
     assert!(w.s.rotating_tiles.is_none(), "freed");
     // Yellow: object 3 walks right, its facing locked (it does not turn to the walk).

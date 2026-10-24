@@ -261,7 +261,9 @@ impl ScriptHost for Host {
     fn begin(&mut self, r: &Request) -> Option<Response> {
         self.log.push(r.clone());
         Some(match r {
-            Request::GetFlag(_) | Request::YesNo { .. } => Response::Bool(false),
+            Request::GetFlag(_) | Request::YesNo { .. } | Request::RockSmashEncounter => {
+                Response::Bool(false)
+            }
             Request::GetVar(_) | Request::Random(_) | Request::PlayerFacing | Request::Query(_) => {
                 Response::Value(0)
             }

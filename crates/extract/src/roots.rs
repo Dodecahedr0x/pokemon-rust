@@ -197,19 +197,24 @@ pub fn std_scripts(rom: &Rom) -> Result<Option<Vec<u32>>> {
 /// The field scripts the game's C code starts (no map, object or std table points at them),
 /// by decomp label: `GetInteractedWaterScript`'s `EventScript_UseSurf` (Wave C), then the
 /// Match Call registrations `TryStartStepCountScript` (`field_control_avatar.c`) starts
-/// ([`STEP_CALL_SCRIPTS`], Wave E), then Waterfall's and Dive's (Wave F: [`water_scripts`]).
-pub const FIELD_SCRIPTS: [&str; 10] = [
+/// ([`STEP_CALL_SCRIPTS`], Wave E), then its field poison script (`EventScript_FieldPoison`,
+/// format 5.11), then Waterfall's and Dive's (Wave F: [`water_scripts`], format 5.12).
+pub const FIELD_SCRIPTS: [&str; 11] = [
     "EventScript_UseSurf",
     "RustboroCity_Gym_EventScript_RegisterRoxanne",
     "MauvilleCity_EventScript_RegisterWallyCall",
     "Route119_EventScript_ScottWonAtFortreeGymCall",
     "LittlerootTown_ProfessorBirchsLab_EventScript_ScottAboardSSTidalCall",
     "MossdeepCity_SpaceCenter_2F_EventScript_RivalRayquazaCall",
+    "EventScript_FieldPoison",
     "EventScript_UseWaterfall",
     "EventScript_CannotUseWaterfall",
     "EventScript_UseDive",
     "EventScript_UseDiveUnderwater",
 ];
+
+/// Gen3 `SPECIAL_TryFieldPoisonWhiteOut` (`data/specials.inc`).
+const SPECIAL_TRY_FIELD_POISON_WHITE_OUT: u16 = 0xCA;
 
 /// [`FIELD_SCRIPTS`]`[1..]`'s signatures: the script opens with `lockall` then the named
 /// command, and its straight line (no jump followed) reaches `clearflag <flag>`, the flag
@@ -267,6 +272,17 @@ pub fn field_scripts(rom: &Rom) -> Result<Vec<Option<u32>>> {
     for (second, flag) in STEP_CALL_SCRIPTS {
         out.push(step_call_script(rom, op(second)?, flag)?);
     }
+    // `EventScript_FieldPoison`: `lockall; special TryFieldPoisonWhiteOut; waitstate`, once.
+    let mut poison = vec![op("lockall")?, op("special")?];
+    poison.extend(SPECIAL_TRY_FIELD_POISON_WHITE_OUT.to_le_bytes());
+    poison.push(op("waitstate")?);
+    let found: Vec<u32> = (rom.find_all(&poison).into_iter())
+        .filter(|&at| matches!(crate::scripts::decode(rom, at), Ok(Some(_))))
+        .collect();
+    out.push(match found.as_slice() {
+        [at] => Some(*at),
+        _ => None,
+    });
     out.extend(water_scripts(
         rom,
         &check(MOVE_WATERFALL)?,
@@ -275,7 +291,7 @@ pub fn field_scripts(rom: &Rom) -> Result<Vec<Option<u32>>> {
     Ok(out)
 }
 
-/// [`FIELD_SCRIPTS`]`[6..]`' offsets from their party checks (`waterfall`: the one
+/// [`FIELD_SCRIPTS`]`[7..]`' offsets from their party checks (`waterfall`: the one
 /// `checkpartymove MOVE_WATERFALL`, `dive`: the two `checkpartymove MOVE_DIVE`, in ROM order),
 /// each script opening with `lockall` one byte before its check:
 /// - `EventScript_UseWaterfall`, and `EventScript_CannotUseWaterfall`: the `lockall` just
