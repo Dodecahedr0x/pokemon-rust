@@ -3550,8 +3550,8 @@ The 12 maps of Chapter 8 (le Bourg d'Évalon) are in `games/silice/{maps,layouts
   - The Doyenne sits at the table's west side (3, 5) so the player can talk to her.
   - Loulpix and Doris sit at the carpet's head (5–6, 5), and the player comes up from the south.
 - **Gym trainers.**
-  - Élise stands beside the stairs' only approach, at (6, 3) facing left, sight 2, instead of in front of the stairs, which would block them for good.
-  - Morgane stands at (5, 21) with sight 3. At (5, 22) she would have closed the runes' only way.
+  - Élise stands beside the stairs' only approach, at (6, 3) facing left, sight 1 (the Ch8 spine review: with sight 2 a trainer's approach drew her onto (5, 3)), instead of in front of the stairs, which would block them for good.
+  - Morgane stands at (5, 21) with sight 1 (the Ch8 spine review). At (5, 22) she would have closed the runes' only way; with sight 3 a trainer's approach left her on the 1-wide (5, 23) after the battle, shutting it the same way.
 
 **Darkness and other mechanics, with their fallbacks:**
 - **Per-area darkness** (the Galeries' galerie obscure, the Citadelle's crypt) does not exist; the header's `cave` byte darkens a whole map. Fallback:

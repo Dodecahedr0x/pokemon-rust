@@ -55,8 +55,9 @@ pub async fn RouteS08_EventScript_Ronces(ctx: Ctx) {
 }
 
 /// The cracked rock (31, 10) before the braises nook: Chapter 7's silica block (the Scanner de
-/// Faille, `ch07_route_s07::bloc`). The rock has no flag, so it is back on every load, as
-/// Gen3's rocks are ("SIL4 Ch8 maps as built").
+/// Faille, `ch07_route_s07::bloc`). Its flag is a temp flag (`FLAG_TEMP_11`, the phase file
+/// `06_ch8_scripts.ron`), as Gen3's rocks: gone while the player is on the map, back on the next
+/// load.
 pub async fn RouteS08_EventScript_Rocher(ctx: Ctx) {
     super::ch07_route_s07::bloc(&ctx).await;
 }
@@ -151,8 +152,7 @@ pub async fn RouteS08_EventScript_Theo(ctx: Ctx) {
 }
 
 /// The twins on their pontoon (11–12, 36): one `double: true` entry, Léa's sight (2 left).
-/// Both twins run this script; the engine fights the double as a single battle against the same
-/// party (reported `double battle`).
+/// Both twins run this script: one double battle against the entry's party.
 pub async fn RouteS08_EventScript_LeaZoe(ctx: Ctx) {
     if trainer(
         &ctx,
