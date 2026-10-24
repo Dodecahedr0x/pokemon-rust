@@ -21,8 +21,11 @@
 //!   decision, so it is spine data.
 //! - [`Step::Train`]: pace between two tall-grass cells until the lead Pokémon reaches a level,
 //!   playing the `heal` steps whenever it is below half its HP or has a status (the training a
-//!   player does between two story beats; the explorer's grind goal).
+//!   player does between two story beats; the explorer's grind goal). `SPINE_LEVEL_<l>=<n>`
+//!   trains a `level: l` step to `n` instead (a tuning aid for the neighbour rule's measures).
 //! - [`Step::Settle`]: wait for the field to be free.
+//! - [`Step::Swap`]: swap two party slots in the party menu (START → POKéMON → SWITCH): who
+//!   leads a battle (two lead a double) and whom [`Step::Train`] raises.
 //! - [`Step::Hook`]: a test-only grant around one script's next run ([`Hook`]); the explorer
 //!   leaves these out, or replays them as its own setup. A spine holds one only where a
 //!   buttons-only run cannot do without it (documented at the hook: [`ch01::SECOND`]); probes
@@ -37,7 +40,10 @@
 //! **The battle policy** (deterministic, from the battle's state only):
 //! - FIGHT, never RUN, no bag: the usable move with the best expected damage against the
 //!   opponent's types ([`driver::best_move`]: power × accuracy, ×1.5 for the same type, × Gen3's
-//!   type chart; the lowest slot on a tie).
+//!   type chart; the lowest slot on a tie). In a double battle, for whichever of the player's
+//!   two battlers chooses, against the standing foe with the least HP (the target cursor is
+//!   moved onto it), and never a move that also hits the standing ally (Magnitude) while
+//!   another is usable (the explorer's doubles policy).
 //! - A new move with a free slot is learned (the engine's own). With four moves known, "forget a
 //!   move?" ([`driver::learn_slot`]): the weakest damaging move (power × accuracy, ×1.5 for the
 //!   same type; the lowest slot on a tie) is forgotten for the new one when the new one is worth
@@ -46,6 +52,10 @@
 //!   abilities (Cut, Strength, Flash) are the Mallette's modules, flags, not moves.
 //! - No voluntary switch: the battle scene has no party screen (POKéMON redraws the action
 //!   menu), and after a faint the engine sends out the first usable Pokémon.
+//!
+//! **The planner** ([`Step::Goto`]) walks as the engine does: collision, behaviours, ledges,
+//! objects and elevations (Gen3 `IsElevationMismatchAt`: on foot, water is elevation 1 under
+//! the land's 3, so it is never planned through; a bridge's 15 keeps the elevation).
 //!
 //! Nothing is random outside the engine: the same steps give the same frames. `SPINE_DEBUG=1`
 //! logs every battle's outcome and both parties (for tuning training levels and hooks).
@@ -90,6 +100,9 @@ pub enum Step {
         heal: &'static [Step],
     },
     Settle,
+    /// Party slots `a` and `b` swap places (START → POKéMON → slot `a` → SWITCH → slot `b`):
+    /// the player's lead order, before a battle or a [`Step::Train`] of another member.
+    Swap(u8, u8),
     Hook(Hook),
     Check(&'static str, fn(&Run)),
 }
