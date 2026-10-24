@@ -277,6 +277,7 @@ impl Weather {
     }
 
     /// Feeds the state into `h` unless it is the default ([`Weather::is_default`]).
+    #[allow(clippy::should_implement_trait)] // the engine-wide `hash(&self, &mut Fnv64)` shape
     pub fn hash(&self, h: &mut Fnv64) {
         if self.is_default() {
             return;
@@ -509,11 +510,10 @@ impl Weather {
         self.thunder_sound(rng);
         let t = &mut self.thunder;
         match t.state {
-            T_WAIT_CHANGE => {
-                if self.color_map == self.target {
-                    self.thunder.state = T_INIT_CYCLE_1;
-                }
+            T_WAIT_CHANGE if self.color_map == self.target => {
+                self.thunder.state = T_INIT_CYCLE_1;
             }
+            T_WAIT_CHANGE => {}
             T_NEW_CYCLE | T_NEW_CYCLE_WAIT => {
                 if t.state == T_NEW_CYCLE {
                     t.allow_end = true;
@@ -527,7 +527,7 @@ impl Weather {
             }
             T_INIT_CYCLE_1 => {
                 t.allow_end = true;
-                t.long_bolt = rng.random() % 2 != 0;
+                t.long_bolt = !rng.random().is_multiple_of(2);
                 t.state = T_INIT_CYCLE_2;
             }
             T_INIT_CYCLE_2 | T_SHORT_BOLT => {
@@ -593,6 +593,7 @@ impl Weather {
                     self.thunder.state = T_END_BOLT_LONG;
                 }
             }
+            #[allow(clippy::collapsible_match)] // `pal_idle` borrows `self` (`t` is live)
             T_END_BOLT_LONG => {
                 if self.pal_idle() {
                     self.thunder.allow_end = true;

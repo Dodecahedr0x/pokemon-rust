@@ -69,6 +69,7 @@ pub struct PaletteFx {
 
 impl PaletteFx {
     /// Feeds the override into `h`.
+    #[allow(clippy::should_implement_trait)] // the engine-wide `hash(&self, &mut Fnv64)` shape
     pub fn hash(&self, h: &mut Fnv64) {
         h.write(&[
             0xB9,
@@ -157,6 +158,7 @@ pub struct OverlayRun {
 }
 
 impl OverlayRun {
+    #[allow(clippy::should_implement_trait)] // the engine-wide `hash(&self, &mut Fnv64)` shape
     pub fn hash(&self, h: &mut Fnv64) {
         h.write(&[0xBA, self.id]);
         h.write_u16(self.frames);

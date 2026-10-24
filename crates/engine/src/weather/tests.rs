@@ -187,7 +187,7 @@ fn color_maps_match_gen3() {
     }
     assert_eq!(
         m[0][2][31],
-        ((31u16 << 8) - 3 * ((31u16 << 8) / 16) >> 8) as u8
+        (((31u16 << 8) - 3 * ((31u16 << 8) / 16)) >> 8) as u8
     );
     // The last map is white.
     assert_eq!(m[1][COLOR_MAPS - 1][31], 31);

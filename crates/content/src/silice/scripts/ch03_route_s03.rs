@@ -132,9 +132,12 @@ const DEPOT_FLOOR: [&str; 14] = [
 /// The first row of the south corridor (7, 10–12), between the rest area and the south portal.
 const SOUTH_CORRIDOR: i16 = 10;
 
+/// A block: its local id, its home cell, its solved cell.
+type Bloc = (u8, (i16, i16), (i16, i16));
+
 /// The three blocks: each object, its home cell and its cell once the puzzle is solved (§2.2's
 /// solution: A1 pushed up to (7, 6) then right, B1 up into the dock, B2 right).
-const BLOCS: [(u8, (i16, i16), (i16, i16)); 3] = [
+const BLOCS: [Bloc; 3] = [
     (LOCALID_DEPOT_BLOC_A1, (7, 11), (8, 6)),
     (LOCALID_DEPOT_BLOC_B1, (7, 4), (7, 3)),
     (LOCALID_DEPOT_BLOC_B2, (7, 2), (8, 2)),

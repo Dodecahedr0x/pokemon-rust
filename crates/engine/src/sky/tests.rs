@@ -65,7 +65,7 @@ fn overlay_runs_end() {
 
 #[test]
 fn reserved_tiles_fit_below_the_emotes() {
-    assert!(PARTICLE_TILES + OVERLAY_TILES == crate::objects::SKY_TILES);
-    assert!(OVERLAY_TILES >= 16);
+    const { assert!(PARTICLE_TILES + OVERLAY_TILES == crate::objects::SKY_TILES) };
+    const { assert!(OVERLAY_TILES >= 16) };
     assert_ne!(PARTICLE_BANK, OVERLAY_BANK);
 }
