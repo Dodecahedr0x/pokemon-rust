@@ -1423,5 +1423,48 @@ fn shadow_tag_traps_the_foe() {
     assert!(!super::switch_block(&r.b, P));
 }
 
+/// `ABILITYEFFECT_SWITCH_IN_WEATHER`: the field's weather (`BattleRules::weather`, set by the
+/// world) starts the battle's permanent weather before the switch-in abilities, which may
+/// replace it.
+#[test]
+fn the_fields_weather_starts_the_battles() {
+    use crate::weather::BattleWeather;
+    let run = |w: Option<BattleWeather>, player: Pokemon| {
+        let mut rng = Rng::new(7);
+        let setup = BattleSetup {
+            kind: BattleKind::Wild {
+                first_battle: false,
+            },
+            opponents: party(&[m(PLAIN, 10, &[SPLASH])]),
+            environment: Environment::Grass,
+            double: None,
+            rules: crate::battle::BattleRules {
+                weather: w,
+                ..Default::default()
+            },
+        };
+        let mut b = Battle::new(&SGame, setup, &party(&[player]), &mut rng);
+        let mut out = Vec::new();
+        b.start(&SGame, &mut rng, &mut out);
+        (b, lines(&out))
+    };
+    for (w, line, weather) in [
+        (BattleWeather::Rain, "ItIsRaining@P ~64", Weather::Rain),
+        (BattleWeather::Sandstorm, "SandstormIsRaging@P ~64", Weather::Sand),
+        (BattleWeather::Sun, "SunlightStrong@P ~64", Weather::Sun),
+    ] {
+        let (b, intro) = run(Some(w), m(PLAIN, 10, &[SPLASH]));
+        assert!(intro.iter().any(|l| l == line), "{intro:?}");
+        assert_eq!(b.x.weather, weather);
+    }
+    let (b, intro) = run(None, m(PLAIN, 10, &[SPLASH]));
+    assert_eq!(b.x.weather, Weather::None);
+    assert!(!starts(&intro, "ItIsRaining"));
+    // Sun on the field, then Drizzle: Drizzle's rain replaces it.
+    let (_, intro) = run(Some(BattleWeather::Sun), m(DRIZZLER, 90, &[WATER_GUN]));
+    let sun = pos(&intro, "SunlightStrong@P ~64");
+    assert!(sun < pos(&intro, "MadeItRain@P AbilityName(Drizzle) ~64"));
+}
+
 #[path = "tests_rules.rs"]
 mod tests_rules;

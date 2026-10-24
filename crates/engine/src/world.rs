@@ -256,6 +256,13 @@ pub(crate) struct State {
     pub(crate) berry_trees: crate::berry::BerryTrees,
     /// Screen flash, shake and tint (not snapshotted: a save or capture needs it clear).
     pub(crate) fx: ScreenFx,
+    /// The field weather (`crate::weather`): hashed and snapshotted unless it is the map's
+    /// settled default.
+    pub(crate) weather: crate::weather::Weather,
+    /// A script's palette override (`Request::SetPalette`): hashed and snapshotted while set.
+    pub(crate) palette: Option<crate::sky::PaletteFx>,
+    /// What the screen shows of the weather and the override (display only).
+    pub(crate) sky: crate::sky::Display,
     /// Running field effects and their arguments (Wave C; not snapshotted, not hashed).
     pub(in crate::world) field_effects: host::FieldEffects,
     /// The rotating tile puzzle between `initrotatingtilepuzzle` and `freerotatingtilepuzzle`
@@ -364,6 +371,15 @@ impl State {
         self.update_per_day(ids);
     }
 
+    /// A map load's weather and palette (before `on_transition`): Gen3
+    /// `SetSavedWeatherFromCurrMapHeader`; a palette override goes unless kept.
+    fn enter_sky(&mut self, game: &impl GameData, map: MapId) {
+        self.weather.load_header(game.map_weather(map));
+        if self.palette.is_some_and(|p| !p.keep) {
+            self.palette = None;
+        }
+    }
+
     /// Gen3 `UpdatePerDay` (`clock.c`): once the clock's day has passed the day kept in
     /// `SpecialIds::var_days`, the daily flags are cleared (`ClearDailyFlags`) and the day is
     /// kept. A clock set back changes nothing (Gen3's `*days <= localTime->days`).
@@ -374,6 +390,7 @@ impl State {
             for &f in ids.daily_flags {
                 self.vars.set_flag(f, false);
             }
+            self.weather.pass_days(self.today - last);
             self.vars.set_var(v, self.today);
         }
     }
@@ -471,6 +488,9 @@ impl World {
                 registered_item: None,
                 berry_trees: crate::berry::BerryTrees::new(game.special_ids().berry_trees),
                 fx: ScreenFx::default(),
+                weather: crate::weather::Weather::default(),
+                palette: None,
+                sky: crate::sky::Display::default(),
                 field_effects: host::FieldEffects::default(),
                 rotating_tiles: None,
                 field_move: None,
@@ -492,7 +512,10 @@ impl World {
         load_map(game, &mut w.s, &mut f, ng.map, ng.x, ng.y);
         w.s.objects.face(PLAYER, ng.facing);
         w.s.fader.start(Fade::FromBlack);
+        let reserved = crate::sky::reserved_banks(game, &w.s.weather, None);
+        w.s.objects.reserve_banks(reserved);
         draw_field(game, &mut w.s, &mut f);
+        w.apply_sky(game, true, &mut f);
         w.boot = Some(f);
         w
     }
@@ -529,17 +552,53 @@ impl World {
         self.frame = self.frame.wrapping_add(1);
         self.s.today = self.days();
         self.s.input.update_mode(keys, self.s.options.button_mode);
+        let reserved = crate::sky::reserved_banks(game, &self.s.weather, self.s.fx.overlay.as_ref());
+        self.s.objects.reserve_banks(reserved);
         match core::mem::replace(&mut self.s.mode, Mode::Field) {
             Mode::Field => self.step_field(game, &mut f),
             Mode::Starter(run) => self.step_starter(game, run, &mut f),
             Mode::Battle(run) => self.step_battle(game, run, &mut f),
             Mode::Screens(stack) => self.step_screens(game, stack, &mut f),
         }
+        // The weather's task and the palette override run on the field's frames (Gen3's
+        // weather task lives with the overworld), then recolour and decorate the frame.
+        let field = self.field_shown();
+        if field {
+            self.s.weather.tick(&mut self.s.rng);
+        }
+        if let Some(p) = &mut self.s.palette
+            && p.tick()
+        {
+            self.s.palette = None;
+        }
+        self.apply_sky(game, field, &mut f);
         // Screen effects post-process the whole frame, last (Task R).
         crate::fx::apply(&mut self.s.fx, &mut f);
         // Task S: the Hall of Fame's save, on the first capturable frame after it.
         save::after_step(self, game);
         f
+    }
+
+    /// Whether the field shows this frame: the field itself, or a screen drawn over it.
+    fn field_shown(&self) -> bool {
+        match &self.s.mode {
+            Mode::Field => true,
+            Mode::Screens(stack) => !stack.host.full,
+            Mode::Starter(_) | Mode::Battle(_) => false,
+        }
+    }
+
+    /// [`crate::sky::apply`] of the current state.
+    fn apply_sky(&mut self, game: &impl GameData, field: bool, f: &mut Frame) {
+        let s = &mut self.s;
+        let sky = crate::sky::Sky {
+            weather: &s.weather,
+            palette: s.palette.as_ref(),
+            overlay: s.fx.overlay.as_ref(),
+            field,
+            camera: s.field.camera(),
+        };
+        crate::sky::apply(game, &mut s.sky, &sky, f);
     }
 
     /// One overworld frame (see the module docs for the order).
@@ -817,7 +876,12 @@ impl World {
                 } else if b.is_forced_tile() {
                     // Gen3 `FieldGetPlayerInput`: no `tookStep` and no encounter check on a
                     // forced-movement cell (ice, arrows, slides, cracked floors).
-                } else if let Some(id) = coord_trigger(map, x, y, elevation, &s.vars) {
+                } else if let Some(id) = {
+                    // Gen3 `GetCoordEventScriptAtPosition`: a weather coord event (no script)
+                    // sets the weather (`DoCoordEventWeather`).
+                    coord_weather(game, s, x, y, elevation);
+                    coord_trigger(map, x, y, elevation, &s.vars)
+                } {
                     self.start_script(game, id, None);
                 } else {
                     let fall = game
@@ -870,6 +934,16 @@ impl World {
     /// The current map's layout override (Gen3 `setmaplayoutindex`; `None`: its own).
     pub fn map_layout(&self) -> Option<u16> {
         self.s.field.layout()
+    }
+
+    /// The field weather (`crate::weather`).
+    pub fn weather(&self) -> &crate::weather::Weather {
+        &self.s.weather
+    }
+
+    /// The palette override (`Request::SetPalette`), if any.
+    pub fn palette(&self) -> Option<&crate::sky::PaletteFx> {
+        self.s.palette.as_ref()
     }
 
     pub fn objects(&self) -> &Objects {
@@ -1134,6 +1208,10 @@ impl World {
         }
         s.berry_trees.hash(&mut h);
         s.fx.hash(&mut h);
+        s.weather.hash(&mut h);
+        if let Some(p) = &s.palette {
+            p.hash(&mut h);
+        }
         // Wave C: a field move's effect, while it runs.
         if let Some(run) = &s.field_move {
             run.hash(&mut h);
@@ -1162,6 +1240,17 @@ fn player_name(name: &[u8]) -> PlayerName {
 }
 
 /// Camera, sprites, text box and brightness: the end of a field frame.
+/// The weather coord events of the current map at (x, y) ([`GameData::weather_coords`]): the
+/// first one matching sets its weather (Gen3 `DoCoordEventWeather` → `SetWeather`).
+fn coord_weather(game: &impl GameData, s: &mut State, x: i16, y: i16, elevation: u8) {
+    let hit = (game.weather_coords(s.field.map()).iter()).find(|c| {
+        c.x == x && c.y == y && crate::flow::event_matches(c.elevation, elevation)
+    });
+    if let Some(w) = hit.and_then(|c| crate::weather::from_coord(c.weather)) {
+        s.weather.set_weather(w);
+    }
+}
+
 fn draw_field(game: &impl GameData, s: &mut State, f: &mut Frame) {
     let camera = camera_for(s.objects.player().pixel_pos());
     s.field.set_camera(game, camera, f);

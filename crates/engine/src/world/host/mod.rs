@@ -515,7 +515,12 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::SetTint { .. }
             | Request::TextOnBlack(_)
             | Request::CameraPan { .. }
-            | Request::WaitInputOrTimeout(_) => fx::begin(self, r),
+            | Request::WaitInputOrTimeout(_)
+            | Request::SetWeather(_)
+            | Request::DoWeather
+            | Request::ResetWeather
+            | Request::SetPalette { .. }
+            | Request::ShowOverlay { .. } => fx::begin(self, r),
             Request::SetInputMap(m) => {
                 match game.special_ids().var_input_map {
                     Some(v) => s.vars.set_var(v, m.code()),
@@ -601,7 +606,8 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
         | Request::ScreenShake { .. }
         | Request::SetTint { .. }
         | Request::CameraPan { .. }
-        | Request::WaitInputOrTimeout(_) = r
+        | Request::WaitInputOrTimeout(_)
+        | Request::ShowOverlay { .. } = r
         {
             return fx::resume(self, r);
         }

@@ -181,6 +181,7 @@ fn load_map_spread(
     s.event(Event::MapEntered(id));
     s.clear_temp(&game.special_ids());
     s.encounter_immunity = 0; // `RestartWildEncounterImmunitySteps`
+    s.enter_sky(game, id);
     if !keep_templates {
         s.templates = super::templates::Templates::new(map.objects.to_vec());
     }
@@ -219,6 +220,8 @@ fn load_map_spread(
     // the player first moves. It only matters on a forced-movement cell (`Objects::hold`).
     let on_forced = s.ground(game).behavior(x, y).is_forced_tile();
     s.objects.hold_forced(on_forced);
+    // Gen3 `ResumeMap` → `ResumePausedWeather`: a warp's map shows its weather at once.
+    s.weather.resume();
 }
 
 /// Switches to connected map `to` as the player steps across the edge (Gen3
@@ -234,6 +237,7 @@ pub(super) fn cross_connection(
     s.event(Event::MapEntered(to));
     s.clear_temp(&game.special_ids());
     s.encounter_immunity = 0; // `RestartWildEncounterImmunitySteps`
+    s.enter_sky(game, to);
     s.templates = super::templates::Templates::new(map.objects.to_vec());
     s.objects.enter_map(to, Some(shift));
     s.field.set_next_layout(None);
@@ -242,6 +246,9 @@ pub(super) fn cross_connection(
         run_immediate(game, s, f, script);
     }
     s.field.settle_next_layout(game, to);
+    // Gen3 `LoadMapFromCameraTransition`: `DoCurrentWeather`, the new map's weather comes in
+    // gradually.
+    s.weather.do_current();
     s.field.switch_map_enter(game, to, shift, f);
     for script in [map.scripts.on_load, map.scripts.on_resume]
         .into_iter()

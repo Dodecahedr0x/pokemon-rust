@@ -15,7 +15,7 @@ pub use fade::{FADE_MAX, Fader};
 pub use input::Input;
 pub use transition::{Transition, TransitionStep};
 pub use trigger::{
-    Target, behavior_at, block_behavior, coord_trigger, door_warp, elevation_matches,
+    Target, behavior_at, block_behavior, coord_trigger, door_warp, elevation_matches, event_matches,
     facing_elevation, interact_target, map_script_on_frame, on_warp_into, warp_on_enter,
     warp_on_push,
 };

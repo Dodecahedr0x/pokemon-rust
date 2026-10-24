@@ -1384,6 +1384,8 @@ impl Battle {
                 // first, Gen6; the weather abilities), then Intimidate and Trace.
                 let order = self.strike_order(env, true);
                 let order: Vec<Side> = order.into_iter().filter(|&s| !self.is_absent(s)).collect();
+                // `ABILITYEFFECT_SWITCH_IN_WEATHER`: the field's weather first.
+                super::effects::overworld_weather(self, env);
                 for &side in &order {
                     self.primal_reversion(env, side);
                     super::effects::on_switch_in(self, env, side);

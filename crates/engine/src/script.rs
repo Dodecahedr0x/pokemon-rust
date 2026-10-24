@@ -435,6 +435,30 @@ pub enum Request {
     },
     /// The field's d-pad mapping (`SpecialIds::var_input_map`; nothing in a game without one).
     SetInputMap(crate::input::InputMap),
+    // ---- Weather and palettes (`crate::weather`, `crate::sky`) ----
+    /// Gen3 `setweather` (`SetSavedWeather`): the saved weather; `doweather` shows it.
+    SetWeather(u8),
+    /// Gen3 `doweather` (`DoCurrentWeather`): the saved weather comes in gradually.
+    DoWeather,
+    /// Gen3 `resetweather` (`SetSavedWeatherFromCurrMapHeader`).
+    ResetWeather,
+    /// A palette override ([`crate::sky::PaletteFx`]): the field's palettes towards `color`
+    /// (or their negative, or grey) by `amount`/16 over `frames`, strobing every `pulse` frames
+    /// when not 0; `keep` keeps it across map loads. Amount 0 ends it. Answers at once.
+    SetPalette {
+        mode: crate::sky::PaletteMode,
+        color: u16,
+        amount: u8,
+        frames: u16,
+        pulse: u8,
+        keep: bool,
+    },
+    /// The game's overlay `id` ([`crate::data::GameData::overlay`]) over the field for
+    /// `frames`; the script waits.
+    ShowOverlay {
+        id: u8,
+        frames: u16,
+    },
     // ---- Milestone 9: party and money (`world/host/party.rs`, Task R) ----
     /// Answers `Word` (the money).
     MoneyGet,
@@ -843,6 +867,24 @@ impl Request {
             Request::TextOnBlack(on) => (225, on as u16, 0, 0, 0),
             Request::CameraPan { x, y, speed } => (226, i(x), i(y), speed as u16, 0),
             Request::SetInputMap(m) => (227, m.code(), 0, 0, 0),
+            Request::SetWeather(w) => (228, w as u16, 0, 0, 0),
+            Request::DoWeather => (229, 0, 0, 0, 0),
+            Request::ResetWeather => (230, 0, 0, 0, 0),
+            Request::SetPalette {
+                mode,
+                color,
+                amount,
+                frames,
+                pulse,
+                keep,
+            } => (
+                231,
+                mode.code() as u16 | (keep as u16) << 8,
+                color,
+                amount as u16 | (pulse as u16) << 8,
+                frames,
+            ),
+            Request::ShowOverlay { id, frames } => (232, id as u16, frames, 0, 0),
             Request::MoneyGet => (65, 0, 0, 0, 0),
             Request::CoinsGet => (66, 0, 0, 0, 0),
             Request::CoinsAdd(n) => (67, n, 0, 0, 0),
@@ -1651,6 +1693,41 @@ impl Ctx {
     /// Whether A or B came before `frames` frames passed.
     pub fn wait_input_or_timeout(&self, frames: u16) -> Req<bool> {
         self.req(Request::WaitInputOrTimeout(frames), Response::bool)
+    }
+
+    /// [`Request::SetWeather`] (`setweather`).
+    pub fn set_weather(&self, w: u16) -> Req<()> {
+        self.req(Request::SetWeather(w as u8), unit)
+    }
+
+    /// [`Request::DoWeather`] (`doweather`).
+    pub fn do_weather(&self) -> Req<()> {
+        self.req(Request::DoWeather, unit)
+    }
+
+    /// [`Request::ResetWeather`] (`resetweather`).
+    pub fn reset_weather(&self) -> Req<()> {
+        self.req(Request::ResetWeather, unit)
+    }
+
+    /// [`Request::SetPalette`].
+    pub fn set_palette(&self, fx: crate::sky::PaletteFx) -> Req<()> {
+        self.req(
+            Request::SetPalette {
+                mode: fx.mode,
+                color: fx.color,
+                amount: fx.amount,
+                frames: fx.frames,
+                pulse: fx.pulse,
+                keep: fx.keep,
+            },
+            unit,
+        )
+    }
+
+    /// [`Request::ShowOverlay`].
+    pub fn show_overlay(&self, id: u8, frames: u16) -> Req<()> {
+        self.req(Request::ShowOverlay { id, frames }, unit)
     }
 
     /// [`Request::TextOnBlack`].

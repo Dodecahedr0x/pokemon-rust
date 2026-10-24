@@ -140,6 +140,7 @@ static BOSS: BattleRules = BattleRules {
     clone_player: false,
     intro: None,
     no_catch: true,
+    weather: None,
 };
 
 #[test]

@@ -70,6 +70,30 @@ pub(super) fn on_switch_in(b: &mut Battle, env: &mut Env, side: Side) {
     env.out.push(ability_about(id, side, ability));
 }
 
+/// `TryDoEventsBeforeFirstTurn`'s `ABILITYEFFECT_SWITCH_IN_WEATHER`, before the switch-in
+/// abilities: the field's rain, sandstorm or drought gives the permanent weather, with
+/// `BattleScript_OverworldWeatherStarts`'s message (degraded: no weather animation).
+pub(super) fn overworld_weather(b: &mut Battle, env: &mut Env) {
+    use crate::weather::BattleWeather;
+    let Some(w) = b.setup.rules.weather else {
+        return;
+    };
+    let (weather, id) = match w {
+        BattleWeather::Rain => (Weather::Rain, Str::ItIsRaining),
+        BattleWeather::Sandstorm => (Weather::Sand, Str::SandstormIsRaging),
+        BattleWeather::Sun => (Weather::Sun, Str::SunlightStrong),
+    };
+    if b.x.weather == weather {
+        return;
+    }
+    b.x.weather = weather;
+    b.fx.weather_turns = 0;
+    env.out.push(BattleEvent::Msg(Msg {
+        wait: LONG,
+        ..msg(id, Side::Player, Side::Player, Side::Player)
+    }));
+}
+
 /// A battler with `ability` left the field (switched out or fainted): a primal weather ends
 /// when no battler with HP has its ability.
 pub(super) fn left_field(b: &mut Battle, env: &mut Env, ability: Ability) {

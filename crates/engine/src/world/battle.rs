@@ -316,6 +316,11 @@ impl State {
             }
             _ => None,
         });
+        // Gen3 `ABILITYEFFECT_SWITCH_IN_WEATHER` reads the field's current weather.
+        let rules = crate::battle::BattleRules {
+            weather: crate::weather::battle_weather(self.weather.current),
+            ..rules
+        };
         let setup = BattleSetup {
             kind,
             opponents,
@@ -663,6 +668,7 @@ fn restore_field(game: &impl GameData, s: &mut State, f: &mut Frame) {
     f.bulk = true;
     s.field.restore(game, f);
     s.objects.invalidate_vram();
+    s.weather.resume(); // Gen3 `ResumeMap` → `ResumePausedWeather`
     s.text.close(f);
 }
 
@@ -673,6 +679,7 @@ fn restore_field_spread(s: &mut State, f: &mut Frame) {
     f.bulk = true;
     s.field.restore_spread();
     s.objects.invalidate_vram();
+    s.weather.resume(); // Gen3 `ResumeMap` → `ResumePausedWeather`
     s.text.close(f);
 }
 

@@ -33,6 +33,7 @@ use alloc::vec::Vec;
 use anim::Anim;
 pub(crate) use approach::{Approach, ApproachStep};
 use emote::EmoteFx;
+pub use draw::{EMOTE_TILES, SKY_FIRST_TILE, SKY_TILES};
 pub use emote::{EMOTE_FRAMES, EMOTES_MAX};
 #[cfg(test)]
 use movement::{DELAYS_MEDIUM, DELAYS_SHORT, ROTATE_DELAY};
@@ -598,6 +599,9 @@ pub struct Objects {
     run_state: RunState,
     /// Render cache (not hashed): colors last uploaded to each OBJ palette bank.
     banks: [Option<[u16; 16]>; 16],
+    /// OBJ palette banks the sky's particles and overlay hold this frame (`crate::sky`): the
+    /// objects leave them alone. Display state, set by the World before each draw.
+    reserved_banks: u16,
     // ---- Milestone 8 ----
     /// Emote bubbles shown (Gen3 field effects), at most [`EMOTES_MAX`].
     emotes: Vec<EmoteFx>,
@@ -645,6 +649,7 @@ impl Objects {
             map: MapId(0),
             run_state: RunState::NotMoving,
             banks: [None; 16],
+            reserved_banks: 0,
             emotes: Vec::new(),
             approach: None,
             forced: ForcedState::Free,
@@ -663,6 +668,17 @@ impl Objects {
     /// Sets or clears the surfing state (the Surf field effect, a warp's arrival).
     pub fn set_surfing(&mut self, on: bool) {
         self.surfing = on;
+    }
+
+    /// Reserves OBJ palette banks `mask` for the sky (`crate::sky`) until the next call: the
+    /// objects drawing in them move to other banks.
+    pub fn reserve_banks(&mut self, mask: u16) {
+        for (b, bank) in self.banks.iter_mut().enumerate() {
+            if mask & (1 << b) != 0 {
+                *bank = None;
+            }
+        }
+        self.reserved_banks = mask;
     }
 
     /// Sets the graphics the player pushes this frame ([`Objects::update_player`]'s Strength

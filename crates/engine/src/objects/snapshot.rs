@@ -130,6 +130,7 @@ impl Objects {
                 RunStateSnap::Moving | RunStateSnap::MovingCentered => RunState::Moving,
             },
             banks: [None; 16],
+            reserved_banks: 0,
             emotes: alloc::vec::Vec::new(),
             approach: None,
             virtuals: alloc::vec::Vec::new(),

@@ -21,6 +21,7 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
             | Request::ScreenShake { .. }
             | Request::CameraPan { .. }
             | Request::WaitInputOrTimeout(_)
+            | Request::ShowOverlay { .. }
     );
     if waits && h.immediate {
         s.log("screen effect in a map script skipped");
@@ -89,6 +90,48 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
             });
             None
         }
+        // Weather and palettes (`crate::weather`, `crate::sky`): set and answered at once.
+        Request::SetWeather(w) => {
+            s.weather.set_saved(w);
+            UNIT
+        }
+        Request::DoWeather => {
+            s.weather.do_current();
+            UNIT
+        }
+        Request::ResetWeather => {
+            s.weather.reset_saved();
+            UNIT
+        }
+        Request::SetPalette {
+            mode,
+            color,
+            amount,
+            frames,
+            pulse,
+            keep,
+        } => {
+            let current = s.palette.map_or(0, |p| p.current);
+            s.palette = (amount != 0 || current != 0).then_some(crate::sky::PaletteFx {
+                mode,
+                color,
+                amount: amount.min(16),
+                current: if frames == 0 { amount.min(16) } else { current },
+                frames,
+                t: 0,
+                pulse,
+                keep,
+            });
+            UNIT
+        }
+        Request::ShowOverlay { id, frames } => {
+            if frames == 0 || h.game.overlay(id).is_none() {
+                s.log("overlay the game lacks: skipped");
+                return UNIT;
+            }
+            s.fx.overlay = Some(crate::sky::OverlayRun { id, frames, t: 0 });
+            None
+        }
         Request::WaitInputOrTimeout(0) => Some(Response::Bool(false)),
         Request::WaitInputOrTimeout(n) => {
             s.delay = n;
@@ -106,6 +149,7 @@ pub(super) fn resume<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Re
         Request::ScreenFlash { .. } => s.fx.flash.is_none().then_some(Response::Unit),
         Request::ScreenShake { .. } => s.fx.shake.is_none().then_some(Response::Unit),
         Request::CameraPan { .. } => s.fx.pan.is_none_or(|p| p.done()).then_some(Response::Unit),
+        Request::ShowOverlay { .. } => s.fx.overlay.is_none().then_some(Response::Unit),
         Request::WaitInputOrTimeout(_) => {
             if s.input.pressed.0 & (Buttons::A.0 | Buttons::B.0) != 0 {
                 s.delay = 0;

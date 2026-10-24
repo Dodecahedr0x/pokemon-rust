@@ -84,6 +84,7 @@ fn restore_field(s: &mut State, f: &mut Frame) {
     f.bulk = true;
     s.field.restore_spread();
     s.objects.invalidate_vram();
+    s.weather.resume(); // Gen3 `ResumeMap` → `ResumePausedWeather`
     s.text.close(f);
 }
 

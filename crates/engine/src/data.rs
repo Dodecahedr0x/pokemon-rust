@@ -671,6 +671,16 @@ pub struct CoordEvent {
     pub script: ScriptId,
 }
 
+/// A weather coord event (Gen3 `coord_weather_event`: a coord event with no script, whose
+/// trigger is a `COORD_EVENT_WEATHER_*` value, `crate::weather::from_coord`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct CoordWeather {
+    pub x: i16,
+    pub y: i16,
+    pub elevation: u8,
+    pub weather: u8,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BgKind {
     /// Interacting while facing one of the allowed directions (`None` = any) runs the script.
@@ -1686,6 +1696,40 @@ pub trait GameData {
     /// Strength's boulders: their object graphics and the flag that lets the player push them
     /// (Gen3 `OBJ_EVENT_GFX_PUSHABLE_BOULDER`, `FLAG_SYS_USE_STRENGTH`; `TryPushBoulder`).
     fn pushable_boulder(&self) -> Option<(GfxId, FlagId)> {
+        None
+    }
+
+    /// The weather of `map`'s header (Gen3 `gMapHeader.weather`, a `WEATHER_*` value or a
+    /// game-defined kind, `crate::weather`); 0 (`WEATHER_NONE`) by default.
+    fn map_weather(&self, map: MapId) -> u8 {
+        let _ = map;
+        crate::weather::NONE
+    }
+
+    /// `map`'s weather coord events (Gen3 coord events with no script: `DoCoordEventWeather`
+    /// on a finished step).
+    fn weather_coords(&self, map: MapId) -> &'static [CoordWeather] {
+        let _ = map;
+        &[]
+    }
+
+    /// The look of game-defined weather `id` (from `crate::weather::GAME_FIRST`; Silice's
+    /// petals). `None` draws nothing.
+    fn weather_look(&self, id: u8) -> Option<&'static crate::weather::Look> {
+        let _ = id;
+        None
+    }
+
+    /// Overlay `id` of `Request::ShowOverlay` (`crate::sky::Overlay`; Silice's sky crack).
+    fn overlay(&self, id: u8) -> Option<&'static crate::sky::Overlay> {
+        let _ = id;
+        None
+    }
+
+    /// The script a hidden item's bg event starts (Gen3 `EventScript_HiddenItemScript`, from
+    /// `GetInteractedBackgroundEventScript`), with `VAR_0x8004` the item's flag and
+    /// `VAR_0x8005` the item. `None`: hidden items are not picked up.
+    fn hidden_item_script(&self) -> Option<ScriptId> {
         None
     }
 

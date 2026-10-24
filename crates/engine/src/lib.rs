@@ -25,12 +25,14 @@ pub mod pc;
 pub mod pokedex;
 pub mod rng;
 pub mod script;
+pub mod sky;
 pub mod starter;
 pub mod str_vars;
 pub mod text;
 pub mod trainer;
 pub mod ui;
 pub mod video;
+pub mod weather;
 pub mod wild;
 pub mod world;
 

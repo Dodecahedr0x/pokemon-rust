@@ -127,6 +127,12 @@ impl World {
                 .map(|(id, tree)| crate::checkpoint::BerryTreeSnap { id, tree })
                 .collect(),
             map_layout: s.field.layout(),
+            sky: (!s.weather.is_default() || s.palette.is_some()).then_some(
+                crate::checkpoint::SkySnap {
+                    weather: s.weather,
+                    palette: s.palette,
+                },
+            ),
         }
     }
 
@@ -255,6 +261,13 @@ impl World {
                 registered_item: w.registered_item,
                 berry_trees,
                 fx: ScreenFx::default(),
+                weather: match &w.sky {
+                    Some(k) => k.weather,
+                    None => crate::weather::Weather::settled(game.map_weather(w.field.map), 0),
+                }
+                .restored(game.map_weather(w.field.map)),
+                palette: w.sky.and_then(|k| k.palette),
+                sky: crate::sky::Display::default(),
                 field_effects: super::host::FieldEffects::default(),
                 rotating_tiles: None,
                 field_move: None,
@@ -295,9 +308,12 @@ impl World {
         TextBox::new().close(&mut f);
         s.field.upload_all(game, &mut f);
         s.objects.invalidate_vram();
+        let reserved = crate::sky::reserved_banks(game, &s.weather, None);
+        s.objects.reserve_banks(reserved);
         s.objects.draw(game, s.field.camera(), &mut f);
         f.brightness = s.fader.level();
         f.lighten = false;
+        self.apply_sky(game, true, &mut f);
         f
     }
 }

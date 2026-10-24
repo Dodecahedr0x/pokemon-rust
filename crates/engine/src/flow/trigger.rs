@@ -64,7 +64,7 @@ pub const fn elevation_matches(a: u8, b: u8) -> bool {
 
 /// Event elevation rule (Gen3 `Get{Warp,Coord,Background}EventAtPosition`): an event at
 /// elevation 0 matches any position; otherwise elevations must be equal.
-const fn event_matches(event: u8, position: u8) -> bool {
+pub const fn event_matches(event: u8, position: u8) -> bool {
     event == 0 || event == position
 }
 
