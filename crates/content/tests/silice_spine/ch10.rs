@@ -27,8 +27,10 @@
 //! ALAKAZAM 89 (Chapter 8's Link Stone), TYPHLOSION 91, AMPHAROS 89 (the MAREEP trained, with
 //! Chapter 9's TM24 Thunderbolt), AGGRON 89 (the LAIRON), DUGTRIO 89, PORYGON2 89. Measured
 //! (`SPINE_PARTY_<slot>`): 87–91 for the five and 89–93 for the TYPHLOSION all win; 85/88 loses
-//! to Revenge. Chapter 9's rechain has to train that far (Route S9's grass, 45–46) or the author
-//! has to tune the Tower's rosters down (a plan author question). The Tower has no grass and one
+//! to Revenge. The jump from Chapter 9 is the author's ruling (G-01, 2026-10-24: the difficulty
+//! jump is fine, the Tower's rosters stay, the player is expected to train up before the Tower),
+//! so this constructed start stays: it stands for a player who trained (Route S9's grass, 45–46)
+//! and evolved the bench; the spine does not grind that far. The Tower has no grass and one
 //! heal (Mathieu's meal, 104): between two leaders the run mends with the bag's medicine
 //! ([`Step::Mend`]: Revives and potions, Chapter 9's marts).
 //!

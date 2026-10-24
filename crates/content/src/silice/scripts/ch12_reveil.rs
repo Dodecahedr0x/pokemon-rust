@@ -578,8 +578,10 @@ pub async fn BricoBourg_PG_Sc20(ctx: Ctx) {
 /// `FLAG_SIL_DAILY_TOURNOI`): Mathieu, Gwada, Adrien in a row, no heal between; the Golden Feather
 /// every win, the Altarianite the first (`FLAG_SIL_TOURNOI_AMIS`); the party healed after.
 ///
-/// Deviation: the source warps to the Dojo (6, 10) for the three battles; a map load ends a
-/// script here (as Gen3's `warp`), so the tournament is fought in the Library where Adrien stands.
+/// Adrien asks here, then the source's `warp(MAP_MANGA_SQUARE_DOJO, 6, 10)`: a map load ends a
+/// script (as Gen3's `warp`), so the tournament is marked under way (`FLAG_SIL_TOURNOI_EN_COURS`)
+/// and the Dojo's on-frame script ([`MangaSquare_Dojo_PG_Sc21`]) fights the three battles on the
+/// central tatami (G-50, the author's ruling: the tournament happens in the Dojo).
 pub async fn MangaSquare_Bibliotheque_PG_Sc21(ctx: Ctx) {
     ctx.lock().await;
     ctx.face_player().await;
@@ -603,14 +605,68 @@ pub async fn MangaSquare_Bibliotheque_PG_Sc21(ctx: Ctx) {
         ctx.release().await;
         return;
     }
+    ctx.set_flag(FLAG_SIL_TOURNOI_EN_COURS, true).await;
+    ctx.fade(Fade::ToBlack).await;
+    let (x, y) = TATAMI;
+    warp(&ctx, MAP_MANGA_SQUARE_DOJO, x, y).await;
+}
+
+/// The player's cell on the Dojo's central tatami (the source's warp target).
+const TATAMI: (i16, i16) = (6, 10);
+/// The beaten friends go to sit on the bench to the left (row 9): Mathieu to (4, 9), Gwada to
+/// (5, 9), each from the challenger's cell (7, 10).
+const BANC_MATHIEU: &[Step] = &[
+    walk(Dir::Up),
+    walk(Dir::Left),
+    walk(Dir::Left),
+    walk(Dir::Left),
+    face(Dir::Down),
+];
+const BANC_GWADA: &[Step] = &[
+    walk(Dir::Up),
+    walk(Dir::Left),
+    walk(Dir::Left),
+    face(Dir::Down),
+];
+/// The next friend steps up to the challenger's cell (7, 10).
+const AU_TATAMI_1: &[Step] = &[walk(Dir::Left)];
+const AU_TATAMI_2: &[Step] = &[walk(Dir::Left), walk(Dir::Left)];
+const FACE_EST: &[Step] = &[face(Dir::Right)];
+
+/// The Friends' Tournament in the Dojo (on-frame, `VAR_TEMP_1` 0, every load): nothing unless
+/// Adrien sent the player here (`FLAG_SIL_TOURNOI_EN_COURS`, cleared at once, so a loss's whiteout
+/// does not replay it). Tak referees (his one line); Mathieu, Gwada and Adrien wait one behind the
+/// other and fight in turn, no heal between; each beaten friend sits on the bench to the left.
+/// The friends stay on the tatami until the player leaves (their hide flag is set again on load).
+pub async fn MangaSquare_Dojo_PG_Sc21(ctx: Ctx) {
+    ctx.set_var(VAR_TEMP_1, 1).await;
+    if !ctx.flag(FLAG_SIL_TOURNOI_EN_COURS).await {
+        return;
+    }
+    ctx.set_flag(FLAG_SIL_TOURNOI_EN_COURS, false).await;
+    ctx.lock_all().await;
+    for obj in [
+        LOCALID_DOJO_PG_TAK,
+        LOCALID_DOJO_PG_MATHIEU,
+        LOCALID_DOJO_PG_GWADA,
+        LOCALID_DOJO_PG_ADRIEN,
+    ] {
+        ctx.add_object(obj).await;
+    }
+    move_wait(&ctx, PLAYER, FACE_EST).await;
+    say(&ctx, Manga_Square_PG_Tak_Arbitre).await;
     say(&ctx, Manga_Square_PG_Sc21_T2).await;
     if battle_lost(&ctx, TRAINER_SIL_MATHIEU_9, Manga_Square_PG_Sc21_T3).await {
         return;
     }
+    move_wait(&ctx, LOCALID_DOJO_PG_MATHIEU, BANC_MATHIEU).await;
+    move_wait(&ctx, LOCALID_DOJO_PG_GWADA, AU_TATAMI_1).await;
     say(&ctx, Manga_Square_PG_Sc21_T4).await;
     if battle_lost(&ctx, TRAINER_SIL_GWADA_9, Manga_Square_PG_Sc21_T5).await {
         return;
     }
+    move_wait(&ctx, LOCALID_DOJO_PG_GWADA, BANC_GWADA).await;
+    move_wait(&ctx, LOCALID_DOJO_PG_ADRIEN, AU_TATAMI_2).await;
     say(&ctx, Manga_Square_PG_Sc21_T6).await;
     if battle_lost(&ctx, TRAINER_SIL_ADRIEN_9, Manga_Square_PG_Sc21_T7).await {
         return;
@@ -624,7 +680,7 @@ pub async fn MangaSquare_Bibliotheque_PG_Sc21(ctx: Ctx) {
     ctx.heal_party().await;
     ctx.set_flag(FLAG_SIL_TOURNOI_AMIS, true).await;
     ctx.set_flag(FLAG_SIL_DAILY_TOURNOI, true).await;
-    ctx.release().await;
+    ctx.release_all().await;
 }
 
 /// `Manga_Square_PG_Sc30`, the Space Ticket (talking to Gwada with the eight fragments, once:

@@ -21,7 +21,8 @@
 //!   (`Sc19`, 130: Suicune, Mew and Ho-Oh), the last ceiling at home (`Sc20`: the National Dex,
 //!   131);
 //! - [`options`]: Benou (his battle, the Debug Key installed, the Zone 404 opened), the Clone of
-//!   Noobody (a copy of the party) and Mewtwo, Crow's Lounge, a gym leader's rematch, the Stele's
+//!   Noobody (a copy of the party) and Mewtwo, Crow's Lounge, the Friends' Tournament (asked at
+//!   the Bibliothèque, fought in the Dojo: G-50), a gym leader's rematch, the Stele's
 //!   « Dominant » (the boss aura) and its tutor move, an Antenna (its rule, three trainers), the
 //!   first Code Fragment.
 //!
@@ -777,6 +778,46 @@ pub fn lounge() -> Vec<Step> {
             assert!(r.w.flag(FLAG_SIL_CROW_RECOMPENSE));
             assert_eq!(r.count(ITEM_SHELL_BELL), 1);
             assert!(r.has_text(Brico_Bourg_Bar_PG_Sc22_T4b));
+        }),
+    ]
+}
+
+/// West of Adrien at the Council's table (15, 17), at 122 (the tournament opens with Julien's
+/// return), with [`JULIEN_PARTY`]: three battles with no heal between, and [`PARTY`] falls to
+/// Gwada's weather team after Mathieu (measured); the KYOGRE lead and the RAYQUAZA's Air Lock
+/// win all three with three members standing.
+pub fn tournoi_start() -> Start {
+    start_at(BIBLIO, 14, 17, Dir::Right, |ctx| {
+        Box::pin(async move { post_game_with(&ctx, 122, JULIEN_PARTY).await })
+    })
+}
+
+/// Adrien's question, yes: the warp to the Dojo's tatami (6, 10), Tak's line, Mathieu, Gwada and
+/// Adrien in a row (G-50: the tournament is fought in the Dojo); the Golden Feather and, the first
+/// time, the Altarianite. The party is healed after.
+pub fn tournoi() -> Vec<Step> {
+    vec![
+        Step::Interact(Dir::Right),
+        Step::Check("pg_sc21", |r| {
+            assert_eq!(r.w.map(), MAP_MANGA_SQUARE_DOJO);
+            assert_eq!(r.pos(), (6, 10));
+            assert!(r.beaten(TRAINER_SIL_MATHIEU_9));
+            assert!(r.beaten(TRAINER_SIL_GWADA_9));
+            assert!(r.beaten(TRAINER_SIL_ADRIEN_9));
+            assert!(!r.w.flag(FLAG_SIL_TOURNOI_EN_COURS));
+            assert!(r.w.flag(FLAG_SIL_TOURNOI_AMIS));
+            assert!(r.w.flag(FLAG_SIL_DAILY_TOURNOI));
+            assert_eq!(r.count(ITEM_SIL_PLUME_OR), 1);
+            assert_eq!(r.count(ITEM_SIL_ALTARIANITE), 1);
+            r.printed_in_order(&[
+                Manga_Square_PG_Sc21_T1,
+                Manga_Square_PG_Tak_Arbitre,
+                Manga_Square_PG_Sc21_T2,
+                Manga_Square_PG_Sc21_T4,
+                Manga_Square_PG_Sc21_T6,
+                Manga_Square_PG_Sc21_T8,
+                Manga_Square_PG_Sc21_T10,
+            ]);
         }),
     ]
 }
