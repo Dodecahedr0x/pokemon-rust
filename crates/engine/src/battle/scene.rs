@@ -787,8 +787,14 @@ impl BattleScene {
             Play::Msg => !p.windows.is_printing(),
             Play::Anims | Play::Bars => !self.anims_busy(),
             Play::WildAppear(false) => {
-                if !p.mons[1].busy() {
-                    p.boxes[1].slide_in();
+                // A wild double: the right wild mon slides in beside the left one.
+                let wild = [1, 3]
+                    .into_iter()
+                    .filter(|&i| i < p.mons.len() && self.pics[i].is_some());
+                if wild.clone().all(|i| !p.mons[i].busy()) {
+                    for i in wild {
+                        p.boxes[i].slide_in();
+                    }
                     self.play = Play::WildAppear(true);
                 }
                 false
@@ -888,7 +894,11 @@ impl BattleScene {
                 Play::Msg
             }
             BattleEvent::WildAppear => {
-                p.mons[1].slide_in();
+                for i in [1, 3] {
+                    if i < p.mons.len() && self.pics[i].is_some() {
+                        p.mons[i].slide_in();
+                    }
+                }
                 p.trainers[0].slide_in();
                 Play::WildAppear(false)
             }

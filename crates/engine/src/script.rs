@@ -367,11 +367,24 @@ pub enum Request {
     /// (`BATTLE_TYPE_MULTI | BATTLE_TYPE_INGAME_PARTNER | BATTLE_TYPE_TWO_OPPONENTS`) with the
     /// game's in-game partner ([`crate::data::GameData::partner`]) beside the player's first
     /// three mons, against trainers `a` and `b`; answers the outcome (`Value`).
+    /// `partner` (a game's own; Emerald's is `None`, its one partner): the partner trainer,
+    /// with the game's [`crate::data::GameData::partner`] when it is that one, else its
+    /// `gTrainers` party ([`crate::data::GameData::trainer`]).
     BattleMulti {
         a: TrainerId,
         a_defeat: TextId,
         b: TrainerId,
         b_defeat: TextId,
+        partner: Option<TrainerId>,
+    },
+    /// A game's wild double battle (Emerald has none; `BATTLE_TYPE_DOUBLE` on a wild battle):
+    /// the two wild mons (species, level), against the player's first two mons, or beside
+    /// `partner` (an in-game partner, as [`Request::BattleMulti`]'s) with the player's first
+    /// three. `rules` as [`Request::BattleWild`]'s. Answers the outcome (`Value`).
+    BattleWildDouble {
+        mons: [(SpeciesId, u8); 2],
+        partner: Option<TrainerId>,
+        rules: Option<&'static crate::battle::BattleRules>,
     },
     // ---- Milestone 9: screens (`world/host/screens.rs`, Task K) ----
     /// Gen3 `pokemart`: the shop with these items; answers `Unit` once it closes.
@@ -814,7 +827,31 @@ impl Request {
                 a_defeat,
                 b,
                 b_defeat,
+                partner: None,
             } => (216, a.0, a_defeat.0, b.0, b_defeat.0),
+            Request::BattleMulti {
+                a,
+                a_defeat,
+                b,
+                b_defeat,
+                partner: Some(p),
+            } => (217, a.0, b.0, p.0, a_defeat.0 ^ b_defeat.0.rotate_left(8)),
+            Request::BattleWildDouble {
+                mons: [(s1, l1), (s2, l2)],
+                partner,
+                rules,
+            } => {
+                let mut dh = Fnv64::new();
+                dh.write_u16(partner.map_or(0xFFFF, |p| p.0));
+                dh.write_u32(rules.map_or(0, |r| r.digest()));
+                (
+                    218,
+                    s1.0,
+                    s2.0,
+                    (l1 as u16) << 8 | l2 as u16,
+                    dh.finish() as u16,
+                )
+            }
             Request::CurrentMap => (55, 0, 0, 0, 0),
             // ---- Milestone 9 ----
             Request::Mart { items } => {
@@ -1460,6 +1497,43 @@ impl Ctx {
                 a_defeat,
                 b,
                 b_defeat,
+                partner: None,
+            },
+            outcome,
+        )
+    }
+
+    /// [`Request::BattleMulti`] beside the partner trainer `partner` (a game's own).
+    pub fn battle_multi_with(
+        &self,
+        partner: TrainerId,
+        (a, a_defeat): (TrainerId, TextId),
+        (b, b_defeat): (TrainerId, TextId),
+    ) -> Req<BattleOutcome> {
+        self.req(
+            Request::BattleMulti {
+                a,
+                a_defeat,
+                b,
+                b_defeat,
+                partner: Some(partner),
+            },
+            outcome,
+        )
+    }
+
+    /// [`Request::BattleWildDouble`]: two wild mons, beside `partner` if any.
+    pub fn battle_wild_double(
+        &self,
+        mons: [(SpeciesId, u8); 2],
+        partner: Option<TrainerId>,
+        rules: Option<&'static crate::battle::BattleRules>,
+    ) -> Req<BattleOutcome> {
+        self.req(
+            Request::BattleWildDouble {
+                mons,
+                partner,
+                rules,
             },
             outcome,
         )

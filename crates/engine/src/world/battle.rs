@@ -291,6 +291,31 @@ impl State {
     /// in doubles without one. `rules`: Silice's per-battle rules (`battle::rules`; its
     /// background replaces the cell's).
     #[allow(clippy::too_many_arguments)]
+    /// Puts an in-game partner's `mons` in the party after the player's first
+    /// [`crate::battle::MULTI_PARTY_SIZE`] (`FillPartnerParty`), the others on the bench
+    /// until the battle ends. Returns how many of the player's own fight.
+    pub(super) fn join_partner(&mut self, mons: &Party) -> u8 {
+        let own = self
+            .party
+            .len()
+            .min(crate::battle::MULTI_PARTY_SIZE as usize);
+        let (mut party, mut bench) = (Party::default(), Party::default());
+        for (i, m) in self.party.iter().enumerate() {
+            let _ = if i < own {
+                party.push(*m)
+            } else {
+                bench.push(*m)
+            };
+        }
+        for m in mons.iter() {
+            let _ = party.push(*m);
+        }
+        self.party = party;
+        self.stash.bench = bench;
+        own as u8
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn start_battle_with(
         &mut self,
         game: &impl GameData,
@@ -661,6 +686,27 @@ pub(super) fn trainer_party(
     p.first_usable().is_some().then_some((p, Some(double)))
 }
 
+/// The in-game partner's trainer and mons (Gen3 `FillPartnerParty`, at most
+/// `MULTI_PARTY_SIZE`): the game's [`GameData::partner`] when `partner` is `None` or its
+/// trainer; else trainer `partner`'s own party (`CreateNPCTrainerParty`, a game's partner).
+pub(super) fn partner_party(
+    game: &impl GameData,
+    rng: &mut crate::rng::Rng,
+    partner: Option<crate::data::TrainerId>,
+) -> Option<(crate::data::TrainerId, Party)> {
+    let t = game.battle();
+    if let Some(p) = game
+        .partner()
+        .filter(|p| partner.is_none_or(|id| id == p.trainer))
+    {
+        return Some((p.trainer, crate::trainer::create_partner_party(t, p, rng)));
+    }
+    let id = partner?;
+    let half = crate::battle::MULTI_PARTY_SIZE as usize;
+    let p = crate::trainer::create_trainer_party_up_to(t, game.trainer(id)?, rng, half);
+    p.first_usable().is_some().then_some((id, p))
+}
+
 /// Re-uploads the field after a battle or the starter screen owned the screen (black frame):
 /// tilesets, palettes and BG controls (the view is redrawn at the frame's camera update), the
 /// object sprite caches dropped, and a new field text box (BG0 off and cleared).
@@ -777,7 +823,8 @@ impl World {
                     if run.battle.has_partner() {
                         let mut own = Party::default();
                         let n = run.battle.party_range(Side::Player).end as usize;
-                        for m in s.party.iter().take(n) {
+                        let bench = core::mem::take(&mut s.stash.bench);
+                        for m in s.party.iter().take(n).chain(bench.iter()) {
                             let _ = own.push(*m);
                         }
                         s.party = own;
