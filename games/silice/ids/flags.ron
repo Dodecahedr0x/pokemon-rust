@@ -2746,5 +2746,43 @@
             name: "FLAG_SIL_DAILY_ANTENNE_ETA",
             num: 1141,
         ),
+        // SIL6 Ch12 scripts (1142-1149, 1165): the eight Code Fragments found (PG_Fragment), and the
+        // Antenna climb under way (set by the receptionist, read by the top room's on-frame script).
+        (
+            name: "FLAG_SIL_FRAGMENT_1",
+            num: 1142,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_2",
+            num: 1143,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_3",
+            num: 1144,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_4",
+            num: 1145,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_5",
+            num: 1146,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_6",
+            num: 1147,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_7",
+            num: 1148,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_8",
+            num: 1149,
+        ),
+        (
+            name: "FLAG_SIL_ANTENNE_MONTEE",
+            num: 1165,
+        ),
     ],
 )

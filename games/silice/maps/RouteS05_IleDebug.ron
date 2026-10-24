@@ -45,9 +45,9 @@
             x: 8,
             y: 0,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_STARF_BERRY",
-                flag: "FLAG_SIL_ITEM_PG_ILE_STARF",
+            kind: Script(
+                facing: 0,
+                script: Some("RouteS05_IleDebug_EventScript_HiddenStarf"),
             ),
         ),
     ],

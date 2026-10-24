@@ -44,6 +44,8 @@ pub async fn BenouLab_PG_Sc23(ctx: Ctx) {
         ctx.fade(Fade::FromBlack).await;
         msgbox(&ctx, Benou_Lab_PG_Sc23_T5, MsgBox::Default).await;
         ctx.set_flag(FLAG_SIL_CLE_DEBUG_INSTALLEE, true).await;
+        // Deoxys's clear point: the installed key finds the Debug Island (`Route_S05_PG_Sc27`).
+        ctx.set_flag(FLAG_SIL_HIDE_DEOXYS, false).await;
         say(&ctx, Benou_Lab_PG_Sc23_T6).await;
     } else if story(&ctx).await >= 130 && !ctx.flag(FLAG_SIL_ZONE404_OUVERTE).await {
         say(&ctx, Benou_Lab_PG_Sc23_T7).await;
