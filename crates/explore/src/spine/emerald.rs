@@ -1406,6 +1406,14 @@ mod list {
             y: 33,
             species: SPECIES_TENTACOOL,
         },
+        // A Tentacool's Poison Sting poisoned the lead: a Pecha Berry before the Wingull's
+        // grass (field poison faints the weak lead there since Wave G's doubles, Fortree's
+        // gym pair fought together, left it lower).
+        Step::UseItem(UseItem {
+            item: ITEM_PECHA_BERRY,
+            mon: 0,
+            forget: 0,
+        }),
         Step::Catch {
             map: MAP_ROUTE122,
             x: 22,
@@ -1413,13 +1421,6 @@ mod list {
             species: SPECIES_WINGULL,
         },
         USE_HM02,
-        // A Tentacool's Poison Sting poisoned the lead: a Pecha Berry before Route 121 (field
-        // poison faints it on the way to Lilycove's Center).
-        Step::UseItem(UseItem {
-            item: ITEM_PECHA_BERRY,
-            mon: 0,
-            forget: 0,
-        }),
         cross(MAP_ROUTE122, 10, 0, Up),
         Step::Walk(Up),
         // The summit's grunts leave the lead weak: Lilycove's Center first.
@@ -1574,7 +1575,7 @@ mod list {
         use_(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 8, Down),
         Step::Checkpoint("mossdeep"),
-        // Tate and Liza's four (the double degrades to singles: `Degraded("double battle")`)
+        // Tate and Liza's four (a double battle since Wave G; the training predates it)
         // beat the lead alone at 52 (Solrock's SolarBeam in the sun): it trains on the water
         // west of the city, in rounds healed at the Center (fighting the wild battles again).
         Step::Battle(BattlePlan::BestLearn),
@@ -1657,10 +1658,9 @@ mod list {
         Step::Battle(BattlePlan::Fight),
         // To the pad (1, 33) -> (20, 24).
         gym_path(&[Left, Left, Left, Up, Up, Up, Up, Left, Left, Down, Down]),
-        // To the purple switch (23, 24). Clifford and Kathleen both see (22, 24): the engine
-        // battles them one after the other (degraded "double sight"), and the second sighting
-        // takes the press of the next Right, so one Right more.
-        gym_path(&[Right, Right, Right, Right]),
+        // To the purple switch (23, 24). Clifford and Kathleen both see (22, 24): one double
+        // battle against both (`BATTLE_TYPE_TWO_OPPONENTS`, Wave G).
+        gym_path(&[Right, Right, Right]),
         // To the green switch (15, 34).
         gym_path(&[
             Right, Down, Down, Down, Down, Down, Down, Down, Left, Down, Left, Down, Left, Down,
