@@ -12,17 +12,19 @@ fn msg(buffs: [Buff; 3]) -> Msg {
         mov: Some(EMBER),
         buffs,
         wait: MsgWait::Button,
-        slots: [0, 0],
+        slots: [0; 4],
     }
 }
 
-fn names<'a>(mons: [&'a BattleMon; 2], wild: bool) -> Names<'a> {
+fn names<'a>([p, o]: [&'a BattleMon; 2], wild: bool) -> Names<'a> {
     Names {
         player: b"\xC3\xD5\xFF", // "Ia"
         trainer_class: b"\xBF\xC5\xFF",
         trainer_name: b"\xC7\xD5\xED\xFF",
+        trainer2_class: &[0xFF],
+        trainer2_name: &[0xFF],
         wild,
-        mons,
+        mons: [p, o, p, o],
         parties: [party(&["TORCHY", "ZAP"]), party(&["POOCHY", "SLUG"])],
     }
 }
@@ -272,14 +274,14 @@ fn battler_names_read_the_emitted_slots() {
     // out; POOCHY / TORCHY (slot 0) are the battlers now.
     let src = msg_text(&[&[FD, 0x10, FD, 0x05]]);
     let m = Msg {
-        slots: [1, 1],
+        slots: [1; 4],
         ..msg([Buff::None; 3])
     };
     let out = expand_src(&g, src, &m, &names([&p, &o], true));
     assert_eq!(out, enc("SLUG wildZAP"));
     // A slot the party lacks falls back to the battler.
     let m = Msg {
-        slots: [5, 5],
+        slots: [5; 4],
         ..msg([Buff::None; 3])
     };
     let out = expand_src(&g, src, &m, &names([&p, &o], true));

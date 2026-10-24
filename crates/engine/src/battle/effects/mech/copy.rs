@@ -62,7 +62,7 @@ pub(super) fn transform(b: &mut Battle, env: &mut Env, u: &MoveUse) {
         return;
     }
     let party = b.battler(a).mon.party as usize;
-    let gender = b.parties[a as usize]
+    let gender = b.parties[a.s()]
         .get(party)
         .map(|p| {
             Pokemon {
@@ -187,7 +187,7 @@ pub(super) fn sketch(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     m.mon.moves[slot] = Some(mov);
     m.mon.pp[slot] = env.t.move_info(mov).pp;
     let (moves, pp) = (m.mon.moves, m.mon.pp);
-    if let Some(p) = b.parties[a as usize].get_mut(party) {
+    if let Some(p) = b.parties[a.s()].get_mut(party) {
         p.moves = moves;
         p.pp = pp;
         let max = p.max_pp(env.t, slot as u8);
@@ -202,18 +202,18 @@ pub(super) fn sketch(b: &mut Battle, env: &mut Env, u: &MoveUse) {
 pub(super) fn recycle(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     b.attack_string(env, u);
     let a = u.attacker;
-    let used = b.fx.used_item[a as usize];
+    let used = b.fx.used_item[a.i()];
     let (Some((item, hold)), None) = (used, b.battler(a).x.item) else {
         b.fail(env, u);
         return;
     };
-    b.fx.used_item[a as usize] = None;
+    b.fx.used_item[a.i()] = None;
     let party = b.battler(a).mon.party as usize;
     let m = b.battler_mut(a);
     m.x.item = Some(item);
     m.x.hold = hold;
-    b.x.holds[a as usize][party] = hold;
-    if let Some(p) = b.parties[a as usize].get_mut(party) {
+    b.x.holds[a.s()][party] = hold;
+    if let Some(p) = b.parties[a.s()].get_mut(party) {
         p.held = Some(item);
     }
     anim(env, u);
@@ -230,7 +230,7 @@ pub(super) fn recycle(b: &mut Battle, env: &mut Env, u: &MoveUse) {
 pub(crate) fn record_used_item(b: &mut Battle, side: Side) {
     let m = b.battler(side);
     if let Some(item) = m.x.item {
-        b.fx.used_item[side as usize] = Some((item, m.x.hold));
+        b.fx.used_item[side.i()] = Some((item, m.x.hold));
     }
 }
 
@@ -327,7 +327,7 @@ fn set_types(b: &mut Battle, env: &mut Env, u: &MoveUse, ty: Type) {
 pub(super) fn snatch(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     no_pressure(b);
     b.attack_string(env, u);
-    if b.order[1] == u.attacker {
+    if b.acts_last(u.attacker) {
         b.fail(env, u);
         return;
     }
@@ -387,14 +387,14 @@ pub(super) fn beat_up(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitR
     }
     b.attack_string(env, u);
     let (a, t) = (u.attacker, u.target);
-    let n = b.parties[a as usize].len();
+    let n = b.parties[a.s()].len();
     let mut next = 0usize;
     let mut last = None;
     loop {
         if b.battler(t).mon.hp == 0 {
             break;
         }
-        let party = &b.parties[a as usize];
+        let party = &b.parties[a.s()];
         let found = (next..n).find(|&i| {
             party
                 .get(i)
@@ -459,7 +459,7 @@ pub(super) fn beat_up(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitR
     // `BattleScript_BeatUpEnd` is `end`: the last hit's `moveend` ran already, so the shared
     // one finds nothing damaged (Rage once per hit).
     if let Some(c) = &mut b.fx.cur {
-        c.hit = [false; 2];
+        c.hit = [false; 4];
     }
     None
 }

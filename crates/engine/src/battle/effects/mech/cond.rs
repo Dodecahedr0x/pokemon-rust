@@ -125,13 +125,13 @@ pub(super) fn drop(
     if super::field::mist_blocks(b, env, u, side, true) {
         return false;
     }
-    let lowered = b.fx.cur.is_some_and(|c| c.lowered[side as usize]);
+    let lowered = b.fx.cur.is_some_and(|c| c.lowered[side.i()]);
     if lowered && abilities::blocks_secondary_drop(b, side, stat) {
         return false;
     }
     if abilities::blocks_stat_drop(b, env, u, side, stat) {
         if let Some(c) = &mut b.fx.cur {
-            c.lowered[side as usize] = true;
+            c.lowered[side.i()] = true;
         }
         return false;
     }
@@ -386,7 +386,7 @@ fn heal_bell(b: &mut Battle, env: &mut Env, u: &MoveUse, aroma: bool) {
     let a = u.attacker;
     let m = *b.battler(a);
     let blocked = !aroma && m.ability == Ability::Soundproof;
-    let side = a as usize;
+    let side = a.s();
     for i in 0..b.parties[side].len() {
         let Some(p) = b.parties[side].get(i) else {
             continue;

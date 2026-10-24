@@ -30,6 +30,19 @@ pub const TINT_STAT_DOWN: u16 = 31 << 10;
 /// `sBattlerCoords[0]`: singles battler centres.
 const PLAYER_XY: (i16, i16) = (72, 80);
 const OPPONENT_XY: (i16, i16) = (176, 40);
+/// `sBattlerCoords[1]` (doubles), by battler position.
+const DOUBLE_XY: [(i16, i16); 4] = [(32, 80), (200, 40), (90, 88), (152, 32)];
+
+/// The Gen3 resting centre of `side`'s pic (`sBattlerCoords`).
+const fn coords(side: Side, double: bool) -> (i16, i16) {
+    if double {
+        DOUBLE_XY[side.i()]
+    } else if side.is_player() {
+        PLAYER_XY
+    } else {
+        OPPONENT_XY
+    }
+}
 /// Half of a 64x64 pic (`centerToCornerVec`).
 const HALF: i16 = 32;
 const PIC_TILES: usize = 64;
@@ -120,6 +133,8 @@ enum TintKind {
 #[derive(Clone)]
 pub struct MonSprite {
     side: Side,
+    /// Doubles positions (`sBattlerCoords[1]`).
+    double: bool,
     species: Option<SpeciesId>,
     gfx: &'static BattleGfx,
     palette: [u16; 16],
@@ -143,15 +158,18 @@ pub struct MonSprite {
 
 impl MonSprite {
     pub fn new(side: Side, gfx: &'static BattleGfx) -> Self {
+        Self::with(side, false, gfx)
+    }
+
+    /// [`MonSprite::new`] at the singles (`double` false) or doubles positions.
+    pub fn with(side: Side, double: bool, gfx: &'static BattleGfx) -> Self {
         MonSprite {
             side,
+            double,
             species: None,
             gfx,
             palette: [0; 16],
-            home: match side {
-                Side::Player => PLAYER_XY,
-                Side::Opponent => OPPONENT_XY,
-            },
+            home: coords(side, double),
             front_y: 0,
             off: (0, 0),
             visible: false,
@@ -165,16 +183,20 @@ impl MonSprite {
     }
 
     const fn tile_base(&self) -> u16 {
-        match self.side {
-            Side::Player => obj::PLAYER_PIC,
-            Side::Opponent => obj::ENEMY_PIC,
+        match (self.side.is_player(), self.side.is_right()) {
+            (true, false) => obj::PLAYER_PIC,
+            (false, false) => obj::ENEMY_PIC,
+            (true, true) => obj::PLAYER2_PIC,
+            (false, true) => obj::ENEMY2_PIC,
         }
     }
 
     const fn palette_bank(&self) -> u8 {
-        match self.side {
-            Side::Player => obj::PAL_PLAYER_MON,
-            Side::Opponent => obj::PAL_ENEMY_MON,
+        match (self.side.is_player(), self.side.is_right()) {
+            (true, false) => obj::PAL_PLAYER_MON,
+            (false, false) => obj::PAL_ENEMY_MON,
+            (true, true) => obj::PAL_PLAYER2_MON,
+            (false, true) => obj::PAL_ENEMY2_MON,
         }
     }
 
@@ -284,9 +306,10 @@ impl MonSprite {
         let Some(g) = gfx else {
             return &[];
         };
-        let tiles = match self.side {
-            Side::Player => g.back,
-            Side::Opponent => g.front,
+        let tiles = if self.side.is_player() {
+            g.back
+        } else {
+            g.front
         };
         &tiles[..tiles.len().min(PIC_TILES)]
     }
@@ -307,10 +330,7 @@ impl MonSprite {
         self.tint_coeff = None;
         self.ball = None;
         self.loading = None;
-        let (cx, cy) = match self.side {
-            Side::Player => PLAYER_XY,
-            Side::Opponent => OPPONENT_XY,
-        };
+        let (cx, cy) = coords(self.side, self.double);
         let Some(g) = gfx else {
             self.home = (cx, cy);
             self.palette = [0; 16];
@@ -319,9 +339,10 @@ impl MonSprite {
         };
         // `GetBattlerSpriteFinal_Y` (default, no pic-offset clamp): the player adds the back
         // pic offset, the opponent the front offset minus its elevation.
-        self.home = match self.side {
-            Side::Player => (cx, cy + g.back_y as i16),
-            Side::Opponent => (cx, cy + g.front_y as i16 - g.elevation as i16),
+        self.home = if self.side.is_player() {
+            (cx, cy + g.back_y as i16)
+        } else {
+            (cx, cy + g.front_y as i16 - g.elevation as i16)
         };
         self.front_y = g.front_y;
         self.palette = if shiny { *g.shiny } else { *g.palette };
@@ -374,12 +395,13 @@ impl MonSprite {
     /// mon slides down 5 px/frame until it leaves the screen. Hidden at the end; reload the
     /// pic before showing it again.
     pub fn faint(&mut self) {
-        self.anim = match self.side {
-            Side::Opponent => MonAnim::FaintSink {
+        self.anim = if self.side.is_player() {
+            MonAnim::FaintSlide
+        } else {
+            MonAnim::FaintSink {
                 row: 8 - (self.front_y / 8) as i8,
                 wait: 1,
-            },
-            Side::Player => MonAnim::FaintSlide,
+            }
         };
     }
 
@@ -405,6 +427,13 @@ impl MonSprite {
         self.tint_coeff = None;
     }
 
+    /// Hides the pic for the target cursor's blink (no animation: the scene stays idle).
+    pub fn set_blink_off(&mut self, off: bool) {
+        if self.anim == MonAnim::Idle {
+            self.blink_off = off;
+        }
+    }
+
     pub fn busy(&self) -> bool {
         self.anim != MonAnim::Idle || self.tint.is_some()
     }
@@ -427,21 +456,23 @@ impl MonSprite {
 
     /// Ball centre at send-out start.
     fn ball_start(&self) -> (i16, i16) {
-        match self.side {
-            Side::Player => BALL_START,
+        if self.side.is_player() {
+            BALL_START
+        } else {
             // `GetBattlerSpriteCoord(X)`, `(Y) + 24`.
-            Side::Opponent => (OPPONENT_XY.0, OPPONENT_XY.1 + 24),
+            let (x, y) = coords(self.side, self.double);
+            (x, y + 24)
         }
     }
 
     /// Where the player's ball lands: `GetBattlerSpriteCoord(X_2)`, `(Y_PIC_OFFSET) + 24`.
     fn ball_target(&self) -> (i16, i16) {
-        match self.side {
+        match self.side.side() {
             Side::Player => {
                 let y = (self.home.1 + 8).min((SCREEN_H as i16) - 64 + 8);
                 (self.home.0, y + 24)
             }
-            Side::Opponent => self.ball_start(),
+            _ => self.ball_start(),
         }
     }
 
@@ -493,7 +524,7 @@ impl MonSprite {
             MonAnim::Ball { t } => {
                 let t = t + 1;
                 let (sx, sy) = self.ball_start();
-                match self.side {
+                match self.side.side() {
                     Side::Player => {
                         let (tx, ty) = self.ball_target();
                         let n = BALL_FRAMES as i32;
@@ -507,7 +538,7 @@ impl MonSprite {
                             MonAnim::Ball { t }
                         }
                     }
-                    Side::Opponent => {
+                    _ => {
                         if t >= BALL_WAIT {
                             MonAnim::Pop { t: 0 }
                         } else {
@@ -579,10 +610,7 @@ impl MonSprite {
                 }
             }
             MonAnim::Lunge { t } => {
-                let dir = match self.side {
-                    Side::Player => 2,
-                    Side::Opponent => -2,
-                };
+                let dir = if self.side.is_player() { 2 } else { -2 };
                 let t = t + 1;
                 self.off.0 += if t <= LUNGE_FRAMES / 2 { dir } else { -dir };
                 if t >= LUNGE_FRAMES {
@@ -736,23 +764,26 @@ impl TrainerSprite {
     /// hence (176, 40) and (80, 80).
     const fn centre(side: Side, size: u8) -> (i16, i16) {
         let dy = (8 - size as i16) * 4;
-        match side {
-            Side::Opponent => (176, dy + 40),
-            Side::Player => (80, dy + 80),
+        if side.is_player() {
+            (80, dy + 80)
+        } else {
+            (176, dy + 40)
         }
     }
 
     const fn tile_base(&self) -> u16 {
-        match self.side {
-            Side::Player => obj::PLAYER_BACK,
-            Side::Opponent => obj::TRAINER_PIC,
+        if self.side.is_player() {
+            obj::PLAYER_BACK
+        } else {
+            obj::TRAINER_PIC
         }
     }
 
     const fn palette_bank(&self) -> u8 {
-        match self.side {
-            Side::Player => obj::PAL_PLAYER_BACK,
-            Side::Opponent => obj::PAL_TRAINER,
+        if self.side.is_player() {
+            obj::PAL_PLAYER_BACK
+        } else {
+            obj::PAL_TRAINER
         }
     }
 
@@ -796,9 +827,10 @@ impl TrainerSprite {
         self.home = Self::centre(self.side, self.size);
         self.visible = true;
         let w = SCREEN_W as i16;
-        let (off, speed) = match self.side {
-            Side::Opponent => (-w, 2),
-            Side::Player => (w, -2),
+        let (off, speed) = if self.side.is_player() {
+            (w, -2)
+        } else {
+            (-w, 2)
         };
         self.off = off;
         self.anim = TrainerAnim::Slide { speed };
@@ -810,9 +842,10 @@ impl TrainerSprite {
         let x = self.home.0 + self.off;
         self.home.0 = x;
         self.off = 0;
-        let (target, frames) = match self.side {
-            Side::Opponent => (280, 35),
-            Side::Player => (-40, 50),
+        let (target, frames) = if self.side.is_player() {
+            (-40, 50)
+        } else {
+            (280, 35)
         };
         self.anim = TrainerAnim::Out(Linear::new(target - x, frames));
     }

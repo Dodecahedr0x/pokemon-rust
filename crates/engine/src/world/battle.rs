@@ -281,10 +281,34 @@ impl State {
         origin: Origin,
         f: &mut Frame,
     ) {
+        self.start_battle_with(game, kind, opponents, None, origin, f);
+    }
+
+    /// [`World::start_battle`] with the double battle's setup (two trainers, the in-game
+    /// partner). A trainer whose data says double (`trainerbattle_double`, the twins) battles
+    /// in doubles without one.
+    pub(super) fn start_battle_with(
+        &mut self,
+        game: &impl GameData,
+        kind: BattleKind,
+        opponents: Party,
+        double: Option<crate::battle::Double>,
+        origin: Origin,
+        f: &mut Frame,
+    ) {
+        let double = double.or_else(|| match kind {
+            BattleKind::Trainer { trainer, .. }
+                if game.trainer(trainer).is_some_and(|t| t.double) =>
+            {
+                Some(crate::battle::Double::default())
+            }
+            _ => None,
+        });
         let setup = BattleSetup {
             kind,
             opponents,
             environment: self.environment(game),
+            double,
         };
         let transition = BattleTransition::new(&kind);
         // The run (about 4 KiB) is built in its heap allocation: `Box::new` of a literal copies
@@ -319,13 +343,6 @@ impl State {
             (*b).enable_player_forms(game, |f| self.vars.flag(f));
             &*b
         };
-        if let BattleKind::Trainer { trainer, .. } = battle.setup().kind
-            && game.trainer(trainer).is_some_and(|t| t.double)
-        {
-            // A double battle runs as singles against the same party (decision Q3). The one
-            // place this is reported, for every trainer battle (scripted or by sight).
-            report(self, Report::Degraded("double battle"));
-        }
         let scene = BattleScene::new(battle.setup(), self.player_name);
         // SAFETY: as above; this writes every remaining field.
         let run = unsafe {

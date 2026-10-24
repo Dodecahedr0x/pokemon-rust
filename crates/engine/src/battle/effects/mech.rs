@@ -246,12 +246,12 @@ pub(crate) struct Current {
     /// `IS_TYPE_PHYSICAL` of the move's base type (`datahpupdate`'s damage records).
     pub physical: bool,
     /// `gSpecialStatuses[].physicalDmg || specialDmg`: damaged during this move.
-    pub hit: [bool; 2],
+    pub hit: [bool; 4],
     /// `gChosenMove == MOVE_SLEEP_TALK`: the move was called by Sleep Talk.
     pub sleep_talk: bool,
     /// A drop on that side was already refused with a message (Mist / Clear Body once per
     /// move, `STAT_CHANGE_ALLOW_PTR`).
-    pub lowered: [bool; 2],
+    pub lowered: [bool; 4],
     /// The move a calling move (Metronome, Mirror Move, Sleep Talk, Assist) used.
     pub called: Option<MoveId>,
     /// `gCurrentMove` and `gChosenMovePos` (Grudge).
@@ -266,7 +266,9 @@ pub(crate) struct Current {
     pub no_pressure: bool,
 }
 
-/// Wave C's side and field state (`gSideTimers`, `gWishFutureKnock`), by `Side as usize`.
+/// Wave C's side and field state (`gSideTimers`, `gWishFutureKnock`): the side timers and
+/// `knocked_off` by [`Side::s`], the battler counters (wish, future attacks, used items) by
+/// [`Side::i`].
 /// Hashed (without `cur` and `used_item`) only when set.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub(crate) struct FieldFx {
@@ -276,19 +278,19 @@ pub(crate) struct FieldFx {
     pub safeguard: [u8; 2],
     pub spikes: [u8; 2],
     /// `wishCounter` / `wishMonId` (the party slot that wished).
-    pub wish: [u8; 2],
-    pub wish_party: [u8; 2],
+    pub wish: [u8; 4],
+    pub wish_party: [u8; 4],
     /// `knockedOffMons`: a bit per party slot.
     pub knocked_off: [u8; 2],
     /// Future attacks aimed at each side.
-    pub future: [Option<Future>; 2],
+    pub future: [Option<Future>; 4],
     /// `weatherDuration` of a move's weather (0: none, or an ability's permanent weather).
     pub weather_turns: u8,
     /// `gPaydayMoney` (Wave D).
     pub pay_day: u16,
     /// `gBattleStruct->usedHeldItems` by battler position, with the item's hold effect
     /// (Recycle). Not hashed.
-    pub used_item: [Option<(crate::data::ItemId, Option<crate::mon::HoldEffect>)>; 2],
+    pub used_item: [Option<(crate::data::ItemId, Option<crate::mon::HoldEffect>)>; 4],
     pub cur: Option<Current>,
 }
 
@@ -297,12 +299,20 @@ impl FieldFx {
     pub fn is_set(&self) -> bool {
         FieldFx {
             cur: None,
-            used_item: [None; 2],
+            used_item: [None; 4],
             ..*self
         } != FieldFx::default()
     }
 
     pub fn hash(&self, h: &mut Fnv64) {
+        let future = |h: &mut Fnv64, f: Option<Future>| match f {
+            None => h.write(&[0xFF]),
+            Some(f) => {
+                h.write(&[f.turns, f.attacker.code()]);
+                h.write_u32(f.damage as u32);
+                h.write_u16(f.mov.0);
+            }
+        };
         let timer = |h: &mut Fnv64, t: Option<Timer>| match t {
             None => h.write(&[0xFF]),
             Some(t) => {
@@ -321,13 +331,13 @@ impl FieldFx {
                 self.wish_party[s],
                 self.knocked_off[s],
             ]);
-            match self.future[s] {
-                None => h.write(&[0xFF]),
-                Some(f) => {
-                    h.write(&[f.turns, f.attacker as u8]);
-                    h.write_u32(f.damage as u32);
-                    h.write_u16(f.mov.0);
-                }
+            future(h, self.future[s]);
+        }
+        // Doubles: the right battlers' counters, only while set (singles hash unchanged).
+        for s in 2..4 {
+            if self.wish[s] != 0 || self.future[s].is_some() {
+                h.write(&[0xDB, s as u8, self.wish[s], self.wish_party[s]]);
+                future(h, self.future[s]);
             }
         }
         h.write(&[self.weather_turns]);
@@ -428,7 +438,7 @@ pub(crate) fn damage_extra(
     crit: bool,
     weather: crate::battle::calc::DamageWeather,
 ) -> crate::battle::calc::Extra {
-    let side = u.target as usize;
+    let side = u.target.s();
     let screen = if u.ty.is_physical() {
         b.fx.reflect[side].is_some()
     } else {

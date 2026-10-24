@@ -78,6 +78,19 @@ pub mod obj {
     pub const PAL_HP_BAR: u8 = 5;
     pub const PAL_BALL: u8 = 6;
     pub const PAL_ENEMY_BOX: u8 = 7;
+
+    // Doubles: the right battlers (512.., the starter screen's area, unused in battle).
+    pub const ENEMY2_PIC: u16 = 512;
+    pub const PLAYER2_PIC: u16 = 576;
+    /// Two 64x64 halves (only their top 64x32 shows in doubles).
+    pub const PLAYER2_BOX: u16 = 640;
+    pub const ENEMY2_BOX: u16 = 768;
+    pub const PLAYER2_BAR: u16 = 832;
+    pub const ENEMY2_BAR: u16 = 840;
+    pub const PAL_ENEMY2_MON: u8 = 8;
+    pub const PAL_PLAYER2_MON: u8 = 9;
+    pub const PAL_PLAYER2_BOX: u8 = 10;
+    pub const PAL_ENEMY2_BOX: u8 = 11;
 }
 
 /// OBJ tiles a visible battle frame may upload in all (`Cmd::ObjTile`s, plus the tiles of
@@ -104,10 +117,7 @@ pub fn obj_tiles_left(f: &Frame) -> usize {
 }
 
 const fn side_tag(side: Side) -> u8 {
-    match side {
-        Side::Player => 0,
-        Side::Opponent => 1,
-    }
+    side.code()
 }
 
 fn hash_i16(h: &mut Fnv64, v: i16) {

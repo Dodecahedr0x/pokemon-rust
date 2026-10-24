@@ -129,7 +129,7 @@ pub(super) fn field_end_turn(b: &mut Battle, env: &mut Env) {
     if (b.x.weather != Weather::Sand && !hail) || b.weather() != b.x.weather {
         return;
     }
-    for side in b.order {
+    for side in b.turn_sides() {
         let m = b.battler(side);
         let immune = if hail {
             m.types.contains(&Type::Ice)

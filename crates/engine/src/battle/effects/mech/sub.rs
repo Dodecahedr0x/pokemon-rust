@@ -4,7 +4,7 @@
 
 use super::{anim, say};
 use crate::battle::core::{Battle, Battler, Env, MoveUse, msg};
-use crate::battle::{BattleEvent, Msg, Need, Side, Str};
+use crate::battle::{BattleEvent, Msg, Side, Str};
 use crate::mon::MoveEffect;
 
 /// `BattleScript_EffectSubstitute` + `Cmd_setsubstitute`: max HP / 4 (at least 1) becomes the
@@ -94,7 +94,7 @@ pub(crate) fn sub_blocks_secondary(b: &Battle, u: &MoveUse) -> bool {
 /// A hit on `side` went to its substitute (`TARGET_TURN_DAMAGED` stays false): the contact
 /// abilities, Color Change, the defrost and King's Rock do not trigger.
 pub(crate) fn sub_absorbed(b: &Battle, side: Side) -> bool {
-    b.battler(side).fx.substitute && !b.fx.cur.is_some_and(|c| c.hit[side as usize])
+    b.battler(side).fx.substitute && !b.fx.cur.is_some_and(|c| c.hit[side.i()])
 }
 
 /// `MOVEEND_SUBSTITUTE`: a substitute at 0 HP is gone.
@@ -114,19 +114,18 @@ pub(in crate::battle::effects) fn sub_end(b: &mut Battle) {
 pub(super) fn baton_pass(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     b.attack_string(env, u);
     let a = u.attacker;
-    let n = b.parties[a as usize].len() as u8;
+    let n = b.parties[a.s()].len() as u8;
     let Some(next) = (0..n).find(|&i| b.can_switch_to(a, i)) else {
         b.fail(env, u);
         return;
     };
     anim(env, u);
     b.battler_mut(a).fx.baton = true;
-    match a {
-        Side::Player => b.need = Need::Switch,
-        Side::Opponent => {
-            b.switch_out(env, a);
-            b.switch_in(env, a, next);
-        }
+    if b.player_chooses_switch(a) {
+        b.ask_switch(a);
+    } else {
+        b.switch_out(env, a);
+        b.switch_in(env, a, next);
     }
 }
 

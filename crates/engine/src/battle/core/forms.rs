@@ -33,7 +33,7 @@ impl Battle {
         if changes.is_empty() {
             return;
         }
-        let s = side as usize;
+        let s = side.s();
         for (i, p) in self.parties[s].iter().enumerate() {
             let Some(item) = p.held else { continue };
             self.x.forms[s][i] = changes
@@ -50,7 +50,7 @@ impl Battle {
     /// Whether `side`'s battler may Mega Evolve now: a Mega form for its slot, not changed
     /// yet, the side's Mega unused, and not a wild mon.
     pub fn can_mega(&self, side: Side) -> bool {
-        let s = side as usize;
+        let s = side.s();
         let b = self.battler(side);
         let slot = b.mon.party;
         b.mon.hp > 0
@@ -72,7 +72,7 @@ impl Battle {
             [Side::Player, Side::Opponent]
         };
         for side in order {
-            if self.x.mega_pending[side as usize] && self.can_mega(side) {
+            if self.x.mega_pending[side.s()] && self.can_mega(side) {
                 self.change_form(env, side);
                 crate::battle::effects::on_switch_in(self, env, side);
                 crate::battle::effects::switch_in(self, env, side);
@@ -84,7 +84,7 @@ impl Battle {
     /// Primal Reversion of `side`'s battler if its slot has a Primal form not taken yet. The
     /// caller runs the switch-in abilities next.
     pub(crate) fn primal_reversion(&mut self, env: &mut Env, side: Side) {
-        let s = side as usize;
+        let s = side.s();
         let b = self.battler(side);
         let slot = b.mon.party;
         if b.mon.hp > 0
@@ -99,7 +99,7 @@ impl Battle {
     /// ability, and the `FormChange` event (the caller runs the new ability's switch-in
     /// effect).
     fn change_form(&mut self, env: &mut Env, side: Side) {
-        let s = side as usize;
+        let s = side.s();
         let slot = self.battler(side).mon.party;
         let Some(f) = self.x.forms[s][slot as usize] else {
             return;

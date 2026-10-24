@@ -285,7 +285,7 @@ pub(super) fn flinch(
         }
         return;
     }
-    if b.actions[effect as usize].is_some() {
+    if b.actions[effect.i()].is_some() {
         b.battler_mut(effect).flinched = true;
     }
 }
@@ -520,7 +520,7 @@ fn fraction(max_hp: u16, div: u16) -> i32 {
 /// abilities (Shed Skin, Truant), Leech Seed, poison, toxic, burn, Uproar, the Charge timer,
 /// then Yawn. Residual damage ignores Bide (`HITMARKER_IGNORE_BIDE`).
 pub(super) fn end_turn(b: &mut Battle, env: &mut Env) {
-    for side in b.order {
+    for side in b.turn_sides() {
         let foe = side.other();
         // ENDTURN_INGRAIN.
         super::mech::end_turn_ingrain(b, env, side);

@@ -19,15 +19,15 @@ pub(super) fn hash_play(p: Play, h: &mut Fnv64) {
                 Send::Box => (2, 0),
                 Send::Delay(n) => (3, n),
             };
-            [4, side as u8, k, n]
+            [4, side.code(), k, n]
         }
-        Play::Faint(side, n) => [5, side as u8, opt(n), 0],
-        Play::Hp(side) => [6, side as u8, 0, 0],
+        Play::Faint(side, n) => [5, side.code(), opt(n), 0],
+        Play::Hp(side) => [6, side.code(), 0, 0],
         Play::Exp => [7, 0, 0, 0],
         Play::Bars => [8, 0, 0, 0],
-        Play::Defeated(b) => [9, b as u8, 0, 0],
+        Play::Defeated(b, second) => [9, b as u8, second as u8, 0],
         Play::Ending => [10, 0, 0, 0],
-        Play::Form(side) => [11, side as u8, 0, 0],
+        Play::Form(side) => [11, side.code(), 0, 0],
     };
     h.write(&bytes);
 }
@@ -43,6 +43,7 @@ pub(super) fn hash_menu(m: Menu, h: &mut Fnv64) {
         Menu::StopAsk { party, mov } => (6, party, mov, 0),
         Menu::Retry { party, mov, n } => (7, party, mov, n),
         Menu::HmMsg { party, mov } => (8, party, mov, 0),
+        Menu::Target { slot, mega } => (9, slot, MoveId(0), mega as u8),
     };
     h.write(&[tag, party, n]);
     h.write_u16(mov.0);
@@ -70,8 +71,8 @@ fn hash_buff(b: &Buff, h: &mut Fnv64) {
             h.write_u16(s.0);
         }
         Buff::Type(t) => h.write(&[5, t as u8]),
-        Buff::Mon { side, party } => h.write(&[6, side as u8, party]),
-        Buff::MonNick { side, party } => h.write(&[7, side as u8, party]),
+        Buff::Mon { side, party } => h.write(&[6, side.code(), party]),
+        Buff::MonNick { side, party } => h.write(&[7, side.code(), party]),
         Buff::Text(s) => {
             h.write(&[8]);
             str_code(s, h);
@@ -89,12 +90,15 @@ pub(super) fn hash_event(e: &BattleEvent, h: &mut Fnv64) {
             h.write(&[0]);
             str_code(m.id, h);
             h.write(&[
-                m.attacker as u8,
-                m.target as u8,
-                m.active as u8,
+                m.attacker.code(),
+                m.target.code(),
+                m.active.code(),
                 m.slots[0],
                 m.slots[1],
             ]);
+            if m.slots[2] | m.slots[3] != 0 {
+                h.write(&[0xDB, m.slots[2], m.slots[3]]);
+            }
             h.write_u16(m.mov.map_or(0xFFFF, |m| m.0));
             for b in &m.buffs {
                 hash_buff(b, h);
@@ -108,24 +112,25 @@ pub(super) fn hash_event(e: &BattleEvent, h: &mut Fnv64) {
         BattleEvent::TrainerAppear => h.write(&[2]),
         BattleEvent::TrainerSlideOut => h.write(&[3]),
         BattleEvent::TrainerDefeated => h.write(&[4]),
-        BattleEvent::SendOut { side, party } => h.write(&[5, side as u8, party]),
-        BattleEvent::Recall { side } => h.write(&[6, side as u8]),
+        BattleEvent::TrainerDefeated2 => h.write(&[0x44]),
+        BattleEvent::SendOut { side, party } => h.write(&[5, side.code(), party]),
+        BattleEvent::Recall { side } => h.write(&[6, side.code()]),
         BattleEvent::MoveAnim { attacker, mov } => {
-            h.write(&[7, attacker as u8]);
+            h.write(&[7, attacker.code()]);
             h.write_u16(mov.0);
         }
-        BattleEvent::Hit { target, eff } => h.write(&[8, target as u8, eff as u8]),
+        BattleEvent::Hit { target, eff } => h.write(&[8, target.code(), eff as u8]),
         BattleEvent::Hp { side, from, to } => {
-            h.write(&[9, side as u8]);
+            h.write(&[9, side.code()]);
             h.write_u16(from);
             h.write_u16(to);
         }
         BattleEvent::StatusIcon { side, status } => {
             let (a, b) = status.code();
-            h.write(&[10, side as u8, a, b]);
+            h.write(&[10, side.code(), a, b]);
         }
-        BattleEvent::StatAnim { side, up } => h.write(&[11, side as u8, up as u8]),
-        BattleEvent::Faint { side } => h.write(&[12, side as u8]),
+        BattleEvent::StatAnim { side, up } => h.write(&[11, side.code(), up as u8]),
+        BattleEvent::Faint { side } => h.write(&[12, side.code()]),
         BattleEvent::Exp { party, from, to } => {
             h.write(&[13, party]);
             h.write_u32(from);
@@ -139,7 +144,7 @@ pub(super) fn hash_event(e: &BattleEvent, h: &mut Fnv64) {
             party,
             species,
         } => {
-            h.write(&[17, side as u8, party]);
+            h.write(&[17, side.code(), party]);
             h.write_u16(species.0);
         }
         // Never queued (`BattleScene::push` sets reports aside).

@@ -100,6 +100,8 @@ pub enum Action {
     Bag,
     Pokemon,
     Run,
+    /// B on the right battler's menu in doubles (`B_ACTION_CANCEL_PARTNER`).
+    Cancel,
 }
 
 /// The move menu's outcome.
@@ -124,6 +126,8 @@ enum Menu {
     Action,
     Move,
     YesNo,
+    /// The doubles target cursor (`HandleInputChooseTarget`).
+    Target,
 }
 
 /// Gen3 `GetCurrentPpToMaxPpState`: 3 normal, 0 at most half, 1 at most a quarter, 2 empty
@@ -195,6 +199,13 @@ pub struct BattleWindows {
     action_result: Option<Action>,
     move_result: Option<MoveChoice>,
     yes_no_result: Option<bool>,
+    /// B cancels the action menu (the right battler in doubles).
+    action_cancel: bool,
+    /// The target cursor: the number of targets (0: never opened), the cursor, and the
+    /// answer (`Some(None)`: B).
+    target_n: u8,
+    target_cursor: u8,
+    target_result: Option<Option<u8>>,
     /// The Mega Evolution toggle of the move menu (Silice): `None` when the mon cannot Mega
     /// Evolve, else whether it is armed (START flips it).
     mega: Option<bool>,
@@ -234,6 +245,10 @@ impl BattleWindows {
             move_result: None,
             yes_no_result: None,
             mega: None,
+            action_cancel: false,
+            target_n: 0,
+            target_cursor: 0,
+            target_result: None,
         }
     }
 
@@ -341,15 +356,29 @@ impl BattleWindows {
     /// Shows the action view: "What will X do?" (`gText_WhatWillPkmnDo` for the player's
     /// battler) and the 2x2 menu (`gText_BattleMenu`), the cursor where it was last time.
     pub fn action_menu(&mut self, game: &impl GameData, names: &Names, f: &mut Frame) {
+        self.action_menu_for(game, names, Side::Player, false, f);
+    }
+
+    /// [`BattleWindows::action_menu`] for the player battler `side`; `cancel`: B answers
+    /// [`Action::Cancel`] (the right battler in doubles, `B_ACTION_CANCEL_PARTNER`).
+    pub fn action_menu_for(
+        &mut self,
+        game: &impl GameData,
+        names: &Names,
+        side: Side,
+        cancel: bool,
+        f: &mut Frame,
+    ) {
+        self.action_cancel = cancel;
         let msg = Msg {
             id: Str::WhatWillPkmnDo,
-            attacker: Side::Player,
-            target: Side::Opponent,
-            active: Side::Player,
+            attacker: side,
+            target: side.other(),
+            active: side,
             mov: None,
             buffs: [Buff::None; 3],
             wait: MsgWait::Frames(0),
-            slots: [names.mons[0].party, names.mons[1].party],
+            slots: core::array::from_fn(|i| names.mons[i].party),
         };
         let prompt = super::text::expand(game, &msg, names);
         self.prompt.redraw(game.font(), &prompt, 1, 1, MSG_COLORS);
@@ -377,7 +406,7 @@ impl BattleWindows {
             mov: None,
             buffs: [Buff::None; 3],
             wait: MsgWait::Frames(0),
-            slots: [names.mons[0].party, names.mons[1].party],
+            slots: core::array::from_fn(|i| names.mons[i].party),
         };
         let prompt = super::text::expand(game, &msg, names);
         self.prompt.redraw(game.font(), &prompt, 1, 1, MSG_COLORS);
@@ -547,6 +576,7 @@ impl BattleWindows {
             Menu::Action => self.update_action(game, p, f),
             Menu::Move => self.update_move(game, p, f),
             Menu::YesNo => self.update_yes_no(p, f),
+            Menu::Target => self.update_target(p),
             Menu::None => {
                 if self.msg.is_printing() {
                     self.msg.update(game.font(), p, input.held);
@@ -572,6 +602,10 @@ impl BattleWindows {
         let to = if p.contains(Buttons::A) {
             self.action_result =
                 Some([Action::Fight, Action::Bag, Action::Pokemon, Action::Run][c as usize & 3]);
+            self.menu = Menu::None;
+            return;
+        } else if self.action_cancel && p.contains(Buttons::B) {
+            self.action_result = Some(Action::Cancel);
             self.menu = Menu::None;
             return;
         } else if p.contains(Buttons::LEFT) {
@@ -645,6 +679,38 @@ impl BattleWindows {
         }
     }
 
+    /// Opens the target cursor over `n` targets at `start` (the move view stays shown; the
+    /// scene blinks the target's pic).
+    pub fn target_menu(&mut self, n: u8, start: u8, f: &mut Frame) {
+        self.enter_menu(Menu::Target, f);
+        self.target_n = n.max(1);
+        self.target_cursor = start % self.target_n;
+        self.target_result = None;
+    }
+
+    /// `HandleInputChooseTarget`: left/up and right/down cycle the targets, A picks, B goes
+    /// back to the moves.
+    fn update_target(&mut self, p: Buttons) {
+        let n = self.target_n.max(1);
+        if p.contains(Buttons::A) {
+            self.target_result = Some(Some(self.target_cursor));
+        } else if p.contains(Buttons::B) {
+            self.target_result = Some(None);
+        } else if p.contains(Buttons::LEFT) || p.contains(Buttons::UP) {
+            self.target_cursor = (self.target_cursor + n - 1) % n;
+        } else if p.contains(Buttons::RIGHT) || p.contains(Buttons::DOWN) {
+            self.target_cursor = (self.target_cursor + 1) % n;
+        }
+        if self.target_result.is_some() {
+            self.menu = Menu::None;
+        }
+    }
+
+    /// The target cursor's answer (`Some(None)`: B), until the next `target_menu`.
+    pub fn target_result(&self) -> Option<Option<u8>> {
+        self.target_result
+    }
+
     /// `Cmd_yesnoboxlearnmove`'s input: up/down, A picks, B is no.
     fn update_yes_no(&mut self, p: Buttons, f: &mut Frame) {
         let c = self.yes_no_cursor;
@@ -674,6 +740,7 @@ impl BattleWindows {
             Menu::Action => Some(self.action_cursor),
             Menu::Move => Some(self.move_cursor),
             Menu::YesNo => Some(self.yes_no_cursor),
+            Menu::Target => Some(self.target_cursor),
             Menu::None => None,
         }
     }
@@ -886,6 +953,20 @@ impl BattleWindows {
         h.write_u16(self.learning.map_or(0xFFFF, |m| m.0));
         if let Some(armed) = self.mega {
             h.write(&[0xB0, armed as u8]);
+        }
+        if self.target_n != 0 || self.action_cancel {
+            // Doubles only.
+            h.write(&[
+                0xD7,
+                self.target_n,
+                self.target_cursor,
+                match self.target_result {
+                    None => 0xFF,
+                    Some(None) => 0xFE,
+                    Some(Some(c)) => c,
+                },
+                self.action_cancel as u8,
+            ]);
         }
         self.msg.hash(h);
     }

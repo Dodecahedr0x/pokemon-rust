@@ -750,13 +750,19 @@ impl Battle {
         b.v = super::Volatiles::default();
         b.fx = super::BattlerFx::default();
         let (party, ability, level) = (b.mon.party, b.ability, b.mon.level);
-        if side == Side::Player {
-            // Gen3 `Cmd_tryfaintmon` → `AdjustFriendshipOnBattleFaint` (Task E).
+        if side.is_player() {
+            // Gen3 `Cmd_tryfaintmon` → `AdjustFriendshipOnBattleFaint` (Task E): the highest
+            // level among the opponents on the field.
             use crate::world::friendship::{FriendshipEvent, on_event};
-            let foe_level = self.battler(Side::Opponent).mon.level;
+            let foe_level = [Side::Opponent, Side::OpponentRight]
+                .into_iter()
+                .filter(|&s| self.is_present(s))
+                .map(|s| self.battler(s).mon.level)
+                .max()
+                .unwrap_or(1);
             let event = FriendshipEvent::battle_faint(foe_level, level);
-            let hold = self.x.holds[side as usize][party as usize];
-            if let Some(m) = self.parties[side as usize].get_mut(party as usize) {
+            let hold = self.x.holds[side.s()][party as usize];
+            if let Some(m) = self.parties[side.s()].get_mut(party as usize) {
                 on_event(m, event, hold, env.t, env.rng);
             }
         }

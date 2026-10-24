@@ -28,5 +28,5 @@ fn environment_order_and_sides() {
     assert_eq!(Environment::Grass as u8, 0);
     assert_eq!(Environment::Plain as u8, 9);
     assert_eq!(Side::Player.other(), Side::Opponent);
-    assert_eq!(Side::Opponent as usize, 1);
+    assert_eq!(Side::Opponent.i(), 1);
 }

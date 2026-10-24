@@ -334,6 +334,8 @@ impl<G: GameData> Recorder<G> {
             Some(OpenMenu::LearnAsk(_) | OpenMenu::LearnPick(_)) => Buttons::B,
             Some(OpenMenu::StopAsk(0)) => Buttons::A,
             Some(OpenMenu::StopAsk(_)) => Buttons::UP,
+            // Doubles: the default target.
+            Some(OpenMenu::Target(_)) => Buttons::A,
             None => Buttons::A,
         }
     }

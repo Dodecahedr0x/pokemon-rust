@@ -43,7 +43,7 @@ fn hold(r: &mut Run, side: Side, hold: HoldEffect) {
     let m = r.b.battler_mut(side);
     m.x.item = Some(ITEM);
     m.x.hold = Some(hold);
-    r.b.x.holds[side as usize][0] = Some(hold);
+    r.b.x.holds[side.s()][0] = Some(hold);
 }
 
 /// `moveend` (abilities, then items) after `side` hit with `mov` (5 HP dealt).

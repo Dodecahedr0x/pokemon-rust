@@ -239,9 +239,11 @@ impl HpBar {
         let mut px = [0u8; HP_TILES];
         let filled = self.bar.pixels(&mut px);
         let color = bar_color(filled) as u8;
-        let base = match self.side {
-            Side::Player => obj::PLAYER_BAR,
-            Side::Opponent => obj::ENEMY_BAR,
+        let base = match (self.side.is_player(), self.side.is_right()) {
+            (true, false) => obj::PLAYER_BAR,
+            (false, false) => obj::ENEMY_BAR,
+            (true, true) => obj::PLAYER2_BAR,
+            (false, true) => obj::ENEMY2_BAR,
         } + HP_LABEL_TILES;
         for (i, &p) in px.iter().enumerate() {
             let same = matches!(self.drawn, Some((c, old)) if c == color && old[i] == p);

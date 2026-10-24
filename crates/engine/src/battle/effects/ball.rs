@@ -33,8 +33,8 @@ pub(super) fn throw(b: &mut Battle, env: &mut Env) {
     // STRINGID_GOTCHAPKMNCAUGHT names the target (`B_DEF_NAME`); its own codes wait.
     env.out.push(BattleEvent::Msg(msg(Str::Gotcha, p, o, o)));
     b.write_back(o);
-    if let Some(mon) = b.parties[o as usize].get(foe.party as usize).copied()
-        && let Err(mon) = b.parties[p as usize].push(mon)
+    if let Some(mon) = b.parties[o.s()].get(foe.party as usize).copied()
+        && let Err(mon) = b.parties[p.s()].push(mon)
     {
         b.caught_without_room = Some(mon);
     }
