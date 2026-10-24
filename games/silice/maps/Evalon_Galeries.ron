@@ -84,18 +84,18 @@
             x: 9,
             y: 10,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("Evalon_Galeries_EventScript_HiddenNugget"),
+            kind: HiddenItem(
+                item: "ITEM_NUGGET",
+                flag: "FLAG_SIL_ITEM_EVALON_GALERIES_2",
             ),
         ),
         (
             x: 18,
             y: 1,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("Evalon_Galeries_EventScript_HiddenPierreLien"),
+            kind: HiddenItem(
+                item: "ITEM_SIL_PIERRE_LIEN",
+                flag: "FLAG_SIL_ITEM_EVALON_PIERRE_LIEN",
             ),
         ),
         (

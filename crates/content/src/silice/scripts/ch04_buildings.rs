@@ -194,9 +194,8 @@ pub async fn PortRessac_NavireCocket_EventScript_CaisseCorbeau(ctx: Ctx) {
     if ctx.flag(FLAG_SIL_ITEM_PORT_NAVIRE_POING_CHANCE).await {
         return;
     }
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`): a sign on the crate
-    // (`06_ch4_scripts.ron`), which also lets the crate's own text show.
-    fallback(&ctx, "hidden item").await;
+    // A sign on the crate (`06_ch4_scripts.ron`), not a Gen3 hidden item: the crate has its
+    // own text first.
     ctx.lock().await;
     say(&ctx, Port_Ressac_Navire_Caisse).await;
     gift(

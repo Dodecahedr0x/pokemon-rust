@@ -15,7 +15,7 @@
 //! liberation (`Nebula_PG_Sc03c`, which also lifts the Heart's boulder and opens the Relay's
 //! trapdoor).
 
-use super::ch04_port::{Pushable, push_object};
+use super::ch04_port::{Puzzle, push_object};
 use super::ch12_breche::gaz;
 use super::ch12_reveil::{battle_lost, legendaire};
 use crate::silice::prelude::*;
@@ -195,17 +195,21 @@ pub async fn NoMansLand_EventScript_PanneauCentrale(ctx: Ctx) {
 }
 
 /// The steel beam on the broken bridge (37, 30) (`VAR_TEMP_2`).
-const POUTRE: &[Pushable] = &[(LOCALID_NML_POUTRE, VAR_TEMP_2, (37, 30))];
+pub(crate) const POUTRE: Puzzle = Puzzle {
+    map: MAP_NO_MANS_LAND,
+    objects: &[(LOCALID_NML_POUTRE, VAR_TEMP_2, (37, 30))],
+    free: poutre_free,
+};
 
 /// East along the bridge's row, up to Latios's cell (the plan's review: the beam opens the bridge
 /// and strands nothing).
-fn poutre_free((x, y): (i16, i16)) -> bool {
+fn poutre_free(_: (i16, i16), (x, y): (i16, i16)) -> bool {
     y == 30 && (38..=54).contains(&x)
 }
 
 /// The steel beam: the Champ Magnétique (`FLAG_SIL_MODULE_FORCE`), as Chapter 3's blocks.
 pub async fn NoMansLand_EventScript_Poutre(ctx: Ctx) {
-    push_object(&ctx, POUTRE, poutre_free).await;
+    push_object(&ctx).await;
 }
 
 /// A cracked rock (the Scanner de Faille).
@@ -302,12 +306,6 @@ pub async fn NoMansLand_EventScript_ItemMaxRevive(ctx: Ctx) {
 /// Latios's capture clears it).
 pub async fn NoMansLand_EventScript_ItemLatiosite(ctx: Ctx) {
     find_item(&ctx, ITEM_SIL_LATIOSITE, 1).await;
-}
-
-/// The PP Max under the cut motorway (34, 46), hidden.
-pub async fn NoMansLand_EventScript_HiddenPpMax(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`): a sign here instead.
-    hidden_item(&ctx, FLAG_SIL_ITEM_PG_NML_PPMAX, ITEM_PP_MAX).await;
 }
 
 /// Suicune on the Oasis's shore (`PG_Legendaire`, level 78; shown by `Sommet_Apex_PG_Sc19`).
@@ -478,17 +476,6 @@ pub async fn NoMansLand_Cratere_EventScript_RocherFissure(ctx: Ctx) {
     rock_smash(&ctx).await;
 }
 
-/// The Aerodactylite in the cracked rock (10, 15), hidden.
-pub async fn NoMansLand_Cratere_EventScript_HiddenAerodactylite(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`): a sign here instead.
-    hidden_item(
-        &ctx,
-        FLAG_SIL_ITEM_PG_CRATERE_AERODACTYLITE,
-        ITEM_SIL_AERODACTYLITE,
-    )
-    .await;
-}
-
 /// The Houndoominite on an ash ledge.
 pub async fn NoMansLand_Cratere_EventScript_ItemHoundoominite(ctx: Ctx) {
     find_item(&ctx, ITEM_SIL_HOUNDOOMINITE, 1).await;
@@ -586,9 +573,9 @@ pub async fn SommetApex_PG_Sc19(ctx: Ctx) {
     say(&ctx, Sommet_Apex_PG_Sc19_T2).await;
     say(&ctx, Sommet_Apex_PG_Sc19_T3).await;
     fade_white(&ctx, true).await;
-    // fallback: the original palette back, no weather, MUS_SIL_AUBE_VRAIE (§9).
-    fallback(&ctx, "set_palette_set").await;
-    fallback(&ctx, "set_weather").await;
+    // set_palette_set(ORIGINALE), set_weather(NONE); fallback: MUS_SIL_AUBE_VRAIE (§9).
+    clear_palette(&ctx, 0).await;
+    set_weather(&ctx, engine::weather::NONE).await;
     fallback(&ctx, "play_music").await;
     fade_white(&ctx, false).await;
     say(&ctx, Sommet_Apex_PG_Sc19_T4).await;

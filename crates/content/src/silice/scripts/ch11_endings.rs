@@ -19,7 +19,7 @@
 //! the hand (`elysium_free_roam`: no 30-second timer, no talk-to-all gate); the final texts are
 //! white on black (`show_text_on_black`, not the alternate end's gold on white); the credits are Emerald's credits screen
 //! alone, without the vignettes (`credits_montage`); the gold title screen is not shown before the
-//! reload (`show_title`); fades to white stand for the gold palette.
+//! reload (`show_title`). The gold palette is real (kept on every map from `Elysium_E1`).
 
 use super::ch11_apex::E3_CELL;
 use crate::silice::prelude::*;
@@ -63,7 +63,9 @@ pub(super) async fn elysium_e1(ctx: &Ctx, from: ElysiumFrom) {
     say(ctx, Elysium_E1_T2).await;
     // GOLD: the prelude's nearest colour is YELLOW (no gold constant).
     screen_flash(ctx, YELLOW).await;
-    fallback(ctx, "palette").await;
+    // set_palette(ALL, ELYSIUM_GOLD): every map in gold until the end (kept across loads; the
+    // reload of the last save ends it).
+    set_palette(ctx, ELYSIUM_GOLD, 0, true).await;
     fade_white(ctx, true).await;
     say(ctx, Elysium_E1_T3).await;
     ctx.set_var(VAR_SIL_FIN_SCENE, 2).await;

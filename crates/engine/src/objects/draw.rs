@@ -17,8 +17,12 @@ use alloc::vec::Vec;
 
 /// Tiles of one emote slot (a 16x16 bubble).
 pub const EMOTE_TILES: u16 = 4;
-/// First tile of the emote slots; objects use the tiles below.
+/// First tile of the emote slots.
 const EMOTE_FIRST_TILE: u16 = OBJ_TILES as u16 - EMOTES_MAX as u16 * EMOTE_TILES;
+/// Tiles below the emote slots kept for the sky's particles and overlay (`crate::sky`).
+pub const SKY_TILES: u16 = 32;
+/// First tile of the sky's run; objects use the tiles below.
+pub const SKY_FIRST_TILE: u16 = EMOTE_FIRST_TILE - SKY_TILES;
 /// Gen3 `sOamData_Icons.priority`.
 const EMOTE_PRIORITY: u8 = 1;
 
@@ -277,7 +281,7 @@ impl Objects {
         Some(first)
     }
 
-    /// The first run of `count` free OBJ tiles (first fit) below the emote slots, besides
+    /// The first run of `count` free OBJ tiles (first fit) below the sky's tiles, besides
     /// object `except`'s own and the virtual objects'.
     fn free_tiles(&self, except: Option<usize>, count: u16) -> Option<u16> {
         let mut used: Vec<(u16, u16)> = (self.objs.iter().enumerate())
@@ -293,7 +297,7 @@ impl Objects {
             }
             first = first.max(start + n);
         }
-        (first + count <= EMOTE_FIRST_TILE).then_some(first)
+        (first + count <= SKY_FIRST_TILE).then_some(first)
     }
 
     pub(super) fn palette_bank(
@@ -302,11 +306,14 @@ impl Objects {
         used: &mut u16,
         f: &mut Frame,
     ) -> Option<u8> {
-        let bank = match self.banks.iter().position(|b| b.as_ref() == Some(colors)) {
+        let free = |b: usize| self.reserved_banks & (1 << b) == 0;
+        let found = (0..16).find(|&b| free(b) && self.banks[b].as_ref() == Some(colors));
+        let bank = match found {
             Some(b) => b,
             None => {
-                let b = (self.banks.iter().position(Option::is_none))
-                    .or_else(|| (0..16).find(|b| *used & (1 << b) == 0))?;
+                let b = (0..16)
+                    .find(|&b| free(b) && self.banks[b].is_none())
+                    .or_else(|| (0..16).find(|&b| free(b) && *used & (1 << b) == 0))?;
                 self.banks[b] = Some(*colors);
                 f.cmds.push(Cmd::ObjPalette {
                     bank: b as u8,

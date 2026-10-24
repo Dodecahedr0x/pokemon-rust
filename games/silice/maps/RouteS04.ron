@@ -372,9 +372,9 @@
             x: 50,
             y: 3,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("RouteS04_EventScript_HiddenEther"),
+            kind: HiddenItem(
+                item: "ITEM_ETHER",
+                flag: "FLAG_SIL_ITEM_ROUTE_S04_ETHER",
             ),
         ),
         (

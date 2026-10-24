@@ -226,7 +226,13 @@ fn interact_bg_facing_rules() {
     for d in Dir::ALL {
         assert_eq!(t(5, 2, d), Some(Target::Bg(1)), "any facing");
     }
-    assert_eq!(t(5, 3, Dir::Up), None, "hidden items are ignored");
+    for d in Dir::ALL {
+        assert_eq!(
+            t(5, 3, d),
+            Some(Target::Bg(2)),
+            "a hidden item, from any side"
+        );
+    }
     assert_eq!(t(3, 3, Dir::Up), None);
 }
 

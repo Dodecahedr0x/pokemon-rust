@@ -12,8 +12,10 @@
 //! - **Modules** ([`MODULES`], [`field_move_gate`]): a module replaces an HM, usable "sans
 //!   Pokémon qui connaît la capacité" once its `FLAG_SIL_MODULE_*` is set. The engine drives
 //!   Surf, Waterfall and Dive from the field (`GameData::field_move_script`, the
-//!   `Mallette_Use*` scripts) and Fly from the party menu (the fly map); the other modules'
-//!   obstacles are map scripts (`prelude::module_obstacle`), so their gate stays `Never` (a
+//!   `Mallette_Use*` scripts), Fly from the party menu (the fly map) and the Champ Magnétique
+//!   as Gen3's Strength (`silice::push`: an A press on the object, then walking into it); the
+//!   other modules' obstacles are map scripts (`prelude::module_obstacle`). Their gates, the
+//!   Champ Magnétique's included, stay `Never` (a
 //!   flag gate would list them in the party menu, where the engine cannot use them).
 
 use crate::data;

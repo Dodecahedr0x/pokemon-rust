@@ -40,6 +40,9 @@ pub struct BattleRules {
     pub intro: Option<TextId>,
     /// The foe cannot be caught: the BALL is refused as in a trainer battle (a wild boss).
     pub no_catch: bool,
+    /// The field's weather as the battle starts (Gen3 `ABILITYEFFECT_SWITCH_IN_WEATHER` on
+    /// `GetCurrentWeather()`, set by the world from `crate::weather`, not by a request).
+    pub weather: Option<crate::weather::BattleWeather>,
 }
 
 impl BattleRules {
@@ -57,6 +60,9 @@ impl BattleRules {
         // Only when set: the rules without it hash as before.
         if self.no_catch {
             h.write(&[1]);
+        }
+        if let Some(w) = self.weather {
+            h.write(&[0xB8, w as u8]);
         }
     }
 

@@ -530,27 +530,27 @@
             x: 2,
             y: 22,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("ReverseCity_EventScript_HiddenPpUp"),
+            kind: HiddenItem(
+                item: "ITEM_PP_UP",
+                flag: "FLAG_SIL_ITEM_REVERSE_PP_UP",
             ),
         ),
         (
             x: 24,
             y: 25,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("ReverseCity_EventScript_HiddenHpUp"),
+            kind: HiddenItem(
+                item: "ITEM_HP_UP",
+                flag: "FLAG_SIL_ITEM_REVERSE_HP_UP",
             ),
         ),
         (
             x: 26,
             y: 30,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("ReverseCity_EventScript_HiddenPoudreSilice"),
+            kind: HiddenItem(
+                item: "ITEM_SIL_POUDRE_SILICE",
+                flag: "FLAG_SIL_ITEM_REVERSE_POUDRE_SILICE_2",
             ),
         ),
     ],

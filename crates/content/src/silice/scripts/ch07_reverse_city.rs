@@ -113,8 +113,8 @@ pub async fn ReverseCity_Sc01(ctx: Ctx) {
     }
     ctx.lock_all().await;
     say(&ctx, Reverse_City_Sc01_T1).await;
-    // NEGATIF: a white flash (no palette inversion; see the prelude's `NEGATIF`).
-    screen_flash(&ctx, NEGATIF).await;
+    // NEGATIF: the colours inverted for a flash's length.
+    negatif(&ctx, FLASH_FRAMES).await;
     say(&ctx, Reverse_City_Sc01_T2).await;
     set_input_inverted(&ctx, true).await;
     say(&ctx, Reverse_City_Sc01_T3).await;
@@ -405,30 +405,6 @@ pub async fn ReverseCity_EventScript_ItemPoudreSilice(ctx: Ctx) {
         say(&ctx, Poudre_Silice_Ramasse).await;
         ctx.release().await;
     }
-}
-
-/// Bin 2 in the west alley (2, 22).
-pub async fn ReverseCity_EventScript_HiddenPpUp(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of
-    // "SIL1 Task F as built"): the map has a sign here instead.
-    hidden_item(&ctx, FLAG_SIL_ITEM_REVERSE_PP_UP, ITEM_PP_UP).await;
-}
-
-/// Bin 4 on the quays (24, 25).
-pub async fn ReverseCity_EventScript_HiddenHpUp(ctx: Ctx) {
-    // fallback: hidden items (as above).
-    hidden_item(&ctx, FLAG_SIL_ITEM_REVERSE_HP_UP, ITEM_HP_UP).await;
-}
-
-/// Under the east pontoon (26, 30).
-pub async fn ReverseCity_EventScript_HiddenPoudreSilice(ctx: Ctx) {
-    // fallback: hidden items (as above).
-    hidden_item(
-        &ctx,
-        FLAG_SIL_ITEM_REVERSE_POUDRE_SILICE_2,
-        ITEM_SIL_POUDRE_SILICE,
-    )
-    .await;
 }
 
 // ---- the Centre ----

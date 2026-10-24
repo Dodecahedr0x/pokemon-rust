@@ -213,9 +213,9 @@
             x: 43,
             y: 22,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("RouteS05_EventScript_HiddenHeartScale"),
+            kind: HiddenItem(
+                item: "ITEM_HEART_SCALE",
+                flag: "FLAG_SIL_ITEM_ROUTE_S05_ECAILLE_COEUR",
             ),
         ),
     ],

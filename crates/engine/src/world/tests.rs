@@ -1142,6 +1142,7 @@ mod m8_h;
 mod m8_i;
 mod m8_m;
 // Milestone 9: one file per task.
+mod hidden_items;
 mod m9_b;
 mod m9_bm;
 mod m9_e;
@@ -1154,7 +1155,10 @@ mod m9_s;
 mod m9_sm;
 mod m9_w;
 mod m9_wave0;
+mod partners;
+mod pushes;
 mod sil6_clock;
+mod sky;
 // Wave C: one file per cluster.
 mod field_moves;
 mod warp_exits;

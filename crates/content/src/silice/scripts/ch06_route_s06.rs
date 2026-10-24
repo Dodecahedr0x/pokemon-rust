@@ -127,8 +127,9 @@ const ADRIEN_THROUGH: &[Step] = &[
 ];
 
 /// Route_S06_Sc02, the Princesse rescued: the plateau's stairs top (12–15, 28) at
-/// `VAR_SIL_STORY` 60. Adrien and the two grunts, the multi battle (its fallback: two single
-/// battles, Adrien's onigiri heal between them), the curtain opened. Sets 61.
+/// `VAR_SIL_STORY` 60. Adrien and the two grunts, the multi battle beside Adrien
+/// (`TRAINER_SIL_ADRIEN_1`; the fallback's onigiri heal, `T5b`, is not said), the curtain
+/// opened. Sets 61.
 pub async fn RouteS06_Sc02(ctx: Ctx) {
     if story(&ctx).await != 60 {
         return;
@@ -152,17 +153,14 @@ pub async fn RouteS06_Sc02(ctx: Ctx) {
     say(&ctx, Route_S06_Sc02_T4).await;
     move_wait(&ctx, LOCALID_ROUTE_S06_ADRIEN, ADRIEN_BESIDE).await;
     say(&ctx, Route_S06_Sc02_T5).await;
-    // fallback: battle_multi(SBIRE_S06_1, SBIRE_S06_2, partner ADRIEN_1) (M11's multi): the
-    // source's own fallback, two single battles, Adrien's heal (T5b) between them.
-    fallback(&ctx, "battle_multi").await;
-    // A loss to grunt B whites out and the scene replays at 60: grunt A stays beaten, as the
-    // Dojo's queue fans.
-    if !defeated(&ctx, TRAINER_SIL_SBIRE_S06_1).await {
-        battle_trainer(&ctx, TRAINER_SIL_SBIRE_S06_1, Route_S06_Sc02_D1).await;
-    }
-    say(&ctx, Route_S06_Sc02_T5b).await;
-    ctx.heal_party().await;
-    battle_trainer(&ctx, TRAINER_SIL_SBIRE_S06_2, Route_S06_Sc02_D2).await;
+    // A loss whites out and the scene replays at 60.
+    battle_multi(
+        &ctx,
+        TRAINER_SIL_ADRIEN_1,
+        (TRAINER_SIL_SBIRE_S06_1, Route_S06_Sc02_D1),
+        (TRAINER_SIL_SBIRE_S06_2, Route_S06_Sc02_D2),
+    )
+    .await;
     say(&ctx, Route_S06_Sc02_T6).await;
     ctx.move_obj(LOCALID_ROUTE_S06_SBIRE_A, SBIRE_A_OUT).await;
     move_wait(&ctx, LOCALID_ROUTE_S06_SBIRE_B, SBIRE_B_OUT).await;
@@ -346,13 +344,6 @@ pub async fn RouteS06_EventScript_ItemDragonScale(ctx: Ctx) {
     find_item(&ctx, ITEM_DRAGON_SCALE, 1).await;
 }
 
-/// The Lax Incense behind the third burner (17, 24).
-pub async fn RouteS06_EventScript_HiddenEncens(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the SIL1 Task F
-    // fallback): a sign on the cell (`06_ch6_scripts.ron`) runs `hidden_item`.
-    hidden_item(&ctx, FLAG_SIL_ITEM_ROUTE_S06_ENCENS, ITEM_LAX_INCENSE).await;
-}
-
 // ---- the Bois des Soupirs ----
 
 /// Bois_Soupirs_Sc01, the Pierre aux Vers: the old verse before the chapter's end
@@ -390,13 +381,3 @@ pub async fn RouteS06_BoisSoupirs_EventScript_ItemHeartScale(ctx: Ctx) {
     find_item(&ctx, ITEM_HEART_SCALE, 1).await;
 }
 
-/// The Miracle Seed at the foot of the biggest cherry tree (6, 8).
-pub async fn RouteS06_BoisSoupirs_EventScript_HiddenMiracleSeed(ctx: Ctx) {
-    // fallback: hidden items (as above).
-    hidden_item(
-        &ctx,
-        FLAG_SIL_ITEM_BOIS_SOUPIRS_MIRACLE_SEED,
-        ITEM_MIRACLE_SEED,
-    )
-    .await;
-}

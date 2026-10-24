@@ -5,7 +5,7 @@
         music: "MUS_GYM",
         region_map_section: "MAPSEC_NONE",
         cave: 0,
-        weather: "WEATHER_NONE",
+        weather: "WEATHER_0x40",
         map_type: "MAP_TYPE_TOWN",
         allow_cycling: false,
         allow_escaping: false,

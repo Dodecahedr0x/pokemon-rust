@@ -678,18 +678,18 @@
             x: 3,
             y: 4,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("SommetApex_EventScript_HiddenPpMax"),
+            kind: HiddenItem(
+                item: "ITEM_PP_MAX",
+                flag: "FLAG_SIL_ITEM_APEX_HIDDEN_PP_MAX",
             ),
         ),
         (
             x: 17,
             y: 14,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("SommetApex_EventScript_HiddenElixir"),
+            kind: HiddenItem(
+                item: "ITEM_MAX_ELIXIR",
+                flag: "FLAG_SIL_ITEM_APEX_HIDDEN_ELIXIR",
             ),
         ),
     ],

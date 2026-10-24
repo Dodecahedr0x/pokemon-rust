@@ -738,18 +738,18 @@
             x: 4,
             y: 14,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("BoisEther_EventScript_HiddenSuperPotion"),
+            kind: HiddenItem(
+                item: "ITEM_SUPER_POTION",
+                flag: "FLAG_SIL_ITEM_BOIS_ETHER_SUPER_POTION",
             ),
         ),
         (
             x: 4,
             y: 7,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("BoisEther_EventScript_HiddenEvoluroc"),
+            kind: HiddenItem(
+                item: "ITEM_SIL_EVOLUROC",
+                flag: "FLAG_SIL_ITEM_BOIS_ETHER_EVOLUROC",
             ),
         ),
         (

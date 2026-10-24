@@ -10,7 +10,7 @@
 //   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
 // Only Unsupported commands report.
 //
-// Counts: 117 Native, 44 Ignore, 13 Default, 53 Unsupported.
+// Counts: 120 Native, 41 Ignore, 13 Default, 53 Unsupported.
 //
 // Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
 {
@@ -177,9 +177,9 @@
     "checkplayergender": Native,
     "playmoncry": Ignore,                           // audio (no sound until M12)
     "setmetatile": Native,
-    "resetweather": Ignore,                         // weather is not drawn
-    "setweather": Ignore,                           // weather is not drawn
-    "doweather": Ignore,                            // weather is not drawn
+    "resetweather": Native,
+    "setweather": Native,
+    "doweather": Native,
     "setstepcallback": Ignore,                      // GameData::step_callback answers the map's on_resume value (ice, cracked floors); ash, bridges and the truck are not modelled
     "setmaplayoutindex": Native,
     "setobjectsubpriority": Ignore,                 // sprite draw order only

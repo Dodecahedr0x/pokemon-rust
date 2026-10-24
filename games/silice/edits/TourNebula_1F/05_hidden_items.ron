@@ -1,0 +1,6 @@
+// The hidden items wave: the hidden items are Gen3's own again (BgKind::HiddenItem: A in front
+// of one runs the game's EventScript_HiddenItemScript, silice::scripts::field), no longer signs
+// running the `hidden_item` fallback.
+[
+    Replace(index: 6, event: Bg((x: 21, y: 9, elevation: 0, kind: HiddenItem(item: "ITEM_MAX_ELIXIR", flag: "FLAG_SIL_ITEM_TOUR_1F_MAX_ELIXIR")))),
+]

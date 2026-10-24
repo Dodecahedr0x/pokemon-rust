@@ -10,7 +10,7 @@
 //! beaten flag), [`trainer`] (a route trainer; the registry lists its script for sight) and
 //! [`post_battle`] (its line once beaten),
 //! [`gift`] (an item given once, behind its `FLAG_SIL_ITEM_*`), [`hidden_item`] (a hidden item
-//! as a sign script, a fallback).
+//! behind a story condition; the others are `BgKind::HiddenItem` bg events).
 //!
 //! **Module obstacles:** [`cut_obstacle`] (the generic Lame-Frequence obstacle) and
 //! [`repaint_if`] (its `on_load` repaint), with [`METATILE_RONCES_COUPEES`]; [`Obstacle`] with
@@ -26,7 +26,11 @@
 //! **Buildings:** [`pokecenter_nurse`] (Gen3's nurse), [`mart`] (a fallback until M9's shop).
 //!
 //! **Screen effects:** [`screen_shake`], [`screen_flash`] (with [`WHITE`], [`YELLOW`],
-//! [`BLACK`], [`NEGATIF`]), [`fade_white`], [`show_text_on_black`], [`camera_pan`].
+//! [`BLACK`]), [`negatif`], [`fade_white`], [`show_text_on_black`], [`camera_pan`].
+//!
+//! **Skies** (`silice::sky`): [`set_palette`] / [`clear_palette`] with the source's palettes
+//! ([`NUIT`], [`SKY_ALERT_RED`], [`ELYSIUM_GOLD`], [`DETRUITE`]…), [`set_weather`] (Gen3's
+//! weathers and [`WEATHER_PETALS`]), the sky's crack ([`SKY_CRACK`], `Ctx::show_overlay`).
 //!
 //! **Fallbacks:** [`fallback`] reports `Report::Degraded(name)` and returns, so the scene goes
 //! on: [`play_se`] (nothing),
@@ -121,17 +125,17 @@ pub async fn gift(ctx: &Ctx, flag: FlagId, item: u16, qty: u16, how: Obtain) -> 
     fit
 }
 
-/// A hidden item as a sign script (the engine does not pick up `BgKind::HiddenItem` yet):
-/// nothing once `flag` is set; else, locked, Gen3 `giveitem` (its "Obtained" and pocket
-/// messages) and `flag` when it fit. A fallback (`Report::Degraded("hidden item")`).
+/// A hidden item behind a story condition (a sign script whose condition holds): what a
+/// `BgKind::HiddenItem` does, Gen3 `GetInteractedBackgroundEventScript` then
+/// `EventScript_HiddenItemScript` (nothing once `flag` is set). The unconditional hidden items
+/// are `BgKind::HiddenItem` bg events.
 pub async fn hidden_item(ctx: &Ctx, flag: FlagId, item: u16) {
     if ctx.flag(flag).await {
         return;
     }
-    fallback(ctx, "hidden item").await;
-    ctx.lock().await;
-    gift(ctx, flag, item, 1, Obtain::Message).await;
-    ctx.release().await;
+    ctx.set_var(VAR_0x8004, flag.0).await;
+    ctx.set_var(VAR_0x8005, item).await;
+    crate::prelude::hidden_item_script(ctx).await;
 }
 
 // ---- module obstacles ----
@@ -334,9 +338,15 @@ pub const WHITE: u16 = 0x7FFF;
 pub const YELLOW: u16 = 0x03FF;
 /// `screen_flash(PIXELS_NOIRS)`.
 pub const BLACK: u16 = 0x0000;
-/// `screen_flash(NEGATIF)`: no inverted palette (`Request::ScreenFlash` fills one colour); a
-/// white flash stands in. Author question: keep it, or ask for a palette inversion.
-pub const NEGATIF: u16 = WHITE;
+// Palettes, weathers and the sky's crack (`silice::sky`).
+pub use crate::silice::sky::{
+    AUBE, CREPUSCULE, DETRUITE, ELYSIUM_GOLD, NEGATIF, NUIT, NUIT_VRAIE, PALETTE_FRAMES, Palette,
+    SKY_ALERT_RED, SKY_CRACK, SKY_CRACK_FRAMES, STROBES, WEATHER_PETALS, clear_palette, negatif,
+    set_palette, set_weather,
+};
+
+// The Champ Magnétique (`silice::push`).
+pub use crate::silice::push::PUSH_FRAMES;
 
 /// How long a flash stays on screen when the source gives no duration (16 frames).
 pub const FLASH_FRAMES: u16 = 16;
@@ -409,6 +419,36 @@ pub async fn battle_two_trainers(
     fallback(ctx, "battle_two_trainers").await;
     battle_trainer(ctx, a, a_defeat).await;
     battle_trainer(ctx, b, b_defeat).await
+}
+
+/// The source's `battle_multi(A, B, partner)` (Gen3's multi battle with an in-game partner,
+/// as Steven's): the player's first three mons beside `partner`'s (its trainer party, its AI)
+/// against trainers A and B. Both trainers' beaten flags are set unless the player lost (a
+/// loss whites out). Their own rules (`GameData::trainer_rules`, trainer A's) apply.
+pub async fn battle_multi(
+    ctx: &Ctx,
+    partner: TrainerId,
+    (a, a_defeat): (TrainerId, TextId),
+    (b, b_defeat): (TrainerId, TextId),
+) -> BattleOutcome {
+    let outcome = ctx
+        .battle_multi_with(partner, (a, a_defeat), (b, b_defeat))
+        .await;
+    if !matches!(outcome, BattleOutcome::Lost | BattleOutcome::Drew) {
+        ctx.set_flag(trainer_flag(a), true).await;
+        ctx.set_flag(trainer_flag(b), true).await;
+    }
+    outcome
+}
+
+/// The source's `battle_wild_double(S1, L1, S2, L2, partner)`: two wild mons at once, beside
+/// `partner` (its trainer party, its AI) when given.
+pub async fn battle_wild_double(
+    ctx: &Ctx,
+    mons: [(SpeciesId, u8); 2],
+    partner: Option<TrainerId>,
+) -> BattleOutcome {
+    ctx.battle_wild_double(mons, partner, None).await
 }
 
 /// The source's `show_sync(n)`: the Mallette's animated synchronisation gauge (`VAR_SIL_SYNC`,

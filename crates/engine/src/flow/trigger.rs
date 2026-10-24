@@ -64,7 +64,7 @@ pub const fn elevation_matches(a: u8, b: u8) -> bool {
 
 /// Event elevation rule (Gen3 `Get{Warp,Coord,Background}EventAtPosition`): an event at
 /// elevation 0 matches any position; otherwise elevations must be equal.
-const fn event_matches(event: u8, position: u8) -> bool {
+pub const fn event_matches(event: u8, position: u8) -> bool {
     event == 0 || event == position
 }
 
@@ -150,7 +150,8 @@ pub fn door_warp(
 /// `object_at(x, y, elevation)` returns the local id of a live object on that cell whose elevation
 /// [`elevation_matches`]. It should skip the player; a returned `data::PLAYER` is ignored anyway. Across a `Counter` the
 /// object one cell further is reached. Bg events are only looked up on the front cell; a
-/// facing-restricted sign seen from the wrong side, and hidden items, give `None`.
+/// facing-restricted sign seen from the wrong side gives `None`, a hidden item is reached from
+/// any side (its flag is the caller's: Gen3 `GetInteractedBackgroundEventScript`).
 pub fn interact_target(
     map: &MapData,
     x: i16,
@@ -177,7 +178,8 @@ pub fn interact_target(
         .find(|(_, b)| b.x == x && b.y == y && event_matches(b.elevation, elevation))?;
     match bg.kind {
         BgKind::Script { facing, .. } if facing.is_none_or(|f| f == dir) => Some(Target::Bg(i)),
-        _ => None,
+        BgKind::HiddenItem { .. } => Some(Target::Bg(i)),
+        BgKind::Script { .. } => None,
     }
 }
 

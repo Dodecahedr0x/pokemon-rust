@@ -70,6 +70,8 @@ pub async fn Nebula_OnTransition(ctx: Ctx) {
     ] {
         ctx.set_flag(f, s != 126).await;
     }
+    // Chapter 12's destroyed sky (127–129).
+    super::ch12_breche::destroyed_sky(&ctx).await;
 }
 
 /// Nothing: the map has no Dive connection, so its two dive spots (the Bassin (50–52, 10–13)
@@ -297,19 +299,6 @@ pub async fn Nebula_EventScript_ItemManectite(ctx: Ctx) {
         ctx.remove_object(obj as u8).await;
     }
     ctx.release().await;
-}
-
-/// The plastic flower bed (20, 38).
-pub async fn Nebula_EventScript_HiddenPpUp(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`): a sign here instead
-    // (`06_ch9_scripts.ron`).
-    hidden_item(&ctx, FLAG_SIL_ITEM_NEBULA_CACHE_1, ITEM_PP_UP).await;
-}
-
-/// Behind the broken drone on the quai (10, 44).
-pub async fn Nebula_EventScript_HiddenRevive(ctx: Ctx) {
-    // fallback: hidden items, as `Nebula_EventScript_HiddenPpUp`.
-    hidden_item(&ctx, FLAG_SIL_ITEM_NEBULA_CACHE_2, ITEM_REVIVE).await;
 }
 
 // ---- the Centre ----

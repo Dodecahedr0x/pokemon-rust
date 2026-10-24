@@ -383,9 +383,9 @@
             x: 13,
             y: 5,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("RouteS09_EventScript_HiddenFullRestore"),
+            kind: HiddenItem(
+                item: "ITEM_FULL_RESTORE",
+                flag: "FLAG_SIL_ITEM_S09_CACHE_1",
             ),
         ),
     ],

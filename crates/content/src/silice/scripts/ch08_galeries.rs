@@ -87,15 +87,3 @@ pub async fn Evalon_Galeries_EventScript_ItemMinerai(ctx: Ctx) {
     find_item(&ctx, ITEM_SIL_MINERAI_FERREUX, 1).await;
 }
 
-/// The Nugget under the collapsed prop (9, 10).
-pub async fn Evalon_Galeries_EventScript_HiddenNugget(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of
-    // "SIL1 Task F as built"): the map has a sign here instead (`06_ch8_scripts.ron`).
-    hidden_item(&ctx, FLAG_SIL_ITEM_EVALON_GALERIES_2, ITEM_NUGGET).await;
-}
-
-/// The Link Stone near the ore (18, 1).
-pub async fn Evalon_Galeries_EventScript_HiddenPierreLien(ctx: Ctx) {
-    // fallback: hidden items (as above).
-    hidden_item(&ctx, FLAG_SIL_ITEM_EVALON_PIERRE_LIEN, ITEM_SIL_PIERRE_LIEN).await;
-}

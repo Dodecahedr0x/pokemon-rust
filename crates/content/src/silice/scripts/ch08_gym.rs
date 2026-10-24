@@ -8,7 +8,7 @@
 //! maps as built"); `VAR_TEMP_5`, `_6` the golems' cells and `VAR_TEMP_4` the first push's line
 //! (`push_object`).
 
-use super::ch04_port::{Pushable, push_object};
+use super::ch04_port::{Puzzle, push_object};
 use super::ch08_evalon::lost;
 use super::ch08_galeries::step_back;
 use crate::silice::prelude::*;
@@ -129,14 +129,18 @@ const GOLEMS: [(u8, VarId, (i16, i16)); 2] = [
     (LOCALID_GYM8_GOLEM_GAUCHE, VAR_TEMP_5, (3, 34)),
     (LOCALID_GYM8_GOLEM_DROITE, VAR_TEMP_6, (7, 34)),
 ];
-const GOLEMS_PUSH: &[Pushable] = &[
+pub(crate) const GOLEMS_PUSH: Puzzle = Puzzle {
+    map: MAP_EVALON_CITADELLE,
+    objects: &[
     (LOCALID_GYM8_GOLEM_GAUCHE, VAR_TEMP_5, (3, 36)),
     (LOCALID_GYM8_GOLEM_DROITE, VAR_TEMP_6, (7, 36)),
-];
+],
+    free: golem_free,
+};
 
 /// A golem moves along its own column (3 or 7) inside room 2's floor (y 34–37), so it can never
 /// stand on the centre column (5) that leads to the bridge.
-fn golem_free((x, y): (i16, i16)) -> bool {
+fn golem_free(_: (i16, i16), (x, y): (i16, i16)) -> bool {
     (x == 3 || x == 7) && (34..=37).contains(&y)
 }
 
@@ -146,15 +150,22 @@ pub async fn Evalon_Citadelle_EventScript_Golem(ctx: Ctx) {
     if ctx.flag(FLAG_SIL_EVALON_GYM_PONT).await {
         return;
     }
-    push_object(&ctx, GOLEMS_PUSH, golem_free).await;
-    for (_, var, (x, y)) in GOLEMS {
-        if ctx.var(var).await != (y * 64 + x + 1) as u16 {
+    push_object(&ctx).await;
+}
+
+/// After a golem's push (`scripts::field::Mallette_Pushed`): both on their plates, the bridge
+/// (once the golem has stopped), and Strength no more on this load.
+pub(crate) async fn golem_pushed(ctx: &Ctx) {
+    for (_, var, cell) in GOLEMS {
+        if ctx.var(var).await != crate::silice::push::cell_var(cell) {
             return;
         }
     }
+    ctx.set_flag(FLAG_SYS_USE_STRENGTH, false).await;
+    ctx.delay(PUSH_FRAMES).await;
     ctx.lock_all().await;
-    play_se(&ctx, "SE_M_STRENGTH").await;
-    paint(&ctx, PONT).await;
+    play_se(ctx, "SE_M_STRENGTH").await;
+    paint(ctx, PONT).await;
     ctx.redraw_map().await;
     ctx.set_flag(FLAG_SIL_EVALON_GYM_PONT, true).await;
     ctx.release_all().await;

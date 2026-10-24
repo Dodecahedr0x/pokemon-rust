@@ -206,35 +206,4 @@ async fn empty_sacks(ctx: &Ctx) {
     }
 }
 
-// fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of "SIL1 Task F
-// as built"): the map has a sign at each of these instead.
 
-/// The Iron in the north nook (31, 2).
-pub async fn Owlys_Entrepot_B1F_EventScript_HiddenIron(ctx: Ctx) {
-    hidden_item(&ctx, FLAG_SIL_ITEM_OWLYS_SILO_FER, ITEM_IRON).await;
-}
-
-/// The Zinc behind a tank by junction 3 (9, 24).
-pub async fn Owlys_Entrepot_B1F_EventScript_HiddenZinc(ctx: Ctx) {
-    hidden_item(&ctx, FLAG_SIL_ITEM_OWLYS_SILO_ZINC, ITEM_ZINC).await;
-}
-
-/// The Calcium by the lift's landing (15, 3).
-pub async fn Owlys_Entrepot_B1F_EventScript_HiddenCalcium(ctx: Ctx) {
-    hidden_item(&ctx, FLAG_SIL_ITEM_OWLYS_SILO_CALCIUM, ITEM_CALCIUM).await;
-}
-
-/// The Link Stone on the processor crate at junction 2's dead end (15, 14).
-pub async fn Owlys_Entrepot_B1F_EventScript_HiddenPierreLien(ctx: Ctx) {
-    hidden_item(
-        &ctx,
-        FLAG_SIL_ITEM_OWLYS_SILO_PIERRE_LIEN,
-        ITEM_SIL_PIERRE_LIEN,
-    )
-    .await;
-}
-
-/// The Sablenite in a cracked tank behind the reserve (33, 27).
-pub async fn Owlys_Entrepot_B1F_EventScript_HiddenSablenite(ctx: Ctx) {
-    hidden_item(&ctx, FLAG_SIL_ITEM_OWLYS_SILO_SABLENITE, ITEM_SIL_SABLENITE).await;
-}

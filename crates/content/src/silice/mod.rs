@@ -27,7 +27,9 @@
 pub mod mallette;
 pub mod new_game;
 pub mod prelude;
+pub mod push;
 pub mod rules;
+pub mod sky;
 
 #[cfg(test)]
 mod game_tests;
@@ -93,6 +95,16 @@ impl GameData for Game {
         }
     }
 
+    /// Chapter 6's petals (`sky::WEATHER_PETALS`).
+    fn weather_look(&self, id: u8) -> Option<&'static engine::weather::Look> {
+        sky::weather_look(id)
+    }
+
+    /// The Zenith's sky crack (`sky::SKY_CRACK`).
+    fn overlay(&self, id: u8) -> Option<&'static engine::sky::Overlay> {
+        sky::overlay(id)
+    }
+
     /// The Mallette's modules ([`mallette::field_move_gate`]).
     fn field_move_gate(&self, m: FieldMove) -> FieldMoveGate {
         mallette::field_move_gate(m)
@@ -104,6 +116,28 @@ impl GameData for Game {
 
     fn field_move_script(&self, m: FieldMove) -> Option<ScriptId> {
         mallette::field_move_script(m)
+    }
+
+    /// Gen3's hidden items (`scripts::field::EventScript_HiddenItemScript`).
+    fn hidden_item_script(&self) -> Option<ScriptId> {
+        Some(data::script_ids::EventScript_HiddenItemScript)
+    }
+
+    /// The Champ Magnétique's objects (`push`): Gen3's boulder graphics and Strength's flag,
+    /// set by the module ([`push`]'s A press).
+    fn pushable_boulder(&self) -> Option<(engine::data::GfxId, engine::data::FlagId)> {
+        Some((
+            engine::data::GfxId(OBJ_EVENT_GFX_PUSHABLE_BOULDER),
+            FLAG_SYS_USE_STRENGTH,
+        ))
+    }
+
+    fn push_allowed(&self, map: MapId, local_id: u8, from: (i16, i16), to: (i16, i16)) -> bool {
+        push::push_allowed(map, local_id, from, to)
+    }
+
+    fn pushed_script(&self, map: MapId) -> Option<ScriptId> {
+        push::pushed_script(map)
     }
 
     fn waterfall_refused_script(&self) -> Option<ScriptId> {

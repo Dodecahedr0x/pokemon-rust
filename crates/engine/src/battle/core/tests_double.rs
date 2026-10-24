@@ -307,3 +307,98 @@ fn singles_have_no_doubles_state() {
     assert_eq!(r.b.fx.follow_me, [None; 2]);
     assert_eq!(r.b.fx.helping_hand, 0);
 }
+
+/// A started wild double battle (`battle_wild_double`): two wild mons, the player's left mon
+/// beside the player's second or the in-game partner's (`partner`: its mons are the player
+/// party's from slot 1).
+fn wild_double(player: &[Pokemon], foes: &[Pokemon], partner: bool, seed: u32) -> Run {
+    let mut rng = Rng::new(before_setup_draws(seed));
+    let setup = BattleSetup {
+        kind: BattleKind::Wild {
+            first_battle: false,
+        },
+        opponents: party(foes),
+        environment: Environment::Grass,
+        double: Some(Double {
+            partner: partner.then_some(crate::data::TrainerId(1)),
+            split: [u8::from(partner), 0],
+            ..Default::default()
+        }),
+        rules: Default::default(),
+    };
+    let mut b = Battle::new(&Game, setup, &party(player), &mut rng);
+    let mut out = Vec::new();
+    b.start(&Game, &mut rng, &mut out);
+    Run { b, rng, out }
+}
+
+/// The wild double's intro: both wild mons appear at once (no trainer), Gen3's two-mon line
+/// degraded to the one-mon line; then the player's two (or the player's and the partner's).
+#[test]
+fn wild_double_intro_has_no_trainer() {
+    let r = wild_double(
+        &[hitter(9, &[REAL_SPLASH]), hitter(3, &[REAL_SPLASH])],
+        &[foe(7, &[REAL_SPLASH]), foe(5, &[REAL_SPLASH])],
+        true,
+        1,
+    );
+    let l = r.intro();
+    assert_eq!(r.b.count(), 4);
+    assert_eq!(l[0], "WildAppear", "{l:?}");
+    assert!(has(&l, "Intro1@O"), "{l:?}");
+    assert!(!has(&l, "TrainerAppear"), "{l:?}");
+    assert!(!has(&l, "SendOut O") && !has(&l, "SendOut o"), "{l:?}");
+    assert!(has(&l, "SendOut P") && has(&l, "SendOut p"), "{l:?}");
+    // The partner chooses: only the player's left battler is asked.
+    assert_eq!(r.b.need(), Need::Action);
+    assert_eq!(r.b.choosing(), P);
+}
+
+/// Gen3 `OpponentHandleChooseMove` without the AI (a wild mon) in a double: the move's target
+/// is `GetBattlerAtPosition(Random() & 2)`, either player battler. The BALL is refused in a
+/// wild double (a deviation: Emerald has no wild doubles to throw in).
+#[test]
+fn wild_double_foes_target_either_player_battler() {
+    let mut seen = [false; 2];
+    for seed in 1..40 {
+        let mut r = wild_double(
+            &[hitter(9, &[REAL_SPLASH]), hitter(3, &[REAL_SPLASH])],
+            &[foe(7, &[TACKLE]), foe(5, &[TACKLE])],
+            false,
+            seed,
+        );
+        assert!(r.choose(Choice::Ball).is_empty());
+        assert_eq!(
+            (r.b.need(), r.b.choosing()),
+            (Need::Action, P),
+            "the ball is refused"
+        );
+        turn(&mut r, Choice::Move(0), Choice::Move(0));
+        seen[0] |= r.b.mon(P).hp < 200;
+        seen[1] |= r.b.mon(PR).hp < 200;
+    }
+    assert_eq!(seen, [true, true]);
+}
+
+/// Both wild mons fainted: the battle is won.
+#[test]
+fn wild_double_is_won_when_both_foes_faint() {
+    let mut r = wild_double(
+        &[hitter(9, &[MEGA_HIT]), hitter(8, &[MEGA_HIT])],
+        &[foe(7, &[REAL_SPLASH]), foe(5, &[REAL_SPLASH])],
+        false,
+        1,
+    );
+    for _ in 0..20 {
+        match r.b.need() {
+            Need::Action => {
+                let t = |s| Choice::MoveAt { slot: 0, target: s };
+                let o = if r.b.mon(O).hp > 0 { O } else { OR };
+                turn(&mut r, t(o), t(o));
+            }
+            Need::Ended(_) => break,
+            n => panic!("{n:?}"),
+        }
+    }
+    assert_eq!(r.b.need(), Need::Ended(crate::battle::BattleOutcome::Won));
+}

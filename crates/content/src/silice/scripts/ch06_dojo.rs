@@ -431,15 +431,3 @@ pub async fn MangaSquare_Bibliotheque_EventScript_Etudiant(ctx: Ctx) {
     msgbox(&ctx, Biblio_Npc_Etudiant, MsgBox::Npc).await;
 }
 
-/// Manga_Square_Bibliotheque_Sc02: the Moon Stone behind the west rack (1, 18).
-pub async fn MangaSquare_Bibliotheque_EventScript_HiddenMoonStone(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`): a sign on the cell
-    // (`06_ch6_scripts.ron`) runs `hidden_item`.
-    hidden_item(&ctx, FLAG_SIL_ITEM_BIBLIO_MOON_STONE, ITEM_MOON_STONE).await;
-}
-
-/// Manga_Square_Bibliotheque_Sc02: the Sun Stone behind the east rack (24, 18).
-pub async fn MangaSquare_Bibliotheque_EventScript_HiddenSunStone(ctx: Ctx) {
-    // fallback: hidden items, as the Moon Stone.
-    hidden_item(&ctx, FLAG_SIL_ITEM_BIBLIO_SUN_STONE, ITEM_SUN_STONE).await;
-}

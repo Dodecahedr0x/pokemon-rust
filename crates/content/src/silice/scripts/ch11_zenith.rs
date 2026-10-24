@@ -3,9 +3,9 @@
 //! `Sommet_Apex_Sc07`'s ascent, `Trone_Zenith_Sc08`–`Sc11`, `Ascenseur_Sc12`.
 //!
 //! The way (115 → 118): Cocorico on the throne (`Sc08`, the alternate ending's last chance, the
-//! battle without whiteout, `Sc08_Lose`), the Rupture (`Sc09`, 116). The source's fallback for the
-//! night palette is the map variant and a warp on black (§9 `set_palette`): `Sc09` ends on black
-//! and the night map's on-frame (116) plays `Sc10`–`Sc11` (117), then the cabin's descent
+//! battle without whiteout, `Sc08_Lose`), the Rupture (`Sc09`, 116: the sky's crack, the true
+//! night's palette). `Sc09` ends on black and the night map (the true night's palette on each
+//! load) plays `Sc10`–`Sc11` on-frame (117), then the cabin's descent
 //! (`Sc12`, 118) leaves for Nébula's Place, where `Nebula_Sc13` plays the ending.
 
 use super::ch08_evalon::lost;
@@ -130,7 +130,9 @@ pub async fn TroneZenith_Sc08(ctx: Ctx) {
 /// there (`SommetApex_Sc08_Lose`, `VAR_SIL_FIN_SCENE` 8). The story stays 115: the tube takes
 /// the player up again.
 async fn TroneZenith_Sc08_Lose(ctx: &Ctx) {
-    // fallback: the gold palette over everything (set_palette ALL): a fade to black.
+    // set_palette(ALL, ELYSIUM_GOLD) then fade(Out). Read as this scene's gold: the warp ends it,
+    // and the Apex is gold on its own while Elysium is on.
+    set_palette(ctx, ELYSIUM_GOLD, PALETTE_FRAMES, false).await;
     ctx.fade(Fade::ToBlack).await;
     say(ctx, Trone_Zenith_Sc08_Lose_T1).await;
     ctx.heal_party().await;
@@ -159,11 +161,10 @@ async fn TroneZenith_Sc09(ctx: &Ctx) {
     screen_flash(ctx, WHITE).await;
     // fallback: METATILE_PRISME_BRISE has no tile: the diffuser stays drawn until the night map.
     say(ctx, Trone_Zenith_Sc09_T2).await;
-    // fallback: the sky's crack (sky_crack_animation) and the true-night palette: a white flash,
-    // then the night variant of the map (the source's own fallback).
-    fallback(ctx, "sky_crack").await;
-    ctx.fade(Fade::ToWhite).await;
-    ctx.fade(Fade::FromWhite).await;
+    // sky_crack_animation(), set_weather(WEATHER_NONE), set_palette(MAP_TRONE_ZENITH, NUIT_VRAIE).
+    ctx.show_overlay(SKY_CRACK, SKY_CRACK_FRAMES).await;
+    set_weather(ctx, engine::weather::NONE).await;
+    set_palette(ctx, NUIT_VRAIE, PALETTE_FRAMES, false).await;
     ctx.set_flag(FLAG_SIL_ELYSIUM_ACTIF, false).await;
     ctx.set_flag(FLAG_SIL_CIEL_VRAI, true).await;
     say(ctx, Trone_Zenith_Sc09_T3).await;
@@ -199,6 +200,7 @@ pub async fn TroneZenith_Nuit_OnLoad(_ctx: Ctx) {}
 
 /// The friends hidden on arrival (`Sc11` shows them), as `TroneZenith`'s.
 pub async fn TroneZenith_Nuit_OnTransition(ctx: Ctx) {
+    set_palette(&ctx, NUIT_VRAIE, 0, false).await;
     TroneZenith_OnTransition(ctx).await;
 }
 

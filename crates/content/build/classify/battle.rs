@@ -1077,6 +1077,8 @@ pub const STRS: &[(&str, StrSrc)] = {
         ("PkmnReadyToHelp", Key("STRINGID_PKMNREADYTOHELP")),
         ("PkmnsXTookAttack", Key("STRINGID_PKMNSXTOOKATTACK")),
         ("Trainer1UsedItem", Key("STRINGID_TRAINER1USEDITEM")),
+        ("ItIsRaining", Key("STRINGID_ITISRAINING")),
+        ("SandstormIsRaging", Key("STRINGID_SANDSTORMISRAGING")),
         // Post-Gen3: no Gen3 string.
         ("MegaReacting", Missing),
         ("MegaEvolved", Missing),

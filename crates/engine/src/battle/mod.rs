@@ -920,6 +920,10 @@ pub enum Str {
     PkmnsXTookAttack,
     /// `STRINGID_TRAINER1USEDITEM` (a trainer's item, Silice's trainer item AI).
     Trainer1UsedItem,
+    /// `STRINGID_ITISRAINING` (`BattleScript_OverworldWeatherStarts`: the field's rain).
+    ItIsRaining,
+    /// `STRINGID_SANDSTORMISRAGING` (the field's sandstorm).
+    SandstormIsRaging,
     /// `gAbilityNames[a]`. The ability codes (`B_ATK_ABILITY`, `B_DEF_ABILITY`,
     /// `B_SCR_ACTIVE_ABILITY`, `B_EFF_ABILITY`, `B_LAST_ABILITY`) expand `Msg::buffs[2]`, which
     /// the core sets to `Buff::Text(Str::AbilityName(..))` for the messages that name one.
@@ -1275,6 +1279,8 @@ impl Str {
             // The text id is hashed after the code (`scene/hash.rs`).
             Authored(_) => 227,
             Trainer1UsedItem => 228,
+            ItIsRaining => 229,
+            SandstormIsRaging => 230,
         }
     }
 }

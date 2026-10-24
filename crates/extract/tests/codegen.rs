@@ -1262,6 +1262,9 @@ mod lowering {
             i("waitfieldeffect", vec![Half(25)]),
             i("copyobjectxytoperm", vec![Half(2)]),
             i("setmaplayoutindex", vec![Half(0x105)]),
+            i("setweather", vec![Half(3)]),
+            i("doweather", vec![]),
+            i("resetweather", vec![]),
             i(
                 "createvobject",
                 vec![

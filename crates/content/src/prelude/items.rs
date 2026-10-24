@@ -189,6 +189,37 @@ pub async fn find_item(ctx: &Ctx, item: u16, qty: u16) -> bool {
     space
 }
 
+/// Gen3 `EventScript_HiddenItemScript` (a hidden item's bg event, `GameData::hidden_item_script`;
+/// the engine sets `VAR_0x8004` to the item's flag and `VAR_0x8005` to the item): the item
+/// added, "{PLAYER} found one {STR_VAR_2}!", the pocket message and the flag set
+/// (`special SetHiddenItemFlag`) when it fit; else "found one" and "Too bad! The BAG is full…"
+/// with the flag clear. Returns whether it fit.
+pub async fn hidden_item_script(ctx: &Ctx) -> bool {
+    ctx.lock_all().await;
+    let flag = ctx.var(VAR_0x8004).await;
+    let item = ctx.var(VAR_0x8005).await;
+    let added = add_item(ctx, item, 1).await;
+    buffer_item_plural(ctx, 1, item, 1).await;
+    buffer_pocket(ctx, item).await;
+    if added {
+        if item_pocket(item) == Some(Pocket::TmHm) {
+            ctx.report(Report::Degraded("BufferTMHMMoveName")).await;
+        }
+        if std_message(ctx, "gText_PlayerFoundOneItem").await {
+            ctx.wait_message().await; // waitmessage, waitfanfare
+        }
+        buffer_item_plural(ctx, 1, item, 1).await;
+        std_msgbox(ctx, "gText_PutItemInPocket").await;
+        ctx.set_flag(FlagId(flag), true).await;
+    } else {
+        std_msgbox(ctx, "gText_PlayerFoundOneItem").await;
+        std_msgbox(ctx, "gText_TooBadBagIsFull").await;
+        ctx.set_var(VAR_RESULT, 0).await;
+    }
+    ctx.release_all().await;
+    added
+}
+
 /// Gen3 `addmoney`.
 pub async fn money_add(ctx: &Ctx, n: u32) {
     ctx.money_add(n).await

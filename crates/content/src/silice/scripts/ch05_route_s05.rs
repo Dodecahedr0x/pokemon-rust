@@ -169,20 +169,7 @@ pub async fn RouteS05_EventScript_ItemMaxRepel(ctx: Ctx) {
     find_item(&ctx, ITEM_MAX_REPEL, 1).await;
 }
 
-/// The Heart Scale hidden on the wreck's sandbar (43, 22).
-pub async fn RouteS05_EventScript_HiddenHeartScale(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of
-    // "SIL1 Task F as built"): the map has a sign here instead.
-    hidden_item(&ctx, FLAG_SIL_ITEM_ROUTE_S05_ECAILLE_COEUR, ITEM_HEART_SCALE).await;
-}
-
 // ---- the Banc de Silice ----
-
-/// The Ultra Ball hidden on the little beach (20, 20).
-pub async fn RouteS05_Banc_EventScript_HiddenUltraBall(ctx: Ctx) {
-    // fallback: hidden items (see RouteS05_EventScript_HiddenHeartScale).
-    hidden_item(&ctx, FLAG_SIL_ITEM_ROUTE_S05_BANC_ULTRA_BALL, ITEM_ULTRA_BALL).await;
-}
 
 // ---- the wreck of the Vainqueur ----
 
@@ -214,12 +201,6 @@ pub async fn RouteS05_Epave_EventScript_ItemProtection(ctx: Ctx) {
 /// The Big Pearl in the officers' mess.
 pub async fn RouteS05_Epave_EventScript_ItemGrossePerle(ctx: Ctx) {
     find_item(&ctx, ITEM_BIG_PEARL, 1).await;
-}
-
-/// The Revive hidden in a bunk (11, 3).
-pub async fn RouteS05_Epave_EventScript_HiddenRevive(ctx: Ctx) {
-    // fallback: hidden items (see RouteS05_EventScript_HiddenHeartScale).
-    hidden_item(&ctx, FLAG_SIL_ITEM_ROUTE_S05_EPAVE_RAPPEL, ITEM_REVIVE).await;
 }
 
 // ---- the Grey Coral Cave ----
@@ -265,17 +246,6 @@ pub async fn RouteS05_GrotteCorail_EventScript_ItemPierreEau(ctx: Ctx) {
 /// TM18 Rain Dance at the back of the west beach.
 pub async fn RouteS05_GrotteCorail_EventScript_ItemDansePluie(ctx: Ctx) {
     find_item(&ctx, ITEM_TM18, 1).await;
-}
-
-/// The Deep Sea Scale hidden near Lokhlass (18, 3).
-pub async fn RouteS05_GrotteCorail_EventScript_HiddenDeepSeaScale(ctx: Ctx) {
-    // fallback: hidden items (see RouteS05_EventScript_HiddenHeartScale).
-    hidden_item(
-        &ctx,
-        FLAG_SIL_ITEM_ROUTE_S05_GROTTE_ECAILLE_OCEAN,
-        ITEM_DEEP_SEA_SCALE,
-    )
-    .await;
 }
 
 // ---- the sea rift ----

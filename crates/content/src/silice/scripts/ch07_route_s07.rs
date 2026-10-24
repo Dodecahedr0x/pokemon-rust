@@ -228,9 +228,3 @@ pub async fn RouteS07_EventScript_ItemMaxRevive(ctx: Ctx) {
     find_item(&ctx, ITEM_MAX_REVIVE, 1).await;
 }
 
-/// The Ether at the foot of S7-C's railing post (21, 32).
-pub async fn RouteS07_EventScript_HiddenEther(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of
-    // "SIL1 Task F as built"): the map has a sign here instead.
-    hidden_item(&ctx, FLAG_SIL_ITEM_ROUTE_S07_HIDDEN_ETHER, ITEM_ETHER).await;
-}
