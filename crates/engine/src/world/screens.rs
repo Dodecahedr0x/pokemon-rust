@@ -21,6 +21,7 @@
 use super::mode::Mode;
 use super::{Event, State, World, draw_field};
 use crate::data::{GameData, ItemId};
+use crate::item_use::FieldUse;
 use crate::script::Fade;
 use crate::ui::kit::{self, FADE_FRAMES, Pending, Phase, window};
 use crate::ui::{
@@ -91,14 +92,16 @@ impl World {
     /// The bag's USE on `item` while its screen is missing (Milestone 9 Task B): opens what
     /// using it opens, for tools and the explorer. A TM or HM opens the party menu to teach it
     /// (Gen3 `ItemUseOutOfBattle_TMHM` → `PARTY_ACTION_USE_ITEM`, without the bag's "Booted up
-    /// a TM" messages). `false` (nothing opened) unless the field is idle, the bag holds the
-    /// item and the item has a party use.
+    /// a TM" messages); medicine, stones and the like open it to use the item on the chosen
+    /// mon (`ItemUseCB_Medicine` and friends). `false` (nothing opened) unless the field is
+    /// idle, the bag holds the item and the item has a party use.
     pub fn use_item(&mut self, game: &impl GameData, item: ItemId) -> bool {
         let idle = matches!(self.s.mode, Mode::Field)
             && !self.runner.is_running()
             && !self.s.transition.is_active()
             && self.s.objects.player().is_settled();
-        if !idle || self.s.bag.count(item) == 0 || game.tm_move(item).is_none() {
+        let party_use = matches!(crate::item_use::field_use(game, item), FieldUse::Party);
+        if !idle || self.s.bag.count(item) == 0 || !party_use {
             return false;
         }
         // A full-screen screen sets the screen up once faded out: nothing to draw now.
