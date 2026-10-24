@@ -437,8 +437,8 @@ impl Run {
         for m in self.w.party().iter() {
             let (hp, max) = (m.hp, m.stats[0]);
             eprintln!(
-                "  {:?} lv {} hp {hp}/{max} {:?}",
-                m.species, m.level, m.moves
+                "  {:?} lv {} hp {hp}/{max} {:?} pp {:?}",
+                m.species, m.level, m.moves, m.pp
             );
         }
         if let Some((_, b, _)) = self.w.battle() {
@@ -474,12 +474,13 @@ impl Run {
         while quiet < 6 {
             if self.busy() {
                 quiet = 0;
-                let press = self.key();
-                self.step(if i.is_multiple_of(2) {
-                    press
+                // `key` keeps state ([`Step::Yes`]'s UP then A): asked only for a pressed frame.
+                let press = if i.is_multiple_of(2) {
+                    self.key()
                 } else {
                     Buttons::NONE
-                });
+                };
+                self.step(press);
             } else {
                 quiet += 1;
                 self.step(Buttons::NONE);
@@ -853,9 +854,18 @@ impl Run {
                 self.step(dir_button(d));
                 n += 1;
             }
-            if self.pos() == p {
+            // A turn in place (the first press toward a new direction) does not move: only
+            // presses that never move in a row count.
+            if self.pos() != p {
+                stuck = 0;
+            } else {
                 stuck += 1;
-                assert!(stuck < 20, "stuck at {p:?} walking to {target:?}");
+                if stuck >= 20 {
+                    let objs: Vec<_> = (self.w.objects().iter())
+                        .map(|o| (o.local_id, o.x, o.y))
+                        .collect();
+                    panic!("stuck at {p:?} walking to {target:?} (objects {objs:?})");
+                }
             }
         }
     }

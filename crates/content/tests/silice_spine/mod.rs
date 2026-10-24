@@ -6,8 +6,10 @@
 //! start state ([`driver::Start`], e.g. [`ch02::start`]) instead of the chapters before it;
 //! Chapter 4 (`sil5_ch4.rs`, [`ch04::steps`]) only does so for now ([`ch04::start`]), as do
 //! Chapter 5 (`sil6_ch5.rs`), Chapter 6 (`sil7_ch6.rs`, [`ch06::start`]), Chapter 7
-//! (`sil8_ch7.rs`, [`ch07::start`]) and Chapter 8 (`sil9_ch8.rs`, [`ch08::start`] and
-//! [`ch08::route_start`]).
+//! (`sil8_ch7.rs`, [`ch07::start`]), Chapter 8 (`sil9_ch8.rs`, [`ch08::start`] and
+//! [`ch08::route_start`]), Chapter 10 (`sil11_ch10.rs`, [`ch10::start`]) and Chapter 11
+//! (`sil12_ch11.rs`, [`ch11::start`], and the alternate ending's [`ch11::elysium_apex_start`]
+//! and [`ch11::elysium_zenith_start`]).
 //!
 //! **The vocabulary** (minimal on purpose):
 //! - [`Step::Goto`]: walk to a cell of the current map (asserted), on a shortest path that avoids

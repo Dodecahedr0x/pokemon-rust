@@ -19,13 +19,23 @@
 //! Chapter 9 flag is read by Chapters 10–11) and the story at 99. To be rechained on Chapter 9's
 //! end once it lands.
 //!
-//! **The party** ([`PARTY`], the neighbour rule): Chapter 8's end as `sil9_ch8` leaves it
-//! (KADABRA 69, TYPHLOSION 76, LAIRON 35, MAREEP 14, PORYGON 25, DUGTRIO 26), with Chapter 9's
-//! road on top: the KADABRA at 72, the TYPHLOSION at 78. The Tower has no grass: the run trains
-//! nowhere and heals once (Mathieu's meal, 104).
+//! **The party** ([`PARTY`]): a constructed Chapter 9 end, not Chapter 8's as `sil9_ch8` leaves
+//! it. With Chapter 8's roster (KADABRA 69, TYPHLOSION 76 and four members under 36) the
+//! Tower's leaders, six 240-IV mons each with items, Mega Evolutions and Revenge's prism, are
+//! out of the battle policy's reach at any level: Kimiko's HO-OH (Calm Mind, Recover, Leftovers)
+//! beat KADABRA / TYPHLOSION 88/92, Arthur's rain team 90/94. The spine needs six members:
+//! ALAKAZAM 89 (Chapter 8's Link Stone), TYPHLOSION 91, AMPHAROS 89 (the MAREEP trained, with
+//! Chapter 9's TM24 Thunderbolt), AGGRON 89 (the LAIRON), DUGTRIO 89, PORYGON2 89. Measured
+//! (`SPINE_PARTY_<slot>`): 87–91 for the five and 89–93 for the TYPHLOSION all win; 85/88 loses
+//! to Revenge. Chapter 9's rechain has to train that far (Route S9's grass, 45–46) or the author
+//! has to tune the Tower's rosters down (a plan author question). The Tower has no grass and one
+//! heal (Mathieu's meal, 104): between two leaders the run mends with the bag's medicine
+//! ([`Step::Mend`]: Revives and potions, Chapter 9's marts).
 //!
 //! **The fallbacks the path relies on**: Strength is an A press on the barrel; the hidden items
-//! are signs (not taken here); the mid-battle lines and the trainers' items are not played.
+//! are signs (not taken here); Kimiko's send-out lines and her "émotion" are not played. The
+//! Mega lines, ARTHUR_1's Full Restores, the Cœur's ward on 1F and Revenge's prism are the
+//! battles' own rules (`silice::rules`).
 
 use super::{Run, Start, Step, TeachTm, goto, goto_avoiding};
 use content::consts::*;
@@ -52,19 +62,50 @@ pub fn start() -> Start {
 
 /// The start state's party (see the module docs).
 pub const PARTY: &[(SpeciesId, u8)] = &[
-    (SPECIES_KADABRA, 72),
-    (SPECIES_TYPHLOSION, 78),
-    (SPECIES_LAIRON, 35),
-    (SPECIES_MAREEP, 14),
-    (SPECIES_PORYGON, 25),
-    (SPECIES_DUGTRIO, 26),
+    (SPECIES_ALAKAZAM, 89),
+    (SPECIES_TYPHLOSION, 91),
+    (SPECIES_AMPHAROS, 89),
+    (SPECIES_AGGRON, 89),
+    (SPECIES_DUGTRIO, 89),
+    (SPECIES_PORYGON2, 89),
 ];
 
-/// Chapter 9's end, as far as Chapters 10–11 read it: Chapter 7's end (`ch08`'s start state,
-/// without its party), Chapter 8's badge, Sonde de Pression, Cœur d'Évalon and log, the sync at
-/// 80, the story at 99; the party ([`PARTY`]), potions, the respawn at Évalon (Nébula's centre is
-/// Chapter 9's).
+/// Chapter 9's end, as far as Chapters 10–11 read it ([`end_of_chapter_9_flags`]), with the
+/// party ([`PARTY`]) and the two TMs the spine teaches first.
 pub async fn end_of_chapter_9(ctx: Ctx) {
+    end_of_chapter_9_flags(ctx.clone()).await;
+    give_party(&ctx, PARTY).await;
+}
+
+/// TM34 (the lead's Shock Wave) and TM24 (the AMPHAROS's Thunderbolt) in the bag, then `party`
+/// (the start state cannot set moves: the spines teach both first, [`TEACH`]).
+pub async fn give_party(ctx: &Ctx, party: &[(SpeciesId, u8)]) {
+    ctx.item_add(ItemId(ITEM_TM34), 1).await;
+    ctx.item_add(ItemId(ITEM_TM24), 1).await;
+    for (i, &(species, level)) in party.iter().enumerate() {
+        ctx.give_mon(species, party_level(i, level)).await;
+    }
+}
+
+/// The two TMs of [`give_party`]: Shock Wave over the ALAKAZAM's Role Play, Thunderbolt over
+/// the AMPHAROS's first move.
+pub const TEACH: [Step; 2] = [
+    Step::Teach(TeachTm {
+        item: ITEM_TM34,
+        mon: 0,
+        forget: 1,
+    }),
+    Step::Teach(TeachTm {
+        item: ITEM_TM24,
+        mon: 2,
+        forget: 0,
+    }),
+];
+
+/// Chapter 9's end without the party: Chapter 7's end (`ch08`'s, without its bag and party),
+/// Chapter 8's badge, Sonde de Pression, Cœur d'Évalon and log, the sync at 80, the story at 99;
+/// medicine (Chapter 9's marts and finds), the respawn at Évalon (Nébula's centre is Chapter 9's).
+pub async fn end_of_chapter_9_flags(ctx: Ctx) {
     super::ch08::end_of_chapter_7_flags(ctx.clone()).await;
     for f in [
         FLAG_SIL_BADGE_08,
@@ -81,11 +122,6 @@ pub async fn end_of_chapter_9(ctx: Ctx) {
     ctx.item_add(ItemId(ITEM_FULL_HEAL), 3).await;
     ctx.money_add(30000).await;
     ctx.set_respawn(HEAL_LOCATION_SIL_EVALON).await;
-    // The start state cannot set moves: TM34 again, taught first (the lead's Shock Wave).
-    ctx.item_add(ItemId(ITEM_TM34), 1).await;
-    for (i, &(species, level)) in PARTY.iter().enumerate() {
-        ctx.give_mon(species, party_level(i, level)).await;
-    }
 }
 
 /// A tuning aid: `SPINE_PARTY_<slot>=<level>` overrides [`PARTY`]'s level (the neighbour rule's
@@ -145,13 +181,8 @@ const F4_AVOID: &[(i16, i16)] = &[
 /// The chapter's steps, from [`start`].
 pub fn steps() -> Vec<Step> {
     use Dir::*;
-    let mut s = vec![
-        // Chapter 6's Shock Wave over Role Play (see [`end_of_chapter_9`]).
-        Step::Teach(TeachTm {
-            item: ITEM_TM34,
-            mon: 0,
-            forget: 1,
-        }),
+    let mut s = TEACH.to_vec();
+    s.extend([
         // ---- the first climb (Sc00a), 1F ----
         Step::Settle,
         Step::Check("first_climb", |r| {
@@ -192,7 +223,7 @@ pub fn steps() -> Vec<Step> {
             assert_eq!(r.w.var(VAR_SIL_STORY), 101);
             assert_eq!(r.w.var(VAR_SIL_SYNC), 85);
         }),
-        Step::Mend(2),
+        Step::Mend(6),
         goto(F1, 16, 2),
         Step::Enter { dir: Up, map: F2 },
         // ---- 2F, the Studio ----
@@ -226,7 +257,7 @@ pub fn steps() -> Vec<Step> {
             assert_eq!(r.w.var(VAR_SIL_STORY), 103);
             assert_eq!(r.w.var(VAR_SIL_SYNC), 90);
         }),
-        Step::Mend(2),
+        Step::Mend(6),
         goto(F2, 20, 2),
         Step::Enter { dir: Up, map: F3 },
         // ---- 3F, the Horizon ----
@@ -245,7 +276,7 @@ pub fn steps() -> Vec<Step> {
         // The quay's edge (11, 12), then the sea's first path cell (row 11 is falls but x 11).
         goto_avoiding(F3, 11, 12, F3_AVOID),
         Step::Walk(Up),
-    ];
+    ]);
     // The hidden path: north 4, east 3, north 3, west 3, north to the helm's foot (11, 3).
     for d in [Up, Up, Up, Up, Right, Right, Right, Up, Up, Up, Left, Left, Left] {
         s.push(Step::Walk(d));
@@ -265,7 +296,7 @@ pub fn steps() -> Vec<Step> {
             assert_eq!(r.w.var(VAR_SIL_STORY), 105);
             assert_eq!(r.w.var(VAR_SIL_SYNC), 95);
         }),
-        Step::Mend(2),
+        Step::Mend(6),
         goto(F3, 12, 2),
         Step::Enter { dir: Up, map: F4 },
         // ---- 4F, the Reflets ----
@@ -284,6 +315,8 @@ pub fn steps() -> Vec<Step> {
         Step::Interact(Left),
         Step::Interact(Left),
         // p3 (5, 12), from its pocket (5, 11): two turns, NORTH to SOUTH; the door cracks.
+        goto_avoiding(F4, 17, 11, F4_AVOID),
+        goto_avoiding(F4, 11, 11, F4_AVOID),
         goto_avoiding(F4, 5, 11, F4_AVOID),
         Step::Interact(Down),
         Step::Interact(Down),
@@ -293,6 +326,7 @@ pub fn steps() -> Vec<Step> {
             assert_eq!(r.w.var(VAR_SIL_TOUR_PRISME_3), 2);
             assert!(r.w.flag(FLAG_SIL_REFLETS_PORTE_OUVERTE));
         }),
+        Step::Mend(6),
         goto_avoiding(F4, 11, 5, F4_AVOID),
         Step::Walk(Up),
         Step::Check("revenge", |r| {
@@ -323,12 +357,10 @@ pub fn check_end(r: &Run) {
     assert_eq!(r.w.events_dropped(), 0);
     for name in [
         "strength",
-        "coeur_evalon",
         "mallette_call",
         "show_sync",
         "battle_lines",
         "kimiko_emotion",
-        "prisme_ombre",
         "play_se",
     ] {
         assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);
