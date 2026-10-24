@@ -5299,6 +5299,12 @@ The branch was merged with master (the Ch8 maps, the Ch3–Ch6 reach fixes, the 
   - `BattleTrainer { no_whiteout }`: honoured, so a loss answers `Lost` to the script. Master's SIL-B took the same approach.
   - `World::use_item` now also opens the party menu on medicine, as the bag's USE does. The spine needs this for `Step::Mend`.
 - SIL-B's rules replaced four fallbacks: the prism (`PRISM`), the Cœur's ward on 1F (`HEART`), the Mega lines of Kimiko and Arthur, and ARTHUR_1's Full Restores (the trainer AI bag).
+- SIL-M's screen effects replaced four more:
+  - `screen_flash` with the source's colours. GOLD is drawn as `YELLOW`, since the prelude has no gold.
+  - `screen_shake` in `Trone_Zenith_Sc09`.
+  - `show_text_on_black` for `Fin_Texte_*` and `Elysium_Fin_*`. The alternate end's gold-on-white lettering is shown white on black.
+  - `camera_pan` in `Nebula_Sc13`: up 4, and back before the black.
+- Merged with SIL-9. Chapter 10's `Nebula_TourHall_EventScript_Ascenseur` and Chapter 11's `Nebula_EventScript_Eveil1`–`4` are the ones kept; Ch9's placeholders are gone. Ch9's `Tour_Hall_Sc02` heals, sets 99 and warps to the cabin (3, 6), which is where the Ch10 spine starts. The Ch10 start state respawns at `HEAL_LOCATION_SIL_NEBULA`.
 - Spine:
   - `silice_spine/ch10.rs` / `sil11_ch10.rs`: the cabin (3, 6) at story 99 → the Apex at 109.
   - `silice_spine/ch11.rs` / `sil12_ch11.rs`: the Apex at 109 → the epilogue at 119. It covers the scripted save, the credits, and `GAME_CLEAR`.
@@ -5332,12 +5338,10 @@ The branch was merged with master (the Ch8 maps, the Ch3–Ch6 reach fixes, the 
   - `battle_lines`: Kimiko's send-out lines, Poussin's and Cocorico's mid-battle lines (first KO, Perish Song, weather, under 25 %) and their Primal staging lines. None of these has extracted text.
 - Sound and screen effects:
   - `play_music`, `play_se`.
-  - `screen_flash` (a fade), `screen_shake`.
   - `palette` (the gold and night palettes): the texts say the colours.
   - `weather` (the Apex fog, the drought).
   - `sky_crack`: a white flash, then the night map.
-  - `cabin_background`, `camera_pan`.
-  - `show_text_on_black`, `hide_player`.
+  - `cabin_background`, `hide_player`.
 - The Mallette's calls:
   - `mallette_call`: plain messages.
   - `show_sync`: the sync is set, and only its display is missing.
@@ -5351,7 +5355,7 @@ The branch was merged with master (the Ch8 maps, the Ch3–Ch6 reach fixes, the 
 - Missing tiles: `CRISTAL_ON` (the lit tube), `PRISME_BRISE`, the prism orientation tiles, and the vault door's open tile. The story values gate the scripts, not the tiles.
 
 **Questions for the author.**
-1. Ch9's `Tour_Hall_Sc02` warps straight to 1F, but here the hall's door leads to the cabin. This one is open from the maps review. `Nebula_TourHall_EventScript_Ascenseur` is defined both here and on Ch9's branch, along with `Nebula_EventScript_Eveil1`–`4`. Ch9 marked its copies "keep SIL-10's" for the merge.
+1. Resolved by the SIL-9 merge: Ch9's `Tour_Hall_Sc02` now warps to the cabin (3, 6), so the hall's door and the first climb are Chapter 10's. The open question is the colours: should GOLD (the flashes) and GOLD_ON_WHITE (the Elysium end text) get their own engine colours, or do YELLOW and white-on-black do?
 2. Silent stubs:
    - Poussin, Julien and the diffuser have no idle line in the source.
    - Chapter 12's `SommetApex_PG_*`, `Socle` and `Rayquaza` names wait for SIL6.
@@ -5362,6 +5366,25 @@ The branch was merged with master (the Ch8 maps, the Ch3–Ch6 reach fixes, the 
    - The Ch10 and Ch11 spines therefore start from a constructed six-member party at 89 (TYPHLOSION 91): ALAKAZAM, TYPHLOSION, AMPHAROS with TM24, AGGRON, DUGTRIO, PORYGON2. They mend from the bag between leaders, because the Tower has one heal.
    - Measured: 87–91 all win; 85 loses to Revenge.
    - When the chapters are rechained, Ch9 must train to there (Route S9's grass is 45–46), or the rosters must come down. Which should it be?
+   - After the SIL-9 merge, chaining from Ch9's end was tried as a design question, and it is not feasible as things stand:
+     - Ch9 ends with KADABRA 69, TYPHLOSION 76, LAIRON 35, MAREEP 14, PORYGON 25 and DUGTRIO 26.
+     - The Tower has no grass, and the cabin climbs as soon as the story reaches 99.
+     - Training six mons to about 89 on Route S9's lv45 grass would add millions of frames to Ch9's tail. It also needs three evolutions: Lairon → Aggron, Mareep → Ampharos, Kadabra → Alakazam by Link Stone.
+     - So the Ch10 spine keeps a constructed start: Ch9's flags and story 99 at the cabin, with the constructed party.
+
+**Gates** (`cargo xtask gates`, after the SIL-9 merge): all seven lanes pass.
+
+| Lane | Result |
+|---|---|
+| fmt | pass |
+| clippy | pass |
+| clippy-ui | pass |
+| test | pass, 106 binaries |
+| test-stub | pass, 106 binaries |
+| test-silice | pass, 51 binaries |
+| parity | pass |
+
+`sil10_ch9` now ends through Chapter 10's first climb: `Tour_Hall_Sc02` lands in the cabin, whose on-frame `Tour_Ascenseur_Sc00a` plays on arrival. Its end therefore asserts 1F at story 100.
 
 #### SIL6 Ch12 maps as built (the post-game)
 
