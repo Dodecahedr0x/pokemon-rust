@@ -80,9 +80,9 @@ pub(super) fn left_field(b: &mut Battle, env: &mut Env, ability: Ability) {
         (Weather::HarshSun, Ability::DesolateLand) => (Ability::DesolateLand, Str::HarshSunFaded),
         _ => return,
     };
-    let kept = [Side::Player, Side::Opponent]
-        .iter()
-        .any(|&s| b.battler(s).ability == source && b.battler(s).mon.hp > 0);
+    let kept = b
+        .sides()
+        .any(|s| b.battler(s).ability == source && b.battler(s).mon.hp > 0);
     if kept {
         return;
     }

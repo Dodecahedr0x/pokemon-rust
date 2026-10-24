@@ -65,9 +65,7 @@ pub(super) fn uproar_keeps_awake(b: &Battle, side: Side) -> Option<Side> {
     if b.battler(side).ability == Ability::Soundproof {
         return None;
     }
-    [Side::Player, Side::Opponent]
-        .into_iter()
-        .find(|&s| b.battler(s).v.uproar > 0)
+    b.sides().into_iter().find(|&s| b.battler(s).v.uproar > 0)
 }
 
 /// Insomnia / Vital Spirit.
@@ -599,7 +597,7 @@ fn uproar_turn(b: &mut Battle, env: &mut Env, side: Side) {
     if b.battler(side).v.uproar == 0 {
         return;
     }
-    for s in [Side::Player, Side::Opponent] {
+    for s in b.sides() {
         let m = b.battler(s);
         if matches!(m.mon.status, Status::Sleep(_))
             && m.mon.hp > 0

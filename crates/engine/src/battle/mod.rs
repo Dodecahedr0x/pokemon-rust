@@ -903,6 +903,10 @@ pub enum Str {
     GoTwoPkmn,
     /// `STRINGID_TWOENEMIESDEFEATED` (`BattleScript_LocalTwoTrainersDefeated`).
     TwoEnemiesDefeated,
+    /// `STRINGID_PKMNREADYTOHELP` (Helping Hand).
+    PkmnReadyToHelp,
+    /// `STRINGID_PKMNSXTOOKATTACK` (Lightning Rod drew the move, `BattleScript_TookAttack`).
+    PkmnsXTookAttack,
     /// `gAbilityNames[a]`. The ability codes (`B_ATK_ABILITY`, `B_DEF_ABILITY`,
     /// `B_SCR_ACTIVE_ABILITY`, `B_EFF_ABILITY`, `B_LAST_ABILITY`) expand `Msg::buffs[2]`, which
     /// the core sets to `Buff::Text(Str::AbilityName(..))` for the messages that name one.
@@ -1250,6 +1254,8 @@ impl Str {
             TrainerSentOutTwo => 222,
             GoTwoPkmn => 223,
             TwoEnemiesDefeated => 224,
+            PkmnReadyToHelp => 225,
+            PkmnsXTookAttack => 226,
         }
     }
 }

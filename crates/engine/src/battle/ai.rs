@@ -83,7 +83,7 @@ pub fn choose(battle: &Battle, t: &BattleTables, rng: &mut Rng, side: Side) -> C
 /// it from fresh AI data and its best move (`Random() % n` among ties); an ally only counts
 /// with 100 points or more. Then the target among the best (`Random() % n`).
 fn doubles(battle: &Battle, t: &BattleTables, rng: &mut Rng, side: Side, flags: u32) -> Choice {
-    drop(Ai::setup(battle, t, rng, side, side.other()));
+    let _ = Ai::setup(battle, t, rng, side, side.other());
     let mut points = [-1i16; 4];
     let mut index = [None::<Choice>; 4];
     for target in battle.sides() {
@@ -107,6 +107,7 @@ fn doubles(battle: &Battle, t: &BattleTables, rng: &mut Rng, side: Side, flags: 
     }
     let mut best = [0usize; 4];
     let (mut n, mut top) = (1, points[0]);
+    #[allow(clippy::needless_range_loop)]
     for i in 1..4 {
         if top == points[i] {
             best[n] = i;
@@ -213,11 +214,9 @@ impl<'a> Ai<'a> {
                         self.setup_first_turn(slot, mov)
                     }
                     AI_SCRIPT_DOUBLE_BATTLE => self.double_battle(slot, mov),
-                    AI_SCRIPT_FIRST_BATTLE => {
-                        // AI_FirstBattle: `flee` sets AI_ACTION_DO_NOT_ATTACK, ending the loop.
-                        if self.hp(self.target) <= 20 {
-                            return Some(Choice::Run);
-                        }
+                    // AI_FirstBattle: `flee` sets AI_ACTION_DO_NOT_ATTACK, ending the loop.
+                    AI_SCRIPT_FIRST_BATTLE if self.hp(self.target) <= 20 => {
+                        return Some(Choice::Run);
                     }
                     _ => {}
                 }

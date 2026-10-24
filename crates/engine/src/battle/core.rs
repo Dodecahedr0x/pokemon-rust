@@ -59,6 +59,8 @@ mod items;
 mod moves;
 #[cfg(test)]
 pub(crate) mod tests;
+#[cfg(test)]
+mod tests_double;
 
 use super::calc::{self, Fighter};
 use super::{
@@ -1670,8 +1672,7 @@ impl Battle {
         let sides: Vec<Side> = self.sides().collect();
         let runner = [Side::Player, Side::PlayerRight]
             .into_iter()
-            .filter(|s| s.i() < n && self.actions[s.i()] == Some(Action::Run))
-            .last();
+            .rfind(|s| s.i() < n && self.actions[s.i()] == Some(Action::Run));
         if let Some(r) = runner {
             let mut order = alloc::vec![r];
             order.extend(sides.iter().copied().filter(|&s| s != r));

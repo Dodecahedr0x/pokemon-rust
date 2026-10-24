@@ -49,6 +49,8 @@ use crate::battle::{BattleEvent, Buff, Msg, Side, Str};
 use crate::data::MoveId;
 use crate::hash::Fnv64;
 use crate::mon::{MoveEffect, SemiKind, Stat};
+use alloc::vec;
+use alloc::vec::Vec;
 
 pub(super) use copy::{record_used_item, steal};
 pub(super) use field::mist_blocks;
@@ -291,6 +293,16 @@ pub(crate) struct FieldFx {
     /// `gBattleStruct->usedHeldItems` by battler position, with the item's hold effect
     /// (Recycle). Not hashed.
     pub used_item: [Option<(crate::data::ItemId, Option<crate::mon::HoldEffect>)>; 4],
+    /// `gSideTimers[side].followmeTarget` while `followmeTimer` is set (doubles), by side.
+    pub follow_me: [Option<Side>; 2],
+    /// `gProtectStructs[battler].helpingHand`, a bit per battler (doubles).
+    pub helping_hand: u8,
+    /// `gSpecialStatuses[target].lightningRodRedirected`, for this move's `attackcanceler`
+    /// (set and read within one move: not hashed).
+    pub rod: bool,
+    /// The script ran `moveendto MOVEEND_NEXT_TARGET` for each of its targets (the
+    /// `MOVE_TARGET_FOES_AND_ALLY` loops), so the core skips its `moveend` (not hashed).
+    pub ended: bool,
     pub cur: Option<Current>,
 }
 
@@ -300,6 +312,8 @@ impl FieldFx {
         FieldFx {
             cur: None,
             used_item: [None; 4],
+            rod: false,
+            ended: false,
             ..*self
         } != FieldFx::default()
     }
@@ -347,7 +361,50 @@ impl FieldFx {
             h.write(&[0xD2]);
             h.write_u16(self.pay_day);
         }
+        // Doubles: Follow Me and Helping Hand, only while set (cleared every turn).
+        if self.follow_me != [None; 2] || self.helping_hand != 0 {
+            let f = |s: Option<Side>| s.map_or(0xFF, |s| s.code());
+            h.write(&[
+                0xDC,
+                f(self.follow_me[0]),
+                f(self.follow_me[1]),
+                self.helping_hand,
+            ]);
+        }
     }
+}
+
+/// `selectfirstvalidtarget` / `jumpifnexttargetvalid`: every battler on the field but the
+/// attacker, in battler order (singles: the target).
+pub(in crate::battle::effects) fn all_targets(b: &Battle, u: &MoveUse) -> Vec<Side> {
+    if !b.is_double() {
+        return vec![u.target];
+    }
+    b.sides()
+        .filter(|&s| s != u.attacker && b.is_present(s))
+        .collect()
+}
+
+/// A `MOVE_TARGET_FOES_AND_ALLY` loop: `each` on every target ([`all_targets`]), each
+/// followed by `moveendto MOVEEND_NEXT_TARGET` in doubles (the core then skips its own).
+/// The last target's hit.
+pub(in crate::battle::effects) fn each_target(
+    b: &mut Battle,
+    env: &mut Env,
+    u: &MoveUse,
+    mut each: impl FnMut(&mut Battle, &mut Env, &MoveUse) -> Option<HitResult>,
+) -> Option<HitResult> {
+    if !b.is_double() {
+        return each(b, env, u);
+    }
+    let mut last = None;
+    for t in all_targets(b, u) {
+        let ut = MoveUse { target: t, ..*u };
+        last = each(b, env, &ut);
+        super::after_move(b, env, &ut, last);
+    }
+    b.fx.ended = true;
+    last
 }
 
 // ---- the hooks the core reads (`core/moves.rs`) ----
@@ -449,6 +506,8 @@ pub(crate) fn damage_extra(
         weather,
         screen: screen && !crit && u.target != u.attacker,
         halve_defense: u.info.effect == MoveEffect::Explosion,
+        double_def: b.is_double() && b.is_present(u.target) && b.is_present(u.target.partner()),
+        spread: u.info.target == crate::mon::MoveTarget::BothFoes,
         weak_solar: u.info.effect == MoveEffect::TwoTurn(crate::mon::TwoTurnKind::SolarBeam)
             && (w.rain()
                 || matches!(

@@ -9,7 +9,12 @@ use alloc::format;
 use alloc::string::String;
 
 pub(crate) fn side(s: Side) -> char {
-    if s.is_player() { 'P' } else { 'O' }
+    match (s.is_player(), s.is_right()) {
+        (true, false) => 'P',
+        (false, false) => 'O',
+        (true, true) => 'p',
+        (false, true) => 'o',
+    }
 }
 
 /// One line per event, compact enough to pin whole battles.

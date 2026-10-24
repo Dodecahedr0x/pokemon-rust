@@ -329,7 +329,7 @@ pub(super) fn move_end(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<H
     // Gen3 does not check HP here; a fainted battler's status is irrelevant, so the engine
     // skips it.
     loop {
-        let found = [Side::Player, Side::Opponent].into_iter().find_map(|s| {
+        let found = b.sides().find_map(|s| {
             if b.battler(s).mon.hp == 0 {
                 return None;
             }

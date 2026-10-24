@@ -534,17 +534,21 @@ pub(super) fn earthquake(
             [Buff::Number(m), Buff::None, Buff::None],
         );
     }
-    if b.battler(u.target).fx.semi == Some(SemiKind::Dig) {
-        u.multiplier = 2;
-    }
-    if !b.accuracy(env, &u) {
-        b.miss_message(env, &u);
-        return None;
-    }
-    let r = b.damage(env, &u);
-    let r = b.deal(env, &u, r);
-    b.try_faint(env, u.target);
-    Some(r)
+    // BattleScript_HitsAllWithUndergroundBonusLoop, each target.
+    super::each_target(b, env, &u, |b, env, u| {
+        let mut u = *u;
+        if b.battler(u.target).fx.semi == Some(SemiKind::Dig) {
+            u.multiplier = 2;
+        }
+        if !b.accuracy(env, &u) {
+            b.miss_message(env, &u);
+            return None;
+        }
+        let r = b.damage(env, &u);
+        let r = b.deal(env, &u, r);
+        b.try_faint(env, u.target);
+        Some(r)
+    })
 }
 
 /// `BattleScript_EffectBrickBreak`: `removelightscreenreflect` on the target's side; the
@@ -738,15 +742,18 @@ pub(super) fn explosion(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<Hi
     let hp = b.battler(u.attacker).mon.hp as i32;
     b.change_hp_passive(env, u.attacker, hp);
     anim(env, u);
-    let r = b.damage(env, u);
-    let hit = if b.accuracy(env, u) {
-        let r = b.deal_with(env, u, r, false);
-        b.try_faint(env, u.target);
-        Some(r)
-    } else {
-        b.miss_message(env, u);
-        None
-    };
+    // BattleScript_ExplosionLoop, each target.
+    let hit = super::each_target(b, env, u, |b, env, u| {
+        let r = b.damage(env, u);
+        if b.accuracy(env, u) {
+            let r = b.deal_with(env, u, r, false);
+            b.try_faint(env, u.target);
+            Some(r)
+        } else {
+            b.miss_message(env, u);
+            None
+        }
+    });
     b.try_faint(env, u.attacker);
     hit
 }

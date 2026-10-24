@@ -99,7 +99,7 @@ pub(crate) fn sub_absorbed(b: &Battle, side: Side) -> bool {
 
 /// `MOVEEND_SUBSTITUTE`: a substitute at 0 HP is gone.
 pub(in crate::battle::effects) fn sub_end(b: &mut Battle) {
-    for side in [Side::Player, Side::Opponent] {
+    for side in b.sides() {
         let fx = &mut b.battler_mut(side).fx;
         if fx.substitute && fx.sub_hp == 0 {
             fx.substitute = false;

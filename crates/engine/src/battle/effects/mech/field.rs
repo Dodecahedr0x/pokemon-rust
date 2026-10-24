@@ -140,13 +140,28 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) {
             b.fx.wish_party[a.i()] = b.battler(a).mon.party;
             anim(env, u);
         }
-        // `trysethelpinghand`: no partner in a single battle.
+        // `trysethelpinghand`: the partner, on the field, and neither helped yet (never in
+        // a single battle).
         E::HelpingHand => {
             b.attack_string(env, u);
-            b.fail(env, u);
+            let p = a.partner();
+            let bit = |s: Side| 1u8 << s.i();
+            if !b.is_double() || !b.is_present(p) || b.fx.helping_hand & (bit(a) | bit(p)) != 0 {
+                b.fail(env, u);
+                return;
+            }
+            b.fx.helping_hand |= bit(p);
+            let u = MoveUse { target: p, ..*u };
+            anim(env, &u);
+            say(env, &u, Str::PkmnReadyToHelp, a);
         }
+        // `setforcedtarget`: the user's side draws the other side's selected moves until the
+        // turn ends (`followmeTimer`; kept in doubles only, where it can matter).
         E::FollowMe => {
             b.attack_string(env, u);
+            if b.is_double() {
+                b.fx.follow_me[side] = Some(a);
+            }
             anim(env, u);
             say(env, u, Str::PkmnCenterAttention, a);
         }

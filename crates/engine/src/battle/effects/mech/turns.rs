@@ -121,7 +121,7 @@ pub(in crate::battle::effects) fn reroute(
     let a = u.attacker;
     let m = *b.battler(a);
     if let Some(lock) = m.fx.lock {
-        return Some(b.move_use(env, a, lock, None));
+        return Some(keep_target(b, u, b.move_use(env, a, lock, None)));
     }
     let (mov, pos) = m.fx.encore?;
     if m.mon.moves[pos as usize] != Some(mov) {
@@ -133,7 +133,20 @@ pub(in crate::battle::effects) fn reroute(
     if u.slot.is_none() || u.slot == Some(pos) {
         return None;
     }
-    Some(b.move_use(env, a, mov, Some(pos)))
+    Some(keep_target(b, u, b.move_use(env, a, mov, Some(pos))))
+}
+
+/// Doubles: the locked or encored move keeps the chosen move's target when it targets the
+/// same way (a simplification of `HandleAction_UseMove`'s `GetMoveTarget` re-roll).
+fn keep_target(b: &Battle, u: &MoveUse, n: MoveUse) -> MoveUse {
+    if b.is_double() && n.info.target == u.info.target {
+        MoveUse {
+            target: u.target,
+            ..n
+        }
+    } else {
+        n
+    }
 }
 
 // ---- the move ----
@@ -410,7 +423,7 @@ pub(in crate::battle::effects) fn safeguarded(b: &Battle, side: Side) -> bool {
 /// `TurnValuesCleanUp(TRUE)` and `HandleEndTurn_ContinueBattle`: the protections end; a
 /// sleeping battler's lock ends.
 pub(in crate::battle::effects) fn turn_passed(b: &mut Battle) {
-    for side in [Side::Player, Side::Opponent] {
+    for side in b.sides() {
         let m = b.battler_mut(side);
         m.fx.protected = false;
         m.fx.endured = false;
@@ -422,7 +435,7 @@ pub(in crate::battle::effects) fn turn_passed(b: &mut Battle) {
 
 /// `TurnValuesCleanUp(FALSE)`: the damage records clear, the recharge counts down.
 pub(in crate::battle::effects) fn turn_clean_up(b: &mut Battle) {
-    for side in [Side::Player, Side::Opponent] {
+    for side in b.sides() {
         let fx = &mut b.battler_mut(side).fx;
         fx.rec.physical = None;
         fx.rec.special = None;
@@ -430,6 +443,9 @@ pub(in crate::battle::effects) fn turn_clean_up(b: &mut Battle) {
         fx.bounce = false;
         fx.snatch = false;
     }
+    // `gProtectStructs` (Helping Hand) and, at its end, the side timers' `followmeTimer`.
+    b.fx.helping_hand = 0;
+    b.fx.follow_me = [None; 2];
 }
 
 fn hurt(b: &mut Battle, env: &mut Env, side: Side, div: u16, id: Str, buffs: [Buff; 3]) {

@@ -61,7 +61,7 @@ mod tests_wc;
 mod tests_wd;
 
 use super::core::{Action, Battle, Env, HitResult, MoveUse, msg};
-use super::{Buff, Msg, Side, Str};
+use super::{BattleEvent, Buff, Msg, Side, Str};
 use crate::mon::{Ability, BattleTables, HoldEffect, MoveEffect, Stat, Type};
 pub(crate) use abilities::opposite_genders;
 // For Explosion / Self-Destruct, Thief / Covet / Trick and Roar / Whirlwind (move effects).
@@ -128,6 +128,27 @@ pub(crate) fn before_move(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Cancele
         && let Some((back, hit)) = mech::bounce(b, env, uu).or_else(|| mech::steal(b, env, uu))
     {
         return Canceler::Done(back, hit);
+    }
+    // `lightningRodRedirected`: `BattleScript_TookAttack` (the attack string, then the
+    // ability's message), before the protection check.
+    if core::mem::take(&mut b.fx.rod)
+        && let Canceler::Use = c
+    {
+        b.attack_string(env, uu);
+        let t = uu.target;
+        env.out.push(BattleEvent::Msg(Msg {
+            buffs: [
+                Buff::None,
+                Buff::None,
+                Buff::Text(Str::AbilityName(b.battler(t).ability)),
+            ],
+            ..uu.msg_long(Str::PkmnsXTookAttack, t)
+        }));
+        let printed = MoveUse {
+            printed: true,
+            ..*uu
+        };
+        return Canceler::Done(printed, b.execute(env, &printed));
     }
     match c {
         Canceler::Use if rerouted.is_some() => Canceler::Done(*uu, b.execute(env, uu)),
@@ -198,10 +219,10 @@ pub(crate) fn left_field(b: &mut Battle, env: &mut Env, ability: Ability) {
 /// `TryDoEventsBeforeFirstTurn`'s switch-in abilities: `ABILITYEFFECT_INTIMIDATE1` then
 /// `ABILITYEFFECT_TRACE`, each scanning the battlers in index order (player first).
 pub(crate) fn first_turn(b: &mut Battle, env: &mut Env) {
-    for side in [Side::Player, Side::Opponent] {
+    for side in b.sides() {
         abilities::intimidate(b, env, side);
     }
-    for side in [Side::Player, Side::Opponent] {
+    for side in b.sides() {
         abilities::trace(b, env, side);
     }
 }
