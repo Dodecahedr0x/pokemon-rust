@@ -2053,8 +2053,6 @@ mod list {
         // B1F: Strength the boulder (4, 7) west and (9, 10) east, Rock Smash (18, 12), down
         // to B2F.
         goto(MAP_VICTORY_ROAD_B1F, 5, 7),
-        // (An A on the frame the walk settles is not read.)
-        Step::Wait(2),
         Step::Choose(0),
         use_(MAP_VICTORY_ROAD_B1F, 5, 7, Left),
         Step::Walk(Left),
@@ -2083,7 +2081,6 @@ mod list {
         enter(MAP_VICTORY_ROAD_B2F, 19, 12, Up),
         // B1F's south room: smash (20, 25), push (20, 26) down, smash (21, 26).
         goto(MAP_VICTORY_ROAD_B1F, 19, 25),
-        Step::Wait(2),
         Step::Choose(0),
         use_(MAP_VICTORY_ROAD_B1F, 19, 25, Right),
         goto(MAP_VICTORY_ROAD_B1F, 20, 25),
