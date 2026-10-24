@@ -106,6 +106,7 @@ fn fight() -> Request {
         trainer: TrainerId(TRAINER),
         defeat: LOSE,
         no_whiteout: false,
+        rules: None,
     }
 }
 fn intro() -> [Request; 3] {

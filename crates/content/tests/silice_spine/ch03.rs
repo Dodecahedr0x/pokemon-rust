@@ -760,7 +760,6 @@ pub fn check_end(r: &Run) {
         "capsule metatile",
         "play_music",
         "party_valid_count",
-        "strobe",
         "show_sync",
         "play_se",
         "mallette_call",

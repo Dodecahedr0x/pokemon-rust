@@ -140,8 +140,8 @@ async fn chapter_3_state(ctx: &Ctx) {
 
 // ---- Samuel's defeat branch (R-7) ----
 
-/// The money both defeat runs start with: the whiteout halves it, then Samuel takes his fixed
-/// 2000 (the `take_money_percent` fallback).
+/// The money both defeat runs start with: no whiteout (R-7), Samuel takes his fixed 2000 (the
+/// `take_money_percent` fallback).
 const DEFEAT_MONEY: u32 = 6000;
 
 /// In front of Samuel at the helm (13, 4), facing him, the port freed (`VAR_SIL_STORY` 47), with
@@ -202,16 +202,16 @@ async fn at_samuel(ctx: Ctx, rematch: bool) {
     ctx.give_mon(SPECIES_MAGIKARP, 5).await;
 }
 
-/// The first loss: the breath test (yes to every shot: the second is wrong, so the lead would
-/// start confused), the battle lost, the whiteout to the Taverne's door, and the port's
-/// on-frame entry plays the defeat branch there, once.
+/// The first loss: the breath test (yes to every shot: the second is wrong, so the lead starts
+/// confused), the battle lost without a whiteout (R-7), and the defeat branch at once, on the
+/// quarterdeck.
 pub fn samuel_first_loss_steps() -> Vec<Step> {
     vec![
         Step::Interact(Dir::Up),
         Step::Settle,
         Step::Check("first_loss", |r| {
-            assert_eq!(r.w.map(), PORT);
-            assert_eq!(r.pos(), (4, 8));
+            assert_eq!(r.w.map(), GYM);
+            assert_eq!(r.pos(), (13, 4));
             assert_eq!(r.w.var(VAR_SIL_STORY), 48);
             assert_eq!(r.w.var(VAR_SIL_PORT_RESSAC_STATE), 0);
             assert!(r.w.flag(FLAG_SIL_SAMUEL_PERDU));
@@ -219,7 +219,7 @@ pub fn samuel_first_loss_steps() -> Vec<Step> {
             assert!(!r.w.flag(FLAG_SIL_BADGE_04));
             assert!(!r.w.flag(FLAG_SIL_PORT_GYM_CONFUS));
             assert!(!r.beaten(TRAINER_SIL_SAMUEL_1));
-            assert_eq!(r.w.money(), DEFEAT_MONEY / 2 - 2000);
+            assert_eq!(r.w.money(), DEFEAT_MONEY - 2000);
             assert_eq!(r.count(ITEM_TM01), 0);
             r.printed_in_order(&[
                 Port_Ressac_Gym_Sc01_T1,
@@ -230,21 +230,10 @@ pub fn samuel_first_loss_steps() -> Vec<Step> {
                 Port_Ressac_Gym_Sc02_Module,
                 Port_Ressac_Gym_Sc02_Perdu_Badge,
             ]);
-            for f in [
-                "battle_continue_on_loss",
-                "battle_start_status",
-                "take_money_percent",
-                "take_heal_items",
-            ] {
+            assert_eq!(r.times(Port_Ressac_Gym_Sc02_Perdu), 1);
+            for f in ["take_money_percent", "take_heal_items"] {
                 assert!(r.degraded.contains(f), "fallback {f} not reported");
             }
-        }),
-        // Off the door and back: the on-frame entry does not play again.
-        goto(PORT, 6, 9),
-        goto(PORT, 4, 8),
-        Step::Check("first_loss_once", |r| {
-            assert_eq!(r.times(Port_Ressac_Gym_Sc02_Perdu), 1);
-            assert_eq!(r.w.money(), DEFEAT_MONEY / 2 - 2000);
         }),
     ]
 }
@@ -256,14 +245,13 @@ pub fn samuel_rematch_steps() -> Vec<Step> {
         Step::Interact(Dir::Up),
         Step::Settle,
         Step::Check("rematch_loss", |r| {
-            assert_eq!(r.w.map(), PORT);
+            assert_eq!(r.w.map(), GYM);
             assert_eq!(r.w.var(VAR_SIL_STORY), 49);
             assert_eq!(r.w.var(VAR_SIL_PORT_RESSAC_STATE), 0);
             assert!(!r.w.flag(FLAG_SIL_BADGE_04));
-            assert_eq!(r.w.money(), DEFEAT_MONEY / 2 - 2000);
+            assert_eq!(r.w.money(), DEFEAT_MONEY - 2000);
             assert!(!r.has_text(Port_Ressac_Gym_Sc01_T1));
             assert!(!r.has_text(Port_Ressac_Gym_Sc02_Perdu_Surf));
-            assert!(!r.degraded.contains("battle_start_status"));
             r.printed_in_order(&[
                 Port_Ressac_Gym_Revanche,
                 Port_Ressac_Gym_Sc01_T2,
@@ -572,11 +560,7 @@ pub fn check_end(r: &Run) {
 const FALLBACKS: &[&str] = &[
     "dark_map",
     "strength",
-    "battle_continue_on_loss",
-    "battle_start_status",
-    "battle_terrain",
     "play_fanfare",
-    "battle_start_stats",
     "play_se",
     "mallette_call",
     "show_sync",

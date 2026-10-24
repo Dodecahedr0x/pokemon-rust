@@ -415,10 +415,10 @@ pub async fn Evalon_Sc07(ctx: Ctx) {
     ctx.wait_move(LOCALID_EVALON_SBIRE_3).await;
     // fallback: play_music(MUS_VS_AQUA_MAGMA_LEADER) (audio, M12).
     fallback(&ctx, "play_music").await;
-    // fallback: battle_multi(GOGO_4, ROMAIN_4, partner, field = SURDOSE) (§9, no Multi battle
-    // and no field effect before M11): the source's own fallback, two single battles in a row
-    // with a heal between them (the partner's Berries). A white-out replays the scene; a
-    // beaten Gogo is not fought again.
+    // fallback: battle_multi(GOGO_4, ROMAIN_4, partner, field = SURDOSE) (§9): the source's own
+    // fallback, two single battles in a row with a heal between them (the partner's Berries).
+    // Each keeps the overdose (`silice::rules::OVERDOSE`, the trainers' own rule). A white-out
+    // replays the scene; a beaten Gogo is not fought again.
     fallback(&ctx, "battle_multi").await;
     if !defeated(&ctx, TRAINER_SIL_GOGO_4).await
         && lost(battle_trainer(&ctx, TRAINER_SIL_GOGO_4, Evalon_Gogo_Defaite).await)

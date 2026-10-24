@@ -16,16 +16,17 @@
 //!
 //! The controls are inverted outside until Reverse falls (the driver presses the mapped keys).
 //! **The fallbacks the path relies on** (`ch07_*.rs`): the Gogo–Romain double is two single
-//! battles, Reverse's battle is on the normal type chart, the vault's dial is one yes/no that
-//! dials the plaques' code.
+//! battles (each with its injector, SIL3), Reverse's battle is inverse (SIL3: its rule, from
+//! the back), the vault's dial is one yes/no that dials the plaques' code.
 //!
-//! **The party** ([`PARTY`]): Chapter 6's end as `sil7_ch6` leaves it (KADABRA 59 leading, with
-//! Chapter 6's Shock Wave, `givemon`'s moves; TYPHLOSION 62; LAIRON 35, MAREEP 14, PORYGON 25,
+//! **The party** ([`PARTY`]): Chapter 6's end as `sil7_ch6` leaves it (KADABRA 60 leading, with
+//! Chapter 6's Shock Wave, `givemon`'s moves; TYPHLOSION 64; LAIRON 35, MAREEP 14, PORYGON 25,
 //! DUGTRIO 26). No hook. The chapter's trainers (44–49) train the lead; the run heals at the
 //! Centre between the city's fights and before the Palais. Reverse's Wobbuffet (Counter, Mirror
 //! Coat) outlasts the KADABRA, so the TYPHLOSION, second, is trained in the town's grass to
 //! [`REVERSE_LEVEL`] (66) first. Measured (`SPINE_LEVEL_66`): 62 and 64 lose to Reverse; 63 and
-//! 65–69 win. The run ends with the KADABRA at 61 and the TYPHLOSION at 66.
+//! 65–69 win (measured on the normal chart; the inverse one, SIL3, wins at 66 from the 60/64
+//! start). The run ends with the KADABRA at 62 and the TYPHLOSION at 66.
 
 use super::{Run, Start, Step, goto, goto_avoiding};
 use content::consts::*;
@@ -107,8 +108,8 @@ pub fn phare_at_123() -> Start {
 /// The start state's party: Chapter 6's end as its run (`sil7_ch6`) leaves it, the KADABRA
 /// (with Chapter 6's Shock Wave, taught first) leading.
 pub const PARTY: &[(SpeciesId, u8)] = &[
-    (SPECIES_KADABRA, 59),
-    (SPECIES_TYPHLOSION, 62),
+    (SPECIES_KADABRA, 60),
+    (SPECIES_TYPHLOSION, 64),
     (SPECIES_LAIRON, 35),
     (SPECIES_MAREEP, 14),
     (SPECIES_PORYGON, 25),
@@ -691,14 +692,12 @@ pub fn check_end(r: &Run) {
         "show_hologram",
         "hide_hologram",
         "play_music",
-        "injector_mutation",
         "battle_two_trainers",
         "idle_timer",
         "dark_map",
         "black_light",
         "multichoice",
         "ice",
-        "set_inverse_battle",
         "play_fanfare",
         "show_sync",
         "mart",

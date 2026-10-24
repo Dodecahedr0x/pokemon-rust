@@ -21,5 +21,129 @@
             name: "SPECIES_STEELIX_MEGA",
             num: 444,
         ),
+        (
+            name: "SPECIES_ABSOL_MEGA",
+            num: 445,
+        ),
+        (
+            name: "SPECIES_AERODACTYL_MEGA",
+            num: 446,
+        ),
+        (
+            name: "SPECIES_AGGRON_MEGA",
+            num: 447,
+        ),
+        (
+            name: "SPECIES_ALTARIA_MEGA",
+            num: 448,
+        ),
+        (
+            name: "SPECIES_AMPHAROS_MEGA",
+            num: 449,
+        ),
+        (
+            name: "SPECIES_BANETTE_MEGA",
+            num: 450,
+        ),
+        (
+            name: "SPECIES_BLAZIKEN_MEGA",
+            num: 451,
+        ),
+        (
+            name: "SPECIES_GARDEVOIR_MEGA",
+            num: 452,
+        ),
+        (
+            name: "SPECIES_GENGAR_MEGA",
+            num: 453,
+        ),
+        (
+            name: "SPECIES_GLALIE_MEGA",
+            num: 454,
+        ),
+        (
+            name: "SPECIES_GROUDON_PRIMAL",
+            num: 455,
+        ),
+        (
+            name: "SPECIES_HERACROSS_MEGA",
+            num: 456,
+        ),
+        (
+            name: "SPECIES_HOUNDOOM_MEGA",
+            num: 457,
+        ),
+        (
+            name: "SPECIES_KANGASKHAN_MEGA",
+            num: 458,
+        ),
+        (
+            name: "SPECIES_KYOGRE_PRIMAL",
+            num: 459,
+        ),
+        (
+            name: "SPECIES_LATIOS_MEGA",
+            num: 460,
+        ),
+        (
+            name: "SPECIES_MANECTRIC_MEGA",
+            num: 461,
+        ),
+        (
+            name: "SPECIES_MAWILE_MEGA",
+            num: 462,
+        ),
+        (
+            name: "SPECIES_MEDICHAM_MEGA",
+            num: 463,
+        ),
+        (
+            name: "SPECIES_METAGROSS_MEGA",
+            num: 464,
+        ),
+        (
+            name: "SPECIES_MEWTWO_MEGA_X",
+            num: 465,
+        ),
+        (
+            name: "SPECIES_MEWTWO_MEGA_Y",
+            num: 466,
+        ),
+        (
+            name: "SPECIES_PINSIR_MEGA",
+            num: 467,
+        ),
+        (
+            name: "SPECIES_SABLEYE_MEGA",
+            num: 468,
+        ),
+        (
+            name: "SPECIES_SALAMENCE_MEGA",
+            num: 469,
+        ),
+        (
+            name: "SPECIES_SCEPTILE_MEGA",
+            num: 470,
+        ),
+        (
+            name: "SPECIES_SCIZOR_MEGA",
+            num: 471,
+        ),
+        (
+            name: "SPECIES_SLOWBRO_MEGA",
+            num: 472,
+        ),
+        (
+            name: "SPECIES_SWAMPERT_MEGA",
+            num: 473,
+        ),
+        (
+            name: "SPECIES_TYRANITAR_MEGA",
+            num: 474,
+        ),
+        (
+            name: "SPECIES_VENUSAUR_MEGA",
+            num: 475,
+        ),
     ],
 )

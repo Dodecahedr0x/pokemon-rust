@@ -3,8 +3,9 @@
 //! Port_Ressac_Gym_Sc01 to Sc03 (the breath test, Samuel, Gwada l'Enjaillé) and §4 (the guide,
 //! the crew, the barrels' trial). `VAR_SIL_STORY` runs 47 (the gym open) to 49 (Gwada beaten).
 
-use super::ch04_port::{Pushable, STATE_SAMUEL_EN_COURS, push_object};
+use super::ch04_port::{Pushable, push_object};
 use crate::silice::prelude::*;
+use crate::silice::rules::{WITH_ROLL, WITH_ROLL_CONFUSED};
 
 /// The maps whose scripts this file owns: strict (every script they name must exist).
 pub const MAPS: &[&str] = &["PortRessac_Gym", "PortRessac_Gym_Cale"];
@@ -162,25 +163,31 @@ pub async fn PortRessac_Gym_Sc01(ctx: Ctx) {
 /// synchronisation at 40 %. Sets 48 (never back). The grille opens: the player leaves by the
 /// quarterdeck's stairs.
 ///
-/// A loss: see `PortRessac_EventScript_SamuelPerdu` (the R-7 branch, after the whiteout).
+/// A loss (R-7) goes on without a whiteout: Samuel's toll (`ch04_port::samuel_toll`), and the
+/// player stays on the quarterdeck for a rematch.
 pub async fn PortRessac_Gym_Sc02(ctx: Ctx) {
-    // fallback: battle_trainer returning `Lost` without a whiteout (R-7): the battle whites
-    // out; `VAR_SIL_PORT_RESSAC_STATE` marks it running, and the port's on-frame entry plays the
-    // defeat branch where the player lands, the Taverne's door (its respawn, set now).
-    fallback(&ctx, "battle_continue_on_loss").await;
-    ctx.set_respawn(HEAL_LOCATION_SIL_PORT_RESSAC).await;
-    ctx.set_var(VAR_SIL_PORT_RESSAC_STATE, STATE_SAMUEL_EN_COURS)
-        .await;
-    if ctx.flag(FLAG_SIL_PORT_GYM_CONFUS).await {
-        // fallback: the lead starting the battle confused (a battle start status): none.
-        fallback(&ctx, "battle_start_status").await;
-    }
-    // fallback: the roll, a terrain rule (accuracy −1 every second turn for the non-Water,
-    // non-Fighting): none; the source's own fallback is Hariyama's Sand-Attack.
-    fallback(&ctx, "battle_terrain").await;
-    battle_trainer(&ctx, TRAINER_SIL_SAMUEL_1, Port_Ressac_Gym_Sc02_Defeat).await;
-    ctx.set_var(VAR_SIL_PORT_RESSAC_STATE, 0).await;
+    // The roll (accuracy −1 every second turn for the non-Water, non-Fighting) is the ship's
+    // field rule; a failed sobriety test adds the lead's confusion (`silice::rules::ROLL*`).
+    let rules = if ctx.flag(FLAG_SIL_PORT_GYM_CONFUS).await {
+        &WITH_ROLL_CONFUSED
+    } else {
+        &WITH_ROLL
+    };
+    // R-7: a loss goes on without a whiteout, into Samuel's toll on the quarterdeck.
+    let outcome = battle_trainer_with(
+        &ctx,
+        TRAINER_SIL_SAMUEL_1,
+        Port_Ressac_Gym_Sc02_Defeat,
+        true,
+        rules,
+    )
+    .await;
     ctx.set_flag(FLAG_SIL_PORT_GYM_CONFUS, false).await;
+    if matches!(outcome, BattleOutcome::Lost | BattleOutcome::Drew) {
+        super::ch04_port::samuel_toll(&ctx).await;
+        ctx.release_all().await;
+        return;
+    }
     say(&ctx, Port_Ressac_Gym_Sc02_T1).await;
     // fallback: play_fanfare(MUS_OBTAIN_BADGE) (audio, M12): nothing.
     fallback(&ctx, "play_fanfare").await;
@@ -230,9 +237,8 @@ pub async fn PortRessac_Gym_Sc03(ctx: Ctx) {
         say(&ctx, Port_Ressac_Gym_Sc03_T3).await;
     }
     say(&ctx, Port_Ressac_Gym_Sc03_T4).await;
-    // fallback: the opponent's starting stat stages (the "rum": evasion +1, accuracy −1): none;
-    // the source's own fallback (Bright Powder, Reflect) is trainer data.
-    fallback(&ctx, "battle_start_stats").await;
+    // The "rum" (evasion +1, accuracy −1) is Gwada's own field rule (`silice::rules::RUM`);
+    // the source's fallback (Bright Powder, Reflect) stays in the trainer data.
     battle_trainer(&ctx, TRAINER_SIL_GWADA_2, Port_Ressac_Gym_Sc03_Defeat).await;
     say(&ctx, Port_Ressac_Gym_Sc03_T5).await;
     give_item(&ctx, ITEM_DRAGON_SCALE, 1).await;

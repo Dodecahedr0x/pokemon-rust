@@ -19,10 +19,15 @@
 //! **Task A** (`build/silice/{text,data,merge}.rs`): the texts of `text/fr.ron`, Silice's
 //! trainers, wild encounters (by Silice map), items (with their base items' hold effects) and
 //! marts (`data::MARTS`), the map headers and `LOCALID_*`, through the shared `game_data_tables!`.
+//!
+//! **SIL3 battle mechanics**: the Mega and Primal forms (`battle/forms.ron`,
+//! `data::FORM_CHANGES`), the trainers' AI item bags (`data::trainer_items`), and the field
+//! rules, per-trainer rules and mid-battle lines of [`rules`].
 
 pub mod mallette;
 pub mod new_game;
 pub mod prelude;
+pub mod rules;
 
 #[cfg(test)]
 mod game_tests;
@@ -34,7 +39,10 @@ use crate::consts::{
     VAR_SIL_IDLE_FRAMES, VAR_SIL_INPUT_MAP,
 };
 use crate::{NEW_GAME_SCRIPT, data};
-use engine::data::{FieldMove, FieldMoveGate, GameData, MapId, ScriptId, SpecialIds};
+use engine::battle::{BattleRules, FieldRule, TrainerLine};
+use engine::data::{
+    FieldMove, FieldMoveGate, FormChange, GameData, ItemId, MapId, ScriptId, SpecialIds, TrainerId,
+};
 use engine::script::{Ctx, Script};
 
 /// Silice's content root.
@@ -99,5 +107,27 @@ impl GameData for Game {
         SIL_HEAL_LOCATIONS
             .get(usize::from(id).checked_sub(1)?)
             .copied()
+    }
+
+    /// `battle/forms.ron`'s Mega and Primal forms.
+    fn form_changes(&self) -> &'static [FormChange] {
+        &data::FORM_CHANGES
+    }
+
+    fn battle_rule(&self, id: u8) -> Option<&'static FieldRule> {
+        rules::battle_rule(id)
+    }
+
+    fn trainer_rules(&self, id: TrainerId) -> Option<&'static BattleRules> {
+        rules::trainer_rules(id)
+    }
+
+    fn trainer_lines(&self, id: TrainerId) -> &'static [TrainerLine] {
+        rules::trainer_lines(id)
+    }
+
+    /// `battle/trainers.ron`'s AI item bags.
+    fn trainer_items(&self, id: TrainerId) -> &'static [ItemId] {
+        data::trainer_items(id.0)
     }
 }

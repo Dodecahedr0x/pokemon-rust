@@ -14,6 +14,7 @@ pub mod calc;
 pub mod core;
 pub mod effects;
 pub mod gfx;
+pub mod rules;
 pub mod scene;
 pub mod text;
 pub mod transition;
@@ -27,6 +28,7 @@ use crate::mon::{Ability, Gender, NAME_LEN, Party, Stat, Status, TrainerPic, Typ
 use crate::video::Tile;
 
 pub use self::core::Battle;
+pub use self::rules::{BattleRules, FieldRule, LineWhen, RuleEffect, TrainerLine};
 pub use self::scene::BattleScene;
 
 /// A battler: its position (Gen3 `B_POSITION_*`; the engine's battler id is its position, as
@@ -137,6 +139,8 @@ pub struct BattleSetup {
     pub environment: Environment,
     /// `BATTLE_TYPE_DOUBLE` (trainer battles only): four battlers. `None`: singles.
     pub double: Option<Double>,
+    /// Silice's per-battle rules ([`rules`]); default for every Gen3 battle.
+    pub rules: BattleRules,
 }
 
 /// A double battle (`BATTLE_TYPE_DOUBLE`): `trainerbattle_double`'s one trainer with both foes
@@ -280,6 +284,8 @@ pub enum Buff {
         party: u8,
     },
     Text(Str),
+    /// The foe trainer's name (authored texts, [`Str::Authored`]).
+    TrainerName,
     /// `B_LAST_ITEM` (`gLastUsedItem`): an item name, from `GameData::item`. The core puts it
     /// in `buffs[2]`, which `{B_LAST_ITEM}` expands.
     Item(ItemId),
@@ -912,11 +918,16 @@ pub enum Str {
     PkmnReadyToHelp,
     /// `STRINGID_PKMNSXTOOKATTACK` (Lightning Rod drew the move, `BattleScript_TookAttack`).
     PkmnsXTookAttack,
+    /// `STRINGID_TRAINER1USEDITEM` (a trainer's item, Silice's trainer item AI).
+    Trainer1UsedItem,
     /// `gAbilityNames[a]`. The ability codes (`B_ATK_ABILITY`, `B_DEF_ABILITY`,
     /// `B_SCR_ACTIVE_ABILITY`, `B_EFF_ABILITY`, `B_LAST_ABILITY`) expand `Msg::buffs[2]`, which
     /// the core sets to `Buff::Text(Str::AbilityName(..))` for the messages that name one.
     /// `Ability::Other` and `Ability::None` have no name (empty).
     AbilityName(Ability),
+    /// An authored text (`GameData::text`): trainer lines and field rules ([`rules`]).
+    /// `{STR_VAR_1..3}` expand `Msg::buffs[0..3]`, `{PLAYER}` the player's name.
+    Authored(TextId),
 }
 
 impl Str {
@@ -1261,6 +1272,9 @@ impl Str {
             TwoEnemiesDefeated => 224,
             PkmnReadyToHelp => 225,
             PkmnsXTookAttack => 226,
+            // The text id is hashed after the code (`scene/hash.rs`).
+            Authored(_) => 227,
+            Trainer1UsedItem => 228,
         }
     }
 }

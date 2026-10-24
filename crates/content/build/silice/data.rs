@@ -7,7 +7,7 @@
 //!   moves, held items (`TrainerMon.item`; Silice turns `Rules::trainer_held_items` on), AI flags,
 //!   classes, pics by extract name and names. Names over Gen3's limits (10 bytes, class 12) fail
 //!   unless `check-exceptions.ron` lists the trainer (`trainer-name`, `trainer-class-name`): then
-//!   they are cut, with a report line. The AI item bag has no engine counterpart yet (reported).
+//!   they are cut, with a report line. The AI item bags are `data::trainer_items`.
 //! - **Encounters** ([`encounters`]): `battle/encounters.ron`, by Silice map file name (numbered
 //!   by `ids/maps.ron`, built or not), replace Emerald's: `wild_encounters` and the water, rock
 //!   smash and fishing tables.
@@ -17,7 +17,8 @@
 //!   (`item-incomplete`): a missing name becomes the id's words, a missing pocket `Items`, a
 //!   missing price 0, each reported; a long name (`item-name-length`) is cut. The marts
 //!   (`data::MARTS`) list their map and stock. Placements are map events (the maps have them).
-//! - **Form changes** ([`form_changes`]): none until the data exists (reported).
+//! - **Forms** ([`forms`]): `battle/forms.ron`, the Mega and Primal forms appended to the
+//!   species at their `ids/species.ron` numbers, and `data::FORM_CHANGES`.
 //!
 //! A Silice id is passed to the generator as `<PREFIX>0x<HEX>` (`ITEM_0x17A`), which
 //! `extract::names` reads as a number; Gen3 names pass through.
@@ -57,7 +58,8 @@ pub fn item_ref(ids: &Ids, name: &str) -> Result<String> {
     Ok(name.to_string())
 }
 
-/// Replaces `w`'s trainers by `battle/trainers.ron`'s; returns their constants.
+/// Replaces `w`'s trainers by `battle/trainers.ron`'s; returns their constants and
+/// `data::trainer_items`.
 pub fn trainers(
     games: &Path,
     ids: &Ids,
@@ -65,7 +67,7 @@ pub fn trainers(
     enc: &Encoder,
     w: &mut World,
     report: &mut Vec<String>,
-) -> Result<Vec<Const>> {
+) -> Result<(Vec<Const>, String)> {
     let file: games::TrainersFile = crate::read_opt!(games.join("battle/trainers.ron"));
     let species: BTreeSet<&str> = w.battle.species.iter().map(|s| s.id.as_str()).collect();
     let moves: BTreeSet<&str> = w.battle.moves.moves.iter().map(|m| m.id.as_str()).collect();
@@ -76,6 +78,7 @@ pub fn trainers(
     let mut by_num: BTreeMap<u32, Trainer> = BTreeMap::new();
     let mut consts = Vec::new();
     let mut bags = 0;
+    let mut bag_arms = String::new();
     for t in &file.trainers {
         let at = t.id.as_str();
         let num = ids
@@ -143,10 +146,18 @@ pub fn trainers(
             "{at}: {} bag items (at most 4)",
             t.items.len()
         );
+        let mut bag = Vec::new();
         for i in &t.items {
-            item_ref(ids, i).with_context(|| at.to_string())?;
+            let r = item_ref(ids, i).with_context(|| at.to_string())?;
+            let v = names::ITEMS
+                .value(&r)
+                .with_context(|| format!("{at}: item {r}"))?;
+            bag.push(format!("ItemId({v})"));
         }
-        bags += usize::from(!t.items.is_empty());
+        if !bag.is_empty() {
+            bags += 1;
+            writeln!(bag_arms, "        {num} => &[{}], // {at}", bag.join(", "))?;
+        }
         // The generator encodes the names again (`battle.rs`): pass the text it can encode.
         let name = enc.encode_name(&t.name, TRAINER_NAME_MAX, "trainer-name", at, exc, report)?;
         let class_name = enc.encode_name(
@@ -173,11 +184,10 @@ pub fn trainers(
         );
         consts.push((t.id.clone(), "TrainerId", format!("TrainerId({num})")));
     }
-    if bags > 0 {
-        report.push(format!(
-            "trainers: {bags} AI item bags not compiled (the engine has no trainer bag yet)"
-        ));
-    }
+    report.push(format!("trainers: {bags} AI item bags"));
+    let bags_rs = format!(
+        "/// Each trainer's AI item bag (`battle/trainers.ron`'s `items`, `GameData::trainer_items`).\npub fn trainer_items(trainer: u16) -> &'static [ItemId] {{\n    match trainer {{\n{bag_arms}        _ => &[],\n    }}\n}}\n"
+    );
     // The pics, by extract name: every one must exist; only these are compiled.
     let dir = w.dir.clone().context("the Silice world needs an extract")?;
     let pics_path = dir.join("trainers/pics.ron");
@@ -209,7 +219,7 @@ pub fn trainers(
         });
     }
     w.battle.trainers = list;
-    Ok(consts)
+    Ok((consts, bags_rs))
 }
 
 /// Gen3 bytes back to `.string` text that encodes to the same bytes (the generator encodes
@@ -451,24 +461,109 @@ fn marts(marts: &[games::Mart], ids: &Ids) -> Result<(String, usize)> {
     Ok((o, marts.len()))
 }
 
-/// `GameData::form_changes`: needs, per Mega stone or orb, its base species, its form species
-/// with battle data (stats, types, ability, pics) and its kind. `games/silice` has none of the
-/// form data: `ids/species.ron` names a few `SPECIES_*_MEGA` forms but no species file gives
-/// their data, and `items.ron` maps no stone to a form (its stones lack a pocket or base item,
-/// `item-incomplete`). So there is no form change yet; returns the report line.
-pub fn form_changes(ids: &Ids) -> Result<String> {
-    let forms: Vec<&str> = (ids.files.get(&IdKind::Species).into_iter())
+/// What [`forms`] adds besides `w`'s species.
+pub struct FormsOut {
+    /// `SPECIES_*_MEGA` / `_PRIMAL` -> `SpeciesId`.
+    pub consts: Vec<Const>,
+    /// `data::FORM_CHANGES`.
+    pub data_rs: String,
+    pub report: String,
+}
+
+/// The battle-only forms of `battle/forms.ron`, appended to `w`'s species at their
+/// `ids/species.ron` numbers (a number without a form is a copy of `SPECIES_NONE`), and
+/// `data::FORM_CHANGES` (`GameData::form_changes`). A form takes its base species' name,
+/// yields, growth, learnset and pics (no form pics yet), and its own stats, types, ability and
+/// weight. A form `ids/species.ron` names without data fails, and so does a stone that is not
+/// an `ITEM_SIL_*` item.
+pub fn forms(games: &Path, ids: &Ids, w: &mut World) -> Result<FormsOut> {
+    let file: games::FormsFile = crate::read_opt!(games.join("battle/forms.ron"));
+    let enable = match &file.mega_flag {
+        Some(f) => Some(
+            ids.live(IdKind::Flags, f)?
+                .with_context(|| format!("forms.ron: mega_flag {f} is not in ids/flags.ron"))?,
+        ),
+        None => None,
+    };
+    let named: Vec<(String, u32)> = (ids.files.get(&IdKind::Species).into_iter())
         .flat_map(|f| &f.ids)
         .filter(|e| !e.removed)
-        .map(|e| e.name.as_str())
+        .map(|e| (e.name.clone(), e.num))
         .collect();
-    if forms.is_empty() {
-        return Ok("form changes: none (no form species)".into());
+    for (n, _) in &named {
+        ensure!(
+            file.forms.iter().any(|f| &f.id == n),
+            "{n} (ids/species.ron) has no data in battle/forms.ron"
+        );
     }
-    Ok(format!(
-        "form changes: none: {} form species are named ({}) but have no battle data (base \
-         stats, types, ability, pics) and no stone maps to them; form_changes() stays empty",
-        forms.len(),
-        forms.join(", ")
-    ))
+    let species = &mut w.battle.species;
+    let mut consts = Vec::new();
+    let mut changes = String::new();
+    let mut seen = BTreeSet::new();
+    for f in &file.forms {
+        let at = f.id.as_str();
+        let num = ids
+            .live(IdKind::Species, at)?
+            .with_context(|| format!("{at} is not in ids/species.ron"))? as usize;
+        ensure!(
+            seen.insert(f.item.clone()),
+            "{at}: {} triggers two forms",
+            f.item
+        );
+        let from_no = (species.iter().position(|s| s.id == f.from))
+            .with_context(|| format!("{at}: base species {} is not a Gen3 species", f.from))?;
+        let item = (ids.live(IdKind::Items, &f.item)?)
+            .with_context(|| format!("{at}: {} is not in ids/items.ron", f.item))?;
+        let base = species[from_no].clone();
+        while species.len() <= num {
+            let n = species.len();
+            species.push(extract::schema::Species {
+                id: format!("SPECIES_0x{n:X}"),
+                ..species[0].clone()
+            });
+        }
+        let id = format!("SPECIES_0x{num:X}");
+        if let Some(g) = w.battle.mon_gfx.get(&f.from).cloned() {
+            w.battle.mon_gfx.insert(id.clone(), g);
+        }
+        species[num] = extract::schema::Species {
+            id,
+            base: f.base,
+            types: f.types.clone(),
+            abilities: [f.ability.clone(), "ABILITY_NONE".into()],
+            weight: f.weight,
+            ..base
+        };
+        consts.push((f.id.clone(), "SpeciesId", format!("SpeciesId({num})")));
+        let kind = match f.kind {
+            games::FormKindDef::Mega => "Mega",
+            games::FormKindDef::Primal => "Primal",
+        };
+        let flag = match (f.kind, enable) {
+            (games::FormKindDef::Mega, Some(n)) => format!("Some(FlagId({n:#X}))"),
+            _ => "None".into(),
+        };
+        writeln!(
+            changes,
+            "    FormChange {{ base: SpeciesId({from_no}), item: ItemId({item}), form: SpeciesId({num}), kind: FormKind::{kind}, enable_flag: {flag} }}, // {at}"
+        )?;
+    }
+    let data_rs = format!(
+        "/// Every battle-only form of `battle/forms.ron` (`GameData::form_changes`).\npub static FORM_CHANGES: [FormChange; {}] = [\n{changes}];\n",
+        file.forms.len()
+    );
+    Ok(FormsOut {
+        report: format!(
+            "form changes: {} ({} Mega, {} Primal), pics from the base species",
+            file.forms.len(),
+            (file.forms.iter())
+                .filter(|f| f.kind == games::FormKindDef::Mega)
+                .count(),
+            (file.forms.iter())
+                .filter(|f| f.kind == games::FormKindDef::Primal)
+                .count()
+        ),
+        consts,
+        data_rs,
+    })
 }

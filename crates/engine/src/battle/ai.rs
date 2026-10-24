@@ -456,7 +456,7 @@ impl<'a> Ai<'a> {
             d = calc::stab(d);
         }
         let target = self.b.battler(self.target);
-        let r = calc::type_effect(
+        let r = calc::type_effect_in(
             self.t.type_chart,
             self.t.foresight_split,
             target.foresight,
@@ -464,6 +464,7 @@ impl<'a> Ai<'a> {
             target.types,
             info.power,
             d,
+            self.b.setup.rules.inverse,
         );
         if r.eff == Effectiveness::NoEffect {
             return X0;
@@ -490,7 +491,7 @@ impl<'a> Ai<'a> {
             if a.has_type(info.ty) {
                 dmg = calc::stab(dmg);
             }
-            dmg = calc::type_effect(
+            dmg = calc::type_effect_in(
                 self.t.type_chart,
                 self.t.foresight_split,
                 target.foresight,
@@ -498,6 +499,7 @@ impl<'a> Ai<'a> {
                 d.types,
                 info.power,
                 dmg,
+                self.b.setup.rules.inverse,
             )
             .damage;
         }
@@ -1140,7 +1142,7 @@ fn switch_if_wonder_guard(b: &Battle, t: &BattleTables, rng: &mut Rng, side: Sid
         return None;
     }
     let (species, ability) = (foe.mon.species, foe.ability);
-    let super_eff = |m: MoveId| type_calc(t, m, species, ability) == Effectiveness::Super;
+    let super_eff = |m: MoveId| type_calc(b, t, m, species, ability) == Effectiveness::Super;
     if me.mon.moves.into_iter().flatten().any(super_eff) {
         return None;
     }
@@ -1184,6 +1186,7 @@ fn absorber(b: &Battle, t: &BattleTables, rng: &mut Rng, side: Side) -> Option<u
 /// a Ground move on Levitate and, on Wonder Guard, a move with power that is not super
 /// effective do not affect it; Struggle has no flags.
 fn type_calc(
+    b: &Battle,
     t: &BattleTables,
     mov: MoveId,
     species: crate::data::SpeciesId,
@@ -1197,7 +1200,7 @@ fn type_calc(
         return Effectiveness::NoEffect;
     }
     let types = t.species_info(species).types;
-    let eff = calc::type_effect(
+    let eff = calc::type_effect_in(
         t.type_chart,
         t.foresight_split,
         false,
@@ -1205,6 +1208,7 @@ fn type_calc(
         types,
         info.power,
         1,
+        b.setup.rules.inverse,
     )
     .eff;
     if ability == Ability::WonderGuard && eff != Effectiveness::Super && info.power != 0 {
@@ -1231,7 +1235,7 @@ fn super_effective_move(
         let foe = b.battler(foe);
         let (foe, ability) = (foe.mon.species, foe.ability);
         for m in b.battler(side).mon.moves.into_iter().flatten() {
-            if type_calc(t, m, foe, ability) == Effectiveness::Super
+            if type_calc(b, t, m, foe, ability) == Effectiveness::Super
                 && (no_rng || !rng.random().is_multiple_of(10))
             {
                 return true;
@@ -1261,11 +1265,11 @@ fn find_mon(
     let foe = b.battler(side.other());
     let (foe, ability) = (foe.mon.species, foe.ability);
     for (i, p) in candidates(b, side) {
-        if type_calc(t, last, p.species, p.ability(t)) != flags {
+        if type_calc(b, t, last, p.species, p.ability(t)) != flags {
             continue;
         }
         for m in p.moves.into_iter().flatten() {
-            if type_calc(t, m, foe, ability) == Effectiveness::Super
+            if type_calc(b, t, m, foe, ability) == Effectiveness::Super
                 && rng.random().is_multiple_of(modulo)
             {
                 return Some(i as u8);

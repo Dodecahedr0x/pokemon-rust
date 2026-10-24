@@ -4,6 +4,7 @@
 //! (the gym open) → 65 (the fifth door) → 66 (Tak beaten).
 
 use crate::silice::prelude::*;
+use crate::silice::rules::WITH_PETALS_BLINK;
 
 /// The maps whose scripts this file owns: strict (every script they name must exist).
 pub const MAPS: &[&str] = &["MangaSquare_Gym"];
@@ -42,7 +43,6 @@ pub async fn MangaSquare_Gym_OnLoad(ctx: Ctx) {
 struct Samurai {
     obj: u8,
     trainer: TrainerId,
-    hatif: TrainerId,
     intro: TextId,
     defeat: TextId,
     /// The way the player faces to talk to him from the alley.
@@ -55,7 +55,6 @@ fn samurai_at(y: i16) -> Option<Samurai> {
         25 => Some(Samurai {
             obj: LOCALID_GYM06_MUSASHI,
             trainer: TRAINER_SIL_SAMOURAI_MUSASHI,
-            hatif: TRAINER_SIL_SAMOURAI_MUSASHI_HATIF,
             intro: Gym_Sc01_T1_MUSASHI,
             defeat: Gym_Sc01_D_MUSASHI,
             side: Dir::Right,
@@ -63,7 +62,6 @@ fn samurai_at(y: i16) -> Option<Samurai> {
         22 => Some(Samurai {
             obj: LOCALID_GYM06_KOJIRO,
             trainer: TRAINER_SIL_SAMOURAI_KOJIRO,
-            hatif: TRAINER_SIL_SAMOURAI_KOJIRO_HATIF,
             intro: Gym_Sc01_T1_KOJIRO,
             defeat: Gym_Sc01_D_KOJIRO,
             side: Dir::Left,
@@ -78,9 +76,10 @@ fn samurai_at(y: i16) -> Option<Samurai> {
 /// samurai says his defeat line.
 ///
 /// `wait_input_or_timeout(180)`: a button before the gong is a blink (T3), else T4.
-/// fallback: `set_battle_malus(PLAYER_LEAD, SPEED, -1)` after a blink (§9, no battle rule yet):
-/// the source's own fallback for it, the battle against `TRAINER_SIL_SAMOURAI_<NOM>_HATIF`
-/// (+2 levels); no blink is the normal one. Either win marks the samurai beaten (his normal
+/// A blink is the source's `set_battle_malus(PLAYER_LEAD, SPEED, -1)`: the same samurai under
+/// `rules::PETALS_BLINK` (the petals and the lead's Speed −1); no blink is his normal battle.
+/// `TRAINER_SIL_SAMOURAI_<NOM>_HATIF` (+2 levels), the source's fallback for the malus, is no
+/// longer fought (author question: drop it, or keep it as well?). Either win marks the samurai beaten (his normal
 /// trainer flag). (`Gym_Sc01_Repli_Q`, the yes/no of the fallback without the timed wait, is
 /// no longer said.)
 pub async fn MangaSquare_Gym_Sc01(ctx: Ctx) {
@@ -105,8 +104,7 @@ pub async fn MangaSquare_Gym_Sc01(ctx: Ctx) {
     play_se(&ctx, "SE_ARENA_TIMEUP1").await;
     let outcome = if blinked {
         say(&ctx, Gym_Sc01_T3).await;
-        fallback(&ctx, "set_battle_malus").await;
-        battle_trainer(&ctx, s.hatif, s.defeat).await
+        battle_trainer_with(&ctx, s.trainer, s.defeat, false, &WITH_PETALS_BLINK).await
     } else {
         say(&ctx, Gym_Sc01_T4).await;
         battle_trainer(&ctx, s.trainer, s.defeat).await
@@ -213,11 +211,9 @@ pub async fn MangaSquare_Gym_Sc03(ctx: Ctx) {
     say(&ctx, Gym_Sc03_T1).await;
     say(&ctx, Gym_Sc03_T2).await;
     say(&ctx, Gym_Sc03_T3).await;
-    // fallback: set_battle_weather(WEATHER_PETALS) (§9): the source's own fallback, no weather.
-    fallback(&ctx, "set_battle_weather").await;
-    // fallback: Mega Evolution (no form change is built yet): Charizard battles unevolved and
-    // Gym_Mega_T1–T3 are not shown, as Ch2's Alakazam.
-    fallback(&ctx, "mega_evolution").await;
+    // The petals (`WEATHER_PETALS`, §4) are every sanctuary battle's field rule
+    // (`silice::rules::PETALS`, not a weather). Charizard Mega Evolves (the Charizardite X):
+    // Gym_Mega_T1 is Tak's line before it; T2 and T3 are the engine's own Mega messages.
     battle_trainer(&ctx, TRAINER_SIL_TAK_1, Gym_Sc03_D).await;
     say(&ctx, Gym_Sc03_T4).await;
     say(&ctx, Gym_Sc03_T5).await;

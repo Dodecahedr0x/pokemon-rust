@@ -1979,6 +1979,7 @@ Both assert the story at each step (17 → 20 → 21 → 22 → 23 → 24 → 25
 Bag counts are lower bounds, because the chain arrives with Ch1's items. The gift flags pin the "once".
 
 **Author questions.**
+- **(SIL3 battle mechanics)** Yohan's Mega line `Gym2_Sc10_Mega` ("> Promotion du pion…") is said by the battle before the Mega, as Yohan's line, not as a screen. The deaf room's rule has no message of its own: a sound move prints Gen3's "But it failed!". Should the room open with `Gym2_Sourde_Panneau`, or get a line?
 1. The Technicien and the Agent have no line after their gift. They now only turn to the player.
 2. Skitty, Lainergie (in town) and the Tour Top's consoles have no line. They reuse the Promeneur's, `Gris_Echec_Sc06_T7` and `Tour_Ecran`.
 3. Yohan, talked to after the badge, repeats `Gym2_Sc10_Defeat`. Is a post-badge line wanted?
@@ -2078,6 +2079,7 @@ No prelude addition: Chapter 3 uses the existing helpers (`trainer`, `post_battl
 Both assert the story at each step (28 → 30 → 31 → 32 → 33 → 34 → 35 → 36), the flags, the trainers, the bag, the scene texts by id and every fallback on the path (all of the table but `slot machine`, `mart` and `hidden item`, which no step triggers).
 
 **Author questions.**
+- **(SIL3 battle mechanics)** The strobe's three messages are new texts (`Nocturne_Strobe_Blanche`, `_UV`, `_Neon`, from §4.5's table). The source's fallback items (Bright Powder on Sableye/Dusclops, Quick Claw on Magneton) are not in `trainers.ron` (the trainers hold Sitrus, Magnet, Spell Tag): keep them as they are now that the rule runs?
 1. `Viber_City_Neon_T2` (the neon sign after the analysis) is not in `text/fr.ron`; the sign says nothing after the first reading.
 2. The Center's refugees reuse `Viber_City_Pnj01_T2` (`Couverture`); do they need their own lines?
 3. Mathieu heals once a visit (the source's temporary flag); is a repeat heal wanted?
@@ -2251,6 +2253,7 @@ The sound effects use the decomp names `SE_SIFFLET` = `SE_M_GRASSWHISTLE`, the c
 - It ends with the KADABRA at 42 and asserts every chapter fallback on the path.
 
 **Questions for the author.**
+- **(SIL3 battle mechanics)** Samuel's loss no longer whites out (R-7): the toll plays at once on the quarterdeck, and the player stays there for the rematch, not at the Taverne's door. Is that the intended place? The roll's message is the source's « Le navire tangue! [POKéMON] perd l'équilibre! » (`Port_Ressac_Gym_Roulis`). Gwada's rum has no message: Gen3's stat messages (evasion rose, accuracy fell) print as each of his mons enters. Is "each mon as it enters" the right reading of "ses Pokémon commencent avec"?
 1. **Reused lines.** The source has no line of its own for:
    - the client sailor, the gangway pirate (`Npc_Pirate_Passerelle`), the duel pirates and the decor grunts;
    - Gogo and Romain after Sc03 (`Sc03_T6`, `Sc03_T1`);
@@ -3391,6 +3394,7 @@ Measured:
 - **A lower party** (TYPHLOSION 48–50, AGGRON 46, LANTURN 44, AMPHAROS 40) lost at 50.
 
 **Questions for the author.**
+- **(SIL3 battle mechanics)** Reverse's battle is inverse, opens on `Gym07_Inverse_Debut`, and shows his pic mirrored (no back-facing asset yet). Abilities' immunities (Levitate) stay under the inverse chart; only the type chart is inverted. The menu-mirroring bonus is not built. The injectors read the notes' "+4 / −2" as the source's own split (+2 Atk or SpAtk, +2 Speed, −1 Def, −1 accuracy); in the two single battles, "the last Pokémon" is each trainer's. The palette glitch is not drawn. The fallback items (Liechi, Petaya, Double-Edge) are kept with the rule: drop them?
 1. **Route S7's trainers** have teams but no lines. Should they get intros and defeats, or are the zone lines reused here acceptable?
 2. **The bins:** should they say something (a Silice "empty" line), or hide an item as bins 2 and 4 do?
 3. **The vault** has a multichoice of four codes. Its own fallback ("four yes/nos") has no texts. Is one yes/no that dials the code once the four plaques are read acceptable? Or should there be four `Coffre_Code_n` texts?
@@ -4643,6 +4647,7 @@ No prelude or driver change: the chapter only uses existing helpers.
 - About 137 000 frames for the main path, 2 200 for the islet. `check_end` asserts story 55, the badge, the module, `LOG_05`, sync 50, the bag, no dropped event, and nine fallbacks.
 
 **Questions for the author.**
+- **(SIL3 battle mechanics)** Skycker's Absol Mega Evolves after `Owlys_Gym_Sc01_Mega`. Mega Absol has Magic Bounce. The custom night background has no Gen3 environment: the cell's is used. Which Gen3 background should stand in (cave, building)?
 1. Skycker's scene leaves Mathieu on the walkway, the platform's only way down. The scripts have him leave after the log. Should he walk down instead, or leave before the log?
 2. The Silo Chief "leaves" after his battle but had no hide flag. He now has `FLAG_SIL_HIDE_OWLYS_SILO_CHEF` (1060, the review). Should the source name it?
 3. (Answered by the coordinator: new Ch5 script flags take 1060–1079.)
@@ -4747,7 +4752,7 @@ No prelude or driver change. The chapter's helpers (`join_queue`, the `Fan` and 
 - `play_music`, `play_fanfare`, `play_se` (audio, M12). The source's invented SEs map to decomp ones: the servers' hum `SE_PC_ON`, the gong `SE_ARENA_TIMEUP1`, the shoji `SE_SLIDING_DOOR`, the rock `SE_M_ROCK_THROW`.
 - `dawn_tint`: the Secteur Zêta's dawn sky.
 - `show_book`: the tale in the message box (the source's own fallback).
-- `wait_input_or_timeout` and `set_battle_malus`: the samurai's yes/no "draw first?" (the source's own fallback): yes fights the `_HATIF` variant (+2 levels), no the normal one; either win marks the samurai beaten.
+- ~~`wait_input_or_timeout` and `set_battle_malus`~~ (field and UI wave, merged with SIL3): the samurai's staring duel is a 180-frame `wait_input_or_timeout`; a press is a blink (T3) and the normal samurai under `rules::PETALS_BLINK` (the petals and the lead's Speed −1), no press is T4 and his normal battle. The `_HATIF` variants are no longer fought (author question).
 - `multichoice`: see the quiz below.
 - `set_battle_weather` (petals; the source's fallback is none) and `mega_evolution` (Silice has no `form_changes` data yet: Charizard fights unevolved, as Ch2's Alakazam).
 - `show_sync`, `log_menu`: the gauge and the log read in the message box.
@@ -4766,6 +4771,7 @@ No prelude or driver change. The chapter's helpers (`join_queue`, the `Fan` and 
 - **Tak is the run's risk.** With the KADABRA leading (Ch4's lead), Tak was lost at most lead levels from 48 to 57. With the AMPHAROS, 50–52 win about one run in two; 53 to 57 win nearly always (the review's grid below). The cause is the battle policy, not the trainer data: it never switches, and Tak's NINJASK uses Swords Dance then Baton Pass, so HITMONLEE and CHARIZARD arrive boosted and sweep a bench the lead has not trained. A change upstream (a level, a step) can tip him; widen the margin before treating a loss there as a script bug.
 
 **Author questions.**
+- **(SIL3 battle mechanics)** The petals are a field rule (8 turns: Grass and Bug heal 1/16), not a weather, so they do not show the hail animation. Tak's Mega says `Gym_Mega_T1` before it; `Gym_Mega_T2` and `_T3` stand where the engine prints its own Mega messages (`Battle_MegaReacting`, `Battle_MegaEvolved`), so they are not shown: use them as the Mega messages for this battle? The samurai's `set_battle_malus` (Speed −1) is available, but the yes/no fallback still battles the `_HATIF` variant (+2 levels), as the source's fallback pairs them; switch the "yes" to the normal samurai with the malus?
 - The six borrowed trainer lines (above): write their own intros and defeats?
 - The quiz: write `Gym_Sc02_Q1_Choix` to `_Q5_Choix` (three options each), so that the yes/no fallback, or the multichoice, can be built? Until then the read flags decide.
 - The Toiletteur: the source charges 500 ₽ after the first time and raises friendship; the fallback gives a Soothe Bell. Keep the bell?
@@ -4799,7 +4805,7 @@ No prelude or driver change. The chapter's helpers (`join_queue`, the `Fan` and 
   2. Ch5 ends with its hooked LANTURN and Ch6 starts with a WAILORD instead (Route S5's sea, not playable without Surf). Keep the WAILORD in the chain, or carry the LANTURN on?
   3. Seiji can be walked round by (11, 5–7). Should he block the alley, as the samurai do?
 
-- **Field and UI wave** ("Silice field and UI mechanics as built"): the samurai's `wait_input_or_timeout(180)` and the groomer's `add_friendship` are real. Questions there: 5 (the groomer short of 500 ₽) and 6 (`Gym_Sc01_Repli_Q` unused).
+- **Field and UI wave** ("Silice field and UI mechanics as built"): the samurai's `wait_input_or_timeout(180)` and the groomer's `add_friendship` are real. Questions there: 5 (the groomer short of 500 ₽) and 6 (`Gym_Sc01_Repli_Q` and the `_HATIF` trainers unused; the blink is the malus).
 
 #### Silice engine: held items, Fairy, Mega/Primal, abilities (as built)
 Engine side of the three SIL3 battle features, ahead of SIL3 (branch of `db07b1d`). It is game-agnostic, and Emerald does not move: parity is identical (route loop 166 of 217, hash 46 of 65), and the four committed checkpoint nodes verify as `valid (rehash)`. Every new behaviour is gated on data Emerald lacks: an item with a hold effect, a form change, a weather or post-Gen3 ability, or the Fairy type.
@@ -4943,7 +4949,7 @@ The §1.1 rows "Mallette modules", "Mallette menu", "screen_flash … camera_pan
     - Ch2 Route S2 yellow flash, Ch2 gym thunder, Ch4 barrel, Ch7 Reverse's black pixels, Ch7 welcome (`NEGATIF`): `screen_flash`.
     - Ch3 smoke bomb: a white fade around the grunts' exit. Ch2 MAREEP → FLAAFFY on an NPC: white fades around the swap (`play_evolution` is still reported: no scene for an NPC's Pokémon).
     - Ch4 Route S4's `use_field_module(FLASH)`: a white flash.
-    - Ch6 samurai: `wait_input_or_timeout(180)`. A press is a blink (T3), else T4; `set_battle_malus` stays a fallback, the hasty variant standing in for it. The spine blinks, as it did when it answered yes.
+    - Ch6 samurai: `wait_input_or_timeout(180)`. A press is a blink (T3): the same samurai under `rules::PETALS_BLINK` (SIL3's petals plus `stage(Start, PLAYER, Speed, −1)`, the source's `set_battle_malus`); else T4 and the normal battle. The `_HATIF` (+2 levels) variants, the source's fallback for the malus, are no longer fought. The spine blinks.
     - Ch6 groomer: `add_friendship(0, 30)`, free once, then 500 ₽; the Soothe Bell fallback is gone.
     - Ch3 Casino PORYGON: `give_mon_with` (CONVERSION 2, PSYBEAM, RECOVER, AGILITY; the Up-Grade held; OT "COCKET", id 0).
     - Ch7 Reverse-City: `set_input_inverted` is `ctx.set_input_map`. Habitant 1 and 2 are set to `WanderBackwards` on every load.
@@ -4951,7 +4957,7 @@ The §1.1 rows "Mallette modules", "Mallette menu", "screen_flash … camera_pan
   - **Spines**:
     - Ch7's driver walks Reverse-City with inverted controls (`reverse_sc01` asserts `InputMap::Inverted`); the explorer presses the mapped key too.
     - Ch7's and Ch8's start states give the KADABRA its level's moves with Shock Wave over Role Play (`give_kadabra_with_shock_wave`, `givemon`'s moves), so the TM34 re-teach steps are gone.
-    - The fallback lists drop what is now real (`screen_shake`, `screen_flash`, `log_menu`, `give_mon custom`, `use_field_module`, `set_input_inverted`, `walk_backwards`); Ch6 now expects `set_battle_malus` in place of `wait_input_or_timeout`.
+    - The fallback lists drop what is now real (`screen_shake`, `screen_flash`, `log_menu`, `give_mon custom`, `use_field_module`, `set_input_inverted`, `walk_backwards`); Ch6 drops `wait_input_or_timeout` and `set_battle_malus`. Merged with SIL3 (master 0243470): its levels (Ch7 60/64, Ch8 62/66) with this wave's `give_kadabra_with_shock_wave`.
     - All of `sil1_*`, `sil2_ch1` to `sil9_ch8` pass.
   - **Ids and texts**: `VAR_SIL_INPUT_MAP` (16450) and `VAR_SIL_IDLE_FRAMES` (16451), clear of `SHARED_GEN3`. 41 new `Mallette_*` texts and `Casino_B1F_Porygon_DO` are in `text/fr.ron` and `speakers.ron`. The menu's log titles read "LOG 01 …": the charmap has no `_` (§4 item 8).
 - **Author questions** (also in §5):
@@ -4960,12 +4966,58 @@ The §1.1 rows "Mallette modules", "Mallette menu", "screen_flash … camera_pan
   3. `screen_flash(NEGATIF)` (Ch7 welcome) is a white flash: the engine fills one colour and has no palette inversion. Is that enough?
   4. Durations the source leaves out: a flash is 16 frames; `screen_shake(m)` without frames is 20 (the Ch4 ship roll and Samuel's rail).
   5. Ch6 groomer: no line exists for a player short of 500 ₽. The refusal (`Toiletteur_T3`) stands in, and nothing is taken.
-  6. Ch6 samurai: `Gym_Sc01_Repli_Q` (the yes/no of the fallback) is no longer said. Drop the text?
+  6. Ch6 samurai: `Gym_Sc01_Repli_Q` (the yes/no of the fallback) is no longer said, and the `_HATIF` (+2 levels) trainers are no longer fought: a blink is the normal samurai with the lead's Speed −1 (`rules::PETALS_BLINK`). Drop the text and the two trainers, or keep the hasty variant as well (answers SIL3's question in Ch6)?
   7. Ch3 PORYGON: the source gives the OT "COCKET" but no id (0 used), and the engine keeps no OT name yet.
   8. Ch7 emitters: the full design (300 still frames in a 3-cell zone → `Emetteur_T1` and a confused lead; the Scanner destroys them without a battle) needs the emitters as non-trainer objects (a map edit), an `on_frame` on `VAR_SIL_IDLE_FRAMES`, and a battle-start confusion (the battle-setup task). The counter exists; the trainer-object fallback stays. Move to the full design?
   9. Ch7 residents walk backwards on every visit, also after Reverse falls. Should they stop with the inversion?
   10. The party menu lists the four field modules on every Pokémon (the engine's rule for a flag gate), labelled SURF, VOL, CASCADE and PLONGÉE; only VOL can be used there. Should Silice hide them from the party menu (the bible: "les modules s'utilisent depuis la Mallette") and add a Mallette FLY entry instead?
 - Plan §3.4's question 11 (Ch7) is answered by the engine: the input map is cleared on every map change, so Route S7 and S8 need no `OnTransition`.
+
+#### SIL3 battle mechanics as built (§1.1 P2, §3.4)
+The P2 battle rows, checked against the engine first, then filled; the Silice content wired to them. Emerald does not move: every new state is hashed only when set, `GameData`'s new hooks default to nothing, and the content build changes only Silice's tables.
+
+- **Mega Evolution and Primal Reversion: what was already there.** The engine side (above: the trigger, the AI, the recalculation, the abilities, the Fairy type, the messages) was complete. Missing were the Silice data and texts:
+  - `games/silice/battle/forms.ron` (new, hand-written; `extract::games::FormsFile`): the 34 Mega forms of the stones and the two Primal Reversions. Each form has its Gen6 base stats (Alakazam's Sp. Def 95, the pre-Gen7 numbers), types, ability and weight; it takes its base species' name, catch rate, yields, gender, growth, learnset and pics. `mega_flag: FLAG_SIL_MODULE_MEGA` gates the player's Megas; trainers ignore it.
+  - `ids/species.ron`: 31 form ids appended (445–475, append-only); the five the importer had (440–444) keep their numbers. The build appends the forms to the species at those numbers (`SPECIES_0x1B8`…), consts `SPECIES_*_MEGA` / `_PRIMAL`, and writes `data::FORM_CHANGES` (`build/silice/data.rs::forms`). A form id without data fails the build.
+  - Pics: the base species' (no form pics: gfx belongs to another session).
+  - The Fairy chart turns on by itself (Gardevoir, Altaria and Mawile forms are Fairy).
+  - Post-Gen3 abilities have no Gen3 id: their raw ability id is 0 (no name in the summary). Their effects are the engine's `Ability` variants.
+  - Texts: the engine's post-Gen3 strings (`MegaReacting`, `MegaEvolved`, `PrimalReversion`, the primal weathers, `FizzledInRain`, `EvaporatedInSun`, `BreaksTheMold`, `BouncedBack`, `MegaArmed`, `SolarPowerHurt`) take an authored game's `Battle_<Variant>` text when `text/fr.ron` has one (`build/battle.rs` `gen_strings`; Emerald has none, so they stay empty there). The 13 `Battle_*` texts are new French (chapter `moteur` in `speakers.ron`): an author question.
+  - Every trainer Mega in the spines now happens: Yohan's Alakazam (Ch2), Skycker's Absol (Ch5), Tak's Charizard X (Ch6), Loulpix's Mawile (Ch8).
+- **Inverse battle.** `BattleRules.inverse` (engine, earlier commit): `calc::type_effect_in(.., inverse)` maps ×2↔×0.5 and ×0→×2 in `type_calc`, `immune` and the AI's effectiveness and damage. Abilities' immunities stay. Reverse's battles are inverse, with `Gym07_Inverse_Debut` as the intro and his pic mirrored (`foe_back`).
+- **Battle-start effects and field rules.** One mechanism, `GameData::battle_rule(id) -> FieldRule` (data, `engine::battle::rules`): a list of `RuleEffect { when, who, what, text, var }`.
+  - `when`: `Start`, `TurnStart(Turns)`, `TurnEnd(Turns)`, `During(Turns)`, `LastIn`, and `SwitchIn` (new: the leads after `Start`, then every switch-in).
+  - Instant effects: a message, a stat stage with a limit, a status, confusion, a heal or a loss of HP.
+  - Continuous effects: accuracy against the battler, speed, damage taken, a drain on the damage dealt, sound moves failing, a confusion ward.
+  - So "battle-start status / stat stages" are `Start` / `SwitchIn` effects, not `BattleSetup` fields. "Forced weather" (the petals) is a rule, not a weather (§3.4 had a weather kind; no Gen3 battle weather heals).
+  - `crates/content/src/silice/rules.rs` holds the data: deaf room, strobe, roll, roll + confused lead, rum, petals, the two injectors, overdose, prism, the Cœur d'Évalon.
+- **Per-trainer rules (new hook).** `GameData::trainer_rules(TrainerId) -> Option<&BattleRules>`: the rules of every battle against that trainer when the request names none. A trainer seen on its route (the Mélomane, the ship's crew, the sanctuary) gets its room's rule without a script change. A script passes its own with `prelude::battle_trainer_with` (Samuel's confused lead).
+- **Trainer lines.** `GameData::trainer_lines(TrainerId) -> &[TrainerLine { when: SendOut(slot) | LastSendOut | Mega | LowHp, text }]`; each said once, as an authored text with `{STR_VAR_1}` the mon (or the trainer) and `{STR_VAR_2}` the trainer. Wired: the Mega lines of Yohan, Skycker, Tak (`Gym_Mega_T1`), Kimiko and Arthur. Kimiko's six send-out lines have no text ids yet (author question, Ch10).
+- **Trainer item AI.** `GameData::trainer_items(TrainerId) -> &[ItemId]` (at most 4), used by Gen3's `ShouldUseItem` rules (full restore, HP, cures, X items; Guard Spec. is not classified) as an `Action::Item` in the turn order. `trainers.ron`'s `items` bags are `data::trainer_items`. The importer found no bag: Arthur_1's two Full Restores are added from Ch10 §9 (`Arthur _1 (2 Guérisons)`). Kimiko's optional Hyper Potions are not added.
+- **No whiteout.** `battle_trainer_with(.., no_whiteout: true, ..)` answers `Lost` and the script goes on. Samuel (R-7): the toll (`ch04_port::samuel_toll`) plays at once on the quarterdeck. The port's on-frame entry (`PortRessac_EventScript_SamuelPerdu`, `VAR_SIL_PORT_RESSAC_STATE` 9) stays for a save made under the old fallback.
+- **Background and foe from the back.** `BattleRules.background: Option<Environment>` replaces the cell's (Gen3 environments only, so Skycker's night background has no stand-in yet). `foe_back` draws the foe's front pic mirrored until back-facing assets exist.
+- **Clone battle.** `BattleRules.clone_player`: the foe battles a healed copy of the player's party (same species, levels, moves, items). Ch12 has no script yet; the engine test covers it.
+- **Deviations from §3.4.**
+  - Rules travel with the trainer request (`Request::BattleTrainer.rules`) or come from the trainer (`trainer_rules`), not a World-stored `SetBattleRules`: nothing to clear after the battle.
+  - The trainer items and lines are `GameData` hooks, not a `TrainerData.items` field: no `TrainerData` constructor changes.
+- **Readings of the source** (each marked in `rules.rs`):
+  - "Ses Pokémon commencent avec" (Gwada's rum) and "au début du combat, tous les Pokémon" (the overdose): each mon as it enters (`SwitchIn`), since Gen3 stat stages belong to the battler on the field.
+  - The injector's "+4 / −2" of the notes: the source's own split (+2 / +2, −1 / −1). In the fallback's two single battles, "the last Pokémon" is each trainer's.
+  - The Cœur d'Évalon: Ch10's version (half the player's confusions shaken off, the rest 2 turns at most), not Ch8's full immunity. It is the rule of the Tower's 1F trainers (Gaston, Coralie, Mathias), not of every battle once `FLAG_SIL_COEUR_EVALON` is set (no flag-conditional rule).
+  - The petals are "every battle of the sanctuary": its five trainers, the two hasty variants and Tak.
+  - The roll is "the gym trainers and Samuel": the four crew trainers and Samuel; not Gwada on the coupée.
+- **Spines.** Ch2, Ch3, Ch4, Ch5, Ch7 and Ch8 pass unchanged except the fallback lists and Samuel's loss run (now on the quarterdeck, money −2000 and no halving). Ch6: Tak's Mega Charizard X (Fire/Dragon resists Shock Wave and the Typhlosion's Fire moves) beats the 59/62 party; 60/64 wins, as do 60/63 and 61/64 (59/63, 59/64, 61/63, 60/65, 61/65 and 62/65 lose). Ch7 and Ch8 start from the new end parties (60/64, then 62/66), and both pass under the inverse chart, the injectors and the overdose.
+- **Not done** (follow-ups):
+  - Mega and Primal pics (assets).
+  - The Ch8 multi battle with the overdose: the scene still uses the two-single-battles fallback.
+  - The strobe's and the injector's palette effects.
+  - Kimiko's send-out lines (no texts) and her "émotion" (−1 Sp. Atk, whose side the source leaves open) are not built. Revenge's prism and the 1F Cœur are wired as data (`trainer_rules`) for the Ch10 scripts to come.
+  - The Ch12 clone battle (no script yet).
+- **Author questions** (also in the chapter blocks):
+  - The 13 `Battle_*` engine texts (Mega, primal weathers, Mold Breaker, Magic Bounce, Solar Power) are new French: rewrite them?
+  - Mega forms keep their base species' name ("ALAKAZAM", not "MÉGA-ALAKAZAM", which is over Gen3's 10 characters): fine?
+  - Ch8: Loulpix's Mawile has no Mega line; the overdose's messages are new texts from §3 (`Evalon_Surdose_Rage`, `_Fatigue`).
+  - Ch10: the prism's messages (`Tour_4F_Prisme_On`, `_Off`) and the Cœur's (`Tour_Coeur_Pulse`) are new texts from §9; the Cœur everywhere once received, or only on 1F?
 
 ### 3.5 SIL4 to SIL6 (roadmap)
 - **SIL4, Ch7–Ch9.** Reverse mechanics (§3.4); ice, arrow and rotation tiles, Waterfall and Dive (M10); underwater currents; camera pan; multi battles (M11); the foe's back sprite; optional true follower.
@@ -5311,7 +5363,7 @@ The "two floors" of an antenna may be one 9 × 9 map with both rooms, or a secon
 5. **Mega forms** (blocks SIL3 data): canonical types and abilities (add a Fairy type and about 14 abilities newer than Gen3), or Gen3-adapted forms?
 6. **Duplicate text ids (SIL1 Task A, provisional):** `Tour_Sbire1_Intro` and `Tour_Sbire2_Intro` are defined in both ch02 and ch09, with different bodies. The ch09 ones are renamed `..._Ch09` (`text/fr.ron`, `text/speakers.ron`). Should we keep these names, pick others, or merge the texts? The rename is reversible: undo it, and the loader rejects the duplicate again.
 7. **Ch9 → Ch10 elevator (contradiction between chapters, found in the Ch9 maps review):** Ch9's `Tour_Hall_Sc02` sets `VAR_SIL_STORY` 99 and warps straight to `MAP_TOUR_NEBULA_1F` (10, 14), while Ch10 routes the first climb through the crystal cabin's first-climb scene, which sets 100. Proposed fix: the hall script warps to `TourNebulaAscenseur` (3, 6), and the cabin scene takes the player on to 1F. The maps need no change either way (the hall has no elevator warp; the warp is in the script).
-8. **The field and UI wave's authored strings and rulings** ("Silice field and UI mechanics as built", §3.4): the Mallette's menu texts and module prompts (not in the source), `NEGATIF` as a white flash, the default flash and shake lengths, the groomer short of money, the unused `Gym_Sc01_Repli_Q`, the PORYGON's OT id, the Ch7 emitters' full design (a map edit and a battle-start confusion), whether Reverse-City's residents walk backwards after Reverse falls, and whether the field modules belong in the party menu.
+8. **The field and UI wave's authored strings and rulings** ("Silice field and UI mechanics as built", §3.4): the Mallette's menu texts and module prompts (not in the source), `NEGATIF` as a white flash, the default flash and shake lengths, the groomer short of money, the unused `Gym_Sc01_Repli_Q` and `_HATIF` samurai, the PORYGON's OT id, the Ch7 emitters' full design (a map edit and a battle-start confusion), whether Reverse-City's residents walk backwards after Reverse falls, and whether the field modules belong in the party menu.
 
 ### Critical files for implementation
 - /Users/dode/Documents/pokemon/pokemon-rust/crates/content/build/main.rs

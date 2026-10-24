@@ -19,11 +19,6 @@ const METATILE_MER: u16 = 368;
 const CARGO_X: core::ops::RangeInclusive<i16> = 4..=11;
 const CARGO_Y: core::ops::RangeInclusive<i16> = 22..=26;
 
-/// `VAR_SIL_PORT_RESSAC_STATE` while Samuel's battle runs (`ch04_gym.rs`): still there after the
-/// battle only when it was lost (a whiteout ends the script), so the port's on-frame entry plays
-/// the defeat branch (`PortRessac_EventScript_SamuelPerdu`). The lookout and the breath test
-/// count from 0 and reset to 0, so they never reach it.
-pub(super) const STATE_SAMUEL_EN_COURS: u16 = 9;
 
 // ---- the Champ Magnétique fallback (Strength) ----
 
@@ -509,14 +504,12 @@ pub async fn PortRessac_Sc06(ctx: Ctx) {
 }
 
 /// The end of a lost battle against Samuel (Gym_Sc02, R-7): the port's on-frame entry on
-/// `VAR_SIL_PORT_RESSAC_STATE` [`STATE_SAMUEL_EN_COURS`]. Samuel's toll, the Hydro-Propulseur
+/// `VAR_SIL_PORT_RESSAC_STATE` 9 (the old fallback's "Samuel's battle running"). Samuel's toll, the Hydro-Propulseur
 /// after the first loss, `FLAG_SIL_SAMUEL_PERDU`, and `VAR_SIL_STORY` 48 so that Gwada waits on
 /// the coupée.
 ///
-/// fallback: a battle that goes on after a loss (`battle_trainer` returning `Lost`, as Emerald's
-/// optional Wally battle): a loss whites out, so the defeat branch plays here, as the player
-/// lands at the Taverne's door (`HEAL_LOCATION_SIL_PORT_RESSAC`, which the gym sets before the
-/// battle). The source's own fallback, a pirate at the Taverne's door, has no object on the map.
+/// Only a save made under the old fallback (a loss whited out to the Taverne's door) reaches
+/// it now: Samuel's battle goes on after a loss and Gym_Sc02 plays [`samuel_toll`] itself.
 /// `take_money_percent(20)`: the source's fixed 2000; `take_heal_items(3)`: none.
 pub async fn PortRessac_EventScript_SamuelPerdu(ctx: Ctx) {
     ctx.set_var(VAR_SIL_PORT_RESSAC_STATE, 0).await;
@@ -524,6 +517,15 @@ pub async fn PortRessac_EventScript_SamuelPerdu(ctx: Ctx) {
     // skipped in Gym_Sc02: a rematch starts without the confusion (§3 Gym_Sc01).
     ctx.set_flag(FLAG_SIL_PORT_GYM_CONFUS, false).await;
     ctx.lock_all().await;
+    samuel_toll(&ctx).await;
+    ctx.release_all().await;
+}
+
+/// Samuel's toll after a lost battle (Gym_Sc02's defeat branch, R-7): his line, 20 % of the
+/// money (the source's fixed 2000), the heal, the Hydro-Propulseur after the first loss,
+/// `FLAG_SIL_SAMUEL_PERDU`, `VAR_SIL_STORY` 48. The caller holds the lock.
+pub(super) async fn samuel_toll(ctx: &Ctx) {
+    let ctx = ctx.clone();
     say(&ctx, Port_Ressac_Gym_Sc02_Perdu).await;
     fallback(&ctx, "take_money_percent").await;
     money_remove(&ctx, 2000).await;
@@ -541,7 +543,6 @@ pub async fn PortRessac_EventScript_SamuelPerdu(ctx: Ctx) {
     if story(&ctx).await < 48 {
         set_story(&ctx, 48).await;
     }
-    ctx.release_all().await;
 }
 
 // ---- gates ----

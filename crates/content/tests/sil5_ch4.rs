@@ -24,10 +24,10 @@ fn chapter_4_plays_from_the_glass_tunnel_to_julien_s_call() {
     ch04::check_end(&r);
 }
 
-/// Samuel's defeat branch (R-7): a first loss, then a lost rematch, each whiting out to the
-/// Taverne's door, where the port's on-frame entry plays the branch once.
+/// Samuel's defeat branch (R-7): a first loss, then a lost rematch, each without a whiteout,
+/// the branch played at once on the quarterdeck.
 #[test]
-fn losing_to_samuel_plays_the_defeat_branch_at_the_taverne_door() {
+fn losing_to_samuel_plays_the_defeat_branch_without_a_whiteout() {
     let mut r = Run::starting_at(DEFEAT_LIMIT, ch04::samuel_first_loss());
     r.allow_losses = true;
     r.play(&ch04::samuel_first_loss_steps());
