@@ -187,7 +187,7 @@ Ids: **G** = gameplay or blocking, **T** = text the agents invented or borrowed,
 
 **G-29 · Ch12 · The antennas' two floors**
 - **Question:** Should each antenna be one 9 × 9 map holding both rooms, or a second map each (three new ids)?
-- **Provisional:** undecided (Ch12 maps question 3).
+- **Provisional:** one map each (both rooms on the 9 × 9 map; the receptionist warps to the top room (4, 6)).
 
 **G-30 · Ch4 · The Port-Ressac canal is surfable**
 - **Question:** Should the canal be surfable after the badge?
@@ -268,11 +268,27 @@ Ids: **G** = gameplay or blocking, **T** = text the agents invented or borrowed,
   - `SPECIES_<NOM>`: the legendary table.
   - `FLAG_DAILY`, `FLAG_GEMME`, `FLAG_PREMIERE`: real flag names, and a daily-reset mechanism for the rematches.
   - `MAP_ROUTE_SXX_ANTENNE`: the route number is undecided.
-- **Provisional:** none (`ch12_stubs.rs`).
+- **Provisional (SIL6 scripts):** one shared `PG_Revanche_Deja` line; the gem flags `FLAG_SIL_ITEM_PG_GEM_<LEADER>`, one Mega Stone per leader given in the leader's gym; the legendaries' species and levels from the §1 table; `FLAG_SIL_DAILY_*` reset by the engine's clock (`VAR_DAYS`); the antennas on Routes S2, S3 and S7.
 
 **G-45 · Ch12 · `MOVE_SIL_CODE_AQUA`**
 - **Question:** The move (Sc28) contradicts D-00 and D-02b, which allow Gen3 moves only. Is it new move data, or the documented tutor fallback? Due by SIL6.
-- **Provisional:** none.
+- **Provisional (SIL6):** the source's Gen3 fallback per starter (Meganium Ancient Power, Typhlosion Crush Claw, Feraligatr Crunch) through Gen3's tutor screen: the player picks the mon, and any mon can learn it (reported as a fallback).
+
+**G-48 · Ch12 · The Tower hall after Ch9**
+- **Question:** Nébula has no door into the Tower hall after Ch9, so the post-game reaches the hall (and its elevator hub) only by Dive, as Ch9 does. Intended, or should a door open?
+- **Provisional:** Dive only.
+
+**G-49 · Ch12 · Reverse in his gym from 123**
+- **Question:** Reverse's rematch is in his gym from 123, while Thomas is also at the Breach. Is that the intended timing?
+- **Provisional:** in the gym from 123 (`ch07`).
+
+**G-50 · Ch12 · Sc21's tournament in the Library**
+- **Question:** The source sends the player to a Dojo that has no map; a warp also ends a script. Sc21's three battles are fought in place in the Library. Acceptable, or should a Dojo map be built?
+- **Provisional:** in the Library.
+
+**G-51 · Ch12 · The Antennas' battles and rule**
+- **Question:** The three battles run from the top room's on-frame script after the receptionist's warp. The rule is checked at the door only; "ni du Sac" is not enforced in battle. Acceptable?
+- **Provisional:** as described.
 
 **G-46 · All · The Old Rod**
 - **Question:** 11 maps fill old-rod slots, but no Old Rod is ever given. Give one somewhere, or drop the slots?
@@ -314,6 +330,14 @@ There are 65 ids, found by checking `text/speakers.ron` against the source markd
 **T-06 · Ch10:** `Tour_4F_Prisme_On` and `_Off` (the prism), `Tour_Coeur_Pulse` (the Cœur) and `Tour_Ascenseur_Panneau` (the hall's elevator sign).
 
 ### 2b. Texts the source never wrote
+
+**T-11 · Ch12 · Silent, reused or invented lines (SIL6 scripts)**
+- **Silent (no text in the source):** Benou's door sign, painting and door; the Zone 404's slabs; the Braille wall; the Apex's socle; the Crater's boulder.
+- **Turn only:** Gwada outside Sc30; Adrien before 122; the citizens; Julien at 120.
+- **Absent:** the Sc19 actors; Arthur's Port-Ressac NPC.
+- **Invented from the source's list:** the elevator labels (1F, 2F, 3F, 4F, SOMMET, TOIT, ANNULER).
+- **Reused:** Mathieu repeats `Sc02_T1`; Gwada's reminders reuse her lines; the workbench carries Silas's line; each defeat text is the source's after-battle line.
+- **Sound:** the fragment's bip is `SE_PIN`.
 
 These still need lines from you. Until then the scripts borrow a nearby line or say nothing.
 
@@ -464,9 +488,9 @@ These still need lines from you. Until then the scripts borrow a nearby line or 
 
 ## 4. Summary of `check-exceptions.ron`
 
-There are **260 entries**:
+There are **250 entries**:
 - **244** carry `ruling_needed: true`. The plan counted 249 at import time; some have been resolved since.
-- **10** are `false`: justified `placement-map` entries, the post-game gifts that Ch12 scenes give.
+- The **10** `false` entries (the post-game gifts' `placement-map`) were removed by the SIL6 scripts, which now place those gifts.
 - **6** carry no flag: 5 mechanical `sil-prefix` renames (the three heal locations, `MUS_RG_SEKAIKAN` → `MUS_RG_NEW_GAME_INTRO`, `MUS_TEAM_AQUA_HIDEOUT` → `MUS_AQUA_MAGMA_HIDEOUT`) and one `item-name-clash` (the Mewtwo stones).
 
 ### 4a. By category
@@ -480,7 +504,6 @@ There are **260 entries**:
 | X-05 | `item-name-length` | 16 | yes | item names over 13 bytes | C-02 |
 | X-06 | `trainer-class-name` | 10 | yes | class names over 12 bytes | C-01 |
 | — | `trainer-name` | 8 | yes | trainer names over 10 bytes | C-01, G-13 |
-| — | `placement-map` | 10 | no | post-game gifts placed on maps that earlier chapters claim | — |
 | — | `map-undefined` | 5 | yes | `MAP_ROUTE_SXX_ANTENNE`, the Manga-Square houses ×2, `MAP_BRICO_BOURG_NIGHT`, "arènes" | G-44, C-13 |
 | — | `item-name-clash` | 4 | 3 yes | Poudre Claire, Orbe Bleu and Rouge, the Mewtwo stones | C-03 |
 | — | `dynamic-unresolved` | 4 | yes | Revanche_Deja, the gem flags, `Gym_Sc02_Q<n>_Choix`, `SPECIES_<NOM>` | G-39, G-44 |
