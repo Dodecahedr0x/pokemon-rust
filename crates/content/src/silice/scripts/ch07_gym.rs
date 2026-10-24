@@ -146,10 +146,9 @@ pub async fn ReverseCity_Gym_Sc01(ctx: Ctx) {
     say(&ctx, Gym07_Sc01_T1).await;
     say(&ctx, Gym07_Sc01_T2).await;
     say(&ctx, Gym07_Sc01_T3).await;
-    // fallback: set_inverse_battle(true) (R-2, §4, §9: the type chart inverted for Reverse's
-    // battle, its opening line `Gym07_Inverse_Debut`): the battle runs on the normal chart, and
-    // the line is not shown (it would be false). His back-facing battle sprite is an asset.
-    fallback(&ctx, "set_inverse_battle").await;
+    // set_inverse_battle(true) (R-2): Reverse's battles are inverse, open on
+    // Gym07_Inverse_Debut and show him from the back (`silice::rules::INVERSE`; the back is
+    // his front pic mirrored until the asset exists).
     if battle_trainer(&ctx, TRAINER_SIL_REVERSE_1, Gym07_Sc01_D).await != BattleOutcome::Won {
         ctx.release_all().await;
         return;

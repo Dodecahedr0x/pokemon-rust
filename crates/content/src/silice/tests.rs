@@ -139,5 +139,49 @@ fn held_items_have_their_effects() {
         Game.hold_effect(engine::data::ItemId(consts::ITEM_ORAN_BERRY)),
         Some(HoldEffect::RestoreHp(10))
     );
-    assert!(Game.form_changes().is_empty());
+}
+
+/// SIL3: the forms of `battle/forms.ron` (the stone on its base species, the Mega Ring's flag
+/// for the player), their stats and abilities, the Fairy type, and the battle rules' tables.
+#[test]
+fn the_mega_forms_and_battle_rules_reach_the_game() {
+    use engine::data::{FormKind, ItemId, TrainerId};
+    use engine::mon::{Ability, Type};
+    let f = Game.form_changes();
+    let alakazam = f
+        .iter()
+        .find(|c| c.item == ItemId(consts::ITEM_SIL_ALAKAZITE))
+        .expect("the Alakazite");
+    assert_eq!(alakazam.form, consts::SPECIES_ALAKAZAM_MEGA);
+    assert_eq!(alakazam.kind, FormKind::Mega);
+    assert_eq!(alakazam.enable_flag, Some(consts::FLAG_SIL_MODULE_MEGA));
+    let t = Game.battle();
+    let info = &t.species[usize::from(consts::SPECIES_ALAKAZAM_MEGA.0)];
+    assert_eq!(info.base, [55, 50, 65, 150, 175, 95]);
+    assert_eq!(info.name, t.species[usize::from(alakazam.base.0)].name);
+    let mawile = &t.species[usize::from(consts::SPECIES_MAWILE_MEGA.0)];
+    assert_eq!(mawile.types, [Type::Steel, Type::Fairy]);
+    assert_eq!(mawile.abilities[0], Ability::HugePower);
+    let kyogre = f
+        .iter()
+        .find(|c| c.form == consts::SPECIES_KYOGRE_PRIMAL)
+        .unwrap();
+    assert_eq!((kyogre.kind, kyogre.enable_flag), (FormKind::Primal, None));
+    assert_eq!(
+        t.species[usize::from(kyogre.form.0)].abilities[0],
+        Ability::PrimordialSea
+    );
+    assert!(t.type_chart.iter().any(|m| m.attack == Type::Fairy));
+    assert!(Game.trainer_rules(TrainerId(0)).is_none());
+    assert!(
+        Game.trainer_rules(consts::TRAINER_SIL_REVERSE_1)
+            .unwrap()
+            .inverse
+    );
+    let field = Game
+        .trainer_rules(consts::TRAINER_SIL_SAMUEL_1)
+        .unwrap()
+        .field;
+    assert!(Game.battle_rule(field.unwrap()).is_some());
+    assert!(!Game.trainer_lines(consts::TRAINER_SIL_YOHAN_1).is_empty());
 }

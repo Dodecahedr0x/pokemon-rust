@@ -175,7 +175,7 @@ pub fn start() -> Start {
 
 /// The start state's party: Chapter 5's end as its run (`sil6_ch5`) leaves it, the KADABRA
 /// leading (the one [`Step::Train`] raises; Chapter 3's TM34 gives it Shock Wave for Tak's
-/// Lapras, Ninjask and Charizard). The run ends with the KADABRA at 59 and the TYPHLOSION at 62
+/// Lapras, Ninjask and Charizard). The run ends with the KADABRA at 60 and the TYPHLOSION at 64
 /// (`ch07::PARTY`).
 pub const PARTY: &[(SpeciesId, u8)] = &[
     (SPECIES_KADABRA, 50),
@@ -247,13 +247,13 @@ pub const LEVEL_GYM: u8 = 46;
 /// 42–46), once the doors are open; then the TYPHLOSION trains to [`LEVEL_TAK_SECOND`]. Tak is
 /// the run's risk: his NINJASK Baton-Passes Swords Dance to HITMONLEE and CHARIZARD, the battle
 /// policy never switches, and the bench (LAIRON 35, MAREEP 14, PORYGON 25, DUGTRIO 26) cannot
-/// stop a boosted CHARIZARD. Measured (KADABRA, TYPHLOSION): the KADABRA alone loses at 53–59,
-/// 62 and 63 (wins at 60, 61 and 64); with the TYPHLOSION trained, 59/62 wins and so do its
-/// four neighbours 58/62, 60/62, 59/61 and 59/63 (57/62 and 60/61 lose; 53/60, 54/60, 56/60 and
-/// 57/60 win, 52/60 and 55/60 lose).
-pub const LEVEL_TAK: u8 = 59;
+/// stop a boosted CHARIZARD. SIL3: the CHARIZARD Mega Evolves (Fire/Dragon, Tough Claws: Shock
+/// Wave and the TYPHLOSION's Fire moves are resisted) and the petals heal the SCYTHER and the
+/// NINJASK. Measured again (KADABRA/TYPHLOSION): 60/64 wins, and so do 60/63 and 61/64; 59/62
+/// (the Gen3 tuning), 59/63, 59/64, 61/63, 60/65, 61/65 and 62/65 lose to the Mega CHARIZARD.
+pub const LEVEL_TAK: u8 = 60;
 /// The TYPHLOSION's level before Tak (see [`LEVEL_TAK`]).
-pub const LEVEL_TAK_SECOND: u8 = 62;
+pub const LEVEL_TAK_SECOND: u8 = 64;
 
 /// Chapter 6's steps.
 pub fn steps() -> Vec<Step> {
@@ -548,8 +548,6 @@ const FALLBACKS: &[&str] = &[
     "play_se",
     "wait_input_or_timeout",
     "multichoice",
-    "set_battle_weather",
-    "mega_evolution",
     "play_fanfare",
     "show_sync",
     "log_menu",

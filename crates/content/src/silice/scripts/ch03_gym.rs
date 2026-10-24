@@ -123,10 +123,8 @@ pub async fn ViberCity_Gym_Sc02(ctx: Ctx) {
         return;
     }
     say(&ctx, Nocturne_Sc02_T3).await;
-    // fallback: the strobe (Blanche, UV, Néon each turn, §4.5): no battle field effect; the
-    // manager's rules and T3 say it. The engine runs the double battle as singles against the
-    // same six (it reports "double battle" itself).
-    fallback(&ctx, "strobe").await;
+    // The strobe (Blanche, UV, Néon each turn, §4.5) is the battle's own field rule
+    // (`silice::rules::STROBE`).
     battle_trainer(&ctx, TRAINER_SIL_TAUBER_HOCSEAT_1, Nocturne_Sc02_Defaite).await;
     say(&ctx, Nocturne_Sc02_T4).await;
     say(&ctx, Nocturne_Sc02_T5).await;

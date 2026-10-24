@@ -210,11 +210,9 @@ pub async fn MangaSquare_Gym_Sc03(ctx: Ctx) {
     say(&ctx, Gym_Sc03_T1).await;
     say(&ctx, Gym_Sc03_T2).await;
     say(&ctx, Gym_Sc03_T3).await;
-    // fallback: set_battle_weather(WEATHER_PETALS) (§9): the source's own fallback, no weather.
-    fallback(&ctx, "set_battle_weather").await;
-    // fallback: Mega Evolution (no form change is built yet): Charizard battles unevolved and
-    // Gym_Mega_T1–T3 are not shown, as Ch2's Alakazam.
-    fallback(&ctx, "mega_evolution").await;
+    // The petals (`WEATHER_PETALS`, §4) are every sanctuary battle's field rule
+    // (`silice::rules::PETALS`, not a weather). Charizard Mega Evolves (the Charizardite X):
+    // Gym_Mega_T1 is Tak's line before it; T2 and T3 are the engine's own Mega messages.
     battle_trainer(&ctx, TRAINER_SIL_TAK_1, Gym_Sc03_D).await;
     say(&ctx, Gym_Sc03_T4).await;
     say(&ctx, Gym_Sc03_T5).await;
