@@ -18,7 +18,7 @@ use extract::battle_data::{STAT_NAME_KEYS, TRAINER_MONEY_DEFAULT_CLASS, stat_sha
 use extract::names::{self, Table};
 use extract::schema::{
     BattleStringsFile, DexFile, EncounterHeader, EvolutionsFile, HealLocationsFile, MonCoords,
-    Move, MovesFile, RematchesFile, Species, Trainer, TrainerMoneyFile, TypesFile,
+    Move, MovesFile, PartnersFile, RematchesFile, Species, Trainer, TrainerMoneyFile, TypesFile,
 };
 use extract::text::{Lang, encode_lang};
 use std::collections::BTreeMap;
@@ -99,6 +99,8 @@ pub struct BattleIn {
     pub dex: DexFile,
     /// `gRematchTable` (format 5.6; empty before).
     pub rematches: RematchesFile,
+    /// `sStevenMons` (format 5.13; empty before).
+    pub partners: PartnersFile,
     pub player_back: PicIn,
     pub ui: UiGfx,
     pub small_glyphs: Vec<Glyph>,
@@ -268,6 +270,53 @@ impl Gen<'_> {
 
     fn move_id(&self, n: &str) -> Result<String> {
         Ok(format!("MoveId({})", get(&self.move_no, n)?))
+    }
+
+    /// `PARTNER`: Gen3 `FillPartnerParty(TRAINER_STEVEN_PARTNER)`'s party (`sStevenMons`), with
+    /// `TRAINER_STEVEN` (named and drawn for the partner, `GetFrontierTrainerFrontSpriteId`)
+    /// and `STEVEN_OTID` (`battle_tower.c`, a code constant). `None` without the table or
+    /// without that trainer.
+    fn gen_partner(&mut self) -> Result<()> {
+        /// `STEVEN_OTID`.
+        const STEVEN_OTID: u32 = 61226;
+        let b = self.b;
+        let steven = names::TRAINERS.value("TRAINER_STEVEN").map(|v| v as u16);
+        let partner = match steven {
+            Some(id) if !b.partners.steven.is_empty() && self.trainer_ids.contains(&id) => {
+                let mut mons = String::new();
+                for m in &b.partners.steven {
+                    let moves = (m.moves.iter())
+                        .map(|n| {
+                            Ok(match get(&self.move_no, n)? {
+                                0 => "None".to_string(),
+                                x => format!("Some(MoveId({x}))"),
+                            })
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+                    ensure!(moves.len() == 4, "partner mon of {} moves", moves.len());
+                    write!(
+                        mons,
+                        "PartnerMon {{ species: {}, level: {}, iv: {}, nature: {}, evs: {:?}, moves: [{}] }},",
+                        self.species_id(&m.species)?,
+                        m.level,
+                        m.fixed_iv,
+                        m.nature,
+                        m.evs,
+                        moves.join(", ")
+                    )?;
+                }
+                format!(
+                    "Some(PartnerData {{ trainer: TrainerId({id}), ot_id: {STEVEN_OTID}, mons: &[{mons}] }})"
+                )
+            }
+            _ => "None".into(),
+        };
+        writeln!(
+            self.o,
+            "/// The in-game partner (Gen3 `sStevenMons`, `FillPartnerParty`).
+pub static PARTNER: Option<PartnerData> = {partner};"
+        )?;
+        Ok(())
     }
 
     /// `SPECIES`: every species, with learnsets and the pics the extract has.
@@ -953,6 +1002,7 @@ impl Gen<'_> {
             rematches.len(),
             rematches.join(", ")
         )?;
+        self.gen_partner()?;
         let no_pics: Vec<&str> = b
             .species
             .iter()
