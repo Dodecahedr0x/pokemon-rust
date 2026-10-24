@@ -158,8 +158,16 @@ impl Policy {
             }
             _ => None,
         };
+        // `special GameClear`'s credits (Task S): START skips their pages.
+        let credits = matches!(
+            w.screens().and_then(|s| s.top()),
+            Some((_, ScreenState::HallOfFame(h)))
+                if h.stage() == engine::ui::hall_of_fame::Stage::Credits
+        );
         let k = if let Some(k) = half {
             k
+        } else if credits {
+            Buttons::START
         } else if shop {
             // A clerk's mart (or its SELL bag): B leaves without buying (A would buy the
             // first item until the money runs out); `Step::Buy` drives a purchase.

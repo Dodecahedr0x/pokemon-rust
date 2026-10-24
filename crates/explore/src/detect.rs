@@ -3,7 +3,8 @@
 //! - **Round trip:** at the first capturable frame of every `roundtrip_every`-frame bucket of
 //!   `World::frame`, the checkpoint must survive `encode`/`decode` unchanged and restore (on the
 //!   inner game) to the same hash; a shadow session restored there then follows the live one
-//!   for `follow` frames with the same keys and must keep the same hash.
+//!   for `follow` frames with the same keys and must keep the same hash. The in-game save of
+//!   that frame (`World::save_snapshot`, Milestone 9 Task S) must load back to the same hash.
 //! - **Capturable stuck:** the field is idle (no transition, script, battle or starter, the
 //!   player settled, nothing held) yet not capturable (other than `StaleView`) for more than
 //!   `capturable_stuck` frames.
@@ -99,6 +100,18 @@ impl<G: GameData + Clone> Detectors<G> {
             let (want, got) = (s.world().hash(), restored.world().hash());
             if want != got {
                 return Err(format!("restored hash {got}, live {want}"));
+            }
+            // Milestone 9 Task S: the in-game save of the same frame loads back to it too
+            // (`World::save_snapshot`: within the flash budget, and a capturable world saves
+            // as its checkpoint).
+            let save = (s.world().save_snapshot(s.game()))
+                .map_err(|e| format!("capturable frame refused the in-game save: {e:?}"))?;
+            let save = decode(&encode(&save))
+                .map_err(|e| format!("in-game save does not decode: {e:?}"))?;
+            let loaded = engine::World::restore(s.game(), &save)
+                .map_err(|e| format!("in-game save does not load: {e:?}"))?;
+            if loaded.hash() != want {
+                return Err(format!("loaded save hash {}, live {want}", loaded.hash()));
             }
             Ok(restored)
         });
