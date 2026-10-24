@@ -574,9 +574,9 @@
             x: 22,
             y: 13,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_FULL_RESTORE",
-                flag: "FLAG_SIL_ITEM_TOUR_3F_FULL_RESTORE",
+            kind: Script(
+                facing: 0,
+                script: Some("TourNebula_3F_EventScript_HiddenFullRestore"),
             ),
         ),
     ],

@@ -126,3 +126,15 @@ pub async fn ReverseCity_Phare_PG_Sc04(_ctx: Ctx) {
 pub async fn ReverseCity_Phare_PG_Thomas(_ctx: Ctx) {
     // fallback: Ch12 post-game scripts not written yet.
 }
+
+// ---- TourNebula_2F (claimed by ch10_studio.rs) ----
+
+/// Ch12: Gwada at the Studio's post-game console (hidden until then).
+pub async fn TourNebula_2F_PG_Gwada(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12: the Studio's post-game PC (the bg (PG)): silent before.
+pub async fn TourNebula_2F_PG_PC(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}

@@ -1518,12 +1518,6 @@
         ),
         (
             rule: "placement-map",
-            subject: "FLAG_SIL_ARTHUR_BOUSSOLE_PRISE",
-            reason: "a scene item, not a ball: the compass object (8,13) on TourNebula_3F is hidden by FLAG_SIL_HIDE_ARTHUR_BOUSSOLE and its script TourNebula_3F_Sc02 gives ITEM_SIL_BOUSSOLE_ARTHUR and sets this flag (ch10 Tour_3F_Sc02); drop this entry once ch10 scripts name the flag",
-            ruling_needed: false,
-        ),
-        (
-            rule: "placement-map",
             subject: "FLAG_SIL_ITEM_PG_CONSEIL_GUERISONS",
             reason: "a post-game gift, not a ball: the Full Restore (Guérison) placed in the Bibliothèque is given by a Ch12 scene script (12-post-game), not by the Ch6 scripts that now claim MangaSquare_Bibliotheque (SIL3 Ch6 scripts)",
             ruling_needed: false,
@@ -1538,6 +1532,12 @@
             rule: "placement-map",
             subject: "FLAG_SIL_TOURNOI_AMIS",
             reason: "a post-game gift, not a ball: the Altarianite placed in the Dojo (the friends' tournament) is given by a Ch12 scene script (12-post-game), not by the Ch6 scripts that now claim MangaSquare_Dojo (SIL3 Ch6 scripts)",
+            ruling_needed: false,
+        ),
+        (
+            rule: "placement-map",
+            subject: "FLAG_SIL_ITEM_PG_SCEPTILITE",
+            reason: "a post-game gift, not a ball: the Jungkite placed on TourNebula_2F is given by Gwada's Ch12 scene (12-post-game, Sc18), not by the Ch10 scripts that now claim TourNebula_2F (SIL Ch10-11 scripts)",
             ruling_needed: false,
         ),
     ],
