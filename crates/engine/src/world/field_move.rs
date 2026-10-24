@@ -200,7 +200,7 @@ impl State {
         if !emerge && !water.is_some_and(|w| w.diveable()) {
             return None;
         }
-        let (to, cell) = game.dive_warp(map, emerge)?;
+        let (to, cell) = game.dive_warp(map, emerge, (x, y))?;
         let (tx, ty) = cell.unwrap_or((x, y));
         Some((emerge, to, tx, ty))
     }

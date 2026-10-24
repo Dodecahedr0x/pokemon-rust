@@ -35,7 +35,7 @@ const POOL: MapId = MapId(1);
 const UNDER: MapId = MapId(2);
 
 /// 8x8: land on rows 0–1, water below; the water door on (5, 2); a waterfall on (1, 3)–(1, 5)
-/// between the water on (1, 2) and (1, 6); deep water on (6, 6).
+/// between the water on (1, 2) and (1, 6); deep water on (6, 6) and (3, 7).
 const fn sea_blocks() -> [u16; 64] {
     let mut b = [SEA_W; 64];
     let mut i = 0;
@@ -48,6 +48,7 @@ const fn sea_blocks() -> [u16; 64] {
     b[4 * 8 + 1] = at(FALLS, 1);
     b[5 * 8 + 1] = at(FALLS, 1);
     b[6 * 8 + 6] = at(DEEP, 1);
+    b[7 * 8 + 3] = at(DEEP, 1);
     b
 }
 static SEA_BLOCKS: [u16; 64] = sea_blocks();
@@ -227,8 +228,16 @@ impl GameData for Sea {
     fn dive_emerge_script(&self) -> Option<ScriptId> {
         Some(DIVE_UP)
     }
-    fn dive_warp(&self, map: MapId, emerge: bool) -> Option<(MapId, Option<(i16, i16)>)> {
+    fn dive_warp(
+        &self,
+        map: MapId,
+        emerge: bool,
+        at: (i16, i16),
+    ) -> Option<(MapId, Option<(i16, i16)>)> {
         match (map, emerge) {
+            // A fixed dive warp picked by the player's cell (Gen3 `on_dive_warp` scripts read
+            // it): (3, 7) leads to the pool's (3, 3), surfing.
+            (SEA, false) if at == (3, 7) => Some((POOL, Some((3, 3)))),
             (SEA, false) => Some((UNDER, None)),
             (UNDER, true) => Some((SEA, None)),
             _ => None,
@@ -257,7 +266,7 @@ fn go(w: &mut World, keys: Buttons, to: (MapId, (i16, i16))) -> u32 {
 /// Idles until no script, effect nor transition runs.
 fn settle(w: &mut World) {
     for _ in 0..600 {
-        if !w.runner.is_running() && !w.s.field_move_busy() && !w.transition_active() {
+        if !w.runner.is_running() && !w.field_move_active() && !w.transition_active() {
             hold(w, Buttons::NONE, 2);
             return;
         }
@@ -385,6 +394,41 @@ fn dive_goes_down_the_connection_and_b_surfaces() {
     assert_eq!((w.map(), pos(&w)), (SEA, (5, 5)));
     assert!(w.objects().surfing());
     assert_eq!(w.objects().player().facing, Dir::Up);
+}
+
+#[test]
+fn the_dive_warp_depends_on_the_cell() {
+    let mut w = sea(true);
+    go(&mut w, Buttons::DOWN, (SEA, (5, 7)));
+    go(&mut w, Buttons::LEFT, (SEA, (3, 7)));
+    hold(&mut w, Buttons::A, 1);
+    assert_eq!(w.s.last_script, Some(USE_DIVE));
+    settle(&mut w);
+    assert_eq!((w.map(), pos(&w)), (POOL, (3, 3)));
+}
+
+/// The script ends at `dofieldeffect`; the effect (the mon shown, then the warp) runs on, and
+/// [`World::field_move_active`] tells a driver the controls are still locked.
+#[test]
+fn the_dive_effect_outlives_its_script() {
+    let mut w = sea(true);
+    go(&mut w, Buttons::DOWN, (SEA, (5, 6)));
+    go(&mut w, Buttons::RIGHT, (SEA, (6, 6)));
+    assert!(!w.field_move_active());
+    hold(&mut w, Buttons::A, 1);
+    for _ in 0..600 {
+        if !w.runner.is_running() {
+            break;
+        }
+        hold(&mut w, Buttons::NONE, 1);
+    }
+    assert!(!w.runner.is_running());
+    assert!(w.field_move_active());
+    assert!(!w.transition_active());
+    assert_eq!(w.map(), SEA);
+    settle(&mut w);
+    assert!(!w.field_move_active());
+    assert_eq!(w.map(), UNDER);
 }
 
 #[test]

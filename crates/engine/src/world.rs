@@ -877,6 +877,12 @@ impl World {
         self.s.transition.is_active()
     }
 
+    /// Whether a field-move effect runs (Surf's jump, Waterfall's climb, Dive's warp): the
+    /// controls stay locked until it ends.
+    pub fn field_move_active(&self) -> bool {
+        self.s.field_move_busy()
+    }
+
     /// The player's party.
     pub fn party(&self) -> &Party {
         &self.s.party

@@ -1,0 +1,9 @@
+// SIL4 Ch9 scripts: the map changes the Chapter 9 scripts need.
+[
+    // The hidden-item fallback (as Ch0-Ch8): the engine ignores BgKind::HiddenItem, so each hidden item
+    // is a sign running hidden_item. To restore once the engine picks hidden items up, Replace bgs 11-12
+    // with HiddenItem(item: "ITEM_PP_UP", flag: "FLAG_SIL_ITEM_NEBULA_CACHE_1") at (20, 38) and
+    // HiddenItem(item: "ITEM_REVIVE", flag: "FLAG_SIL_ITEM_NEBULA_CACHE_2") at (10, 44).
+    Replace(index: 11, event: Bg((x: 20, y: 38, elevation: 0, kind: Script(facing: 0, script: Some("Nebula_EventScript_HiddenPpUp"))))),
+    Replace(index: 12, event: Bg((x: 10, y: 44, elevation: 0, kind: Script(facing: 0, script: Some("Nebula_EventScript_HiddenRevive"))))),
+]

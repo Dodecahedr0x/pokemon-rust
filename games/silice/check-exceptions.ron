@@ -1540,5 +1540,17 @@
             reason: "a post-game gift, not a ball: the Altarianite placed in the Dojo (the friends' tournament) is given by a Ch12 scene script (12-post-game), not by the Ch6 scripts that now claim MangaSquare_Dojo (SIL3 Ch6 scripts)",
             ruling_needed: false,
         ),
+        (
+            rule: "placement-map",
+            subject: "FLAG_SIL_ITEM_PG_SALAMENCITE",
+            reason: "a post-game gift, not a ball: the Salamencite placed in Nébula is given by a Ch12 scene script (12-post-game), not by the Ch9 scripts that now claim Nebula (SIL4 Ch9 scripts)",
+            ruling_needed: false,
+        ),
+        (
+            rule: "placement-map",
+            subject: "FLAG_SIL_LIBERATION_JULIEN",
+            reason: "a post-game gift, not a ball: the Orbe Rouge placed in Nébula is given by Ch12's Nebula_PG_Sc03c (12-post-game), not by the Ch9 scripts that now claim Nebula (SIL4 Ch9 scripts)",
+            ruling_needed: false,
+        ),
     ],
 )
