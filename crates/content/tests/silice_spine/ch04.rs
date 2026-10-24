@@ -62,20 +62,21 @@ pub fn start() -> Start {
 }
 
 /// The start state's party: Chapter 3's end party as its runs (`sil4_ch3`, both ways in) leave
-/// it, the TYPHLOSION 39, MAREEP 12, ARON 30, the Casino's PORYGON 25 and the leaders' DUGTRIO 26
-/// (`ch03::FIFTH`), and one more, a KADABRA at 24: Chapter 3's own Viber-City grass has one at
-/// 23–24 (`rencontres.ron`, 5 %), caught and never used. The KADABRA leads: the player's answer
-/// to a Fighting gym, and the one [`Step::Train`] raises (it trains the lead) to
-/// [`CLEANING_LEVEL`], where it has learnt Psychic (36).
+/// it, the TYPHLOSION 44, LAIRON 35 (both trained for the leaders' double battle), MAREEP 13,
+/// the Casino's PORYGON 25 and the leaders' DUGTRIO 26 (`ch03::FIFTH`), and one more, a KADABRA
+/// at 24: Chapter 3's own Viber-City grass has one at 23–24 (`rencontres.ron`, 5 %), caught and
+/// never used. The KADABRA leads: the player's answer to a Fighting gym, and the one
+/// [`Step::Train`] raises (it trains the lead) to [`CLEANING_LEVEL`], where it has learnt
+/// Psychic (36). (The chained Chapter 3 run ends with a FLAAFFY 17 instead of the MAREEP 13.)
 ///
 /// A TYPHLOSION lead loses to Samuel with the learn policy too, at a lead of 44, 47, 49 and 51
 /// (it fights with Flame Wheel, Ember and Swift; Hariyama, Machoke, Medicham and Poliwrath are
 /// left standing). See the plan's Ch4 section for the measures.
 pub const PARTY: &[(SpeciesId, u8)] = &[
     (SPECIES_KADABRA, 24),
-    (SPECIES_TYPHLOSION, 39),
-    (SPECIES_MAREEP, 12),
-    (SPECIES_ARON, 30),
+    (SPECIES_TYPHLOSION, 44),
+    (SPECIES_LAIRON, 35),
+    (SPECIES_MAREEP, 13),
     (SPECIES_PORYGON, 25),
     (SPECIES_DUGTRIO, 26),
 ];

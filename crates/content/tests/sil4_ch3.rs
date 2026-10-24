@@ -6,7 +6,8 @@
 //! directly (`ch03::start`, documented there). The checkpoints assert the story steps, flags,
 //! the badge, the bag and the scene texts by text id, never a French literal; the end asserts
 //! every Chapter 3 fallback on the path was reported. The party is Chapter 2's, trained in
-//! Viber-City's garden (`ch03::STATION_LEVEL`, `ch03::GYM_LEVEL`), plus the Casino's Porygon.
+//! Viber-City's garden (`ch03::STATION_LEVEL`, `ch03::GYM_LEVEL`, then the ARON to
+//! `ch03::SECOND_LEVEL` for the leaders' double battle), plus the Casino's Porygon.
 
 #![cfg(pkr_silice)]
 
@@ -14,9 +15,9 @@ mod silice_spine;
 
 use silice_spine::{Run, ch00, ch01, ch02, ch03};
 
-/// Every frame of a run, at most (the chained run ends at about frame 552 000, the start state
-/// at about 310 000).
-const FRAME_LIMIT: u64 = 700_000;
+/// Every frame of a run, at most (the chained run ends at about frame 891 000, the start state
+/// at about 610 000: most of it is training, the TYPHLOSION to 44 and the LAIRON to 35).
+const FRAME_LIMIT: u64 = 1_100_000;
 
 #[test]
 fn chapters_0_to_3_chain_from_a_new_game_to_the_open_east_barrier() {
