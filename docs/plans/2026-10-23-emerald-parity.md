@@ -785,3 +785,7 @@ The bypasses `fly-mauville`, `fly-slateport`, `fly-lilycove`, `water-door-in`, `
   - The battle scene's hash gains the bag's balls and the thrown count. Goldens `bag_*`/`scene_*` move to `(806, 407566406512155080)` and `(1020, 12470217771155615926)`.
   - The Emerald spine's inputs and frames move from Route 122 on (the catches).
   - The extract's minor 12 moves every node's content hash.
+- **Checkpoints, accepted after merging `ae0551e`:** one `chore(checkpoints)` commit ran `verify --accept` on the Emerald tree (12 nodes) and the stub tree (3 nodes). Inputs, frames, parents and labels are unchanged; `badge1` stays at 104,523.
+- **Lanes** (`cargo xtask gates`, `parity`):
+  - **fmt, clippy, clippy-ui, test, test-stub, parity:** pass. Route hash 48 lines (gate 65); loop 159 lines (gate 217).
+  - **test-silice:** only the known six fail (`sil4_ch3` to `sil9_ch8`).
