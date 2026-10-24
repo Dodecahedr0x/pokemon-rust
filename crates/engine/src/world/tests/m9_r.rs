@@ -456,5 +456,8 @@ fn a_flag_gated_field_move_is_listed_on_every_mon_with_the_games_label() {
     assert!(field_moves(&RGame, &mon, |_| false).is_empty());
     let listed = field_moves(&RGame, &mon, |f| f == MODULE_FLAG);
     assert_eq!(listed, vec![FieldMove::Fly]);
-    assert_eq!(action_label(&RGame, Action::FieldMove(FieldMove::Fly)), MODULE_LABEL);
+    assert_eq!(
+        action_label(&RGame, Action::FieldMove(FieldMove::Fly)),
+        MODULE_LABEL
+    );
 }

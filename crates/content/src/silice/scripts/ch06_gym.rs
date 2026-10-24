@@ -77,10 +77,12 @@ fn samurai_at(y: i16) -> Option<Samurai> {
 /// the samurai talked to (from that same cell). Once beaten, the coord does nothing and the
 /// samurai says his defeat line.
 ///
-/// fallback: `wait_input_or_timeout(180)` and `set_battle_malus` (§9): the source's own fallback,
-/// a yes/no "Do you draw first?": yes (impatient) is the battle against
-/// `TRAINER_SIL_SAMOURAI_<NOM>_HATIF` (+2 levels), no the normal one. Either win marks the
-/// samurai beaten (his normal trainer flag).
+/// `wait_input_or_timeout(180)`: a button before the gong is a blink (T3), else T4.
+/// fallback: `set_battle_malus(PLAYER_LEAD, SPEED, -1)` after a blink (§9, no battle rule yet):
+/// the source's own fallback for it, the battle against `TRAINER_SIL_SAMOURAI_<NOM>_HATIF`
+/// (+2 levels); no blink is the normal one. Either win marks the samurai beaten (his normal
+/// trainer flag). (`Gym_Sc01_Repli_Q`, the yes/no of the fallback without the timed wait, is
+/// no longer said.)
 pub async fn MangaSquare_Gym_Sc01(ctx: Ctx) {
     let (_, y) = ctx.player_pos().await;
     let Some(s) = samurai_at(y) else {
@@ -98,11 +100,12 @@ pub async fn MangaSquare_Gym_Sc01(ctx: Ctx) {
     ctx.turn(PLAYER, s.side).await;
     say(&ctx, s.intro).await;
     say(&ctx, Gym_Sc01_T2).await;
+    let blinked = ctx.wait_input_or_timeout(180).await;
     // The gong (the source's SE_GONG, not in Gen3): the Battle Arena's judge.
     play_se(&ctx, "SE_ARENA_TIMEUP1").await;
-    fallback(&ctx, "wait_input_or_timeout").await;
-    let outcome = if ask(&ctx, Gym_Sc01_Repli_Q).await {
+    let outcome = if blinked {
         say(&ctx, Gym_Sc01_T3).await;
+        fallback(&ctx, "set_battle_malus").await;
         battle_trainer(&ctx, s.hatif, s.defeat).await
     } else {
         say(&ctx, Gym_Sc01_T4).await;
@@ -248,9 +251,8 @@ pub async fn MangaSquare_Gym_Sc03(ctx: Ctx) {
     // fallback: show_sync (the Mallette's gauge screen): T10 gives the value.
     show_sync(&ctx, 60).await;
     ctx.set_flag(FLAG_SIL_LOG_06, true).await;
-    // fallback: the Mallette's log screen (`msgbox(Gym_Sc03_Log06, Sign)`, read at once): the
-    // log in the message box, inside the scene's lock.
-    fallback(&ctx, "log_menu").await;
+    // The log (`msgbox(Gym_Sc03_Log06, Sign)`, read at once): the log as a message, as the Mallette's RAPPORTS reads it again, inside the
+    // scene's lock.
     say(&ctx, Gym_Sc03_Log06).await;
     say(&ctx, Gym_Sc03_T11).await;
     set_story(&ctx, 66).await;

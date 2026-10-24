@@ -46,9 +46,9 @@ pub async fn RouteS04_Sc02(ctx: Ctx) {
     ctx.lock_all().await;
     move_wait(&ctx, LOCALID_S04_ADRIEN, FACE_PLAYER).await;
     say(&ctx, Route_S04_Sc02_T1).await;
-    // fallback: use_field_module(FLASH) (the Mallette's field modules, M10): the source's own
-    // fallback, nothing; T2 tells the light and the walls become readable below.
-    fallback(&ctx, "use_field_module").await;
+    // use_field_module(FLASH): the Surcharge Optique's white flash (the cave's darkness is not
+    // modeled); T2 tells the light and the walls become readable below.
+    screen_flash(&ctx, WHITE).await;
     say(&ctx, Route_S04_Sc02_T2).await;
     move_wait(&ctx, LOCALID_S04_ADRIEN, FACE_UP).await;
     say(&ctx, Route_S04_Sc02_T3).await;

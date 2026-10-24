@@ -8,8 +8,12 @@
 //! gate open, the chapter's end). The lighthouse and the vault are `ch07_phare.rs`.
 //!
 //! **Inverted controls** (R-2, §9 `set_input_inverted`): outside, from the welcome until Reverse
-//! is beaten (`FLAG_SIL_REVERSE_BATTU`), and off in every interior. The engine has no inverted
-//! walking yet: [`set_input_inverted`] reports the fallback and the player walks normally.
+//! is beaten (`FLAG_SIL_REVERSE_BATTU`), and off in every interior: [`set_input_inverted`], the
+//! engine's input map (`VAR_SIL_INPUT_MAP`, cleared by every map change, so each map's
+//! `on_transition` says which it wants).
+//!
+//! **The residents walk backwards** (§2): Habitant 1 and 2 wander facing away from their steps
+//! (`MovementType::WanderBackwards`), set on every load.
 
 use crate::silice::prelude::*;
 
@@ -30,14 +34,15 @@ const PORTE_NORD: (i16, i16) = (27, 0);
 const METATILE_PORTE_NORD: u16 = 634;
 
 /// The source's `set_input_inverted(on)` (R-2, §9): up/down and left/right swapped while
-/// walking, on Reverse-City's outside and in the Palais until Reverse is beaten, off in the
-/// interiors. The engine has no inverted walking: nothing changes. Reported when the source
-/// wants the controls inverted (off is the engine's normal walking).
+/// walking (`InputMap::Inverted`), on Reverse-City's outside and in the Palais until Reverse is
+/// beaten, off in the interiors.
 pub(super) async fn set_input_inverted(ctx: &Ctx, on: bool) {
-    if on {
-        // fallback: set_input_inverted(true) (§9, R-2): the player walks normally.
-        fallback(ctx, "set_input_inverted").await;
-    }
+    let map = if on {
+        InputMap::Inverted
+    } else {
+        InputMap::Normal
+    };
+    ctx.set_input_map(map).await;
 }
 
 // ---- map scripts ----
@@ -69,9 +74,11 @@ pub async fn ReverseCity_OnTransition(ctx: Ctx) {
     ctx.set_flag(FLAG_SIL_HIDE_REVERSE_HABITANT_ACCUEIL, true)
         .await;
     ctx.set_flag(FLAG_SIL_HIDE_REVERSE_BENOU_PORTE, true).await;
-    // fallback: WalkBackwards (§9): the residents walk backwards; no movement type wanders
-    // backwards (a scene's walk does: `LockFacing`), so they wander facing their way.
-    fallback(&ctx, "walk_backwards").await;
+    // WalkBackwards (§9): the residents wander facing away from their steps.
+    for obj in [LOCALID_REVERSE_HABITANT1, LOCALID_REVERSE_HABITANT2] {
+        ctx.set_movement_type(obj, MovementType::WanderBackwards)
+            .await;
+    }
 }
 
 // ---- scenes ----
@@ -106,8 +113,8 @@ pub async fn ReverseCity_Sc01(ctx: Ctx) {
     }
     ctx.lock_all().await;
     say(&ctx, Reverse_City_Sc01_T1).await;
-    // fallback: screen_flash(NEGATIF) (§9): a fade out and in (prelude).
-    screen_flash(&ctx).await;
+    // NEGATIF: a white flash (no palette inversion; see the prelude's `NEGATIF`).
+    screen_flash(&ctx, NEGATIF).await;
     say(&ctx, Reverse_City_Sc01_T2).await;
     set_input_inverted(&ctx, true).await;
     say(&ctx, Reverse_City_Sc01_T3).await;

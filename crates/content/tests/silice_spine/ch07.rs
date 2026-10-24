@@ -14,19 +14,20 @@
 //! - out: the vault (the alley block, the plaques' code, the Master Ball: Sc04), Benou at the
 //!   north gate (Sc07, 76), Route S8.
 //!
-//! **The fallbacks the path relies on** (`ch07_*.rs`): the controls are not inverted, the
-//! Gogo–Romain double is two single battles, Reverse's battle is on the normal type chart, the
-//! vault's dial is one yes/no that dials the plaques' code.
+//! The controls are inverted outside until Reverse falls (the driver presses the mapped keys).
+//! **The fallbacks the path relies on** (`ch07_*.rs`): the Gogo–Romain double is two single
+//! battles, Reverse's battle is on the normal type chart, the vault's dial is one yes/no that
+//! dials the plaques' code.
 //!
 //! **The party** ([`PARTY`]): Chapter 6's end as `sil7_ch6` leaves it (KADABRA 59 leading, with
-//! Chapter 6's Shock Wave taught again first; TYPHLOSION 62; LAIRON 35, MAREEP 14, PORYGON 25,
+//! Chapter 6's Shock Wave, `givemon`'s moves; TYPHLOSION 62; LAIRON 35, MAREEP 14, PORYGON 25,
 //! DUGTRIO 26). No hook. The chapter's trainers (44–49) train the lead; the run heals at the
 //! Centre between the city's fights and before the Palais. Reverse's Wobbuffet (Counter, Mirror
 //! Coat) outlasts the KADABRA, so the TYPHLOSION, second, is trained in the town's grass to
 //! [`REVERSE_LEVEL`] (66) first. Measured (`SPINE_LEVEL_66`): 62 and 64 lose to Reverse; 63 and
 //! 65–69 win. The run ends with the KADABRA at 61 and the TYPHLOSION at 66.
 
-use super::{Run, Start, Step, TeachTm, goto, goto_avoiding};
+use super::{Run, Start, Step, goto, goto_avoiding};
 use content::consts::*;
 use engine::data::{Dir, ItemId, MapId, SpeciesId};
 use engine::script::Ctx;
@@ -68,6 +69,20 @@ pub fn phare_at_122() -> Start {
                 ctx.set_var(VAR_SIL_STORY, 122).await;
             })
         },
+    }
+}
+
+/// Chapter 7's start with a PIERRE LIEN in the bag (D-30): the item-triggered trade evolution
+/// on the lead KADABRA.
+pub fn with_pierre_lien() -> Start {
+    Start {
+        setup: |ctx| {
+            Box::pin(async move {
+                end_of_chapter_6(ctx.clone()).await;
+                ctx.item_add(ItemId(ITEM_SIL_PIERRE_LIEN), 1).await;
+            })
+        },
+        ..start()
     }
 }
 
@@ -150,10 +165,9 @@ async fn end_of_chapter_6(ctx: Ctx) {
     ctx.item_add(ItemId(ITEM_HYPER_POTION), 3).await;
     ctx.money_add(20000).await;
     ctx.set_respawn(HEAL_LOCATION_SIL_MANGA_SQUARE).await;
-    // The start state cannot set moves (`givemon`'s extras are not applied yet): the bag holds
-    // Chapter 6's TM34 again, and the spine teaches it first (the lead's Shock Wave).
-    ctx.item_add(ItemId(ITEM_TM34), 1).await;
-    for &(species, level) in PARTY {
+    // The lead with Chapter 6's Shock Wave (`givemon`'s moves), then the others.
+    super::give_kadabra_with_shock_wave(&ctx, PARTY[0].1).await;
+    for &(species, level) in &PARTY[1..] {
         ctx.give_mon(species, level).await;
     }
 }
@@ -247,11 +261,15 @@ pub fn steps() -> Vec<Step> {
             assert!(!r.w.flag(FLAG_SIL_BADGE_07));
             assert_eq!(r.w.party().len(), PARTY.len());
         }),
-        // Chapter 6's Shock Wave over Role Play (see [`end_of_chapter_6`]).
-        Step::Teach(TeachTm {
-            item: ITEM_TM34,
-            mon: 0,
-            forget: 1,
+        Step::Check("lead_shock_wave", |r| {
+            assert!(
+                r.w.party()
+                    .iter()
+                    .next()
+                    .unwrap()
+                    .moves
+                    .contains(&Some(MOVE_SHOCK_WAVE))
+            );
         }),
         // S7-A: the entrance sign, the worker, the Full Heal, C1 across the bridge.
         goto(ROUTE, 16, 69),
@@ -352,11 +370,8 @@ pub fn steps() -> Vec<Step> {
         Step::Walk(Up),
         Step::Check("reverse_sc01", |r| {
             assert_eq!(r.w.var(VAR_SIL_STORY), 72);
-            assert!(
-                r.degraded.contains("set_input_inverted"),
-                "{:?}",
-                r.degraded
-            );
+            // Inverted controls from the welcome (the driver presses the mapped keys).
+            assert_eq!(r.w.input_map(&r.g), engine::InputMap::Inverted);
             r.printed_in_order(&[
                 Reverse_City_Sc01_T1,
                 Reverse_City_Sc01_T2,
@@ -675,9 +690,6 @@ pub fn check_end(r: &Run) {
         "play_se",
         "show_hologram",
         "hide_hologram",
-        "set_input_inverted",
-        "walk_backwards",
-        "screen_flash",
         "play_music",
         "injector_mutation",
         "battle_two_trainers",
@@ -689,7 +701,6 @@ pub fn check_end(r: &Run) {
         "set_inverse_battle",
         "play_fanfare",
         "show_sync",
-        "log_menu",
         "mart",
         "hidden item",
     ] {

@@ -379,22 +379,21 @@ async fn gym2_sc11(ctx: &Ctx) {
     say(ctx, Gym2_Sc11_T3).await;
     ctx.set_flag(FLAG_SIL_MODULE_FORCE, true).await;
     say(ctx, Gym2_Sc11_T4).await;
-    // fallback: screen_flash(WHITE) (`Request::ScreenFlash`): a fade out and in.
-    screen_flash(ctx).await;
+    screen_flash(ctx, WHITE).await;
     // fallback: play_se (audio, M12): SE_THUNDER is the decomp's.
     play_se(ctx, "SE_THUNDER").await;
     say(ctx, Gym2_Sc11_T5).await;
     // fallback: play_evolution(SPECIES_MAREEP, SPECIES_FLAAFFY) on an NPC (M9's evolution
-    // scene, `Request::Evolve`, is for party mons): the source's own fallback, a fade, Wattouat
-    // swapped for Lainergie on its cell, the fade back, and the message (T6).
+    // scene, `Request::Evolve`, is for party mons): the source's own fallback, a white fade,
+    // Wattouat swapped for Lainergie on its cell, the fade back, and the message (T6).
     fallback(ctx, "play_evolution").await;
-    ctx.fade(Fade::ToBlack).await;
+    fade_white(ctx, true).await;
     hide(ctx, LOCALID_GYM2_WATTOUAT).await;
     let (x, y) = lainergie_at;
     ctx.set_object_template_pos(LOCALID_GYM2_LAINERGIE, x, y)
         .await;
     show(ctx, LOCALID_GYM2_LAINERGIE, FLAG_SIL_HIDE_GYM2_LAINERGIE).await;
-    ctx.fade(Fade::FromBlack).await;
+    fade_white(ctx, false).await;
     say(ctx, Gym2_Sc11_T6).await;
     ctx.set_flag(FLAG_SIL_GWADA_LAINERGIE, true).await;
     say(ctx, Gym2_Sc11_T7).await;

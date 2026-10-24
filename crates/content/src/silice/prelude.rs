@@ -25,8 +25,11 @@
 //!
 //! **Buildings:** [`pokecenter_nurse`] (Gen3's nurse), [`mart`] (a fallback until M9's shop).
 //!
+//! **Screen effects:** [`screen_shake`], [`screen_flash`] (with [`WHITE`], [`YELLOW`],
+//! [`BLACK`], [`NEGATIF`]), [`fade_white`], [`show_text_on_black`], [`camera_pan`].
+//!
 //! **Fallbacks:** [`fallback`] reports `Report::Degraded(name)` and returns, so the scene goes
-//! on: [`screen_shake`] and [`screen_flash`] (a fade out and in), [`play_se`] (nothing),
+//! on: [`play_se`] (nothing),
 //! [`mallette_call`] and [`end_call`] (nothing: the call's lines are plain messages),
 //! [`battle_two_trainers`] (two single battles in a row), [`show_sync`] (the sync gauge: the
 //! scene's text says the value).
@@ -38,6 +41,8 @@
 //! `.await` of the other script: `BricoBourg_Sc03(ctx.clone()).await`.
 
 pub use crate::prelude::*;
+/// Reverse-City's inverted controls (`Ctx::set_input_map`).
+pub use engine::InputMap;
 
 // ---- story and state ----
 
@@ -323,20 +328,53 @@ pub async fn fallback(ctx: &Ctx, name: &'static str) {
     ctx.report(Report::Degraded(name)).await;
 }
 
-/// `screen_shake(magnitude, frames)`: no screen shake yet (SIL2's `Request::ScreenShake`); a fade
-/// to black and back stands in (the Ch0 §9 fallback). Reported.
-pub async fn screen_shake(ctx: &Ctx, _magnitude: u8, _frames: u16) {
-    fallback(ctx, "screen_shake").await;
-    ctx.fade(Fade::ToBlack).await;
-    ctx.fade(Fade::FromBlack).await;
+/// The source's colours for [`screen_flash`] (BGR555).
+pub const WHITE: u16 = 0x7FFF;
+/// `screen_flash(YELLOW)`.
+pub const YELLOW: u16 = 0x03FF;
+/// `screen_flash(PIXELS_NOIRS)`.
+pub const BLACK: u16 = 0x0000;
+/// `screen_flash(NEGATIF)`: no inverted palette (`Request::ScreenFlash` fills one colour); a
+/// white flash stands in. Author question: keep it, or ask for a palette inversion.
+pub const NEGATIF: u16 = WHITE;
+
+/// How long a flash stays on screen when the source gives no duration (16 frames).
+pub const FLASH_FRAMES: u16 = 16;
+/// A shake's length when the source gives none (`screen_shake(m)`: 20 frames, Gen3
+/// `ShakeCamera`'s usual `delay * num_shakes`).
+pub const SHAKE_FRAMES: u16 = 20;
+
+/// `screen_shake(magnitude, frames)` (`Request::ScreenShake`): the field shakes by `magnitude`
+/// pixels for `frames` frames (0: [`SHAKE_FRAMES`]); the scene waits for its end.
+pub async fn screen_shake(ctx: &Ctx, magnitude: u8, frames: u16) {
+    let frames = if frames == 0 { SHAKE_FRAMES } else { frames };
+    ctx.screen_shake(magnitude, frames).await;
 }
 
-/// `screen_flash(COLOR)`: no screen flash yet (`Request::ScreenFlash`, SIL2 Wave 0 in the M9
-/// plan); a fade to black and back stands in (the chapters' §9 fallback). Reported.
-pub async fn screen_flash(ctx: &Ctx) {
-    fallback(ctx, "screen_flash").await;
-    ctx.fade(Fade::ToBlack).await;
-    ctx.fade(Fade::FromBlack).await;
+/// `screen_flash(COLOR)` (`Request::ScreenFlash`): the screen fills with `color` for
+/// [`FLASH_FRAMES`]; the scene waits for its end.
+pub async fn screen_flash(ctx: &Ctx, color: u16) {
+    ctx.screen_flash(color, FLASH_FRAMES).await;
+}
+
+/// `fade_white()` / `fade_from_white()`: Gen3's white fades.
+pub async fn fade_white(ctx: &Ctx, out: bool) {
+    ctx.fade(if out { Fade::ToWhite } else { Fade::FromWhite })
+        .await;
+}
+
+/// `show_text_on_black(T)`: the field hidden behind black, `text` said, the field back.
+pub async fn show_text_on_black(ctx: &Ctx, text: TextId) {
+    ctx.text_on_black(true).await;
+    say(ctx, text).await;
+    ctx.close_message().await;
+    ctx.text_on_black(false).await;
+}
+
+/// `camera_pan(dx, dy)` in cells, at 2 pixels a frame (`Request::CameraPan`); `(0, 0)` brings
+/// the camera back on the player. The scene waits for the pan's end.
+pub async fn camera_pan(ctx: &Ctx, cells_x: i16, cells_y: i16) {
+    ctx.camera_pan(cells_x * 16, cells_y * 16, 2).await;
 }
 
 /// `play_se(SE_*)`: no sound yet; nothing plays (the texts carry the onomatopoeia). Reported,

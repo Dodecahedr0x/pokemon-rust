@@ -150,28 +150,33 @@ pub async fn MangaSquare_Sc03(ctx: Ctx) {
     ctx.release_all().await;
 }
 
+/// The Peigne de Luxe after the first time (§9).
+const PEIGNE_PRICE: u32 = 500;
+
 /// Manga_Square_Sc04, the groomer (the Toiletteur's WOMAN_5): a Peigne de Luxe?
 ///
-/// fallback: `add_friendship` (+30 to the lead) and the 500 ₽ after the first time (§9): the
-/// source's own fallback, a Soothe Bell on the first service (`FLAG_SIL_MANGA_SQUARE_PEIGNE_
-/// GRATUIT`), then only the compliment (`Toiletteur_T2`), free. Reported.
+/// +30 friendship to the lead (`add_friendship`), free the first time
+/// (`FLAG_SIL_MANGA_SQUARE_PEIGNE_GRATUIT`), then 500 ₽. Author question: the source has no
+/// line for a player short of 500 ₽; the refusal's (`Toiletteur_T3`) stands in, nothing taken.
 pub async fn MangaSquare_Sc04(ctx: Ctx) {
     ctx.lock().await;
     ctx.face_player().await;
     if ask(&ctx, Toiletteur_T1).await {
+        let paid = ctx.flag(FLAG_SIL_MANGA_SQUARE_PEIGNE_GRATUIT).await;
+        if paid && !ctx.money_check(PEIGNE_PRICE).await {
+            say(&ctx, Toiletteur_T3).await;
+            ctx.release().await;
+            return;
+        }
+        if paid {
+            ctx.money_remove(PEIGNE_PRICE).await;
+        }
         ctx.fade(Fade::ToBlack).await;
         ctx.delay(40).await;
         ctx.fade(Fade::FromBlack).await;
-        fallback(&ctx, "add_friendship").await;
+        ctx.add_friendship(0, 30).await;
         say(&ctx, Toiletteur_T2).await;
-        gift(
-            &ctx,
-            FLAG_SIL_MANGA_SQUARE_PEIGNE_GRATUIT,
-            ITEM_SOOTHE_BELL,
-            1,
-            Obtain::Message,
-        )
-        .await;
+        ctx.set_flag(FLAG_SIL_MANGA_SQUARE_PEIGNE_GRATUIT, true).await;
     } else {
         say(&ctx, Toiletteur_T3).await;
     }

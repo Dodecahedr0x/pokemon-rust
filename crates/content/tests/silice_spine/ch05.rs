@@ -673,8 +673,6 @@ pub fn check_end(r: &Run) {
         "mega_evolution",
         "play_fanfare",
         "show_sync",
-        "log_menu",
-        "screen_shake",
         "moving light",
         "hidden item",
     ] {

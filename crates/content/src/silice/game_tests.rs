@@ -496,17 +496,17 @@ fn fallback_reports_and_the_script_goes_on() {
         .collect();
     assert_eq!(
         degraded,
-        [
-            "set_sky_alert",
-            "screen_shake",
-            "play_se",
-            "mallette_call",
-            "end_call"
-        ]
+        ["set_sky_alert", "play_se", "mallette_call", "end_call"]
     );
-    // The shake stands in as a fade out and back in.
-    assert_eq!(h.count(|r| matches!(r, Request::Fade(Fade::ToBlack))), 1);
-    assert_eq!(h.count(|r| matches!(r, Request::Fade(Fade::FromBlack))), 1);
+    // The shake is the engine's.
+    assert_eq!(
+        h.count(|r| *r
+            == Request::ScreenShake {
+                magnitude: 8,
+                frames: 20
+            }),
+        1
+    );
     // The script ran to its end.
     assert_eq!(h.log.last(), Some(&Request::SetVar(VAR_SIL_STORY, 4)));
 }
@@ -666,11 +666,15 @@ fn the_mallette_replaces_the_pokedex_in_the_start_menu() {
             StartAction::Exit
         ]
     );
-    let main = Game.multichoice(crate::silice::mallette::LIST_MENU).unwrap();
+    let main = Game
+        .multichoice(crate::silice::mallette::LIST_MENU)
+        .unwrap();
     assert_eq!(main.len(), 7);
     assert_eq!(main[0], Game.text(Mallette_Menu_Analyse));
     assert_eq!(
-        Game.multichoice(crate::silice::mallette::LIST_LOGS).unwrap().len(),
+        Game.multichoice(crate::silice::mallette::LIST_LOGS)
+            .unwrap()
+            .len(),
         9
     );
     // Gen3's lists are still there.

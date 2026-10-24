@@ -80,8 +80,16 @@ pub static START_MENU: [StartItem; 7] = [
 /// move it stands for.
 pub const MODULES: [(FlagId, TextId, FieldMove); 8] = [
     (FLAG_SIL_MODULE_COUPE, Mallette_Module_Coupe, FieldMove::Cut),
-    (FLAG_SIL_MODULE_FORCE, Mallette_Module_Force, FieldMove::Strength),
-    (FLAG_SIL_MODULE_FLASH, Mallette_Module_Flash, FieldMove::Flash),
+    (
+        FLAG_SIL_MODULE_FORCE,
+        Mallette_Module_Force,
+        FieldMove::Strength,
+    ),
+    (
+        FLAG_SIL_MODULE_FLASH,
+        Mallette_Module_Flash,
+        FieldMove::Flash,
+    ),
     (FLAG_SIL_MODULE_SURF, Mallette_Module_Surf, FieldMove::Surf),
     (FLAG_SIL_MODULE_VOL, Mallette_Module_Vol, FieldMove::Fly),
     (
@@ -126,7 +134,10 @@ pub fn field_move_script(m: FieldMove) -> Option<ScriptId> {
 /// The party menu's label of a module (Fly's, the only one used from there; the others are
 /// listed too): the Gen3 move's name, short enough for the action window (the module's own
 /// name is in [`MODULES`] for the Mallette's screens).
-pub fn field_move_label(battle: &'static engine::mon::BattleTables, m: FieldMove) -> Option<&'static [u8]> {
+pub fn field_move_label(
+    battle: &'static engine::mon::BattleTables,
+    m: FieldMove,
+) -> Option<&'static [u8]> {
     let mv = match m {
         FieldMove::Surf => MOVE_SURF,
         FieldMove::Fly => MOVE_FLY,

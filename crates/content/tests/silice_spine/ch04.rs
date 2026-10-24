@@ -571,16 +571,12 @@ pub fn check_end(r: &Run) {
 /// The fallbacks the chapter's path reports.
 const FALLBACKS: &[&str] = &[
     "dark_map",
-    "use_field_module",
     "strength",
     "battle_continue_on_loss",
     "battle_start_status",
     "battle_terrain",
     "play_fanfare",
     "battle_start_stats",
-    "log_menu",
-    "screen_shake",
-    "screen_flash",
     "play_se",
     "mallette_call",
     "show_sync",

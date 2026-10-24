@@ -139,7 +139,7 @@ pub async fn PortRessac_Gym_Sc01(ctx: Ctx) {
         ok = ok && shot(&ctx, Port_Ressac_Gym_Shot2, 40, false).await;
         ok = ok && shot(&ctx, Port_Ressac_Gym_Shot3, 10, true).await;
         if ok {
-            // fallback: screen_shake (the ship rolls; `Request::ScreenShake`): a fade.
+            // The ship rolls (the source gives no duration: the prelude's).
             screen_shake(&ctx, 2, 0).await;
             ok = shot(&ctx, Port_Ressac_Gym_Shot4, 30, true).await;
         }
@@ -301,8 +301,7 @@ async fn explosif(ctx: &Ctx, species: SpeciesId, level: u8, cell: (i16, i16), fl
     }
     ctx.lock().await;
     say(ctx, Port_Ressac_Cale_Explosif_T1).await;
-    // fallback: screen_flash (`Request::ScreenFlash`): the prelude's fade.
-    screen_flash(ctx).await;
+    screen_flash(ctx, WHITE).await;
     battle_wild(ctx, species, level).await;
     ctx.set_metatile(cell.0, cell.1, PLANCHER, false).await;
     ctx.set_flag(flag, true).await;

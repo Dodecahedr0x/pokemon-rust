@@ -546,13 +546,12 @@ const FALLBACKS: &[&str] = &[
     "dawn_tint",
     "show_book",
     "play_se",
-    "wait_input_or_timeout",
+    "set_battle_malus",
     "multichoice",
     "set_battle_weather",
     "mega_evolution",
     "play_fanfare",
     "show_sync",
-    "log_menu",
 ];
 
 /// The party's species and levels (for the log).

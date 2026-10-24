@@ -295,9 +295,8 @@ pub async fn RouteS03_Depot_Sc02(ctx: Ctx) {
     .await;
     say(&ctx, Depot_Sc02_T4).await;
     say(&ctx, Depot_Sc02_T5).await;
-    // fallback: screen_flash (the smoke bomb's white screen, §9): a fade out and in.
-    fallback(&ctx, "screen_flash").await;
-    ctx.fade(Fade::ToBlack).await;
+    // The smoke bomb's white screen (§9): a white fade while they flee.
+    fade_white(&ctx, true).await;
     hide(&ctx, LOCALID_DEPOT_GOGO).await;
     hide(&ctx, LOCALID_DEPOT_ROMAIN).await;
     hide(&ctx, LOCALID_DEPOT_SBIRE).await;
@@ -308,7 +307,7 @@ pub async fn RouteS03_Depot_Sc02(ctx: Ctx) {
         FLAG_SIL_ITEM_DEPOT_METAL_COAT,
     )
     .await;
-    ctx.fade(Fade::FromBlack).await;
+    fade_white(&ctx, false).await;
     say(&ctx, Depot_Sc02_T6).await;
     set_story(&ctx, 31).await;
     ctx.release_all().await;
