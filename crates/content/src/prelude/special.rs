@@ -66,10 +66,6 @@ const CABLE_CAR_RIDE_FRAMES: u16 = 570 + 32;
 /// (`RAY_ANIM_DUO_FIGHT` through `RAY_ANIM_CHASES_AWAY`).
 const RAYQUAZA_SCENE_FRAMES: [u16; 2] = [16 + 328 + 16, 2_110];
 
-/// `GameClear`'s Hall of Fame screen and credits on their black screen (`hall_of_fame.c`,
-/// `credits.c`), a stand-in: the engine has neither (nor the reset and the CONTINUE).
-const GAME_CLEAR_FRAMES: u16 = 120;
-
 /// Gen3 `sPetalburgGymSlidingDoorMetatiles` (`METATILE_PetalburgGym_SlidingDoor_Frame0..4`,
 /// `include/constants/metatile_labels.h`): the door's top half; the bottom half is a metatile
 /// row (`METATILE_ROW_WIDTH`, 8) further.
@@ -267,11 +263,12 @@ async fn cable_car_destination(ctx: &Ctx) -> MapId {
 ///   ([`RAYQUAZA_SCENE_FRAMES`] by `VAR_0x8004`), then fades back in as
 ///   `CB2_ReturnToFieldContinueScriptPlayMapMusic` does, and the script goes on.
 /// - `GameClear` (`post_battle_event_funcs.c`), degraded: `HealPlayerParty`, then
-///   `FLAG_SYS_GAME_CLEAR`; no champion ribbons, game stats, Hall of Fame screen, credits or
-///   save (the engine has none). The screen stays black for [`GAME_CLEAR_FRAMES`], then the
-///   player lands where the credits' soft reset and CONTINUE would: the CONTINUE warp
-///   (`SetContinueGameWarpToHealLocation`, the player's 2F room by gender). The warp's map load
-///   ends the script, as the reset does.
+///   `FLAG_SYS_GAME_CLEAR`; no champion ribbons or game stats. The Hall of Fame record and the
+///   credits are the engine's screen (`ctx.hall_of_fame()`, `CB2_DoHallOfFameScreen`, degraded
+///   visuals); then the player lands where the credits' soft reset and CONTINUE would: the
+///   CONTINUE warp (`SetContinueGameWarpToHealLocation`, the player's 2F room by gender). The
+///   warp's map load ends the script, as the reset does, and the engine saves on the first idle
+///   frame there (Gen3 `Task_Hof_TrySaveData` saves the game with that CONTINUE warp).
 /// - Wave F, Steven's multi battle (`MossdeepCity_SpaceCenter_2F_EventScript_ChoosePartyForMultiBattle`):
 ///   - `SavePlayerParty`, `LoadPlayerParty`, `ReducePlayerPartyToSelectedMons`: the engine's
 ///     [`PartyStash`] (`load_save.c`, `script_pokemon_util.c`);
@@ -424,8 +421,7 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             } else {
                 g.rooms[1]
             };
-            ctx.fade(Fade::ToBlack).await;
-            ctx.delay(GAME_CLEAR_FRAMES).await;
+            ctx.hall_of_fame().await;
             if let Some((map, x, y)) = crate::battle::heal_location(room) {
                 ctx.warp(map, None, x, y).await;
             }

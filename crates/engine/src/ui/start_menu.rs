@@ -6,8 +6,9 @@
 //! (`AddStartMenuWindow`). Up/down move with wrap, A runs the entry, B and START close.
 //! POKéMON opens the party menu and BAG the bag (and the menu shows again when they close,
 //! Gen3 `CB2_ReturnToFieldWithOpenMenu`); EXIT closes; a game-defined `Script` entry closes the
-//! menu and runs its script. Not yet: POKéDEX, the trainer card, SAVE and OPTION report
-//! `Unsupported` and keep the menu open.
+//! menu and runs its script. Not yet: POKéDEX, the trainer card, and OPTION report
+//! `Unsupported` and keep the menu open. SAVE opens the save dialog (Task S, `ui/save.rs`):
+//! saved or not saved closes the menu, cancelled shows it again (`SaveCallback`).
 //!
 //! Deviations: the cursor starts on the first entry at every opening (Gen3 keeps
 //! `sStartMenuCursorPos` between openings); no help line (Emerald has none either).
@@ -29,6 +30,8 @@ pub const WINDOW: (u8, u8, u8) = (22, 1, 7);
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct StartMenu {
     cursor: Option<MenuCursor>,
+    /// The save dialog is open over the menu (Task S).
+    saving: bool,
     gfx: Gfx<Panel>,
 }
 
@@ -56,6 +59,13 @@ pub fn entries<G: GameData>(cx: &ScreenCx<'_, G>) -> Vec<StartItem> {
 impl Screen for StartMenu {
     fn step<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>, input: ScreenInput) -> ScreenOut {
         let game = cx.game;
+        // `SaveCallback`: saved or not saved closes the menu, cancelled shows it again.
+        if self.saving && cx.child.is_some() {
+            self.saving = false;
+            if let Some(ScreenResult::Bool(_)) = cx.child.take() {
+                return ScreenOut::Done(ScreenResult::Cancel);
+            }
+        }
         let items = entries(cx);
         let n = items.len().min(9) as u8;
         let cursor = self.cursor.get_or_insert(MenuCursor::new(n, 0));
@@ -89,13 +99,18 @@ impl Screen for StartMenu {
                         self.gfx.0 = None;
                         ScreenOut::Push(ScreenKind::Bag(super::BagMode::Field))
                     }
+                    // `SaveStartCallback` (Task S): the save dialog replaces the menu's window.
+                    Some(StartAction::Save) => {
+                        self.gfx.0 = None;
+                        self.saving = true;
+                        ScreenOut::Push(ScreenKind::SaveDialog)
+                    }
                     Some(StartAction::Exit) | None => ScreenOut::Done(ScreenResult::Cancel),
                     Some(StartAction::Script(id)) => ScreenOut::RunScript(id),
                     Some(a) => {
                         cx.report(Report::Unsupported(match a {
                             StartAction::Pokedex => "pokedex",
                             StartAction::PlayerCard => "trainer card",
-                            StartAction::Save => "save dialog",
                             _ => "options",
                         }));
                         ScreenOut::Running

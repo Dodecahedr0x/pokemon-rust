@@ -21,6 +21,10 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
         Request::ChoosePartyMon(mode) => ScreenKind::Party(mode),
         // `pokemart` (`CreatePokemartMenu`): the script waits until the shop closes.
         Request::Mart { items } => ScreenKind::Mart { items },
+        // `special SaveGame` (Task S): the save dialog over the field.
+        Request::SaveDialog => ScreenKind::SaveDialog,
+        // `special GameClear`'s record and credits (Task S); the save waits for the field.
+        Request::HallOfFame => ScreenKind::HallOfFame,
         _ => return Some(default_answer(r)),
     };
     if h.immediate {
@@ -28,6 +32,9 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
         return Some(default_answer(r));
     }
     h.s.answer = None;
+    if kind == ScreenKind::HallOfFame {
+        h.s.save.pending = true;
+    }
     open(h.s, h.game, kind, true, h.f);
     None
 }

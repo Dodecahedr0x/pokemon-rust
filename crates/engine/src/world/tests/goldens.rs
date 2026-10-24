@@ -25,7 +25,7 @@ const GOLDEN_TRAINER: u64 = 0x8219_1acc_6865_5331;
 /// START and SELECT on the idle field (Milestone 9; Tasks K and SM move it).
 const GOLDEN_SCREEN: u64 = 0xc5c6_a95e_c6c4_4077;
 /// A script's save dialog (Milestone 9; Task S moves it).
-const GOLDEN_SAVE: u64 = 0x358b_cd45_142b_ea49;
+const GOLDEN_SAVE: u64 = 0x0232_08c7_a702_2b1a;
 
 fn walk_scenario() -> (u64, u64) {
     let mut w = World::new(&Game);
@@ -112,7 +112,7 @@ fn screen_scenario() -> u64 {
     w.hash()
 }
 
-/// A script's save dialog (`special SaveGame`; Wave 0 answers "not saved" at once).
+/// A script's save dialog (`special SaveGame`, Task S): B through it answers "not saved".
 fn save_scenario() -> u64 {
     let mut w = started();
     start(&mut w, |ctx| {
@@ -121,7 +121,13 @@ fn save_scenario() -> u64 {
             ctx.set_var(VAR_RESULT, saved as u16 + 10).await;
         })
     });
-    until_done(&mut w, 600);
+    for _ in 0..600 {
+        if !w.script_running() {
+            break;
+        }
+        tap(&mut w, Buttons::B, 2);
+    }
+    assert!(!w.script_running());
     assert_eq!(w.var(VAR_RESULT), 10);
     w.hash()
 }

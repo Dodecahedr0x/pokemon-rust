@@ -20,7 +20,7 @@ use content::Emerald;
 use engine::checkpoint::{BuildHash, build_hash};
 use engine::debug::{self, DebugRegion, NO_SCRIPT, input_slot};
 use engine::world::Event;
-use engine::{Buttons, World};
+use engine::{Buttons, GameData, World};
 use save_logic::{PendingSave, combo_pressed, scanlines};
 use video::Video;
 use watch::Watch;
@@ -79,7 +79,6 @@ fn publish_debug(world: &World, keys: Buttons, late: u32, late_black: u32) -> u3
         (&raw mut (*d).last_script).write_volatile(script);
         (&raw mut (*d).map).write_volatile(world.map().0);
         (&raw mut (*d).events_dropped).write_volatile(dropped);
-        // Milestone 9: `late_saving` stays 0 until Task S writes saves in the field.
         (&raw mut (*d).screens).write_volatile(world.screens_open().min(u16::MAX as usize) as u16);
         (&raw mut (*d).inputs[input_slot(world.frame())]).write_volatile(keys.0);
         (&raw mut (*d).hash).write_volatile(hash);
@@ -117,6 +116,12 @@ fn publish_watch(watch: &Watch) {
         (&raw mut (*d).stack_min).write_volatile(watch.stack_min());
         (&raw mut (*d).scan_passes).write_volatile(watch.passes());
     }
+}
+
+/// Late applies after an in-game save's flash write (`DebugRegion::late_saving`).
+fn publish_late_saving(late_saving: u32) {
+    let d = core::ptr::addr_of_mut!(PKR_DEBUG);
+    unsafe { (&raw mut (*d).late_saving).write_volatile(late_saving) };
 }
 
 fn publish_save(saves: u32, status: u32) {
@@ -186,8 +191,8 @@ fn main(mut gba: agb::Gba) -> ! {
         .set_enabled(true);
     let mut slots = save::init(&mut gba.save, timers.timer2);
     let boot_keys = read_keys();
-    let (mut world, boot) = save::boot_world(&game, slots.as_mut(), boot_keys);
-    let world = &mut world;
+    let (mut booted, boot) = save::boot_world(&game, slots.as_mut(), boot_keys);
+    let world = &mut booted;
     let mut frame = world.initial_frame();
     video.apply_blanked(&frame);
     // Its commands are done; the loop re-applies only its registers.
@@ -195,7 +200,9 @@ fn main(mut gba: agb::Gba) -> ! {
     // Boot order on the debug region: build and boot, then the boot World's hash, `frame`
     // last. The hash stays 0 until then (the emu takes the first non-zero hash as the boot).
     publish_boot(build_hash(&game), boot);
-    let (mut late, mut late_black) = (0u32, 0u32);
+    let (mut late, mut late_black, mut late_saving) = (0u32, 0u32, 0u32);
+    // The last step wrote an in-game save: its stall is counted in `late_saving`.
+    let mut after_save = false;
     let mut costs = Costs::default();
     let mut saves = 0u32;
     let mut pending: Option<PendingSave> = None;
@@ -224,15 +231,27 @@ fn main(mut gba: agb::Gba) -> ! {
         if woke_late || applied < VBLANK_LINE {
             // Black before and after (map loads while faded out): nothing visible differs.
             let now_black = frame.is_black();
-            if black && now_black {
+            if after_save {
+                late_saving = late_saving.wrapping_add(1);
+                publish_late_saving(late_saving);
+            } else if black && now_black {
                 late_black = late_black.wrapping_add(1);
             } else {
                 late = late.wrapping_add(1);
             }
         }
         black = frame.is_black();
+        after_save = false;
         let keys = read_keys();
         frame = world.step(&game, keys);
+        // Milestone 9 Task S: the main menu's choice replaces the boot World (Gen3 loads the
+        // save or starts the new game on a black screen).
+        if let Some(choice) = world.main_menu_choice() {
+            *world = save::chosen_world(&game, slots.as_mut(), choice);
+            frame = world.initial_frame();
+            video.apply_blanked(&frame);
+            frame.cmds.clear();
+        }
         publish_reports(world, &mut reports);
         // The tour's warp lands between two steps (its mirror in `emu/tests/tour.rs` does the
         // same), and each map gets its own maxima.
@@ -243,6 +262,25 @@ fn main(mut gba: agb::Gba) -> ! {
         let hash_lines = publish_debug(world, keys, late, late_black);
         let step_lines = scanlines(applied, vcount());
         let mut wrote = false;
+
+        // Milestone 9 Task S: the in-game save (`Event::Saved { ok: true }`) goes to flash; a
+        // failed write turns the dialog's answer to "not saved" (`World::save_failed`).
+        if (world.events().iter()).any(|e| matches!(e, Event::Saved { ok: true })) {
+            let status = match (world.save_snapshot(&game), slots.as_mut()) {
+                (Ok(cp), Some(slots)) => save::write_in_game(slots, &cp, &game.special_ids()),
+                (Err(_), _) => debug::save::TOO_LARGE,
+                (_, None) => debug::save::STORAGE,
+            };
+            if status == debug::save::OK {
+                saves = saves.wrapping_add(1);
+            } else {
+                world.save_failed();
+            }
+            publish_save(saves, status);
+            wrote = true;
+            after_save = true;
+            vblank.wait_for_vblank();
+        }
 
         // Debug save (L+R+SELECT), outside the simulation: the World never sees it.
         if combo_pressed(prev_keys, keys) {
