@@ -387,6 +387,8 @@ pub fn run_spine_range<G: GameData>(
             .map(|s| spine.steps[s]);
         let before = live.v.frames;
         live.rerolls = 0;
+        let ours = ours_at(game, spine, i)?;
+        live.ours_lead_level = ours.party.first().map(|m| m.level);
         let error = match step {
             Some(s) => live.play(&s).err().map(|e| format!("{e:#}")),
             None => None,
@@ -412,7 +414,6 @@ pub fn run_spine_range<G: GameData>(
         update(&mut h, &mut live.v, battles);
         battles = live.v.battles.len();
         let p = &spine.positions[i];
-        let ours = ours_at(game, spine, i)?;
         // Our lead gained exp in a step vanilla fought nothing: our engine met a wild mon
         // vanilla did not (its RNG), so levels are RNG-dependent from here on.
         let ours_exp = ours.party.first().map(|m| m.exp);
@@ -593,6 +594,7 @@ pub fn branch<G: GameData + Clone + 'static>(
     let from = live.v.frames;
     let battles = live.v.battles.len();
     let mut vanilla_error = None;
+    live.ours_lead_level = None;
     if let Action::Choice { step, choice } = b.action {
         live.opts.choice = Some(choice);
         if let Err(e) = live.play(&spine.steps[step as usize]) {

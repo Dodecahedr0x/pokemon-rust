@@ -318,6 +318,18 @@ impl Vanilla {
             (m != 0).then_some(MoveId(m))
         });
         let pp: [u8; 4] = std::array::from_fn(|i| self.emu.read_u8(me + BM_PP + i as u32));
+        if self.trace {
+            eprintln!(
+                "  battle move: {species:?} L{} hp {}/{} moves {moves:?} pp {pp:?} vs {} L{} hp {} best {}",
+                self.emu.read_u8(me + BM_LEVEL),
+                self.emu.read_u16(me + BM_HP),
+                self.emu.read_u16(me + BM_MAX_HP),
+                self.emu.read_u16(foe + BM_SPECIES),
+                self.emu.read_u8(foe + BM_LEVEL),
+                self.emu.read_u16(foe + BM_HP),
+                self.answers.best_move,
+            );
+        }
         if self.answers.best_move {
             let theirs = SpeciesId(self.emu.read_u16(foe + BM_SPECIES));
             best_damaging_slot_of(species, &moves, &pp, theirs, t)

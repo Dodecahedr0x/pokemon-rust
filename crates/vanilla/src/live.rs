@@ -37,6 +37,10 @@ pub struct Live<'g, G: GameData> {
     pub opts: StepOpts,
     /// Times the last [`Live::play`] replayed its step after a lost battle.
     pub rerolls: u32,
+    /// Our lead's level once the step being played is done (the oracle sets it): a `Train`
+    /// or `TrainFresh` on vanilla trains to it when it is above the step's level, so the
+    /// battles after it are fought at the same level (vanilla's RNG gives other exp).
+    pub ours_lead_level: Option<u8>,
     /// What the last step played natively for a [`Step::Bypass`].
     pub note: Option<String>,
     /// The last step was already behind vanilla (a script had taken the player through its
@@ -76,6 +80,7 @@ impl<'g, G: GameData> Live<'g, G> {
             game,
             opts: StepOpts::default(),
             rerolls: 0,
+            ours_lead_level: None,
             note: None,
             ahead: false,
             budget: 0,
@@ -334,6 +339,7 @@ impl<'g, G: GameData> Live<'g, G> {
             }
             Step::Train { x, y, level, .. } | Step::TrainFresh { x, y, level, .. } => {
                 let fresh = matches!(step, Step::TrainFresh { .. });
+                let level = level.max(self.ours_lead_level.unwrap_or(0));
                 let (mut n, mut dry) = (0, 0);
                 while let Some(m) = self.v.party().first().cloned() {
                     let pp = m.pp.iter().map(|&p| u32::from(p)).sum::<u32>();
