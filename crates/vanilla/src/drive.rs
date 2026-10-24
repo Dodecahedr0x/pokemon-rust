@@ -424,6 +424,29 @@ impl Vanilla {
         }
     }
 
+    /// The Easy Chat screen (`HandleEasyChatInput`, Wave G): leave it as our explorer does, B
+    /// to the quit prompt (`INPUTSTATE_EXIT_PROMPT`, its yes/no on NO), UP to YES, A; A
+    /// through a message (`INPUTSTATE_WAIT_FOR_MSG`).
+    fn easy_chat_key(&mut self) -> Buttons {
+        const INPUT_STATE: u32 = 4;
+        let p = self.emu.read_u32(self.sym.easy_chat_screen);
+        if p == 0 {
+            return Buttons::NONE;
+        }
+        match self.emu.read_u8(p + INPUT_STATE) {
+            // `INPUTSTATE_EXIT_PROMPT`, `INPUTSTATE_CONFIRM_WORDS_YES_NO`: `sMenu.cursorPos`.
+            4 | 6 => {
+                if self.emu.read_u8(self.sym.menu + 2) == 0 {
+                    Buttons::A
+                } else {
+                    Buttons::UP
+                }
+            }
+            8 => Buttons::A,
+            _ => Buttons::B,
+        }
+    }
+
     /// The key for a screen outside the field and the battle: the wall clock's yes/no (YES),
     /// the starter screen ([`Vanilla::starter`], then YES), the naming screen (the name it
     /// offers: START to OK, then A), A elsewhere.
@@ -457,6 +480,9 @@ impl Vanilla {
         }
         if self.callback2() == s.cb2_pokenav {
             return self.pokenav_key();
+        }
+        if self.callback2() == s.cb2_easy_chat_screen {
+            return self.easy_chat_key();
         }
 
         if self.callback2() == s.cb2_update_party_menu
