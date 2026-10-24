@@ -45,6 +45,10 @@ fn grid_key(c: u8, want: u8) -> Buttons {
     }
 }
 
+/// The times a walk with no path waits for the objects in the way, and the frames of a wait.
+const OBJECT_WAITS: u32 = 8;
+const OBJECT_WAIT_FRAMES: u32 = 32;
+
 /// How a [`Vanilla::walk_to`] ended.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Walk {
@@ -720,6 +724,7 @@ impl Vanilla {
         self.settle(max_frames)?;
         let start = self.current_map()?;
         let mut stalls = 0;
+        let mut waits = 0;
         let currents = self.has_currents(game, start);
         loop {
             let me = self.player_object().ok_or_else(|| anyhow!("no player"))?;
@@ -771,17 +776,22 @@ impl Vanilla {
                 continue;
             }
             let (elevation, layout) = (self.player_elevation(), self.layout_id());
-            let dir = gated
-                .or(current)
-                .or_else(|| planner.first_dir(me.cell, to))
-                .ok_or_else(|| {
-                    anyhow!(
-                        "walk_to: no path from {:?} to {to:?} on {start:?} (elevation \
-                         {elevation:?}, layout {layout:?}, {} objects in the way)",
-                        me.cell,
-                        occupied_n
-                    )
-                })?;
+            let Some(dir) = gated.or(current).or_else(|| planner.first_dir(me.cell, to)) else {
+                // Objects in the way (a wandering one in a corridor): wait for them a while.
+                if occupied_n > avoid.len() && waits < OBJECT_WAITS {
+                    waits += 1;
+                    for _ in 0..OBJECT_WAIT_FRAMES {
+                        self.step(Buttons::NONE)?;
+                    }
+                    continue;
+                }
+                return Err(anyhow!(
+                    "walk_to: no path from {:?} to {to:?} on {start:?} (elevation \
+                     {elevation:?}, layout {layout:?}, {} objects in the way)",
+                    me.cell,
+                    occupied_n
+                ));
+            };
             // Hold the direction until the player leaves the cell, or the field stops idling;
             // a bump (an object stepped in the way) re-plans after a while.
             let mut held = 0;
