@@ -279,10 +279,13 @@ impl<'a, G: GameData> Driver<'a, G> {
     ) -> Self {
         let w = s.world();
         let (map, log_start, dropped_start) = (w.map(), w.log().count(), w.events_dropped());
-        let overrides = w
-            .snapshot(s.game())
-            .map(|snap| snap.field.overrides)
-            .unwrap_or_default();
+        // The keys the world holds from the last frame (the macro before this one): a button
+        // still held is no new press (Gen3 `gMain.newKeys`): an A the last macro ended on (a
+        // message answered) makes the next interact release it first ([`Driver::last`]).
+        let (overrides, held) = match w.snapshot(s.game()) {
+            Ok(snap) => (snap.field.overrides, snap.input.held),
+            Err(_) => (Default::default(), Buttons::NONE),
+        };
         Driver {
             s,
             intents,
@@ -296,7 +299,7 @@ impl<'a, G: GameData> Driver<'a, G> {
             reports_dropped: 0,
             dropped_start,
             ended: None,
-            last: Buttons::NONE,
+            last: Buttons(held.0 & Buttons::A.0),
             overrides,
             terrain: RefCell::new(None),
             dir_memo: None,

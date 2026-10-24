@@ -15,7 +15,9 @@
 //! checked against [`BPEE_SHA1`] (the decomp's `rom.sha1`).
 
 pub mod boot;
+pub mod currents;
 pub mod drive;
+pub mod gates;
 pub mod intro;
 pub mod live;
 pub mod oracle;

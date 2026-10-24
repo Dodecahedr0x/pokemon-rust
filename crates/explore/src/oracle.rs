@@ -85,6 +85,22 @@ impl<'a, G: GameData> Planner<'a, G> {
         }
     }
 
+    /// This planner on map `id`'s layout `layout` (Gen3 `gSaveBlock1Ptr->mapLayoutId`, a
+    /// `setmaplayoutindex` override) instead of its own ([`Grid::with_layout`]).
+    pub fn with_layout(mut self, id: MapId, layout: Option<u16>) -> Self {
+        self.grid = self.grid.with_layout(id, layout);
+        self
+    }
+
+    /// This planner from the player's elevation (Gen3 `ObjectEvent.currentElevation`: on a
+    /// bridge, under it), [`Grid::with_elevation`].
+    pub fn with_elevation(mut self, elevation: Option<u8>) -> Self {
+        if let Some(e) = elevation {
+            self.grid = self.grid.with_elevation(e);
+        }
+        self
+    }
+
     /// The first direction of a shortest path, around grass when there is a way.
     pub fn first_dir(&self, from: (i16, i16), to: (i16, i16)) -> Option<Dir> {
         self.grid
