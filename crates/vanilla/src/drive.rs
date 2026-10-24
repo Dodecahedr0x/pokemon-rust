@@ -45,6 +45,10 @@ fn grid_key(c: u8, want: u8) -> Buttons {
     }
 }
 
+/// Frames a script runs without input before [`Vanilla::settle`] presses B now and then (a
+/// native window waiting for A or B: the Berry Crush rankings).
+const SCRIPT_STUCK: u32 = 1200;
+
 /// The times a walk with no path waits for the objects in the way, and the frames of a wait.
 const OBJECT_WAITS: u32 = 8;
 const OBJECT_WAIT_FRAMES: u32 = 32;
@@ -97,6 +101,9 @@ impl Vanilla {
         let mut idle = 0;
         let mut in_battle = false;
         let mut last = None;
+        // Frames a script has waited without a message (a native window that takes A or B,
+        // such as the Berry Crush rankings sign).
+        let mut scripted = 0u32;
         // The script position of the last multichoice, and the times it was asked again.
         let (mut asked, mut reasked, mut in_multichoice) = (None, 0u8, false);
         let mut in_yes_no = false;
@@ -122,6 +129,11 @@ impl Vanilla {
                 }
             }
             in_multichoice = mode == Mode::Multichoice;
+            scripted = if mode == Mode::Script {
+                scripted + 1
+            } else {
+                0
+            };
             if mode == Mode::YesNo && !in_yes_no {
                 self.yes_nos += 1;
             }
@@ -146,6 +158,9 @@ impl Vanilla {
                 // only once it processes the player's (here: no) input.
                 Mode::FieldIdle if idle >= SETTLE_IDLE => return Ok(()),
                 Mode::FieldIdle => Buttons::NONE,
+                Mode::Script if scripted > SCRIPT_STUCK && scripted.is_multiple_of(16) => {
+                    Buttons::B
+                }
                 Mode::Script | Mode::Transition => Buttons::NONE,
                 Mode::BattleAction
                 | Mode::BattleMove
@@ -443,6 +458,7 @@ impl Vanilla {
         if self.callback2() == s.cb2_pokenav {
             return self.pokenav_key();
         }
+
         if self.callback2() == s.cb2_update_party_menu
             && tasks.contains(&s.task_handle_choose_mon_input)
         {
