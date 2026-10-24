@@ -96,5 +96,13 @@
             name: "VAR_SIL_PORT_RESSAC_STATE",
             num: 16439,
         ),
+        (
+            name: "VAR_SIL_INPUT_MAP",
+            num: 16450,
+        ),
+        (
+            name: "VAR_SIL_IDLE_FRAMES",
+            num: 16451,
+        ),
     ],
 )

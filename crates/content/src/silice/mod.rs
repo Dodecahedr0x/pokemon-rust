@@ -20,6 +20,7 @@
 //! trainers, wild encounters (by Silice map), items (with their base items' hold effects) and
 //! marts (`data::MARTS`), the map headers and `LOCALID_*`, through the shared `game_data_tables!`.
 
+pub mod mallette;
 pub mod new_game;
 pub mod prelude;
 
@@ -30,9 +31,10 @@ mod tests;
 
 use crate::consts::{
     SIL_FLAGS_CLEARED_ON_MAP_CHANGE, SIL_HEAL_LOCATIONS, SIL_RESPAWN, SIL_RUNNING_FLAG,
+    VAR_SIL_IDLE_FRAMES, VAR_SIL_INPUT_MAP,
 };
 use crate::{NEW_GAME_SCRIPT, data};
-use engine::data::{GameData, MapId, ScriptId, SpecialIds};
+use engine::data::{FieldMove, FieldMoveGate, GameData, MapId, ScriptId, SpecialIds};
 use engine::script::{Ctx, Script};
 
 /// Silice's content root.
@@ -56,8 +58,32 @@ impl GameData for Game {
             respawn_default: SIL_RESPAWN,
             var_wild_set: None,
             script_whiteout: None,
+            // Reverse-City's inverted controls and its emitters' idle timer (Ch7).
+            var_input_map: Some(VAR_SIL_INPUT_MAP),
+            var_idle_frames: Some(VAR_SIL_IDLE_FRAMES),
             ..crate::gen3_special_ids()
         }
+    }
+
+    /// The Mallette's modules ([`mallette::field_move_gate`]).
+    fn field_move_gate(&self, m: FieldMove) -> FieldMoveGate {
+        mallette::field_move_gate(m)
+    }
+
+    fn field_move_label(&self, m: FieldMove) -> Option<&'static [u8]> {
+        mallette::field_move_label(self.battle(), m)
+    }
+
+    fn field_move_script(&self, m: FieldMove) -> Option<ScriptId> {
+        mallette::field_move_script(m)
+    }
+
+    fn waterfall_refused_script(&self) -> Option<ScriptId> {
+        Some(data::script_ids::Mallette_CannotUseWaterfall)
+    }
+
+    fn dive_emerge_script(&self) -> Option<ScriptId> {
+        Some(data::script_ids::Mallette_UseDiveUnderwater)
     }
 
     /// The new game: `game.ron`'s start, running [`new_game::new_game`].

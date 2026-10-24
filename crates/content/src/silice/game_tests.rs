@@ -360,6 +360,8 @@ struct Host {
     vars: BTreeMap<u16, u16>,
     choice: u16,
     fits: bool,
+    /// The multichoice answers, in order (then B: `MULTI_B_PRESSED`).
+    picks: Vec<u16>,
 }
 
 impl Host {
@@ -370,6 +372,7 @@ impl Host {
             vars: BTreeMap::new(),
             choice: 0,
             fits: true,
+            picks: Vec::new(),
         }
     }
 
@@ -397,6 +400,12 @@ impl ScriptHost for Host {
             Request::BattleWild { .. } => Response::Value(BattleOutcome::Won as u16),
             Request::YesNo { .. } => Response::Bool(self.choice == 1),
             Request::ItemAdd { .. } | Request::ItemSpace { .. } => Response::Bool(self.fits),
+            Request::Multichoice { .. } => Response::Value(if self.picks.is_empty() {
+                127
+            } else {
+                self.picks.remove(0)
+            }),
+            Request::Query(_) => Response::Value(7),
             _ => Response::Unit,
         })
     }
@@ -630,5 +639,116 @@ fn the_gen3_std_texts_and_strings_are_kept() {
     ] {
         let s = Game.std_string(pocket_std_string(p));
         assert!(s.is_some_and(|s| s.len() > 1), "{p:?}");
+    }
+}
+
+/// The Mallette (Task C): the START menu's first entry, its lists, the modules as field moves
+/// and the PIERRE LIEN.
+#[test]
+fn the_mallette_replaces_the_pokedex_in_the_start_menu() {
+    use engine::data::{FieldMove, FieldMoveGate, ItemId, ItemUse, StartAction};
+    let menu = Game.start_menu();
+    assert_eq!(
+        menu[0].action,
+        StartAction::Script(crate::data::script_ids::Mallette_Menu)
+    );
+    assert_eq!(menu[0].shown_if, Some(FLAG_SIL_MALLETTE_OPEN));
+    assert_eq!(Game.text(menu[0].label), Game.text(Mallette_Label));
+    let rest: Vec<StartAction> = menu[1..].iter().map(|i| i.action).collect();
+    assert_eq!(
+        rest,
+        [
+            StartAction::Party,
+            StartAction::Bag,
+            StartAction::PlayerCard,
+            StartAction::Save,
+            StartAction::Options,
+            StartAction::Exit
+        ]
+    );
+    let main = Game.multichoice(crate::silice::mallette::LIST_MENU).unwrap();
+    assert_eq!(main.len(), 7);
+    assert_eq!(main[0], Game.text(Mallette_Menu_Analyse));
+    assert_eq!(
+        Game.multichoice(crate::silice::mallette::LIST_LOGS).unwrap().len(),
+        9
+    );
+    // Gen3's lists are still there.
+    assert_eq!(Game.multichoice(0), crate::data::multichoice(0));
+
+    assert_eq!(
+        Game.field_move_gate(FieldMove::Surf),
+        FieldMoveGate::Flag(FLAG_SIL_MODULE_SURF)
+    );
+    assert_eq!(
+        Game.field_move_gate(FieldMove::Fly),
+        FieldMoveGate::Flag(FLAG_SIL_MODULE_VOL)
+    );
+    assert_eq!(
+        Game.field_move_gate(FieldMove::Dive),
+        FieldMoveGate::Flag(FLAG_SIL_MODULE_PLONGEE)
+    );
+    // The scripted obstacles' modules are not party-menu moves.
+    assert_eq!(Game.field_move_gate(FieldMove::Cut), FieldMoveGate::Never);
+    assert_eq!(
+        Game.field_move_script(FieldMove::Surf),
+        Some(crate::data::script_ids::Mallette_UseSurf)
+    );
+    assert_eq!(
+        Game.field_move_label(FieldMove::Fly),
+        Some(Game.battle().moves[MOVE_FLY.0 as usize].name)
+    );
+    assert_eq!(
+        Game.item_use(ItemId(ITEM_SIL_PIERRE_LIEN)),
+        ItemUse::TradeEvolution
+    );
+}
+
+#[test]
+fn the_mallette_menu_reads_the_sync_and_the_unlocked_logs() {
+    let mut h = Host::new();
+    h.vars.insert(VAR_SIL_SYNC.0, 30);
+    h.flags.insert(FLAG_SIL_LOG_01.0, true);
+    // SYNCHRO; RAPPORTS: LOG 01, LOG 02 (locked), RETOUR; MODULES; then B.
+    h.picks = vec![5, 4, 0, 1, 8, 3];
+    run(&mut h, |ctx| {
+        Box::pin(crate::scripts::mallette::Mallette_Menu(ctx))
+    });
+    let said: Vec<TextId> = (h.log.iter())
+        .filter_map(|r| match r {
+            Request::Message(t) => Some(*t),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        said,
+        [
+            Mallette_Sync,
+            LOG_01_Texte,
+            Mallette_Log_Chiffre,
+            Mallette_Modules_Aucun
+        ]
+    );
+    assert!(h.log.contains(&Request::Buffer {
+        slot: 0,
+        src: BufferSrc::Number(30)
+    }));
+    assert_eq!(h.log.last(), Some(&Request::ReleaseAll));
+}
+
+#[test]
+fn the_hydro_propulseur_asks_then_surfs() {
+    use engine::data::FieldMove;
+    for yes in [true, false] {
+        let mut h = Host::new();
+        h.choice = u16::from(yes);
+        run(&mut h, |ctx| {
+            Box::pin(crate::scripts::mallette::Mallette_UseSurf(ctx))
+        });
+        assert_eq!(
+            h.count(|r| *r == Request::FieldMoveEffect(FieldMove::Surf)),
+            usize::from(yes)
+        );
+        assert_eq!(h.log.last(), Some(&Request::ReleaseAll));
     }
 }
