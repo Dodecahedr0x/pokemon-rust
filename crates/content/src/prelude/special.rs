@@ -13,6 +13,8 @@ use engine::script::PartyStash;
 
 /// Gen3 `PARTY_NOTHING_CHOSEN` (`include/constants/party_menu.h`).
 const PARTY_NOTHING_CHOSEN: u16 = 0xFF;
+/// Gen3 `EASY_CHAT_TYPE_QUESTIONNAIRE` (`include/constants/easy_chat.h`).
+const EASY_CHAT_TYPE_QUESTIONNAIRE: u8 = 20;
 /// Gen3 `PLAYER_HAS_TWO_USABLE_MONS` (`include/constants/pokemon.h`).
 const PLAYER_HAS_TWO_USABLE_MONS: u16 = 0;
 /// Gen3 `PLAYER_HAS_ONE_MON`.
@@ -282,7 +284,8 @@ async fn cable_car_destination(ctx: &Ctx) -> MapId {
 ///   - `ChoosePartyMon`: `VAR_0x8004` = `PARTY_NOTHING_CHOSEN`;
 ///   - `DoWaldaNamingScreen`: `VAR_0x8004` = cancelled with no phrase before, so no phrase is
 ///     saved (and `TryGetWallpaperWithWaldaPhrase` is never reached);
-///   - `ShowEasyChatScreen`: `VAR_RESULT` = 0;
+///   - `ShowEasyChatScreen`: the Easy Chat screen without its keyboard (`ui::easy_chat`):
+///     `VAR_RESULT` = 0;
 ///   - `Bag_ChooseBerry`: `VAR_ITEM_ID` = 0, then the field fades back in;
 ///   - `FieldShowRegionMap`: the field fades back in;
 ///   - `ScriptMenu_CreatePCMultichoice`: `VAR_RESULT` = `MULTI_B_PRESSED` (the PC turns off);
@@ -456,7 +459,16 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             ctx.set_var(VAR_0x8004, WALDA_CANCEL_FIRST_PHRASE).await;
         }
         id if id == SPECIAL_ShowEasyChatScreen => {
+            // `easy_chat.c`: the screen of `EASY_CHAT_TYPE_*` `VAR_0x8004` (Wave G). Without
+            // its keyboard the phrase never changes, so `GetEasyChatCompleted`
+            // (`DidPhraseChange`) is FALSE: `VAR_RESULT` = 0 whether the player confirmed or
+            // quit. The questionnaire's confirm (`SetSpecialEasyChatResult`) also writes
+            // `VAR_0x8004` = 0 (not the Mystery Event phrase).
             degraded(ctx, id).await;
+            let kind = ctx.var(VAR_0x8004).await as u8;
+            if ctx.easy_chat(kind).await && kind == EASY_CHAT_TYPE_QUESTIONNAIRE {
+                ctx.set_var(VAR_0x8004, 0).await;
+            }
             ctx.set_var(VAR_RESULT, 0).await;
         }
         id if id == SPECIAL_Bag_ChooseBerry => {
@@ -739,6 +751,43 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             }
             return 0;
         }
+        id if id == SPECIAL_RotatingGate_InitPuzzle => super::puzzle::rotating_gate_init(ctx).await,
+        id if id == SPECIAL_UpdateTrainerFanClubGameClear => {
+            // `field_specials.c`: on the first Hall of Fame, the fan club's first fans
+            // (`SetPlayerGotFirstFans` bit 7, `SetInitialFansOfPlayer` members 1, 3 and 6 at
+            // bits 8, 10 and 13 of the fan counter var), its members shown and the fan
+            // club's state var 1 (`story::FAN_CLUB`). Degraded: the lose-a-fan timer var keeps
+            // 0 (the engine keeps no play time hours).
+            let Some((bits, state, flags)) = story::FAN_CLUB else {
+                return not_in_game(ctx, id).await;
+            };
+            let b = ctx.var(bits).await;
+            if b >> 7 & 1 == 0 {
+                ctx.set_var(bits, b | 1 << 7 | 1 << 13 | 1 << 8 | 1 << 10)
+                    .await;
+                for f in flags {
+                    ctx.set_flag(f, false).await;
+                }
+                ctx.set_var(state, 1).await;
+            }
+        }
+        id if id == SPECIAL_SetLilycoveLadyGfx => {
+            // `lilycove_lady.c`: the lady `InitLilycoveLady` chose at the new game, from the
+            // player's trainer id (`(id % 6) >> 1`: quiz, favor, contest), dressed in the
+            // first object gfx var; the contest lady's mon in the second (`story::
+            // LILYCOVE_LADY_GFX`), `VAR_RESULT` TRUE. Degraded: the contest category (`Random()` at the new game, not kept) is
+            // always COOL's Zigzagoon.
+            let Some((v0, v1, ladies, mon)) = story::LILYCOVE_LADY_GFX else {
+                return not_in_game(ctx, id).await;
+            };
+            let lady = (ctx.query(Query::PlayerIdLow).await % 6) >> 1;
+            ctx.set_var(v0, ladies[lady as usize]).await;
+            if lady == 2 {
+                ctx.set_var(v1, mon).await;
+                return 1;
+            }
+            return 0;
+        }
         id if id == SPECIAL_SetMirageTowerVisibility => {
             // `mirage_tower.c` `SetMirageTowerVisibility`: hidden once the tower's event is
             // over; else visible on `Random() & 1` or while forced. The pulse blend of the
@@ -1011,6 +1060,8 @@ mod story {
     pub const HAS_MATCH_CALL: Option<FlagId> = None;
     pub const MR_STONE_POKENAV: Option<FlagId> = None;
     pub const MAUVILLE_OLD_MAN_GFX: Option<(VarId, u16)> = None;
+    pub const LILYCOVE_LADY_GFX: Option<(VarId, VarId, [u16; 3], u16)> = None;
+    pub const FAN_CLUB: Option<(VarId, VarId, [FlagId; 5])> = None;
     pub const PACIFIDLOG_TM_DAY: Option<VarId> = None;
     pub const RUSTURF: Option<Rusturf> = None;
     pub const GAME_CLEAR: Option<GameClear> = None;

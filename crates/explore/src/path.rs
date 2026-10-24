@@ -15,12 +15,13 @@
 use engine::World;
 use engine::checkpoint::WorldSnapshot;
 use engine::data::{
-    Behavior, Dir, GameData, MapData, MapId, PLAYER, block_collision, block_elevation,
+    Behavior, Dir, GameData, MapData, MapId, PLAYER, RotatingGate, Water, block_collision,
+    block_elevation,
 };
 use engine::flow::block_behavior;
 use engine::grid::in_bounds;
 use std::cell::OnceCell;
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
 /// Walkable cells reachable from the player, from a capturable snapshot (collision bits with
@@ -80,6 +81,9 @@ pub(crate) struct Grid<'a, G: GameData> {
     /// The map's [`Terrain`] under `overrides`: built by the first search, or handed over by
     /// [`Grid::with_terrain`].
     terrain: OnceCell<Arc<Terrain>>,
+    /// The map's rotating gates and their orientations (Gen3 `rotating_gate.c`): the searches
+    /// turn them as the player pushes them ([`Grid::first_dir`]).
+    gates: Option<(&'static [RotatingGate], engine::gates::Orientations)>,
 }
 
 /// A map's cells under a set of `setmetatile` overrides, classified once for the searches
@@ -144,6 +148,29 @@ impl Terrain {
                             Some(j) => n = j,
                             None => return NO_STEP,
                         }
+                    }
+                    // A water current carries the surfer on (Gen3 `ForcedMovement_Pushed*
+                    // ByCurrent`) until still water, or ashore where the current runs into
+                    // land (`COLLISION_STOP_SURFING`); one running into a wall holds them
+                    // there (no landing), as does a loop.
+                    let mut slid = 0;
+                    while let Behavior::Water(Water::Current(cd)) = behavior[n] {
+                        let at = cell(n);
+                        let (cx, cy) = cd.delta();
+                        let Some(m) = index((at.0 + cx, at.1 + cy)) else {
+                            return NO_STEP;
+                        };
+                        if !open[m] || Behavior::walled(behavior[n], behavior[m], cd) {
+                            return NO_STEP;
+                        }
+                        n = m;
+                        slid += 1;
+                        if slid > w * h || !matches!(behavior[m], Behavior::Water(_)) {
+                            break;
+                        }
+                    }
+                    if slid > w * h {
+                        return NO_STEP;
                     }
                     n as u32
                 })
@@ -215,7 +242,18 @@ impl<'a, G: GameData> Grid<'a, G> {
             occupied,
             elevation: None,
             terrain: OnceCell::new(),
+            gates: None,
         }
+    }
+
+    /// This grid with the map's rotating gates at `orientations` (none when `gates` is empty).
+    pub fn with_gates(
+        mut self,
+        gates: &'static [RotatingGate],
+        orientations: engine::gates::Orientations,
+    ) -> Self {
+        self.gates = (!gates.is_empty()).then_some((gates, orientations));
+        self
     }
 
     /// This grid on map `id`'s layout `layout` (Gen3 `setmaplayoutindex`, the snapshot's
@@ -403,6 +441,9 @@ impl<'a, G: GameData> Grid<'a, G> {
         if !self.in_bounds(from) || !self.in_bounds(to) || from == to {
             return None;
         }
+        if let Some((gates, o)) = self.gates {
+            return self.first_dir_gated(from, to, avoid_grass, gates, o);
+        }
         let t = self.terrain();
         let ok = self.landable(t, avoid_grass, Some(to));
         let (start, goal) = (self.index(from) as u32, self.index(to) as u32);
@@ -450,7 +491,75 @@ impl<'a, G: GameData> Grid<'a, G> {
         }
         None
     }
+
+    /// [`Grid::first_dir`] over a rotating gate puzzle (Gen3 `rotating_gate.c`): the search
+    /// state is the cell, the elevation and the gates' orientations, and every step goes
+    /// through `engine::gates::step` (a gate turns or blocks the step). `None` past
+    /// [`MAX_GATE_STATES`].
+    fn first_dir_gated(
+        &self,
+        from: (i16, i16),
+        to: (i16, i16),
+        avoid_grass: bool,
+        gates: &[RotatingGate],
+        orientations: engine::gates::Orientations,
+    ) -> Option<Dir> {
+        let t = self.terrain();
+        let ok = self.landable(t, avoid_grass, Some(to));
+        let w = self.map.width as usize;
+        let (start, goal) = (self.index(from) as u32, self.index(to) as u32);
+        let e0 = self.start_elevation(t, start as usize);
+        let destination = !self.walkable(to, false);
+        // `MapGridGetCollisionAt`; out of the map, as a wall.
+        let collision = |x: i16, y: i16| {
+            if self.in_bounds((x, y)) {
+                block_collision(self.block((x, y)))
+            } else {
+                1
+            }
+        };
+        let mut seen: HashSet<(u32, u8, u32)> = HashSet::from([(start, e0, orientations)]);
+        // (cell, carried elevation, orientations, the index in `Dir::ALL` of the first step).
+        let mut queue: VecDeque<(u32, u8, u32, usize)> = VecDeque::new();
+        let expand = |c: u32,
+                      e: u8,
+                      o: u32,
+                      first: Option<usize>,
+                      seen: &mut HashSet<(u32, u8, u32)>,
+                      queue: &mut VecDeque<(u32, u8, u32, usize)>| {
+            for (d, n) in t.land[c as usize].into_iter().enumerate() {
+                if n == NO_STEP || !ok[n as usize] {
+                    continue;
+                }
+                if !(n == goal && destination) && t.refuses(e, c as usize, n as usize) {
+                    continue;
+                }
+                let e2 = carry(e, t.elevation[c as usize], t.elevation[n as usize]);
+                // The cell the step goes onto (a ledge lands further on, but the gates'
+                // floors have no ledges).
+                let (dx, dy) = Dir::ALL[d].delta();
+                let next = ((c as usize % w) as i16 + dx, (c as usize / w) as i16 + dy);
+                let Some(o2) = engine::gates::step(gates, o, Dir::ALL[d], next, collision) else {
+                    continue;
+                };
+                if seen.len() < MAX_GATE_STATES && seen.insert((n, e2, o2)) {
+                    queue.push_back((n, e2, o2, first.unwrap_or(d)));
+                }
+            }
+        };
+        expand(start, e0, orientations, None, &mut seen, &mut queue);
+        while let Some((c, e, o, d0)) = queue.pop_front() {
+            if c == goal {
+                return Some(Dir::ALL[d0]);
+            }
+            expand(c, e, o, Some(d0), &mut seen, &mut queue);
+        }
+        None
+    }
 }
+
+/// The gated search's state cap (cells x elevations x orientations).
+const MAX_GATE_STATES: usize = 1 << 20;
 
 pub fn reach<G: GameData>(game: &G, snap: &WorldSnapshot) -> Reach {
     let grid = Grid::of_snapshot(game, snap);
@@ -540,9 +649,11 @@ pub(crate) fn live_grid<'a, G: GameData>(
         .filter(|o| o.local_id != PLAYER)
         .flat_map(|o| [o.pos(), o.prev])
         .collect();
+    let gates = game.rotating_gates(w.map());
     Grid::new(game, w.map(), overrides, occupied)
         .with_layout(w.map(), w.map_layout())
         .with_elevation(w.objects().player().elevation)
+        .with_gates(gates, engine::gates::read(|v| w.var(v), gates))
 }
 
 #[cfg(test)]

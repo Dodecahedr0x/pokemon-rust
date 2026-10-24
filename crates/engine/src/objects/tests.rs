@@ -1228,3 +1228,68 @@ fn wander_backwards_walks_facing_away_with_wanders_draws() {
         assert_eq!(facing.opposite().delta(), (dx, dy));
     }
 }
+
+/// Gen3 `DoForcedMovement`: a current that pushes a surfer onto land
+/// (`COLLISION_STOP_SURFING`, `CanStopSurfing`) ends Surf with the dismount jump, as the
+/// keypad's step does; without Surf (or onto a wall) the current stops and the keypad plays.
+#[test]
+fn a_current_pushing_a_surfer_onto_land_ends_surf() {
+    let mut g = Grid::open();
+    let elev = |e: u16| e << BLOCK_ELEVATION_SHIFT;
+    for x in 0..W {
+        for y in 0..W {
+            g.set(x, y, elev(1), Behavior::Water(Water::Ocean));
+        }
+    }
+    g.set(5, 5, elev(1), Behavior::Water(Water::Current(Dir::Right)));
+    g.set(6, 5, elev(3), Behavior::Normal);
+    let mut o = player_at(5, 5, Dir::Up);
+    o.objs[0].elevation = 1;
+    o.set_surfing(true);
+    assert_eq!(
+        o.update_player(&g, NONE),
+        PlayerEvent::StepStarted {
+            to: (6, 5),
+            dir: Dir::Right
+        }
+    );
+    assert!(!o.surfing());
+    // Not surfing (a mismatch that cannot dismount): the current does not move the player.
+    let mut o = player_at(5, 5, Dir::Up);
+    o.objs[0].elevation = 1;
+    assert_eq!(o.update_player(&g, NONE), PlayerEvent::Idle);
+    assert_eq!(o.player().pos(), (5, 5));
+}
+
+/// Gen3 `CheckForRotatingGatePuzzleCollision` from the keypad: walking into a gate's arm
+/// turns the gate and steps on; an arm whose sweep hits a wall (collision 1) blocks without a
+/// bump (`COLLISION_ROTATING_GATE` is left out of `PlayerNotOnBikeCollide`).
+#[test]
+fn walking_into_a_rotating_gate_turns_it_or_is_blocked() {
+    static GATE: [RotatingGate; 1] = [RotatingGate {
+        x: 5,
+        y: 5,
+        shape: 4,
+        orientation: 0,
+    }];
+    let g = Grid::open();
+    // (5, 5) north onto (5, 4): the T gate's east arm turns anticlockwise (to 270).
+    let mut o = player_at(5, 5, Dir::Up);
+    o.set_gates(Some((&GATE, 0)));
+    assert_eq!(
+        o.update_player(&g, hold(Dir::Up)),
+        PlayerEvent::StepStarted {
+            to: (5, 4),
+            dir: Dir::Up
+        }
+    );
+    assert_eq!(o.gate_orientations(), Some(3));
+    // A wall in the sweep (4, 4): blocked, no action started.
+    let mut g = Grid::open();
+    g.set(4, 4, 1 << BLOCK_COLLISION_SHIFT, Behavior::Normal);
+    let mut o = player_at(5, 5, Dir::Up);
+    o.set_gates(Some((&GATE, 0)));
+    assert_eq!(o.update_player(&g, hold(Dir::Up)), PlayerEvent::Idle);
+    assert_eq!(o.player().pos(), (5, 5));
+    assert_eq!(o.gate_orientations(), Some(0));
+}

@@ -117,6 +117,7 @@ impl Objects {
         Objects {
             surfing,
             pushable: None,
+            gates: None,
             objs,
             map: s.map,
             run_state: match s.run_state {

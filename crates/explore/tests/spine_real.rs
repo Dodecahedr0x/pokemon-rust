@@ -16,7 +16,9 @@ const EMERALD_BADGE1_FRAMES: u64 = 104_523;
 /// before Wave G's doubles (Fortree's and Mossdeep's gym pairs, Tate and Liza, Steven);
 /// 3,172,864 before a macro released an A the last one ended on (Gen3 `newKeys`: +1 to +4
 /// frames from Route 118, and Victory Road B1F's `Wait(2)`s gone).
-const EMERALD_FRAMES: u64 = 3_166_366;
+/// 3,166,366 before Wave G's engine gaps (Fortree's rotating gates: Darius fought; a current
+/// ends Surf ashore: Seafloor Cavern Room 7 the long way round).
+const EMERALD_FRAMES: u64 = 3_143_931;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[

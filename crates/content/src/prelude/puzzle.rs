@@ -81,6 +81,83 @@ pub fn hole_warp(map: MapId) -> Option<MapId> {
     HOLE_WARPS.iter().find(|w| w.0 == map).map(|w| w.1)
 }
 
+/// `rotating_gate.c`'s puzzles: `{x, y, GATE_SHAPE_*, GATE_ORIENTATION_*}` (`L1`..`L4` are
+/// shapes 0 to 3, `T1`..`T4` 4 to 7).
+const fn gate(x: i16, y: i16, shape: u8, orientation: u8) -> engine::data::RotatingGate {
+    engine::data::RotatingGate {
+        x,
+        y,
+        shape,
+        orientation,
+    }
+}
+const L1: u8 = 0;
+const L2: u8 = 1;
+const L3: u8 = 2;
+const L4: u8 = 3;
+const T1: u8 = 4;
+const T2: u8 = 5;
+const T3: u8 = 6;
+
+/// `sRotatingGate_FortreePuzzleConfig`.
+static FORTREE_GATES: [engine::data::RotatingGate; 8] = [
+    gate(6, 7, T2, 1),
+    gate(9, 15, T2, 2),
+    gate(3, 19, T2, 1),
+    gate(2, 6, T1, 1),
+    gate(9, 12, T1, 0),
+    gate(6, 23, T1, 0),
+    gate(12, 22, T1, 0),
+    gate(6, 3, L4, 2),
+];
+
+/// `sRotatingGate_TrickHousePuzzleConfig`.
+static TRICK_HOUSE_GATES: [engine::data::RotatingGate; 11] = [
+    gate(14, 5, T1, 1),
+    gate(10, 6, L2, 2),
+    gate(6, 6, L4, 1),
+    gate(14, 8, T1, 1),
+    gate(3, 10, L3, 3),
+    gate(9, 14, L1, 1),
+    gate(3, 15, T3, 0),
+    gate(2, 17, L2, 2),
+    gate(12, 18, T3, 3),
+    gate(5, 18, L4, 1),
+    gate(10, 19, L3, 2),
+];
+
+/// Gen3 `GetCurrentMapRotatingGatePuzzleType`: the rotating gates of `map` (Fortree's gym,
+/// the Trick House's sixth puzzle), empty elsewhere.
+pub fn rotating_gates(map: MapId) -> &'static [engine::data::RotatingGate] {
+    #[cfg(not(pkr_silice))]
+    {
+        if map == MAP_FORTREE_CITY_GYM {
+            return &FORTREE_GATES;
+        }
+        if map == MAP_ROUTE110_TRICK_HOUSE_PUZZLE6 {
+            return &TRICK_HOUSE_GATES;
+        }
+    }
+    let _ = (map, &FORTREE_GATES, &TRICK_HOUSE_GATES);
+    &[]
+}
+
+/// Gen3 `RotatingGate_InitPuzzle` (the maps' `on_transition`): every gate of the current map's
+/// puzzle back to its starting orientation, in the temp vars' bytes
+/// (`RotatingGate_ResetAllGateOrientations`).
+pub async fn rotating_gate_init(ctx: &Ctx) {
+    let gates = rotating_gates(ctx.current_map().await);
+    for (pair, g) in gates.chunks(2).enumerate() {
+        let lo = u16::from(g[0].orientation);
+        let var = VarId(0x4000 + pair as u16);
+        let hi = match g.get(1) {
+            Some(g1) => u16::from(g1.orientation),
+            None => ctx.var(var).await >> 8,
+        };
+        ctx.set_var(var, lo | hi << 8).await;
+    }
+}
+
 /// The step callback `map`'s `on_resume` script turns on, of those the engine models.
 pub fn step_callback(map: MapId) -> Option<StepCallback> {
     #[cfg(not(pkr_silice))]

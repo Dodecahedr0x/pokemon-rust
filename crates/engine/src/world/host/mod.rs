@@ -141,7 +141,9 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 Some(Response::Pos(x, y))
             }
             Request::PlayerFacing => Some(Response::Value(s.objects.player().facing as u16)),
-            Request::CurrentMap => Some(Response::Value(s.field.map().0)),
+            // Gen3 `gSaveBlock1Ptr->location`: the objects' map, already the new one while the
+            // field still shows the old during `on_transition` (`LoadMapFromWarp`).
+            Request::CurrentMap => Some(Response::Value(s.objects.map().0)),
             Request::Log(line) => {
                 s.log(line);
                 UNIT
@@ -505,6 +507,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::PlayerPc(_)
             | Request::SaveDialog
             | Request::HallOfFame
+            | Request::EasyChat { .. }
             | Request::Credits
             | Request::Evolve { .. } => screens::begin(self, r),
             Request::ScreenFlash { .. }
@@ -584,6 +587,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
         | Request::PlayerPc(_)
         | Request::SaveDialog
         | Request::HallOfFame
+        | Request::EasyChat { .. }
         | Request::Credits
         | Request::Evolve { .. } = r
         {

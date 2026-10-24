@@ -1478,6 +1478,9 @@ mod list {
         enter(MAP_MAGMA_HIDEOUT_2F_2R, 10, 22, Down),
         enter(MAP_MAGMA_HIDEOUT_2F_1R, 17, 33, Down),
         enter(MAP_MAGMA_HIDEOUT_3F_1R, 7, 21, Down),
+        // 4F's wild battles run: four of them on the walk wore the lead out before Maxie
+        // since the Fortree gym's gates (Darius fought) moved the RNG.
+        Step::Battle(BattlePlan::RunWild),
         goto(MAP_MAGMA_HIDEOUT_4F, 15, 21),
         FULL_RESTORE,
         Step::UseItem(UseItem {
@@ -1800,13 +1803,11 @@ mod list {
         Step::Walk(Right),
         Step::Walk(Right),
         enter(MAP_SEAFLOOR_CAVERN_ROOM2, 11, 1, Up),
-        // Room 7: Surf across its pool of currents (the planner does not model them: a step
-        // onto (4, 18) slides west to (3, 18), then the still column 2 north).
+        // Room 7: Surf across its pool of currents (the planner rides them: (4, 18)'s west
+        // current runs into column 3's south one and ashore, so the way north is round by
+        // rows 23, 12, 8 and 6 down to (4, 10), then the still column 2).
         Step::Choose(0),
         use_(MAP_SEAFLOOR_CAVERN_ROOM7, 3, 19, Right),
-        Step::Walk(Up),
-        Step::Wait(60),
-        Step::Walk(Left),
         goto(MAP_SEAFLOOR_CAVERN_ROOM7, 2, 4),
         goto(MAP_SEAFLOOR_CAVERN_ROOM7, 4, 4),
         Step::Walk(Up),

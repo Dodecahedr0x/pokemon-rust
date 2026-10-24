@@ -1694,6 +1694,27 @@ pub trait GameData {
     fn player_surf_sprite(&self) -> Option<&'static SpriteData> {
         None
     }
+
+    /// The rotating gate puzzle of `map` (Gen3 `GetCurrentMapRotatingGatePuzzleType` and its
+    /// `sRotatingGate_*PuzzleConfig`); empty for a map without one. The gates' orientations
+    /// live in the temp vars (one byte per gate from `VAR_TEMP_0`), which the map's
+    /// `RotatingGate_InitPuzzle` special resets to each gate's `orientation`.
+    fn rotating_gates(&self, map: MapId) -> &'static [RotatingGate] {
+        let _ = map;
+        &[]
+    }
+}
+
+/// One gate of a rotating gate puzzle (Gen3 `struct RotatingGatePuzzle`, `rotating_gate.c`),
+/// at its pivot's map cell; see [`crate::gates`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct RotatingGate {
+    pub x: i16,
+    pub y: i16,
+    /// `GATE_SHAPE_*`: the row of [`crate::gates::ARM_LAYOUT`].
+    pub shape: u8,
+    /// `GATE_ORIENTATION_*` at the puzzle's start (0 to 3, a quarter turn clockwise each).
+    pub orientation: u8,
 }
 
 /// One place Fly lands ([`GameData::fly_destination`]).
