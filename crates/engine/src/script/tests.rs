@@ -230,11 +230,13 @@ fn battle_request_hashes_differ() {
             species: SpeciesId(1),
             level: 5,
             first_battle: false,
+            rules: None,
         },
         Request::BattleWild {
             species: SpeciesId(1),
             level: 5,
             first_battle: true,
+            rules: None,
         },
         Request::BattleTrainer {
             trainer: TrainerId(1),

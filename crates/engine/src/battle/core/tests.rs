@@ -872,6 +872,29 @@ fn balls_are_refused_in_trainer_battles() {
 }
 
 #[test]
+fn balls_are_refused_in_a_wild_battle_without_catching() {
+    let mut rng = Rng::new(before_setup_draws(1));
+    let setup = BattleSetup {
+        kind: BattleKind::Wild {
+            first_battle: false,
+        },
+        opponents: party(&[normal(2)]),
+        environment: Environment::Grass,
+        double: None,
+        rules: crate::battle::BattleRules {
+            no_catch: true,
+            ..Default::default()
+        },
+    };
+    let mut b = Battle::new(&Game, setup, &party(&[water(5)]), &mut rng);
+    let mut out = Vec::new();
+    b.start(&Game, &mut rng, &mut out);
+    let mut r = Run { b, rng, out };
+    assert!(r.choose(Choice::Ball).is_empty());
+    assert_eq!(r.b.need(), Need::Action);
+}
+
+#[test]
 fn move_damage_is_stored_for_bide() {
     let mut m = water(5);
     m.pp = [0; 4];

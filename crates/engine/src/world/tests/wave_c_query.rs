@@ -65,6 +65,10 @@ fn party_reads() {
     assert_eq!(ask(&mut w, Query::PartyFriendship(1)), 77);
     assert_eq!(ask(&mut w, Query::PartyHp(1)), 9);
     assert_eq!(ask(&mut w, Query::PartyHp(2)), 0);
+    assert_eq!(ask(&mut w, Query::PartyHeldItem(1)), 0);
+    w.s.party.get_mut(1).unwrap().held = Some(ItemId(77));
+    assert_eq!(ask(&mut w, Query::PartyHeldItem(1)), 77);
+    assert_eq!(ask(&mut w, Query::PartyHeldItem(4)), 0);
     w.s.party.get_mut(1).unwrap().personality = 0xABCD_1234;
     assert_eq!(ask(&mut w, Query::PartyPersonalityLow(1)), 0x1234);
 }

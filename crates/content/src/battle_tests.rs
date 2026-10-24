@@ -145,7 +145,8 @@ fn choose_starter_gives_it_and_starts_the_first_battle() {
             Request::BattleWild {
                 species: foe,
                 level,
-                first_battle: true
+                first_battle: true,
+                rules: None,
             },
         ]
     );

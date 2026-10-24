@@ -38,6 +38,8 @@ pub struct BattleRules {
     pub clone_player: bool,
     /// A message after the intro, before the first turn.
     pub intro: Option<TextId>,
+    /// The foe cannot be caught: the BALL is refused as in a trainer battle (a wild boss).
+    pub no_catch: bool,
 }
 
 impl BattleRules {
@@ -52,6 +54,10 @@ impl BattleRules {
             self.clone_player as u8,
         ]);
         h.write_u16(self.intro.map_or(0xFFFF, |t| t.0));
+        // Only when set: the rules without it hash as before.
+        if self.no_catch {
+            h.write(&[1]);
+        }
     }
 
     /// A stable digest (the request hash).

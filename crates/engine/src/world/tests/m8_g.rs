@@ -50,6 +50,7 @@ static TRAINER_RULES: crate::battle::BattleRules = crate::battle::BattleRules {
     foe_back: false,
     clone_player: false,
     intro: None,
+    no_catch: false,
 };
 
 /// A double-battle trainer (as Gina & Mia on Route 104), with the test trainer's party.
@@ -585,6 +586,7 @@ fn a_clone_battle_fights_a_healed_copy_of_the_party_with_the_rules_background() 
         foe_back: true,
         clone_player: true,
         intro: None,
+        no_catch: false,
     };
     let mut g = G::new();
     start(&mut g.w, |ctx| {

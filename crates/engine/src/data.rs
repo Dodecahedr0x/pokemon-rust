@@ -1292,6 +1292,11 @@ pub struct SpecialIds {
     /// Counts the field frames the player could act and held no button (saturating; any
     /// button resets it to 0), for scripts to read (Silice's idle timers).
     pub var_idle_frames: Option<VarId>,
+    /// The last day the daily flags were reset (Gen3 `VAR_DAYS`); `None`: no daily reset.
+    pub var_days: Option<VarId>,
+    /// Cleared on the first map load of each new day of the clock (`World::days`; Gen3
+    /// `ClearDailyFlags`, here a list).
+    pub daily_flags: &'static [FlagId],
 }
 
 /// What [`GameData::step_count_script`] reads and may change, after a finished player step.
@@ -1332,6 +1337,8 @@ impl Default for SpecialIds {
             berry_trees: 0,
             var_input_map: None,
             var_idle_frames: None,
+            var_days: None,
+            daily_flags: &[],
         }
     }
 }

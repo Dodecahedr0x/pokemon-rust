@@ -1705,7 +1705,7 @@ impl Battle {
             }
             // Refused in trainer battles for now. E2: Gen3 throws the ball anyway and plays
             // BattleScript_TrainerBallBlock ("The TRAINER blocked the BALL!"), using the turn.
-            Choice::Ball if self.is_trainer() => None,
+            Choice::Ball if self.is_trainer() || self.setup.rules.no_catch => None,
             Choice::Ball => Some(Action::Ball),
             Choice::Item { item, party } => items::choose(self, env, item, party),
             Choice::Switch(_) | Choice::LearnMove { .. } | Choice::Cancel => None,

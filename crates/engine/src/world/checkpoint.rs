@@ -264,7 +264,9 @@ impl World {
                 events_dropped: 0,
                 last_script: None,
                 save: super::save::SaveStatus::continued(),
+                today: 0,
             },
+            rtc_days: None,
             boot: None,
         };
         world.boot = Some(world.restore_frame(game));
