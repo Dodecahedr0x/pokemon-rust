@@ -3865,6 +3865,113 @@ The walk model treats `MB_NO_SURFACING` floor as blocked water and skips Dive, s
 - `CARGO_TARGET_DIR=target/silice PKR_GAME=silice cargo test -p content` passes.
 - `cargo test -p content -p xtask -p studio` passes except `studio` `map_edit_tools::reach_tools_on_the_committed_silice_maps`. That test fails on master too (its inputs are identical there): the Ch1 map fixes cut Jules's sight in `BoisEther_Gym` to 1 cell, and the test still expects 3. No Ch9 file is involved.
 
+#### SIL4 Ch9 scripts as built (Route S9 and Nébula)
+
+Chapter 9 (`09-nebula.md`, story 86 → 99) is in three script files. Each claims its maps, so those maps are strict:
+- `ch09_route_s09.rs`: RouteS09, RouteS09_Station and RouteS09_Underwater.
+- `ch09_nebula.rs`: Nebula and its Centre, Mart and Gargote.
+- `ch09_tour.rs`: Nebula_TourHall_B1F and Nebula_TourHall.
+
+Every map change goes through an edit script (`edits/<Map>/06_ch9_scripts.ron`). Each one replaces a hidden-item bg with a Script bg that runs `hidden_item`, the same fallback as Ch0–Ch8. Each edit records how to restore the original. `game.ron` gains `HEAL_LOCATION_SIL_NEBULA` (Nebula (17, 34)). `check-exceptions.ron` gains two placement-map entries, `FLAG_SIL_ITEM_PG_SALAMENCITE` and `FLAG_SIL_LIBERATION_JULIEN`. Both are Ch12 gifts placed on Nebula, which is now claimed.
+
+**Commits.**
+- `1d17987` `feat(engine)`: `GameData::dive_warp` takes the player's cell.
+- `f3fccc9`: the water modules on the field.
+- `874ac84` `feat(engine)`: `World::field_move_active`.
+- `6a84ae7`: the scripts, maps and edits.
+- `938a4af`: the spine and the driver.
+
+**Water modules on the field (`f3fccc9`).**
+- `field_move_gate` sends Surf to `FLAG_SIL_MODULE_SURF`, Waterfall to `FLAG_SIL_MODULE_CASCADE` and Dive to `FLAG_SIL_MODULE_PLONGEE`.
+- `field_moves.rs` writes the Gen3 prompts as Silice scripts: `EventScript_UseSurf`, `UseWaterfall`, `CannotUseWaterfall`, `UseDive` and `UseDiveUnderwater`. Each one asks yes/no, runs `field_move_effect` and releases.
+- The prompt texts are Gen3's FR wording with no mon name, built as `FIELD_MOVE_TEXTS`.
+- Dive warps have two sources. The first is the map's dive connection, when the cell is inside the target. The second is the fixed `DIVE_WARPS` table, which holds Nébula's two dives:
+  - the Bassin (50–52, 10–13) dives to B1F (6, 10);
+  - the canal (29–30, 54–55) dives to the conduit (39, 72);
+  - B1F's pool (5–7, 9–11) dives back up to the Bassin (51, 11).
+
+**Route S9 (86 → 92).**
+- Sc01 (86 → 90): the signal. The screen flash and Benou's call are fallbacks.
+- Sc02 (90 → 91): Julien's call.
+- Trainers: Anselme, Marin, Océane and the two Cocket divers.
+- The security cables are an `Obstacle` that needs Lame-Fréquence (COUPE). `FLAG_SIL_S09_CABLES` records them, and `OnLoad` repaints them.
+- The lakeside containers push only inside the shore area, excluding solid cells, so no push can wall off the route.
+- The station:
+  - Pump A asks its question.
+  - The cabinet pushes along its row (y 2, x 1–8) off the breaker. The breaker runs once.
+  - Pump B says T4 without the breaker. With it, it switches off without asking.
+  - With both pumps off: T3 and story 92.
+  - Pump C is a warning. The items are TM24 and an Elixir.
+- Gérard, the technician, sees pump B's row. After the battle he steps aside (one or two cells east, then faces west) and his template is updated. **Softlock fixed:** without the template update he respawned on (11, 11) and blocked pump B's console.
+- The conduit (`RouteS09_Underwater`): `OnLoad` calms currents A and B (metatile 681) once their pumps are off. A strong current says its text and pushes the player back two cells. Sc04's first-dive text runs once. Also on this map: the porthole, the Max Revive and three hidden items.
+
+**Nébula (92 → 96).**
+- Sc01 (on-frame 92): the drone and the announcement; story 93.
+- The Gargote's Sc02 (93 → 94): Mathieu and the friends, two Full Restores. Mme Fenouil gives Leftovers once, from 94.
+- The Centre: the robot nurse heals, `OnTransition` sets the respawn, and the vending machine opens a real mart (Fresh Water, Soda Pop, Lemonade).
+- The Comptoir: a real mart with 15 items.
+- The Élecsprintite, and two hidden items.
+- Sc03, the diversion at the Bassin's fence (94 → 95):
+  - Mathieu and Adrien appear; under a fade the guards move to the gate (position and template).
+  - The Bassin's guard is hidden.
+  - The flags `DIVERSION`, `AMIS_GARGOTE`, `GARGOTE_ADRIEN` and `GARGOTE_GWADA` are set.
+  - From 95, `OnTransition` puts the guards' templates back at the gate.
+- Julien is hidden before 120. The PG cast is hidden unless the story is 126.
+- `OnLoad` handles 126's door and crack. Ch12's PG scripts and Ch11's Eveil1–4 are stubs in `ch12_stubs.rs`.
+
+**The Tower (96 → 99).**
+- B1F's Sc04 (on-frame 95 → 96). The two sbires use `Tour_Sbire{1,2}_Intro_Ch09` (**§5.6, provisional**). B1F also holds the Max Elixir.
+- The hall's security corridor has three sas (metatile 537), each opened by its trainers:
+  - Sbire 3 opens sas 1;
+  - Viktor and Nadia open sas 2 once both are beaten;
+  - Kroll opens sas 3 and sets story 97.
+
+  Every opening is guarded by `defeated()`. `OnLoad` reopens the sas from the trainer flags.
+- `Tour_Hall_Sc02` (97 → 99): two lines, a heal, story 99, then a warp to **`TourNebulaAscenseur` (3, 6) (§5.7's proposal, flagged in code)**.
+- The elevator door warps to the cabin from 99.
+
+**The spine** (`silice_spine/ch09.rs`, test `sil10_ch9`, about 82k of its 200k frames) starts from Ch8's end:
+- the state comes from `ch08::chapter_7_state`, a split of `end_of_chapter_7`;
+- plus the Ch8 badge, the Plongée module, the Cœur, TM19, TM23 and TM31 (Ch4's Port gift, which the spines had not been carrying);
+- the party is KADABRA 69, TYPHLOSION 76, LAIRON 35, MAREEP 14, PORYGON 25 and DUGTRIO 26.
+
+It plays every story beat, all 12 trainers, both marts and three dives, and ends in the cabin at (3, 6) with story 99, healed.
+
+Two extra steps:
+- Before Kroll, the run swims back to the Centre to heal: B1F's pool, the Bassin, the Centre, then the same way in.
+- The TYPHLOSION learns Brick Break. Kroll's TYRANITAR is immune to Psychic, resists Flamethrower and uses Dragon Dance; without Brick Break the run lost every time.
+
+Driver changes:
+- A mart screen is left with B.
+- While surfing, a step from water onto land is planned (the engine dismounts).
+- `busy()` waits on `field_move_active`. Dive's script ends before its warp, so the driver used to move on too early.
+
+The earlier spines, sil1 to sil9, still pass.
+
+**Softlock review.**
+- Gérard's respawn (fixed, see above).
+- The containers and the cabinet stay inside their areas.
+- The cables use a flag (not a temp flag), so they stay cut.
+- The sas reopen on load from the trainer flags.
+- Every trainer that opens a way is guarded by `defeated()`, because a loss returns false without a battle.
+- The hall's coord row runs Sc02 only at 97.
+- Leaving the Tower after 96 is possible through B1F's pool (the spine does it).
+
+**Author questions.**
+1. The module prompts use Gen3's wording without the mon's name ("Voulez-vous utiliser PLONGÉE ?"). Should the modules (the Sonde de Pression and the others) have their own wording?
+2. Pump B with the breaker: the source gives no question, so it switches off silently. Is that intended?
+3. These NPCs have no lines in the source, so they say a nearby line or nothing:
+   - the crowd, the guards, the barricade and the drone;
+   - the Comptoir's client;
+   - the Grande Porte and the maintenance door.
+4. Tour_Hall_Sc02 heals the party, as the source's comfort note asks. Ch10 should confirm.
+5. §5.7: does Sc02 land in the cabin `TourNebulaAscenseur` (3, 6), or in the source's `MAP_TOUR_NEBULA_1F` (10, 14)?
+6. §5.6: the duplicate `Tour_Sbire{1,2}_Intro` are renamed `_Ch09` for now.
+7. Sc03's camera pan stays on the player (`camera_pan` fallback), and the guards run toward the gate. Which direction does the source intend?
+8. The red security-light metatile: the sas use 537. What tile should it be?
+9. The hall's elevator door script, `Nebula_TourHall_EventScript_Ascenseur`, belongs to Ch10. SIL-10 writes it in `ch10_ascenseur.rs` (cabin for story 99..=117). **Merge:** keep Ch10's and delete Ch9's. Likewise, SIL-10's `ch11_endings.rs` writes `Nebula_EventScript_Eveil1–4`, so delete the `ch12_stubs.rs` stubs.
+10. Gérard's step-aside after his battle is my addition, to keep pump B reachable.
+
 #### SIL1 Task A as built: the authored-data loader
 
 `build/silice/` loads all of `games/silice` into the generator's `World`. The generator sees Silice only through `input::AuthoredIn`, which gained `map_numbers`, `item_bases`, `rules` and `data_rs`.
