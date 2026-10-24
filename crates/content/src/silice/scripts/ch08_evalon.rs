@@ -342,6 +342,13 @@ const FRIEND_UP: &[Step] = &[
 const HOLD_LINE: &[Step] = &[walk(Dir::Left), walk(Dir::Left)];
 const SBIRE_STAMP: &[Step] = &[walk_in_place(Dir::Right)];
 
+/// Sc07's partners by `VAR_SIL_EVALON_PARTENAIRE` (1 Adrien, 2 Gwada, 3 Mathieu).
+const EVALON_PARTNERS: [TrainerId; 3] = [
+    TRAINER_SIL_ADRIEN_2,
+    TRAINER_SIL_GWADA_3,
+    TRAINER_SIL_MATHIEU_3,
+];
+
 /// The invaders shown in Sc07, with their hide flags.
 const INVADERS: [(u8, FlagId); 5] = [
     (LOCALID_EVALON_GOGO, FLAG_SIL_HIDE_EVALON_GOGO_ROMAIN),
@@ -415,19 +422,19 @@ pub async fn Evalon_Sc07(ctx: Ctx) {
     ctx.wait_move(LOCALID_EVALON_SBIRE_3).await;
     // fallback: play_music(MUS_VS_AQUA_MAGMA_LEADER) (audio, M12).
     fallback(&ctx, "play_music").await;
-    // fallback: battle_multi(GOGO_4, ROMAIN_4, partner, field = SURDOSE) (§9): the source's own
-    // fallback, two single battles in a row with a heal between them (the partner's Berries).
-    // Each keeps the overdose (`silice::rules::OVERDOSE`, the trainers' own rule). A white-out
-    // replays the scene; a beaten Gogo is not fought again.
-    fallback(&ctx, "battle_multi").await;
-    if !defeated(&ctx, TRAINER_SIL_GOGO_4).await
-        && lost(battle_trainer(&ctx, TRAINER_SIL_GOGO_4, Evalon_Gogo_Defaite).await)
-    {
-        return;
-    }
-    say(&ctx, Evalon_Sc07_Repli_T1).await;
-    ctx.heal_party().await;
-    if lost(battle_trainer(&ctx, TRAINER_SIL_ROMAIN_4, Evalon_Romain_Defaite).await) {
+    // battle_multi(GOGO_4, ROMAIN_4, partner = PARTNER_BY_VAR(VAR_SIL_EVALON_PARTENAIRE),
+    // field = SURDOSE): the overdose is Gogo's own rule (`silice::rules::OVERDOSE`, trainer A's
+    // in a multi battle). A white-out replays the scene.
+    let partner = EVALON_PARTNERS[usize::from(ctx.var(VAR_SIL_EVALON_PARTENAIRE).await.clamp(1, 3)) - 1];
+    if lost(
+        battle_multi(
+            &ctx,
+            partner,
+            (TRAINER_SIL_GOGO_4, Evalon_Gogo_Defaite),
+            (TRAINER_SIL_ROMAIN_4, Evalon_Romain_Defaite),
+        )
+        .await,
+    ) {
         return;
     }
     say(&ctx, Evalon_Sc07_T9).await;

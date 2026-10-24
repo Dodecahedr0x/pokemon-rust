@@ -127,8 +127,9 @@ const ADRIEN_THROUGH: &[Step] = &[
 ];
 
 /// Route_S06_Sc02, the Princesse rescued: the plateau's stairs top (12–15, 28) at
-/// `VAR_SIL_STORY` 60. Adrien and the two grunts, the multi battle (its fallback: two single
-/// battles, Adrien's onigiri heal between them), the curtain opened. Sets 61.
+/// `VAR_SIL_STORY` 60. Adrien and the two grunts, the multi battle beside Adrien
+/// (`TRAINER_SIL_ADRIEN_1`; the fallback's onigiri heal, `T5b`, is not said), the curtain
+/// opened. Sets 61.
 pub async fn RouteS06_Sc02(ctx: Ctx) {
     if story(&ctx).await != 60 {
         return;
@@ -152,17 +153,14 @@ pub async fn RouteS06_Sc02(ctx: Ctx) {
     say(&ctx, Route_S06_Sc02_T4).await;
     move_wait(&ctx, LOCALID_ROUTE_S06_ADRIEN, ADRIEN_BESIDE).await;
     say(&ctx, Route_S06_Sc02_T5).await;
-    // fallback: battle_multi(SBIRE_S06_1, SBIRE_S06_2, partner ADRIEN_1) (M11's multi): the
-    // source's own fallback, two single battles, Adrien's heal (T5b) between them.
-    fallback(&ctx, "battle_multi").await;
-    // A loss to grunt B whites out and the scene replays at 60: grunt A stays beaten, as the
-    // Dojo's queue fans.
-    if !defeated(&ctx, TRAINER_SIL_SBIRE_S06_1).await {
-        battle_trainer(&ctx, TRAINER_SIL_SBIRE_S06_1, Route_S06_Sc02_D1).await;
-    }
-    say(&ctx, Route_S06_Sc02_T5b).await;
-    ctx.heal_party().await;
-    battle_trainer(&ctx, TRAINER_SIL_SBIRE_S06_2, Route_S06_Sc02_D2).await;
+    // A loss whites out and the scene replays at 60.
+    battle_multi(
+        &ctx,
+        TRAINER_SIL_ADRIEN_1,
+        (TRAINER_SIL_SBIRE_S06_1, Route_S06_Sc02_D1),
+        (TRAINER_SIL_SBIRE_S06_2, Route_S06_Sc02_D2),
+    )
+    .await;
     say(&ctx, Route_S06_Sc02_T6).await;
     ctx.move_obj(LOCALID_ROUTE_S06_SBIRE_A, SBIRE_A_OUT).await;
     move_wait(&ctx, LOCALID_ROUTE_S06_SBIRE_B, SBIRE_B_OUT).await;

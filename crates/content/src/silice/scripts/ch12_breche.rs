@@ -194,9 +194,8 @@ const THOMAS_COMES: &[Step] = &[
 /// source's fallback: Tyranitar then Crobat at 72, Thomas heals between them), 127.
 ///
 /// The "destroyed" palette and the fog (§9, `FOG_LIGHT`: Gen3's horizontal fog) from here to
-/// 129 ([`destroyed_sky`]). Fallbacks: the alarm music (§9); `battle_wild_double`
-/// with Thomas as the partner (no multi battle against two wild Pokémon): two wild battles in a
-/// row. The crack itself is `Nebula_OnLoad`'s (from 126). Thomas leaves for the Breach's camp at
+/// 129 ([`destroyed_sky`]). Fallbacks: the alarm music (§9). The Horde is a wild double
+/// beside Thomas (`TRAINER_SIL_REVENGE_9`; the fallback's line `T4` is not said). The crack itself is `Nebula_OnLoad`'s (from 126). Thomas leaves for the Breach's camp at
 /// the end (hidden; the source leaves him standing, with no script on him).
 pub async fn Nebula_PG_Sc10(ctx: Ctx) {
     ctx.lock_all().await;
@@ -210,11 +209,12 @@ pub async fn Nebula_PG_Sc10(ctx: Ctx) {
     show(&ctx, LOCALID_NEBULA_PG_THOMAS, FLAG_SIL_HIDE_NEBULA_PG_THOMAS).await;
     move_wait(&ctx, LOCALID_NEBULA_PG_THOMAS, THOMAS_COMES).await;
     say(&ctx, Nebula_PG_Sc10_T3).await;
-    fallback(&ctx, "battle_wild_double").await;
-    battle_wild(&ctx, SPECIES_TYRANITAR, 72).await;
-    ctx.heal_party().await;
-    say(&ctx, Nebula_PG_Sc10_T4).await;
-    battle_wild(&ctx, SPECIES_CROBAT, 72).await;
+    battle_wild_double(
+        &ctx,
+        [(SPECIES_TYRANITAR, 72), (SPECIES_CROBAT, 72)],
+        Some(TRAINER_SIL_REVENGE_9),
+    )
+    .await;
     hide(&ctx, LOCALID_NEBULA_PG_TYRANITAR).await;
     hide(&ctx, LOCALID_NEBULA_PG_CROBAT).await;
     say(&ctx, Nebula_PG_Sc10_T5).await;

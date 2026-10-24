@@ -990,6 +990,9 @@ impl Run {
             "set_palette_set",
             "set_time_of_day",
             "hidden item",
+            "strength",
+            "battle_multi",
+            "battle_wild_double",
         ] {
             assert!(!self.degraded.contains(name), "{name} is still a fallback");
         }

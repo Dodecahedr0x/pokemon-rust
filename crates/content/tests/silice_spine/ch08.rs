@@ -22,7 +22,7 @@
 //!
 //! **The fallbacks the path relies on** (`ch08_*.rs`): the dark gallery and the crypt are lit, their coords only test
 //! the module; the skull slabs are coord traps; the multichoices are yes/no (the honest answer,
-//! Mathieu as partner, the right riddle); the Multi battle is two single battles with a heal.
+//! Mathieu as partner, the right riddle). The Multi battle is a real one beside Mathieu.
 //!
 //! **The party** ([`PARTY`]): Chapter 7's end as `sil8_ch7` leaves it (KADABRA 62 leading, with
 //! Chapter 6's Shock Wave, `givemon`'s moves; TYPHLOSION 66; LAIRON 35, MAREEP 14, PORYGON 25,
@@ -733,7 +733,6 @@ pub fn steps() -> Vec<Step> {
                 Evalon_Sc07_T8,
                 Evalon_Sc07_Partner_T2,
                 Evalon_Sc07_Others_T2,
-                Evalon_Sc07_Repli_T1,
                 Evalon_Sc07_T9,
                 Evalon_Sc07_T12,
                 Evalon_Sc07_T16,
@@ -887,7 +886,6 @@ pub fn check_end(r: &Run) {
         "read_item",
         "multichoice",
         "play_music",
-        "battle_multi",
         "play_fanfare",
         "coeur_evalon",
         "fade_music",

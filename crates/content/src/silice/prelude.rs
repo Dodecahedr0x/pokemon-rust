@@ -421,6 +421,36 @@ pub async fn battle_two_trainers(
     battle_trainer(ctx, b, b_defeat).await
 }
 
+/// The source's `battle_multi(A, B, partner)` (Gen3's multi battle with an in-game partner,
+/// as Steven's): the player's first three mons beside `partner`'s (its trainer party, its AI)
+/// against trainers A and B. Both trainers' beaten flags are set unless the player lost (a
+/// loss whites out). Their own rules (`GameData::trainer_rules`, trainer A's) apply.
+pub async fn battle_multi(
+    ctx: &Ctx,
+    partner: TrainerId,
+    (a, a_defeat): (TrainerId, TextId),
+    (b, b_defeat): (TrainerId, TextId),
+) -> BattleOutcome {
+    let outcome = ctx
+        .battle_multi_with(partner, (a, a_defeat), (b, b_defeat))
+        .await;
+    if !matches!(outcome, BattleOutcome::Lost | BattleOutcome::Drew) {
+        ctx.set_flag(trainer_flag(a), true).await;
+        ctx.set_flag(trainer_flag(b), true).await;
+    }
+    outcome
+}
+
+/// The source's `battle_wild_double(S1, L1, S2, L2, partner)`: two wild mons at once, beside
+/// `partner` (its trainer party, its AI) when given.
+pub async fn battle_wild_double(
+    ctx: &Ctx,
+    mons: [(SpeciesId, u8); 2],
+    partner: Option<TrainerId>,
+) -> BattleOutcome {
+    ctx.battle_wild_double(mons, partner, None).await
+}
+
 /// The source's `show_sync(n)`: the Mallette's animated synchronisation gauge (`VAR_SIL_SYNC`,
 /// which the scene sets first). No gauge screen yet (the Mallette's panels are SIL2 content on
 /// M9's kit): nothing is drawn; the scene's next text gives the value. Reported.

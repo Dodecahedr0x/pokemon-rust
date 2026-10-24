@@ -17,7 +17,7 @@ mod silice_spine;
 use silice_spine::{Run, ch05};
 
 /// Every frame of the main path, at most.
-const FRAME_LIMIT: u64 = 600_000;
+const FRAME_LIMIT: u64 = 900_000;
 
 #[test]
 fn chapter_5_plays_from_the_rift_to_the_fifth_badge_and_route_s6() {

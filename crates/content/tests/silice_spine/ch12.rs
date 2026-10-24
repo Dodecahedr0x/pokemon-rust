@@ -10,7 +10,7 @@
 //! - [`vestiges`]: Kimiko in the Bois des Soupirs (`Sc05`), Arthur on the wreck (`Sc06`), Silas
 //!   at the Point Zéro (`Sc07`): each battled and pardoned (124, 125, 126, the Breach's alarm);
 //!   Silas's mail at home (`Sc09`, the Porygon, the egg's fallback);
-//! - [`horde`]: the sky splits at Nébula (`Sc10`, two wild battles, 127), Thomas's camp in the
+//! - [`horde`]: the sky splits at Nébula (`Sc10`, a wild double beside Thomas, 127), Thomas's camp in the
 //!   Breach (`Sc10b`: the heal, the Heracronite);
 //! - [`tour`]: the elevator hub, Gwada's Filter (`Sc11`), the three components on the ruined
 //!   floors (gas sheets, Mathias's barrels, the mirrors), Filter v2 (`Sc15`, 128);
@@ -376,7 +376,10 @@ pub fn horde() -> Vec<Step> {
         Step::Settle,
         Step::Check("pg_sc10", |r| {
             assert_eq!(r.w.var(VAR_SIL_STORY), 127);
-            assert_eq!(r.battles.len(), 2);
+            // One wild double beside Thomas (not the fallback's two battles and line T4).
+            assert_eq!(r.battles.len(), 1);
+            assert!(!r.has_text(Nebula_PG_Sc10_T4));
+            r.no_engine_fallbacks();
             r.printed_in_order(&[Nebula_PG_Sc10_T1, Nebula_PG_Sc10_T6]);
         }),
         // The crack is the Breach's entrance.
