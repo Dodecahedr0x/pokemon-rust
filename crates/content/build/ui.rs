@@ -14,11 +14,12 @@ use extract::names;
 /// `TextId`s from here on name `START_LABELS` entries (`content::data::text`).
 pub const START_LABEL_BASE: u16 = 0xFF00;
 
-/// The Rust source of `ui.rs`, `include!`d into `content::data`. `emerald`: the Emerald
-/// flavour (its start menu; Silice's is Task C's `game.ron`).
-pub fn generate(world: &World, emerald: bool) -> String {
+/// The Rust source of `ui.rs`, `include!`d into `content::data`. `gen3_menu`: the flavour
+/// has Gen3's start menu (Emerald's; Silice's too until Task C writes its own from
+/// `game.ron` with the Mallette: without one a Silice player never opens the party or bag).
+pub fn generate(world: &World, gen3_menu: bool) -> String {
     let (tm_moves, tm_compat) = tmhm(world);
-    let (start_menu, start_labels) = if emerald {
+    let (start_menu, start_labels) = if gen3_menu {
         start_menu(world)
     } else {
         (String::new(), String::new())
@@ -30,7 +31,7 @@ pub fn generate(world: &World, emerald: bool) -> String {
 pub const START_LABEL_BASE: u16 = {START_LABEL_BASE:#X};
 /// The start menu's labels (Gen3 `sStartMenuItems[].text`, from `MULTI_FORCED_START_MENU`).
 pub static START_LABELS: &[&[u8]] = &[{start_labels}];
-/// The START menu (Gen3 `BuildNormalStartMenu`; Emerald only).
+/// The START menu (Gen3 `BuildNormalStartMenu`; Emerald's, and Silice's until Task C).
 pub static START_MENU: &[::engine::data::StartItem] = &[{start_menu}];
 /// `ItemUse` by item id.
 pub static ITEM_USE: &[::engine::data::ItemUse] = &[{item_use}];
