@@ -45,7 +45,6 @@ const MART: MapId = MAP_NEBULA_MART;
 const GARGOTE: MapId = MAP_NEBULA_GARGOTE;
 const B1F: MapId = MAP_NEBULA_TOUR_HALL_B1F;
 const HALL: MapId = MAP_NEBULA_TOUR_HALL;
-const CABIN: MapId = MAP_TOUR_NEBULA_ASCENSEUR;
 
 /// The chapter's start: Évalon's south-east path (42, 45), where Chapter 8's e2e ends, facing
 /// south, Chapter 8's end state ([`end_of_chapter_8`]).
@@ -501,15 +500,23 @@ pub fn steps() -> Vec<Step> {
     s
 }
 
-/// What the end of Chapter 9 asserts beyond its checkpoints: the cabin, the story, the heal,
-/// the chapter's flags and trainers, no dropped event, and every Chapter 9 fallback the path
-/// meets reported.
+/// What the end of Chapter 9 asserts beyond its checkpoints: the hand-off, the heal, the
+/// chapter's flags and trainers, no dropped event, and every Chapter 9 fallback the path meets
+/// reported.
+///
+/// The hand-off: `Tour_Hall_Sc02` lands in the cabin (3, 6) at story 99, where Chapter 10's
+/// on-frame `Tour_Ascenseur_Sc00a` (the first climb) plays at once and leaves the player on 1F
+/// at 100. Chapter 10's spine starts from that cabin cell (`ch10::start`).
 pub fn check_end(r: &Run) {
-    assert_eq!(r.w.map(), CABIN);
-    assert_eq!(r.pos(), (3, 6));
-    assert_eq!(r.w.var(VAR_SIL_STORY), 99);
+    assert_eq!(r.w.map(), MAP_TOUR_NEBULA_1F);
+    assert_eq!(r.w.var(VAR_SIL_STORY), 100);
     assert!(r.healed());
-    r.printed_in_order(&[Tour_Hall_Sc02_T1, Tour_Hall_Sc02_T2]);
+    r.printed_in_order(&[
+        Tour_Hall_Sc02_T1,
+        Tour_Hall_Sc02_T2,
+        Tour_Ascenseur_Sc00a_T1,
+        Tour_Ascenseur_Sc00a_T2,
+    ]);
     for f in [
         FLAG_SIL_S09_POMPE_A,
         FLAG_SIL_S09_POMPE_B,
