@@ -254,7 +254,8 @@ pub async fn SommetApex_Sc05(ctx: Ctx) {
     };
     move_wait(&ctx, LOCALID_APEX_JULIEN, back).await;
     play_se(&ctx, "SE_PC_ON").await;
-    screen_flash(&ctx).await;
+    // GOLD: the prelude's nearest colour is YELLOW (no gold constant).
+    screen_flash(&ctx, YELLOW).await;
     ctx.set_var(VAR_SIL_SYNC, 100).await;
     show_sync(&ctx, 100).await;
     msgbox(&ctx, Sommet_Apex_Sc05_T10, MsgBox::Default).await;

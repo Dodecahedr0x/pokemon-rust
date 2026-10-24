@@ -7,9 +7,9 @@
 //! Chapter 4 (`sil5_ch4.rs`, [`ch04::steps`]) only does so for now ([`ch04::start`]), as do
 //! Chapter 5 (`sil6_ch5.rs`), Chapter 6 (`sil7_ch6.rs`, [`ch06::start`]), Chapter 7
 //! (`sil8_ch7.rs`, [`ch07::start`]), Chapter 8 (`sil9_ch8.rs`, [`ch08::start`] and
-//! [`ch08::route_start`]), Chapter 10 (`sil11_ch10.rs`, [`ch10::start`]) and Chapter 11
-//! (`sil12_ch11.rs`, [`ch11::start`], and the alternate ending's [`ch11::elysium_apex_start`]
-//! and [`ch11::elysium_zenith_start`]).
+//! [`ch08::route_start`]), Chapter 9 (`sil10_ch9.rs`, [`ch09::start`]), Chapter 10
+//! (`sil11_ch10.rs`, [`ch10::start`]) and Chapter 11 (`sil12_ch11.rs`, [`ch11::start`], and
+//! the alternate ending's [`ch11::elysium_apex_start`] and [`ch11::elysium_zenith_start`]).
 //!
 //! **The vocabulary** (minimal on purpose):
 //! - [`Step::Goto`]: walk to a cell of the current map (asserted), on a shortest path that avoids
@@ -64,7 +64,9 @@
 //!
 //! **The planner** ([`Step::Goto`]) walks as the engine does: collision, behaviours, ledges,
 //! objects and elevations (Gen3 `IsElevationMismatchAt`: on foot, water is elevation 1 under
-//! the land's 3, so it is never planned through; a bridge's 15 keeps the elevation) and
+//! the land's 3, so it is never planned through; surfing, water is planned through and a step
+//! ashore dismounts, while Surf itself is an A press, [`Step::Interact`], as Dive is on deep
+//! water; a bridge's 15 keeps the elevation) and
 //! forced movement (ice, walk and slide arrows, the muddy slope, currents carry the player on
 //! until the next cell is blocked: a step is planned to where the player comes to rest). A walk
 //! that keeps moving without arriving fails instead of eating the frames.
@@ -83,6 +85,7 @@ pub mod ch05;
 pub mod ch06;
 pub mod ch07;
 pub mod ch08;
+pub mod ch09;
 pub mod ch10;
 pub mod ch11;
 pub mod driver;

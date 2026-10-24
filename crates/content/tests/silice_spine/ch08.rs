@@ -98,12 +98,8 @@ pub const PARTY: &[(SpeciesId, u8)] = &[
 /// Chapters 0–6 as `ch07`'s start, Chapter 7's (corrupted) badge, its Flux Turbine
 /// (`FLAG_SIL_MODULE_CASCADE`) and its log, the sync at 70, the story at 76
 /// (Reverse_City_Sc07); the party ([`PARTY`]), a few potions, the respawn at Reverse-City.
-pub async fn end_of_chapter_7(ctx: Ctx) {
-    end_of_chapter_7_flags(ctx.clone()).await;
-    ctx.item_add(ItemId(ITEM_SUPER_POTION), 5).await;
-    ctx.item_add(ItemId(ITEM_HYPER_POTION), 3).await;
-    ctx.money_add(20000).await;
-    ctx.set_respawn(HEAL_LOCATION_SIL_REVERSE_CITY).await;
+async fn end_of_chapter_7(ctx: Ctx) {
+    chapter_7_state(&ctx).await;
     // The lead with Chapter 6's Shock Wave (`givemon`'s moves), then the others.
     super::give_kadabra_with_shock_wave(&ctx, PARTY[0].1).await;
     for &(species, level) in &PARTY[1..] {
@@ -111,9 +107,9 @@ pub async fn end_of_chapter_7(ctx: Ctx) {
     }
 }
 
-/// [`end_of_chapter_7`]'s flags, vars and Mallette, without its bag, respawn and party (the
-/// later chapters' start states build on it).
-pub async fn end_of_chapter_7_flags(ctx: Ctx) {
+/// [`end_of_chapter_7`] without the party: the flags, vars, bag, money and respawn
+/// (Chapter 9's start builds on it, `ch09::start`).
+pub async fn chapter_7_state(ctx: &Ctx) {
     for f in [
         // Chapter 0.
         FLAG_SIL_INTRO_DONE,
@@ -159,6 +155,10 @@ pub async fn end_of_chapter_7_flags(ctx: Ctx) {
     ctx.set_var(VAR_SIL_STARTER, 1).await;
     ctx.set_var(VAR_SIL_CH0_GATE, 1).await;
     ctx.item_add(ItemId(ITEM_SIL_MALLETTE), 1).await;
+    ctx.item_add(ItemId(ITEM_SUPER_POTION), 5).await;
+    ctx.item_add(ItemId(ITEM_HYPER_POTION), 3).await;
+    ctx.money_add(20000).await;
+    ctx.set_respawn(HEAL_LOCATION_SIL_REVERSE_CITY).await;
 }
 
 /// Palier 1's steps, from [`route_start`]: Route_S08_Sc01 (80), the sign, the hiker, Mathieu's

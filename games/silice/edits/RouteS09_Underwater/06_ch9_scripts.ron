@@ -1,0 +1,11 @@
+// SIL4 Ch9 scripts: the map changes the Chapter 9 scripts need.
+[
+    // The hidden-item fallback (as Ch0-Ch8): the engine ignores BgKind::HiddenItem, so each hidden item
+    // is a sign running hidden_item. To restore once the engine picks hidden items up, Replace bgs 3-5
+    // with HiddenItem(item: "ITEM_BIG_PEARL", flag: "FLAG_SIL_ITEM_S09_UW_1") at (32, 71),
+    // HiddenItem(item: "ITEM_STAR_PIECE", flag: "FLAG_SIL_ITEM_S09_UW_2") at (19, 10) and
+    // HiddenItem(item: "ITEM_HEART_SCALE", flag: "FLAG_SIL_ITEM_S09_UW_3") at (26, 15).
+    Replace(index: 3, event: Bg((x: 32, y: 71, elevation: 0, kind: Script(facing: 0, script: Some("RouteS09_Underwater_EventScript_HiddenBigPearl"))))),
+    Replace(index: 4, event: Bg((x: 19, y: 10, elevation: 0, kind: Script(facing: 0, script: Some("RouteS09_Underwater_EventScript_HiddenStarPiece"))))),
+    Replace(index: 5, event: Bg((x: 26, y: 15, elevation: 0, kind: Script(facing: 0, script: Some("RouteS09_Underwater_EventScript_HiddenHeartScale"))))),
+]

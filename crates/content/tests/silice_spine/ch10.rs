@@ -102,11 +102,11 @@ pub const TEACH: [Step; 2] = [
     }),
 ];
 
-/// Chapter 9's end without the party: Chapter 7's end (`ch08`'s, without its bag and party),
+/// Chapter 9's end without the party: Chapter 7's end (`ch08::chapter_7_state`),
 /// Chapter 8's badge, Sonde de Pression, Cœur d'Évalon and log, the sync at 80, the story at 99;
-/// medicine (Chapter 9's marts and finds), the respawn at Évalon (Nébula's centre is Chapter 9's).
+/// medicine (Chapter 9's marts and finds), the respawn at Nébula's centre (`ch09_nebula.rs`).
 pub async fn end_of_chapter_9_flags(ctx: Ctx) {
-    super::ch08::end_of_chapter_7_flags(ctx.clone()).await;
+    super::ch08::chapter_7_state(&ctx).await;
     for f in [
         FLAG_SIL_BADGE_08,
         FLAG_SIL_MODULE_PLONGEE,
@@ -121,7 +121,7 @@ pub async fn end_of_chapter_9_flags(ctx: Ctx) {
     ctx.item_add(ItemId(ITEM_REVIVE), 4).await;
     ctx.item_add(ItemId(ITEM_FULL_HEAL), 3).await;
     ctx.money_add(30000).await;
-    ctx.set_respawn(HEAL_LOCATION_SIL_EVALON).await;
+    ctx.set_respawn(HEAL_LOCATION_SIL_NEBULA).await;
 }
 
 /// A tuning aid: `SPINE_PARTY_<slot>=<level>` overrides [`PARTY`]'s level (the neighbour rule's

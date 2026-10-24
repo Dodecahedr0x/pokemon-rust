@@ -1,0 +1,7 @@
+// SIL4 Ch9 scripts: the map changes the Chapter 9 scripts need.
+[
+    // The hidden-item fallback (as Ch0-Ch8): the engine ignores BgKind::HiddenItem (the M9 finding of
+    // "SIL1 Task F as built"), so the hidden item is a sign running hidden_item. To restore once the
+    // engine picks hidden items up: Replace(index: 5, event: Bg((x: 13, y: 5, elevation: 0, kind: HiddenItem(item: "ITEM_FULL_RESTORE", flag: "FLAG_SIL_ITEM_S09_CACHE_1")))).
+    Replace(index: 5, event: Bg((x: 13, y: 5, elevation: 0, kind: Script(facing: 0, script: Some("RouteS09_EventScript_HiddenFullRestore"))))),
+]

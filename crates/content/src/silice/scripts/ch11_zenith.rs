@@ -60,7 +60,7 @@ async fn TroneZenith_Ascenseur_Sc07(ctx: &Ctx) {
     fallback(ctx, "cabin_background").await;
     ctx.delay(60).await;
     say(ctx, Ascenseur_Sc07_T2).await;
-    screen_flash(ctx).await;
+    screen_flash(ctx, WHITE).await;
     say(ctx, Ascenseur_Sc07_T3).await;
     ctx.fade(Fade::ToBlack).await;
     set_story(ctx, 115).await;
@@ -102,14 +102,15 @@ pub async fn TroneZenith_Sc08(ctx: Ctx) {
     say(&ctx, Trone_Zenith_Sc08_T1).await;
     say(&ctx, Trone_Zenith_Sc08_T2).await;
     ctx.turn(LOCALID_ZENITH_JULIEN, Dir::Down).await;
-    screen_flash(&ctx).await;
+    // GOLD: the prelude's nearest colour is YELLOW (no gold constant).
+    screen_flash(&ctx, YELLOW).await;
     say(&ctx, Trone_Zenith_Sc08_T3).await;
     if chooses_elysium(&ctx, Trone_Zenith_Sc08_C1).await {
         elysium_e1(&ctx, ElysiumFrom::Zenith).await;
         return;
     }
     say(&ctx, Trone_Zenith_Sc08_C3).await;
-    screen_flash(&ctx).await;
+    screen_flash(&ctx, WHITE).await;
     // fallback: the mid-battle lines (§4.2: the weather changed, Entei sent out, under 25 %) and
     // the Primal Reversion and Mega staging lines.
     fallback(&ctx, "battle_lines").await;
@@ -150,11 +151,12 @@ async fn TroneZenith_Sc09(ctx: &Ctx) {
     ctx.lock_all().await;
     ctx.delay(30).await;
     play_se(ctx, "SE_THUNDER").await;
-    // fallback: screen_flicker(4): a flash.
-    screen_flash(ctx).await;
+    // fallback: screen_flicker(4): a white flash.
+    screen_flash(ctx, WHITE).await;
     say(ctx, Trone_Zenith_Sc09_T1).await;
     play_se(ctx, "SE_M_EXPLOSION").await;
     screen_shake(ctx, 4, 30).await;
+    screen_flash(ctx, WHITE).await;
     // fallback: METATILE_PRISME_BRISE has no tile: the diffuser stays drawn until the night map.
     say(ctx, Trone_Zenith_Sc09_T2).await;
     // fallback: the sky's crack (sky_crack_animation) and the true-night palette: a white flash,

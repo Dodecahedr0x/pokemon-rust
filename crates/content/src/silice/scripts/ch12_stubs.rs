@@ -167,3 +167,22 @@ pub async fn SommetApex_EventScript_Socle(_ctx: Ctx) {
 pub async fn SommetApex_EventScript_Rayquaza(_ctx: Ctx) {
     // fallback: Ch12 post-game scripts not written yet.
 }
+
+// ---- Nebula (claimed by ch09_nebula.rs) ----
+// Ch9's `Nebula_OnLoad` already opens the MAINTENANCE door and draws the crack from 126, and
+// `Nebula_OnTransition` shows Julien from 120 and Nebula_PG_Sc10's cast at 126 only.
+
+/// Ch12 `Nebula_PG_Sc10`, the sky splits: the on-frame script at `VAR_SIL_STORY` 126.
+pub async fn Nebula_PG_Sc10(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet: the frame does nothing.
+}
+
+/// Ch12: Julien at his tent (hidden before `VAR_SIL_STORY` 120).
+pub async fn Nebula_PG_Julien(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12: Julien's workbench (the lamp post at (21, 8)), read before the post-game too.
+pub async fn Nebula_PG_Etabli(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet: the sign is silent.
+}

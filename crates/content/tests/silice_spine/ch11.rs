@@ -214,8 +214,6 @@ pub fn check_end(r: &Run) {
         "palette",
         "cabin_background",
         "sky_crack",
-        "camera_pan",
-        "show_text_on_black",
         "credits_montage",
     ] {
         assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);

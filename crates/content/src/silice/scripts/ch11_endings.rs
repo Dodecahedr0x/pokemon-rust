@@ -17,7 +17,7 @@
 //!
 //! **Fallbacks** (§9): the Elysium scenes play their lines in order instead of giving the player
 //! the hand (`elysium_free_roam`: no 30-second timer, no talk-to-all gate); the final texts are
-//! message boxes over the field (`show_text_on_black`); the credits are Emerald's credits screen
+//! white on black (`show_text_on_black`, not the alternate end's gold on white); the credits are Emerald's credits screen
 //! alone, without the vignettes (`credits_montage`); the gold title screen is not shown before the
 //! reload (`show_title`); fades to white stand for the gold palette.
 
@@ -61,9 +61,10 @@ pub(super) async fn elysium_e1(ctx: &Ctx, from: ElysiumFrom) {
     };
     move_wait(ctx, julien, JULIEN_COMES).await;
     say(ctx, Elysium_E1_T2).await;
-    screen_flash(ctx).await;
+    // GOLD: the prelude's nearest colour is YELLOW (no gold constant).
+    screen_flash(ctx, YELLOW).await;
     fallback(ctx, "palette").await;
-    ctx.fade(Fade::ToWhite).await;
+    fade_white(ctx, true).await;
     say(ctx, Elysium_E1_T3).await;
     ctx.set_var(VAR_SIL_FIN_SCENE, 2).await;
     warp(ctx, MAP_NEBULA, NEBULA_PLACE.0, NEBULA_PLACE.1).await;
@@ -165,11 +166,11 @@ pub(super) async fn elysium_e5(ctx: &Ctx) {
 /// `Elysium_Fin`: the alternate final text, the short credits, the flag cleared, then the last
 /// save reloaded as it is (`Event::ReloadLastSave`; nothing written, R-6).
 async fn elysium_fin(ctx: &Ctx) {
-    fallback(ctx, "show_text_on_black").await;
-    say(ctx, Elysium_Fin_T1).await;
+    // GOLD_ON_WHITE: the prelude's text on black only (white letters on black).
+    show_text_on_black(ctx, Elysium_Fin_T1).await;
     fallback(ctx, "credits_montage").await;
     ctx.credits().await;
-    say(ctx, Elysium_Fin_FIN).await;
+    show_text_on_black(ctx, Elysium_Fin_FIN).await;
     ctx.set_flag(FLAG_SIL_FIN_ELYSIUM_EN_COURS, false).await;
     ctx.set_var(VAR_SIL_FIN_SCENE, 0).await;
     // fallback: the gold title screen shown once (show_title GOLD): straight to the reload.
@@ -183,8 +184,7 @@ async fn elysium_fin(ctx: &Ctx) {
 pub async fn Nebula_Sc13(ctx: Ctx) {
     ctx.lock_all().await;
     show_eveil(&ctx).await;
-    // fallback: camera_pan(Up, 4).
-    fallback(&ctx, "camera_pan").await;
+    camera_pan(&ctx, 0, -4).await;
     say(&ctx, Nebula_Sc13_T1).await;
     ctx.delay(30).await;
     say(&ctx, Nebula_Sc13_T2).await;
@@ -192,14 +192,14 @@ pub async fn Nebula_Sc13(ctx: Ctx) {
     say(&ctx, Nebula_Sc13_T3).await;
     ctx.delay(30).await;
     say(&ctx, Nebula_Sc13_T4).await;
+    camera_pan(&ctx, 0, 0).await;
     ctx.fade(Fade::ToBlack).await;
     hide_eveil(&ctx).await;
     ctx.fade(Fade::FromBlack).await;
-    fallback(&ctx, "show_text_on_black").await;
-    say(&ctx, Fin_Texte_T1).await;
+    show_text_on_black(&ctx, Fin_Texte_T1).await;
     fallback(&ctx, "credits_montage").await;
     ctx.credits().await;
-    say(&ctx, Fin_Texte_FIN).await;
+    show_text_on_black(&ctx, Fin_Texte_FIN).await;
     ctx.set_flag(FLAG_SIL_GAME_CLEAR, true).await;
     ctx.set_respawn(HEAL_LOCATION_SIL_BRICO_BOURG_PLAYER_HOUSE).await;
     ctx.set_var(VAR_SIL_FIN_SCENE, 14).await;
