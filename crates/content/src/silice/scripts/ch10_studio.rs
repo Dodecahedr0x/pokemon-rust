@@ -22,12 +22,22 @@ const VIOLET: (i16, u16) = (14, 644);
 /// "SORTIE ARTISTES" (20, 1), open from story 103.
 const SORTIE: (i16, i16, u16) = (20, 1, 612);
 
+/// A segment switched off (`cut`: the studio floor) or lit again. A switched-off segment stays
+/// solid until the three are off ([`open_set`]): one dark segment must not let the player
+/// through to Kimiko before the puzzle is solved (the plan's "SIL5 Ch10–Ch11 maps: review" counts
+/// Kimiko unreachable while the set is on).
 async fn segment(ctx: &Ctx, (x0, lit): (i16, u16), cut: bool) {
     for x in x0..x0 + 4 {
-        if cut {
+        ctx.set_metatile(x, DECOR_Y, if cut { SOL_STUDIO } else { lit }, true)
+            .await;
+    }
+}
+
+/// The three segments off and walkable: the set is cut.
+async fn open_set(ctx: &Ctx) {
+    for (x0, _) in [OR, ROSE, VIOLET] {
+        for x in x0..x0 + 4 {
             ctx.set_metatile(x, DECOR_Y, SOL_STUDIO, false).await;
-        } else {
-            ctx.set_metatile(x, DECOR_Y, lit, true).await;
         }
     }
 }
@@ -36,9 +46,7 @@ async fn segment(ctx: &Ctx, (x0, lit): (i16, u16), cut: bool) {
 pub async fn TourNebula_2F_OnLoad(ctx: Ctx) {
     let s = story(&ctx).await;
     if ctx.flag(FLAG_SIL_STUDIO_DECOR_COUPE).await || s >= 103 {
-        for seg in [OR, ROSE, VIOLET] {
-            segment(&ctx, seg, true).await;
-        }
+        open_set(&ctx).await;
     }
     if s >= 103 {
         ctx.set_metatile(SORTIE.0, SORTIE.1, SORTIE.2, false).await;
@@ -145,7 +153,7 @@ pub async fn TourNebula_2F_Sc03_1(ctx: Ctx) {
     ctx.lock().await;
     if ctx.var(VAR_SIL_TOUR_STUDIO_STATE).await == 2 {
         say(&ctx, Tour_2F_Sc03_T3).await;
-        segment(&ctx, OR, true).await;
+        open_set(&ctx).await;
         ctx.redraw_map().await;
         ctx.set_flag(FLAG_SIL_STUDIO_DECOR_COUPE, true).await;
     } else {
