@@ -16,6 +16,7 @@
 
 pub mod boot;
 pub mod drive;
+pub mod gates;
 pub mod intro;
 pub mod live;
 pub mod oracle;

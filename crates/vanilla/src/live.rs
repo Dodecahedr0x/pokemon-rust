@@ -20,8 +20,8 @@ use engine::data::{Dir, GameData, MapId};
 use explore::model::{Macro, MacroKind, Opts};
 use explore::semantic::map_name;
 use explore::spine::{
-    BattlePlan, Bypass, CATCH_BATTLES, NEW_GAME_MAP, RETRIES, Step, StepOpts, TIRED_PP, TRAIN_BATTLES, TRAIN_DRY,
-    WAIT_FOR_FRAMES, WAIT_SCRIPT_FRAMES,
+    BattlePlan, Bypass, CATCH_BATTLES, NEW_GAME_MAP, RETRIES, Step, StepOpts, TIRED_PP,
+    TRAIN_BATTLES, TRAIN_DRY, WAIT_FOR_FRAMES, WAIT_SCRIPT_FRAMES,
 };
 
 /// Frames one macro may take (`explore::spine::PLAY_MACRO_FRAMES`, and battles on top).
@@ -324,12 +324,22 @@ impl<'g, G: GameData> Live<'g, G> {
             Step::Train { x, y, level, .. } | Step::TrainFresh { x, y, level, .. } => {
                 let fresh = matches!(step, Step::TrainFresh { .. });
                 let (mut n, mut dry) = (0, 0);
-                while self.v.party().first().is_some_and(|m| {
-                    m.level < level
-                        && !(fresh
-                            && (m.hp * 2 < m.max_hp
-                                || m.pp.iter().map(|&p| u32::from(p)).sum::<u32>() < TIRED_PP))
-                }) {
+                while let Some(m) = self.v.party().first().cloned() {
+                    let pp = m.pp.iter().map(|&p| u32::from(p)).sum::<u32>();
+                    let tired = m.hp * 2 < m.max_hp || pp < TIRED_PP;
+                    if m.level >= level || (fresh && tired) {
+                        break;
+                    }
+                    // Vanilla's RNG is not ours: more battles to the level wear the lead down
+                    // to a whiteout ours never has. A lead nearly out stops the training short
+                    // of the level (a level delta, the `~lv` noise) rather than losing.
+                    if !fresh && (m.hp * 4 < m.max_hp || pp < TIRED_PP / 2) {
+                        self.note = Some(format!(
+                            "vanilla stopped training at level {} (lead at {}/{} HP, {pp} PP), short of {level}",
+                            m.level, m.hp, m.max_hp
+                        ));
+                        break;
+                    }
                     n += 1;
                     ensure!(
                         n <= TRAIN_BATTLES,
@@ -355,12 +365,7 @@ impl<'g, G: GameData> Live<'g, G> {
                 self.v.fly(mon, dest, crate::drive::FLY_FRAMES)?;
                 let to = self.resolve_map(to);
                 let on = self.map()?;
-                ensure!(
-                    on == to,
-                    "flew to {}, not {}",
-                    map_name(on),
-                    map_name(to)
-                );
+                ensure!(on == to, "flew to {}, not {}", map_name(on), map_name(to));
             }
             Step::Battle(_) | Step::Choose(_) | Step::Expect(_) | Step::Checkpoint(_) => {
                 unreachable!("handled above")
@@ -606,7 +611,9 @@ impl<'g, G: GameData> Live<'g, G> {
     /// Whether cell `c` of `map` is open terrain (objects aside).
     fn walkable(&mut self, map: MapId, c: (i16, i16)) -> bool {
         let overrides = self.v.overrides(self.game, map);
-        self.v.planner(self.game, map, &overrides, Vec::new()).walkable(c)
+        self.v
+            .planner(self.game, map, &overrides, Vec::new())
+            .walkable(c)
     }
 
     /// Whether `to` is reachable on `map` now (objects in the way).

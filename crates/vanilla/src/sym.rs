@@ -173,6 +173,16 @@ symbols! {
     cb2_credits = "CB2_Credits" @ 0x081754dc,
     /// The choose-half party menu (`PARTY_MENU_TYPE_CHOOSE_HALF`) and its order.
     selected_order_from_party = "gSelectedOrderFromParty" @ 0x0203cef8,
+    // Rotating gates (`rotating_gate.c`): the puzzle and its ROM tables.
+    rotating_gate_puzzle_config = "sRotatingGate_PuzzleConfig" @ 0x0203a044,
+    rotating_gate_puzzle_count = "sRotatingGate_PuzzleCount" @ 0x0203a048,
+    rotating_gate_rotation_north = "sRotatingGate_RotationInfoNorth" @ 0x08591ff8,
+    rotating_gate_rotation_south = "sRotatingGate_RotationInfoSouth" @ 0x08592008,
+    rotating_gate_rotation_west = "sRotatingGate_RotationInfoWest" @ 0x08592018,
+    rotating_gate_rotation_east = "sRotatingGate_RotationInfoEast" @ 0x08592028,
+    rotating_gate_arms_clockwise = "sRotatingGate_ArmPositionsClockwiseRotation" @ 0x08592038,
+    rotating_gate_arms_anticlockwise = "sRotatingGate_ArmPositionsAntiClockwiseRotation" @ 0x08592058,
+    rotating_gate_arm_layout = "sRotatingGate_ArmLayout" @ 0x08592078,
 }
 
 /// Every address of every name in a symbol listing: any line whose first token is a hex

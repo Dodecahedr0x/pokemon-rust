@@ -204,7 +204,9 @@ impl Vanilla {
         let random = wild && flags & BATTLE_TYPE_FIRST_BATTLE == 0;
         // `Opts::catch`: a ball (BAG) at that species, RUN from every other wild mon.
         let catch = self.answers.catch;
-        let foe = self.emu.read_u16(s.battle_mons + BATTLE_MON_SIZE + BM_SPECIES);
+        let foe = self
+            .emu
+            .read_u16(s.battle_mons + BATTLE_MON_SIZE + BM_SPECIES);
         let ball = random && catch != 0 && foe == catch;
         let run = random && (self.answers.run_wild || catch != 0) && !ball;
         match mode {
@@ -354,8 +356,7 @@ impl Vanilla {
             // A fainted lead's replacement (or a script's choice): the first mon that can
             // fight. A on a fainted one only prints "no will to fight" and asks again.
             let mut want = (self.party().iter()).position(|m| m.hp > 0).unwrap_or(0) as u8;
-            if self.emu.read_u8(s.party_menu + PM_MENU_TYPE) & 0xF == PARTY_MENU_TYPE_CHOOSE_HALF
-            {
+            if self.emu.read_u8(s.party_menu + PM_MENU_TYPE) & 0xF == PARTY_MENU_TYPE_CHOOSE_HALF {
                 // The choose-half menu (Steven's multi battle, `ChooseHalfPartyForBattle`):
                 // ENTER the mons that can fight in party order (up to 3: `max`, then the
                 // menu moves to CONFIRM itself), then CONFIRM (slot `PARTY_SIZE`), as our
@@ -412,9 +413,95 @@ impl Vanilla {
     pub fn occupied(&mut self, map: MapId) -> Vec<(i16, i16)> {
         (0..OBJECT_EVENTS)
             .filter_map(|i| self.object_event(i))
-            .filter(|o| !o.is_player && o.visible && o.map == map)
+            // Gen3 collides with invisible objects too (`ObjectEventCollidesWithObjectAt`
+            // checks `active` only): Route 120's hidden Kecleon blocks its cell.
+            .filter(|o| !o.is_player && o.map == map)
             .map(|o| o.cell)
             .collect()
+    }
+
+    /// The rotating gate puzzle of the current map and the gates' orientations (Gen3
+    /// `GetCurrentMapRotatingGatePuzzleType`: Fortree's Gym, `MAP_FORTREE_CITY_GYM` 12.1, and
+    /// the Trick House's sixth puzzle, `MAP_ROUTE110_TRICK_HOUSE_PUZZLE6` 29.8), read from
+    /// RAM and the ROM's tables ([`crate::gates`]); `None` elsewhere.
+    pub fn rotating_gates(&mut self) -> Option<(crate::gates::Gates, u32)> {
+        let map = self.current_map().ok()?;
+        if !matches!(map.0, 0x0C01 | 0x1D08) {
+            return None;
+        }
+        let config = self.emu.read_u32(self.sym.rotating_gate_puzzle_config);
+        let count = self.emu.read_u8(self.sym.rotating_gate_puzzle_count) as usize;
+        if config >> 24 != 8 || count == 0 || count > 16 {
+            return None;
+        }
+        // `struct RotatingGatePuzzle`: x, y (s16), shape, orientation; 8 bytes with agbcc.
+        let raw = self.emu.read_bytes(config, 8 * count);
+        let gates: Vec<crate::gates::Gate> = (raw.chunks(8))
+            .map(|g| crate::gates::Gate {
+                x: i16::from_le_bytes([g[0], g[1]]) + MAP_OFFSET,
+                y: i16::from_le_bytes([g[2], g[3]]) + MAP_OFFSET,
+                shape: g[4],
+            })
+            .collect();
+        let shapes = 1 + gates.iter().map(|g| g.shape as usize).max()?;
+        let layout = self
+            .emu
+            .read_bytes(self.sym.rotating_gate_arm_layout, 8 * shapes);
+        let arm_layout = layout
+            .chunks(8)
+            .map(|c| <[u8; 8]>::try_from(c).unwrap_or_default())
+            .collect();
+        let mut rotation = [[0u8; 16]; 4];
+        // By `gates::table`'s order: up (north), down (south), left (west), right (east).
+        let tables = [
+            self.sym.rotating_gate_rotation_north,
+            self.sym.rotating_gate_rotation_south,
+            self.sym.rotating_gate_rotation_west,
+            self.sym.rotating_gate_rotation_east,
+        ];
+        for (r, at) in rotation.iter_mut().zip(tables) {
+            self.emu.read_into(at, r);
+        }
+        let mut arm_positions = [[(0i8, 0i8); 8]; 2];
+        let tables = [
+            self.sym.rotating_gate_arms_anticlockwise,
+            self.sym.rotating_gate_arms_clockwise,
+        ];
+        for (p, at) in arm_positions.iter_mut().zip(tables) {
+            // `struct Coords8` (two s8): 4 bytes apart with agbcc (the symbol is 0x20 long).
+            let b = self.emu.read_bytes(at, 32);
+            for (i, c) in p.iter_mut().enumerate() {
+                *c = (b[4 * i] as i8, b[4 * i + 1] as i8);
+            }
+        }
+        let at = self.sym.backup_map_layout;
+        let (w, h) = (
+            self.emu.read_u32(at) as usize,
+            self.emu.read_u32(at + 4) as usize,
+        );
+        let ptr = self.emu.read_u32(at + 8);
+        if !EWRAM.contains(&ptr) || w * h > 0x8000 {
+            return None;
+        }
+        let bytes = self.emu.read_bytes(ptr, 2 * w * h);
+        let collision = (bytes.chunks(2))
+            .map(|b| ((u16::from_le_bytes([b[0], b[1]]) & 0x0C00) >> 10) as u8)
+            .collect();
+        // The orientations: the temp vars from `VAR_TEMP_0`, a byte per gate.
+        let sb1 = self.save_block1().ok()?;
+        let o = self.emu.read_bytes(sb1 + SB1_VARS, count);
+        let orientations =
+            (o.iter().enumerate()).fold(0u32, |acc, (i, &b)| acc | (u32::from(b & 3) << (2 * i)));
+        let g = crate::gates::Gates {
+            gates,
+            arm_layout,
+            rotation,
+            arm_positions,
+            collision,
+            w: w as i16,
+            h: h as i16,
+        };
+        Some((g, orientations))
     }
 
     /// The `setmetatile` overrides of the current map: the cells of `gBackupMapLayout` whose
@@ -456,7 +543,10 @@ impl Vanilla {
 
     /// The player's elevation (`ObjectEvent.currentElevation`): on a bridge or under it.
     pub fn player_elevation(&mut self) -> Option<u8> {
-        let id = u32::from(self.emu.read_u8(self.sym.player_avatar + PA_OBJECT_EVENT_ID));
+        let id = u32::from(
+            self.emu
+                .read_u8(self.sym.player_avatar + PA_OBJECT_EVENT_ID),
+        );
         if id >= OBJECT_EVENTS {
             return None;
         }
@@ -516,9 +606,16 @@ impl Vanilla {
             let overrides = self.overrides(game, start);
             let mut occupied = self.occupied(start);
             occupied.extend_from_slice(avoid);
-            let dir = self
-                .planner(game, start, &overrides, occupied)
-                .first_dir(me.cell, to)
+            let planner = self.planner(game, start, &overrides, occupied);
+            // Rotating gates (our engine has none): a walk that pushes them where they turn.
+            let gated = self.rotating_gates().and_then(|(g, o)| {
+                let at = |(x, y): (i16, i16)| (x + MAP_OFFSET, y + MAP_OFFSET);
+                g.first_dir(at(me.cell), at(to), o, |(x, y)| {
+                    planner.walkable((x - MAP_OFFSET, y - MAP_OFFSET))
+                })
+            });
+            let dir = gated
+                .or_else(|| planner.first_dir(me.cell, to))
                 .ok_or_else(|| {
                     anyhow!("walk_to: no path from {:?} to {to:?} on {start:?}", me.cell)
                 })?;
@@ -750,7 +847,9 @@ impl Vanilla {
                 // USE is the first cell of the context menus that have it (`item_menu.c`
                 // `sContextMenuItems_*Pocket`, a 2-column grid), but the berries' (CHECK TAG,
                 // -, USE, GIVE, TOSS, CANCEL: the third).
-                let berries = self.bag_slot(item).is_some_and(|(p, _)| p == BAG_POCKET_BERRIES);
+                let berries = self
+                    .bag_slot(item)
+                    .is_some_and(|(p, _)| p == BAG_POCKET_BERRIES);
                 let want = if berries { 2 } else { 0 };
                 return Ok(Some(grid_key(self.emu.read_u8(s.menu + 2), want)));
             }
