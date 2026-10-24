@@ -266,7 +266,7 @@ fn go(w: &mut World, keys: Buttons, to: (MapId, (i16, i16))) -> u32 {
 /// Idles until no script, effect nor transition runs.
 fn settle(w: &mut World) {
     for _ in 0..600 {
-        if !w.runner.is_running() && !w.s.field_move_busy() && !w.transition_active() {
+        if !w.runner.is_running() && !w.field_move_active() && !w.transition_active() {
             hold(w, Buttons::NONE, 2);
             return;
         }
@@ -405,6 +405,30 @@ fn the_dive_warp_depends_on_the_cell() {
     assert_eq!(w.s.last_script, Some(USE_DIVE));
     settle(&mut w);
     assert_eq!((w.map(), pos(&w)), (POOL, (3, 3)));
+}
+
+/// The script ends at `dofieldeffect`; the effect (the mon shown, then the warp) runs on, and
+/// [`World::field_move_active`] tells a driver the controls are still locked.
+#[test]
+fn the_dive_effect_outlives_its_script() {
+    let mut w = sea(true);
+    go(&mut w, Buttons::DOWN, (SEA, (5, 6)));
+    go(&mut w, Buttons::RIGHT, (SEA, (6, 6)));
+    assert!(!w.field_move_active());
+    hold(&mut w, Buttons::A, 1);
+    for _ in 0..600 {
+        if !w.runner.is_running() {
+            break;
+        }
+        hold(&mut w, Buttons::NONE, 1);
+    }
+    assert!(!w.runner.is_running());
+    assert!(w.field_move_active());
+    assert!(!w.transition_active());
+    assert_eq!(w.map(), SEA);
+    settle(&mut w);
+    assert!(!w.field_move_active());
+    assert_eq!(w.map(), UNDER);
 }
 
 #[test]
