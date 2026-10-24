@@ -338,6 +338,9 @@ impl<'g, G: GameData> Live<'g, G> {
                     );
                 }
             }
+            // Not driven on the ROM yet: the battle bag's ball and Fly's region map.
+            Step::Catch { species, .. } => bail!("catch {species}: not driven on the ROM yet"),
+            Step::Fly { dest, .. } => bail!("fly to {dest}: not driven on the ROM yet"),
             Step::Battle(_) | Step::Choose(_) | Step::Expect(_) | Step::Checkpoint(_) => {
                 unreachable!("handled above")
             }
@@ -397,6 +400,7 @@ impl<'g, G: GameData> Live<'g, G> {
                 item,
                 qty,
             } => self.buy(local_id, engine::data::ItemId(item), qty)?,
+            MacroKind::Fly { dest, .. } => bail!("fly to {dest}: not driven on the ROM yet"),
             MacroKind::Push { dir } => {
                 if self.map()? == start {
                     self.v.push(dir, MACRO_FRAMES)?;
