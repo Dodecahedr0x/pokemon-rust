@@ -320,6 +320,10 @@ impl<G: GameData> Terrain for Ground<'_, G> {
         let b = self.field.block(self.game, x, y);
         block_behavior(self.game, self.field.data(self.game), b)
     }
+
+    fn push_allowed(&self, local_id: u8, from: (i16, i16), to: (i16, i16)) -> bool {
+        self.game.push_allowed(self.field.map(), local_id, from, to)
+    }
 }
 
 /// One forced step per direction (warp walk-in/out).
@@ -852,7 +856,7 @@ impl World {
         let pushable = game
             .pushable_boulder()
             .filter(|&(_, fl)| s.vars.flag(fl))
-            .map(|(g, _)| g);
+            .map(|(g, _)| (g, game.pushable_objects()));
         s.objects.set_pushable(pushable);
         // The rotating gates (Gen3 `rotating_gate.c`), their orientations in the temp vars.
         let gates = game.rotating_gates(s.field.map());
@@ -929,6 +933,14 @@ impl World {
                             s.wild_step(game, id, b, f);
                         }
                     }
+                }
+            }
+            PlayerEvent::PushedBoulder { id, to, .. } => {
+                if let Some(script) = game.pushed_script(s.field.map()) {
+                    s.vars.set_var(VarId(0x8004), id.into());
+                    s.vars.set_var(VarId(0x8005), to.0 as u16);
+                    s.vars.set_var(VarId(0x8006), to.1 as u16);
+                    self.start_script(game, script, None);
                 }
             }
             _ => {}

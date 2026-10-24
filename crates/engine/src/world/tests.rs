@@ -1155,6 +1155,7 @@ mod m9_s;
 mod m9_sm;
 mod m9_w;
 mod m9_wave0;
+mod pushes;
 mod sil6_clock;
 mod sky;
 // Wave C: one file per cluster.

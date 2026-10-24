@@ -1699,6 +1699,27 @@ pub trait GameData {
         None
     }
 
+    /// More object graphics Strength pushes, under [`GameData::pushable_boulder`]'s flag (a
+    /// game's own crates and barrels; Gen3 has only the boulder).
+    fn pushable_objects(&self) -> &'static [GfxId] {
+        &[]
+    }
+
+    /// Whether object `local_id` of `map` may be pushed from `from` onto `to`, on top of Gen3's
+    /// `TryPushBoulder` rule (a free cell, not a door): a game's puzzle rule. `true` by default.
+    fn push_allowed(&self, map: MapId, local_id: u8, from: (i16, i16), to: (i16, i16)) -> bool {
+        let _ = (map, local_id, from, to);
+        true
+    }
+
+    /// The script a Strength push on `map` starts (as the push starts), with `VAR_0x8004` the
+    /// pushed object's local id and `VAR_0x8005`, `VAR_0x8006` the cell it moves to: a game's
+    /// puzzle bookkeeping. Gen3 has none (`None`).
+    fn pushed_script(&self, map: MapId) -> Option<ScriptId> {
+        let _ = map;
+        None
+    }
+
     /// The weather of `map`'s header (Gen3 `gMapHeader.weather`, a `WEATHER_*` value or a
     /// game-defined kind, `crate::weather`); 0 (`WEATHER_NONE`) by default.
     fn map_weather(&self, map: MapId) -> u8 {

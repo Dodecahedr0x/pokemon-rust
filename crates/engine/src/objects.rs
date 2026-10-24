@@ -44,6 +44,11 @@ pub trait Terrain {
     /// Raw block (collision and elevation bits included) at (x, y), which may lie outside the map.
     fn block(&self, x: i16, y: i16) -> u16;
     fn behavior(&self, x: i16, y: i16) -> Behavior;
+    /// Whether object `local_id` may be pushed from `from` onto `to` (`GameData::push_allowed`).
+    fn push_allowed(&self, local_id: u8, from: (i16, i16), to: (i16, i16)) -> bool {
+        let _ = (local_id, from, to);
+        true
+    }
 }
 
 /// The player's controls for one frame.
@@ -93,8 +98,8 @@ pub enum PlayerEvent {
     /// Walked into something: walks in place slowly (Gen3 `PlayerNotOnBikeCollide`).
     Bumped(Dir),
     /// Pushed a boulder with Strength (Gen3 `COLLISION_PUSHED_BOULDER`): walks in place
-    /// slowly while the boulder moves.
-    PushedBoulder(Dir),
+    /// slowly while the boulder (local id `id`) moves to `to`.
+    PushedBoulder { dir: Dir, id: u8, to: (i16, i16) },
 }
 
 /// Result of a collision test (Gen3 `COLLISION_*` subset).
@@ -622,7 +627,7 @@ pub struct Objects {
     /// The graphics of objects the player pushes with Strength, while it is in use (Gen3
     /// `FLAG_SYS_USE_STRENGTH` and `OBJ_EVENT_GFX_PUSHABLE_BOULDER`). Set by the World before
     /// each `update_player` from the flag: derived state, neither hashed nor snapshotted.
-    pushable: Option<GfxId>,
+    pushable: Option<(GfxId, &'static [GfxId])>,
     /// The map's rotating gates and their orientations (Gen3 `rotating_gate.c`), set by the
     /// World before each `update_player` from the temp vars and read back after: derived
     /// state, neither hashed nor snapshotted.
@@ -682,8 +687,8 @@ impl Objects {
     }
 
     /// Sets the graphics the player pushes this frame ([`Objects::update_player`]'s Strength
-    /// push), or `None` while Strength is not in use.
-    pub fn set_pushable(&mut self, gfx: Option<GfxId>) {
+    /// push: the boulder's and the game's others), or `None` while Strength is not in use.
+    pub fn set_pushable(&mut self, gfx: Option<(GfxId, &'static [GfxId])>) {
         self.pushable = gfx;
     }
 
@@ -708,20 +713,21 @@ impl Objects {
     /// next cell on is free (`GetCollisionAtCoords == COLLISION_NONE` for the boulder, and not
     /// `MetatileBehavior_IsNonAnimDoor`). Returns the boulder's slot.
     fn boulder_ahead(&self, terrain: &impl Terrain, dir: Dir) -> Option<usize> {
-        let g = self.pushable?;
+        let (g, more) = self.pushable?;
         let p = &self.objs[0];
         let (dx, dy) = dir.delta();
         let (tx, ty) = (p.x + dx, p.y + dy);
         let i = (self.objs.iter().enumerate().skip(1)).find_map(|(i, o)| {
             ((o.x, o.y) == (tx, ty)
-                && o.gfx == Some(g)
+                && o.gfx.is_some_and(|og| og == g || more.contains(&og))
                 && elevations_compatible(p.elevation, o.elevation))
             .then_some(i)
         })?;
         let beyond = terrain.behavior(tx + dx, ty + dy);
         (self.objs[i].is_settled()
             && self.collision_at(terrain, i, dir) == Collision::None
-            && !matches!(beyond, Behavior::NonAnimDoor(_)))
+            && !matches!(beyond, Behavior::NonAnimDoor(_))
+            && terrain.push_allowed(self.objs[i].local_id, (tx, ty), (tx + dx, ty + dy)))
         .then_some(i)
     }
 
@@ -1226,7 +1232,12 @@ impl Objects {
             // slowly while the boulder walks one cell on slowly.
             self.objs[0].begin(ActionKind::InPlace(BUMP_FRAMES), dir);
             self.objs[i].begin(ActionKind::Walk(Speed::Slow), dir);
-            return PlayerEvent::PushedBoulder(dir);
+            let o = &self.objs[i];
+            return PlayerEvent::PushedBoulder {
+                dir,
+                id: o.local_id,
+                to: (o.x, o.y),
+            };
         }
         if collision != Collision::None {
             self.objs[0].begin(ActionKind::InPlace(BUMP_FRAMES), dir);
