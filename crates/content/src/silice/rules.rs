@@ -16,6 +16,7 @@
 //! | [`OVERDOSE`] | 8 | Gogo, Romain at Évalon | their mons enter with Atk +1, SpAtk +1, lose 1/16 a turn |
 //! | [`PRISM`] | 10 | Revenge | turns 1–3: the foe takes ×0.5, the player's attacker loses 1/4 of its damage |
 //! | [`HEART`] | 10 | the Tower's 1F | the Cœur d'Évalon: half the player's confusions shaken off, the rest 2 turns at most |
+//! | [`AURA`] | 12 | the « Dominant » ([`BOSS`], a wild boss that cannot be caught) | the foe's Atk, Def, Speed, SpAtk and SpDef +1 at the start |
 //!
 //! Readings where the source is loose (author questions in the plan's "as built"):
 //! - "all his mons start with" (Gwada's rum, the overdose): each mon as it enters
@@ -42,6 +43,8 @@ pub const INJECTOR_SPA: u8 = 8;
 pub const OVERDOSE: u8 = 9;
 pub const PRISM: u8 = 10;
 pub const HEART: u8 = 11;
+/// Ch12's wild boss aura (§4.4 « Aura de boss : +1 à toutes les stats au début du combat »).
+pub const AURA: u8 = 13;
 /// The staring duel lost (Manga_Square_Gym_Sc01's blink): the source's
 /// `set_battle_malus(PLAYER_LEAD, SPEED, -1)` on top of the sanctuary's petals.
 pub const PETALS_BLINK: u8 = 12;
@@ -214,9 +217,20 @@ pub fn battle_rule(id: u8) -> Option<&'static FieldRule> {
         OVERDOSE => &R_OVERDOSE,
         PRISM => &R_PRISM,
         HEART => &R_HEART,
+        AURA => &R_AURA,
         _ => return None,
     })
 }
+
+static R_AURA: FieldRule = FieldRule {
+    effects: &[
+        stage(When::Start, Who::FOE, Stat::Atk, 1),
+        stage(When::Start, Who::FOE, Stat::Def, 1),
+        stage(When::Start, Who::FOE, Stat::Speed, 1),
+        stage(When::Start, Who::FOE, Stat::SpAtk, 1),
+        stage(When::Start, Who::FOE, Stat::SpDef, 1),
+    ],
+};
 
 /// Rules with field rule `id` only.
 const fn field(id: u8) -> BattleRules {
@@ -227,6 +241,7 @@ const fn field(id: u8) -> BattleRules {
         foe_back: false,
         clone_player: false,
         intro: None,
+        no_catch: false,
     }
 }
 
@@ -252,6 +267,30 @@ pub static INVERSE: BattleRules = BattleRules {
     foe_back: true,
     clone_player: false,
     intro: Some(Gym07_Inverse_Debut),
+    no_catch: false,
+};
+
+/// Ch12 `Route_S08_PG_Sc28`'s « Dominant » (§4.4, §9 `battle_wild_boss`): the boss's aura
+/// ([`AURA`]) and no catching (« on ne peut pas le capturer, il se dissout »).
+pub static BOSS: BattleRules = BattleRules {
+    inverse: false,
+    field: Some(AURA),
+    background: None,
+    foe_back: false,
+    clone_player: false,
+    intro: None,
+    no_catch: true,
+};
+
+/// Ch12 `Zone_404_PG_Sc26`'s Clone (§9 `battle_mirror`): a copy of the player's party.
+pub static MIRROR: BattleRules = BattleRules {
+    inverse: false,
+    field: None,
+    background: None,
+    foe_back: false,
+    clone_player: true,
+    intro: None,
+    no_catch: false,
 };
 
 /// `GameData::trainer_rules`: the battles that always have rules, wherever they start.

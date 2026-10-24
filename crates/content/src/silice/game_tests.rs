@@ -612,6 +612,7 @@ fn scene_helpers_issue_the_ctx_requests() {
         species: SPECIES_SENTRET,
         level: 3,
         first_battle: false,
+        rules: None,
     }));
     assert_eq!(
         PATH,
