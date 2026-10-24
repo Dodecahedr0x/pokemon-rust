@@ -69,7 +69,31 @@ const B_TXT_BUFF3: u8 = 0x34;
 /// Gen3 `BattleStringExpandPlaceholders` of `game.battle_text(msg.id)`. Returns Gen3-encoded
 /// text, 0xFF-terminated.
 pub fn expand(game: &impl GameData, msg: &Msg, names: &Names) -> Vec<u8> {
+    if let Str::Authored(t) = msg.id {
+        return expand_authored(game, game.text(t), msg, names);
+    }
     expand_src(game, game.battle_text(msg.id), msg, names)
+}
+
+/// The field text codes of an authored text ([`Str::Authored`]): `{PLAYER}` (`0xFD 0x01`) is
+/// the player's name and `{STR_VAR_1..3}` (`0xFD 0x02..=0x04`) expand `msg.buffs[0..3]`; the
+/// other codes are kept as they are.
+fn expand_authored(game: &impl GameData, src: &[u8], msg: &Msg, names: &Names) -> Vec<u8> {
+    let mut out = Vec::with_capacity(src.len() + 24);
+    let mut i = 0;
+    while i < src.len() && src[i] != EOS {
+        let n = unit_len(src, i);
+        match (src[i], src.get(i + 1).copied()) {
+            (PLACEHOLDER, Some(1)) => push(&mut out, names.player),
+            (PLACEHOLDER, Some(k @ 2..=4)) => {
+                buff(game, &msg.buffs[k as usize - 2], names, &mut out)
+            }
+            _ => out.extend_from_slice(&src[i..(i + n).min(src.len())]),
+        }
+        i += n;
+    }
+    out.push(EOS);
+    out
 }
 
 /// [`expand`] of an explicit source string (Gen3-encoded, 0xFF-terminated).
@@ -191,6 +215,7 @@ fn buff(game: &impl GameData, b: &Buff, names: &Names, out: &mut Vec<u8>) {
         Buff::Mon { side, party } => tagged(game, side, party_nick(side, party, names), names, out),
         Buff::MonNick { side, party } => push(out, party_nick(side, party, names)),
         Buff::Text(s) => push(out, game.battle_text(s)),
+        Buff::TrainerName => push(out, names.trainer_name),
         Buff::Item(i) => {
             if let Some(info) = game.item(i) {
                 push(out, info.name);

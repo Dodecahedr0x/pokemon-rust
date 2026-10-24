@@ -325,7 +325,14 @@ pub static PARTNER: Option<PartnerData> = {partner};"
         let mut species = String::new();
         let mut ability_ids = String::new();
         for (i, s) in b.species.iter().enumerate() {
+            // A post-Gen3 ability (a Silice form's) has no Gen3 id or name: 0, nameless.
+            let rules = self.rules;
             let ids = s.abilities.each_ref().map(|a| {
+                if names::ABILITIES.value(a).is_none()
+                    && classify::ability_with(a, rules) != "Ability::Other"
+                {
+                    return Ok(0);
+                }
                 names::ABILITIES
                     .value(a)
                     .filter(|&v| v < b.types.ability_names.len() as u32)
@@ -813,7 +820,13 @@ pub static PARTNER: Option<PartnerData> = {partner};"
                     writeln!(arms, "        Str::{pat} => STAT_NAMES[s as usize],")?
                 }
                 StrSrc::AbilityNames => writeln!(arms, "        Str::{pat} => ability_name(a),")?,
-                StrSrc::Missing => writeln!(arms, "        Str::{pat} => b\"\\xFF\",")?,
+                // An authored game's own text (`Battle_<Variant>`, Silice's `text/fr.ron`).
+                StrSrc::Missing => match self.w.texts.get(&format!("Battle_{pat}")) {
+                    Some(t) if self.w.authored.is_some() => {
+                        writeln!(arms, "        Str::{pat} => {},", bytes_lit(t))?
+                    }
+                    _ => writeln!(arms, "        Str::{pat} => b\"\\xFF\",")?,
+                },
                 _ => {
                     let t = str_text(b, *src).with_context(|| format!("Str::{pat}"))?;
                     writeln!(

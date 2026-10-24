@@ -25,6 +25,7 @@ fn double(player: &[Pokemon], foes: &[Pokemon], seed: u32) -> Run {
         opponents: party(foes),
         environment: Environment::Grass,
         double: Some(Double::default()),
+        rules: Default::default(),
     };
     let mut b = Battle::new(&Game, setup, &party(player), &mut rng);
     let mut out = Vec::new();

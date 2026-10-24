@@ -77,6 +77,7 @@ impl Run {
             opponents: party(opponents),
             environment: Environment::Grass,
             double: None,
+            rules: Default::default(),
         };
         let mut battle = Battle::new(&game, setup.clone(), &party(player), &mut rng);
         let mut scene = BattleScene::new(&setup, named("ASH"));

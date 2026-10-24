@@ -52,6 +52,9 @@ pub(super) fn hash_menu(m: Menu, h: &mut Fnv64) {
 /// [`Str::code`].
 fn str_code(s: Str, h: &mut Fnv64) {
     h.write_u16(s.code());
+    if let Str::Authored(t) = s {
+        h.write_u16(t.0);
+    }
 }
 
 fn hash_buff(b: &Buff, h: &mut Fnv64) {
@@ -81,6 +84,7 @@ fn hash_buff(b: &Buff, h: &mut Fnv64) {
             h.write(&[9]);
             h.write_u16(i.0);
         }
+        Buff::TrainerName => h.write(&[10]),
     }
 }
 

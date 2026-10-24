@@ -410,18 +410,28 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 None
             }
             Request::BattleTrainer {
-                trainer, defeat, ..
+                trainer,
+                defeat,
+                rules,
+                ..
             } => {
+                let rules = rules.copied().unwrap_or_default();
                 // Wave G: a second trainer saw the player too (`BATTLE_TYPE_TWO_OPPONENTS`).
                 let second = s.pair.b.map(|(b, d, _)| (b, d));
-                let Some((opponents, double)) =
+                let party = if rules.clone_player {
+                    // Silice's mirror battle: a healed copy of the player's party.
+                    let mut p = s.party.clone();
+                    p.heal(game.battle());
+                    Some((p, None))
+                } else {
                     super::battle::trainer_party(game, &mut s.rng, trainer, second)
-                else {
+                };
+                let Some((opponents, double)) = party else {
                     s.log("battle against an unknown or empty trainer answered Won");
                     return Some(Response::Value(BattleOutcome::Won as u16));
                 };
                 let kind = BattleKind::Trainer { trainer, defeat };
-                s.start_battle_with(game, kind, opponents, double, Origin::Script, self.f);
+                s.start_battle_with(game, kind, opponents, double, rules, Origin::Script, self.f);
                 None
             }
             Request::BattleMulti {
@@ -457,7 +467,15 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                     trainer: a,
                     defeat: a_defeat,
                 };
-                s.start_battle_with(game, kind, opponents, double, Origin::Script, self.f);
+                s.start_battle_with(
+                    game,
+                    kind,
+                    opponents,
+                    double,
+                    Default::default(),
+                    Origin::Script,
+                    self.f,
+                );
                 None
             }
             Request::Message(_)

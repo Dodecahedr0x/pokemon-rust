@@ -252,6 +252,8 @@ pub(super) fn confuse(
         effect,
         cause,
     )));
+    // Silice's field rules (`What::ConfusionWard`).
+    b.rule_confusion_ward(env, effect);
     true
 }
 

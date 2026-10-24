@@ -256,6 +256,7 @@ fn setup() -> BattleSetup {
         opponents: party(&[mon(FOE, None), mon(FOE, None)]),
         environment: Environment::Grass,
         double: None,
+        rules: Default::default(),
     }
 }
 

@@ -211,6 +211,84 @@
             speaker: Some("CROW"),
         ),
         (
+            id: "Battle_BouncedBack",
+            chapter: "moteur",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Battle_BreaksTheMold",
+            chapter: "moteur",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Battle_EvaporatedInSun",
+            chapter: "moteur",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Battle_FizzledInRain",
+            chapter: "moteur",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Battle_HarshSunBegan",
+            chapter: "moteur",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Battle_HarshSunFaded",
+            chapter: "moteur",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Battle_HeavyRainBegan",
+            chapter: "moteur",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Battle_HeavyRainLifted",
+            chapter: "moteur",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Battle_MegaArmed",
+            chapter: "moteur",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Battle_MegaEvolved",
+            chapter: "moteur",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Battle_MegaReacting",
+            chapter: "moteur",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Battle_PrimalReversion",
+            chapter: "moteur",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Battle_SolarPowerHurt",
+            chapter: "moteur",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
             id: "Benou_Lab_PG_Sc23_T1",
             chapter: "12-post-game",
             speaker: Some("BENOU"),
@@ -2363,6 +2441,18 @@
             speaker: Some("LA SPHINGE"),
         ),
         (
+            id: "Evalon_Surdose_Fatigue",
+            chapter: "08-evalon",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Evalon_Surdose_Rage",
+            chapter: "08-evalon",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
             id: "Evalon_Taverne_Adrien_T1",
             chapter: "08-evalon",
             speaker: Some("ADRIEN"),
@@ -4468,6 +4558,24 @@
             speaker: Some("TAUBER"),
         ),
         (
+            id: "Nocturne_Strobe_Blanche",
+            chapter: "03-viber-city",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Nocturne_Strobe_Neon",
+            chapter: "03-viber-city",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Nocturne_Strobe_UV",
+            chapter: "03-viber-city",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
             id: "Nocturne_Tauber_T1",
             chapter: "03-viber-city",
         ),
@@ -5300,6 +5408,12 @@
             id: "Port_Ressac_Gym_Revanche_Non",
             chapter: "04-port-ressac",
             speaker: Some("SAMUEL"),
+        ),
+        (
+            id: "Port_Ressac_Gym_Roulis",
+            chapter: "04-port-ressac",
+            speaker: Some("Default"),
+            note: Some("combat"),
         ),
         (
             id: "Port_Ressac_Gym_Sc01_Rate",
@@ -8530,6 +8644,18 @@
             speaker: Some("MIRA"),
         ),
         (
+            id: "Tour_4F_Prisme_Off",
+            chapter: "10-tour-piliers",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
+            id: "Tour_4F_Prisme_On",
+            chapter: "10-tour-piliers",
+            speaker: Some("Default"),
+            note: Some("combat"),
+        ),
+        (
             id: "Tour_4F_Sc01_T1",
             chapter: "10-tour-piliers",
             speaker: Some("Default"),
@@ -8723,6 +8849,12 @@
             id: "Tour_Ascenseur_Sc04_T2",
             chapter: "10-tour-piliers",
             speaker: Some("ADRIEN"),
+        ),
+        (
+            id: "Tour_Coeur_Pulse",
+            chapter: "10-tour-piliers",
+            speaker: Some("Default"),
+            note: Some("combat"),
         ),
         (
             id: "Tour_Ecran",

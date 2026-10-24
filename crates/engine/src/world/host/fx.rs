@@ -2,7 +2,7 @@
 //! `ScreenShake`, `SetTint` (`crate::fx`), `WaitInputOrTimeout`, and the trainer battle's
 //! `no_whiteout`.
 //!
-//! The effects do nothing and the wait times out at once; `no_whiteout` is honoured.
+//! Wave 0: the effects do nothing and the wait times out at once.
 
 use super::{Host, UNIT};
 use crate::data::GameData;
@@ -24,8 +24,8 @@ pub(super) fn resume<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Re
 }
 
 /// Whether losing the trainer battle the script waits on whites out (Gen3 `DoWhiteOut`).
-/// `false` for `BattleTrainer { no_whiteout: true }`: the loss answers `Lost` to the script,
-/// which goes on where the battle was (the party is left fainted; the script heals it).
+/// `false` for `BattleTrainer { no_whiteout: true }`: the loss answers `Lost` and the script
+/// goes on (Silice's Samuel, R-7).
 pub(in crate::world) fn whiteout_allowed(waiting: Option<&Request>) -> bool {
     !matches!(
         waiting,

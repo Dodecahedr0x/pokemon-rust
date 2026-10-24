@@ -26,7 +26,7 @@
 //! Mathieu as partner, the right riddle); the Multi battle is two single battles with a heal;
 //! the hidden items are signs.
 //!
-//! **The party** ([`PARTY`]): Chapter 7's end as `sil8_ch7` leaves it (KADABRA 61 leading, with
+//! **The party** ([`PARTY`]): Chapter 7's end as `sil8_ch7` leaves it (KADABRA 62 leading, with
 //! Chapter 6's Shock Wave taught again first; TYPHLOSION 66; LAIRON 35, MAREEP 14, PORYGON 25,
 //! DUGTRIO 26). No hook. The chapter's trainers (46–53) train the lead; the run heals at the
 //! Taverne before the guards, before the bell, and between Élise and the leaders (out of the
@@ -86,7 +86,7 @@ pub fn route_start() -> Start {
 
 /// The start state's party (see the module docs).
 pub const PARTY: &[(SpeciesId, u8)] = &[
-    (SPECIES_KADABRA, 61),
+    (SPECIES_KADABRA, 62),
     (SPECIES_TYPHLOSION, 66),
     (SPECIES_LAIRON, 35),
     (SPECIES_MAREEP, 14),
@@ -886,7 +886,6 @@ pub fn check_end(r: &Run) {
         "multichoice",
         "play_music",
         "battle_multi",
-        "mega_evolution",
         "play_fanfare",
         "coeur_evalon",
         "fade_music",

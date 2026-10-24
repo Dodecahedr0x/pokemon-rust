@@ -370,8 +370,34 @@ pub fn type_effect(
     power: u8,
     damage: i32,
 ) -> TypeResult {
+    type_effect_in(
+        chart,
+        foresight_split,
+        foresight,
+        move_ty,
+        defender,
+        power,
+        damage,
+        false,
+    )
+}
+
+/// [`type_effect`] on the inverse chart when `inverse` (Silice's inverse battle,
+/// `BattleRules::inverse`): each entry's ×2 becomes ×0.5, and its ×0.5 and ×0 become ×2.
+#[allow(clippy::too_many_arguments)]
+pub fn type_effect_in(
+    chart: &[TypeMatchup],
+    foresight_split: usize,
+    foresight: bool,
+    move_ty: Type,
+    defender: [Type; 2],
+    power: u8,
+    damage: i32,
+    inverse: bool,
+) -> TypeResult {
     let (mut damage, mut sup, mut not_very, mut none) = (damage, false, false, false);
     let mut modulate = |m: u8, damage: &mut i32| {
+        let m = if inverse { inverse_multiplier(m) } else { m };
         *damage = *damage * m as i32 / 10;
         if *damage == 0 && m != 0 {
             *damage = 1;
@@ -422,6 +448,15 @@ pub fn type_effect(
         Effectiveness::Normal
     };
     TypeResult { damage, eff }
+}
+
+/// The inverse chart's multiplier (×10): ×2 ↔ ×0.5, ×0 → ×2.
+pub const fn inverse_multiplier(m: u8) -> u8 {
+    match m {
+        20 => 5,
+        5 | 0 => 20,
+        m => m,
+    }
 }
 
 /// Gen3 `ApplyRandomDmgMultiplier`: `× (100 - roll % 16) / 100`, minimum 1 (0 stays 0).
