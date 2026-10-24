@@ -58,6 +58,16 @@ static DOUBLE_DATA: crate::mon::TrainerData = crate::mon::TrainerData {
     }],
 };
 
+/// Wave E2: a rock smash table whose rate always rolls a WATER L3.
+static ROCKS: crate::mon::WaterEncounters = crate::mon::WaterEncounters {
+    rate: 255,
+    mons: [crate::mon::WildMon {
+        species: WATER,
+        min_level: 3,
+        max_level: 3,
+    }; 5],
+};
+
 /// [`Game`] with Task G's data.
 struct GGame;
 
@@ -122,6 +132,13 @@ impl GameData for GGame {
     }
     fn trainer_money(&self, id: TrainerId) -> Option<u8> {
         self.trainer(id).map(|_| MONEY_TABLE)
+    }
+    fn rock_smash_encounters(
+        &self,
+        _map: MapId,
+        _wild_set: u16,
+    ) -> Option<&'static crate::mon::WaterEncounters> {
+        Some(&ROCKS)
     }
     fn evolutions(&self, species: SpeciesId) -> &'static [Evolution] {
         match species {
@@ -466,4 +483,49 @@ fn the_battle_return_stays_black_while_the_field_uploads() {
     }
     assert!(!g.w.script_running());
     assert!(restoring > 0, "the upload is spread over frames");
+}
+
+#[test]
+fn a_field_whiteout_waits_120_frames_then_whites_out() {
+    // Wave E2: `special SetCB2WhiteOut` (`EventScript_FieldWhiteOut`): `CB2_WhiteOut` counts
+    // 120 frames, then `DoWhiteOut` as after a lost battle; the script never resumes.
+    let mut g = G::new();
+    g.w.s.money = 101;
+    start(&mut g.w, |ctx| {
+        Box::pin(async move {
+            ctx.give_mon(NORMAL, 2).await;
+            ctx.field_whiteout().await;
+            ctx.set_flag(FLAG_DONE, true).await;
+        })
+    });
+    g.run(Buttons::NONE, u32::from(WHITEOUT_FRAMES));
+    assert!(!g.w.flag(FLAG_WHITEOUT_RAN), "still counting");
+    assert_eq!(g.w.money(), 101);
+    g.run(Buttons::NONE, 2);
+    assert!(g.w.flag(FLAG_WHITEOUT_RAN));
+    assert_eq!(g.w.money(), 50);
+    // The whiteout resets the script context: the script never goes on.
+    g.run(Buttons::NONE, 60);
+    assert!(!g.w.flag(FLAG_DONE));
+    assert_eq!(g.w.map(), HOUSE);
+}
+
+#[test]
+fn a_rock_smash_encounter_starts_a_field_wild_battle() {
+    // Wave E2: `RockSmashWildEncounter` rolls the map's rock table, starts the wild battle
+    // (`BattleSetup_StartWildBattle`) and answers TRUE at once; the script goes on after it.
+    let mut g = G::new();
+    start(&mut g.w, |ctx| {
+        Box::pin(async move {
+            ctx.give_mon(WATER, 30).await;
+            let started = ctx.rock_smash_encounter().await;
+            ctx.set_flag(FLAG_DONE, started).await;
+        })
+    });
+    g.run(Buttons::NONE, 2);
+    let (_, battle, _) = g.w.battle().expect("a wild battle");
+    let foe = battle.party(crate::battle::Side::Opponent).get(0).unwrap();
+    assert_eq!((foe.species, foe.level), (WATER, 3));
+    g.mash(20_000, |w| !w.in_battle() && !w.script_running());
+    assert!(g.w.flag(FLAG_DONE));
 }

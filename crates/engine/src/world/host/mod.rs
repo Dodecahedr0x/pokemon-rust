@@ -10,18 +10,18 @@
 //! Milestone 9 Wave 0 no task edits this file.
 
 pub(in crate::world) use field::FieldEffects;
-pub(in crate::world) use rotating_tiles::RotatingTiles;
 pub(in crate::world) use fx::whiteout_allowed;
+pub(in crate::world) use rotating_tiles::RotatingTiles;
 pub(in crate::world) use stash::Stash;
 
 mod buffers;
 mod field;
-pub(in crate::world) mod rotating_tiles;
 mod fx;
 mod items;
 mod menu;
 mod party;
 mod query;
+pub(in crate::world) mod rotating_tiles;
 mod save;
 mod screens;
 mod stash;
@@ -102,6 +102,11 @@ impl<G: GameData> Host<'_, G> {
             // Never answered: the warp's map load ends the script (Gen3 `warp` returns TRUE
             // and `CB2_LoadMap` resets the script context).
             Request::Warp { .. } | Request::WarpHole(_) => false,
+            // Never answered: `World::step_script` whites out when the count reaches 0.
+            Request::FieldWhiteOut => {
+                s.delay = s.delay.saturating_sub(1);
+                false
+            }
             Request::Multichoice { .. } => menu::done(self, r),
             Request::TrainerApproach { .. } => trainer::done(self, r),
             Request::WaitFieldEffect(_) => field::done(self, r),
@@ -222,6 +227,21 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             Request::SetObjectTemplatePos { obj, x, y } => {
                 s.edit_template(obj, |t| (t.x, t.y) = (x, y));
                 UNIT
+            }
+            Request::RockSmashEncounter if self.immediate => {
+                s.log("rock smash encounter in a map script answered false");
+                Some(Response::Bool(false))
+            }
+            Request::RockSmashEncounter => {
+                Some(Response::Bool(s.rock_smash_encounter(game, self.f)))
+            }
+            Request::FieldWhiteOut if self.immediate => {
+                s.log("whiteout in a map script ignored");
+                UNIT
+            }
+            Request::FieldWhiteOut => {
+                s.delay = u16::from(super::battle::WHITEOUT_FRAMES);
+                self.wait(r)
             }
             Request::Delay(0) => UNIT,
             Request::Delay(n) => {

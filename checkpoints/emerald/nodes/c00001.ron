@@ -2,10 +2,10 @@
     meta: (
         id: 1,
         label: "route:lab",
-        schema: 5,
+        schema: 6,
         build: (
-            engine: 17562835693421906446,
-            content: 4363450027392577382,
+            engine: 3165512288998219621,
+            content: 10332572210572018688,
         ),
         frame: 4570,
         map: (260),
@@ -16,8 +16,8 @@
         schema: 2,
         parent: NewGame,
         build: (
-            engine: 17562835693421906446,
-            content: 4363450027392577382,
+            engine: 3165512288998219621,
+            content: 10332572210572018688,
         ),
         start_frame: 0,
         inputs: [

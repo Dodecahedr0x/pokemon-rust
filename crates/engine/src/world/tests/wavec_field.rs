@@ -2,8 +2,8 @@
 //! `setfieldeffectargument` and `copyobjectxytoperm`, on the synthetic game.
 
 use super::*;
-use crate::hash::Fnv64;
 use crate::checkpoint::RestoreError;
+use crate::hash::Fnv64;
 use crate::script::Request;
 
 #[test]

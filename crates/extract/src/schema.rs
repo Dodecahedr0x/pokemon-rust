@@ -111,7 +111,9 @@ pub const FORMAT_VERSION: u32 = 5;
 ///   `tables/berries.ron` (`gBerries`).
 /// - 10: Wave F (mart) decodes `pokemart`'s item list: the operand becomes `Items(<list>)` and
 ///   the list goes in its module's `ScriptFile::lists`. No file is added.
-pub const FORMAT_MINOR: u32 = 10;
+/// - 11: Wave E2 exports `EventScript_FieldPoison` (`scripts/Common_field_poison.ron`), the
+///   script `TryStartStepCountScript` starts after a field poison faint.
+pub const FORMAT_MINOR: u32 = 11;
 /// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
 /// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
 /// ones when an extract is older ([`missing_since`]). Only paths every extract has are listed:
@@ -138,6 +140,7 @@ pub const MINOR_FILES: &[(u32, &str)] = &[
     (7, "tables/tmhm.ron"),
     (8, "scripts/Common_surf.ron"),
     (9, "tables/berries.ron"),
+    (11, "scripts/Common_field_poison.ron"),
 ];
 
 /// The [`MINOR_FILES`] paths added after `minor` that `exists` reports missing.
