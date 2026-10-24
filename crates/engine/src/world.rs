@@ -35,6 +35,7 @@ mod maps;
 mod mode;
 mod puzzle;
 mod save;
+pub use save::MainMenuChoice;
 mod screens;
 mod sight;
 mod templates;
@@ -267,6 +268,9 @@ pub(crate) struct State {
     pub(crate) events_dropped: u32,
     /// The last script started.
     pub(crate) last_script: Option<ScriptId>,
+    /// Task S: Gen3 `gSaveFileStatus` / `gDifferentSaveFile` and the Hall of Fame's pending
+    /// save (`world/save.rs`; hashed only while a save is pending).
+    pub(crate) save: save::SaveStatus,
 }
 
 /// All mutable game state. Deterministic: the same state and input give the same next state.
@@ -433,6 +437,7 @@ impl World {
                 events: Vec::with_capacity(EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,
+                save: save::SaveStatus::new_game(),
             },
             boot: None,
         };
@@ -472,6 +477,8 @@ impl World {
         }
         // Screen effects post-process the whole frame, last (Task R).
         crate::fx::apply(&mut self.s.fx, &mut f);
+        // Task S: the Hall of Fame's save, on the first capturable frame after it.
+        save::after_step(self, game);
         f
     }
 
@@ -884,8 +891,8 @@ impl World {
         }
     }
 
-    /// A save of the current world, as the in-game save writes it (Task S; Wave 0 answers
-    /// `Err(SaveError::Unsupported)`).
+    /// A save of the current world, as the in-game save writes it (Task S, `world/save.rs`):
+    /// the world as CONTINUE brings it back.
     pub fn save_snapshot(&self, game: &impl GameData) -> Result<Checkpoint, SaveError> {
         save::save_now(self, game)
     }
@@ -1006,6 +1013,8 @@ impl World {
         }
         // Wave F: the party's backup, while a script holds one.
         s.stash.hash(&mut h);
+        // Task S: the Hall of Fame's pending save.
+        s.save.hash(&mut h);
         h.finish()
     }
 }
