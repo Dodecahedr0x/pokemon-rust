@@ -5,7 +5,7 @@
 //! yes/no boxes (yes), takes the [`Step::Choose`] ball on the starter screen, and fights battles
 //! with [`best_move`] (the module docs of `silice_spine`).
 
-use super::{Hook, Step};
+use super::{Hook, Step, TeachTm};
 use content::Game;
 use core::cell::RefCell;
 use engine::World;
@@ -361,6 +361,7 @@ impl Run {
                 Step::Train { a, b, level, heal } => self.train(a, b, level, heal),
                 Step::Settle => self.settle(),
                 Step::Swap(a, b) => self.swap(a, b),
+                Step::Teach(t) => self.teach(t),
                 Step::Hook(h) => {
                     let name = match h {
                         Hook::FlagDuring(n, _) | Hook::MonBefore(n, _, _) => n,
@@ -626,6 +627,50 @@ impl Run {
         panic!("Swap({a}, {b}) never closed the menus");
     }
 
+    /// [`Step::Teach`]: `World::use_item` (the bag's USE), then the party menu on `t.mon`, yes
+    /// to "forget a move?", the summary's move `t.forget`, and the messages, until the field is
+    /// back; asserts the move was learned.
+    fn teach(&mut self, t: TeachTm) {
+        use engine::ui::ScreenState;
+        use engine::ui::party::Prompt;
+        self.settle();
+        let item = ItemId(t.item);
+        let mov = Game.tm_move(item).expect("a TM or HM");
+        assert!(
+            self.w.use_item(&self.g, item),
+            "Teach: item {} cannot be used here",
+            t.item
+        );
+        for i in 0..4000u32 {
+            let top = self.w.screens().and_then(|s| s.top()).map(|(_, st)| st);
+            let keys = match top {
+                None if !self.busy() => break,
+                None => Buttons::NONE,
+                Some(ScreenState::Party(p)) => match p.prompt() {
+                    Prompt::Slot { cursor } if cursor == t.mon => Buttons::A,
+                    Prompt::Slot { cursor } if cursor < t.mon => Buttons::DOWN,
+                    Prompt::Slot { .. } => Buttons::UP,
+                    Prompt::Message => Buttons::A,
+                    Prompt::YesNo { cursor: 0 } => Buttons::A,
+                    Prompt::YesNo { .. } => Buttons::UP,
+                    Prompt::Child => Buttons::NONE,
+                    p => panic!("Teach: the party menu at {p:?}"),
+                },
+                Some(ScreenState::Summary(s)) if s.move_cursor == t.forget => Buttons::A,
+                Some(ScreenState::Summary(_)) => Buttons::DOWN,
+                Some(_) => panic!("Teach: another screen is open"),
+            };
+            self.step(if i % 2 == 0 { keys } else { Buttons::NONE });
+        }
+        self.settle();
+        let mon = self.w.party().get(t.mon as usize).expect("the slot");
+        assert!(
+            mon.moves.contains(&Some(mov)),
+            "Teach: {:?} did not learn {mov:?}",
+            mon.species
+        );
+    }
+
     /// Turns the player toward `d` (a tap) without stepping.
     fn face(&mut self, d: Dir) {
         self.settle();
@@ -678,7 +723,7 @@ impl Run {
     /// way are settled). `avoid`: cells never planned through (sight lines, spore grates).
     fn walk_to(&mut self, target: (i16, i16), avoid: &[(i16, i16)]) {
         let map = self.w.map();
-        let mut stuck = 0;
+        let (mut stuck, mut moves) = (0, 0);
         loop {
             self.settle();
             assert_eq!(self.w.map(), map, "walking to {target:?} left the map");
@@ -705,6 +750,13 @@ impl Run {
                 }
                 waited += 1;
             };
+            // A walk that moves but never arrives (a slide back and forth) fails here, not at
+            // the frame limit.
+            moves += 1;
+            assert!(
+                moves < 2000,
+                "walking to {target:?} on {map:?} never arrives (at {p:?})"
+            );
             let mut n = 0;
             while self.pos() == p && !self.busy() && n < 40 {
                 self.step(dir_button(d));
@@ -900,6 +952,20 @@ pub fn learn_slot(battle: &Battle, t: &BattleTables) -> Option<u8> {
     (worth(mov) > weakest).then_some(slot as u8)
 }
 
+/// The direction a forced-movement cell of behavior `b` carries a player facing `facing`, and
+/// whether the player turns that way (`objects::forced::forced_step`), if it is one.
+fn forced_dir(b: Behavior, facing: Dir) -> Option<(Dir, bool)> {
+    match b {
+        Behavior::Ice => Some((facing, true)),
+        Behavior::ForcedWalk(d) | Behavior::Water(engine::data::Water::Current(d)) => {
+            Some((d, true))
+        }
+        Behavior::Slide(d) => Some((d, false)),
+        Behavior::MuddySlope => Some((Dir::Down, false)),
+        _ => None,
+    }
+}
+
 fn dir_button(d: Dir) -> Buttons {
     match d {
         Dir::Up => Buttons::UP,
@@ -974,10 +1040,10 @@ impl<'a> Grid<'a> {
         block_elevation(self.block(c))
     }
 
-    /// One step from `c` (the player at elevation `e`) toward `d`: the cell reached and the
-    /// elevation there. On foot only: an elevation mismatch (Gen3 `IsElevationMismatchAt`:
-    /// water is elevation 1 under the land's 3) refuses the step; a 15 cell (a bridge) on
-    /// either side keeps the elevation (`ObjectEventUpdateElevation`).
+    /// One planned step from `c` (the player at elevation `e`) toward `d`: the cell the player
+    /// comes to rest on, and its elevation. A forced-movement cell (`objects::forced`: ice, walk
+    /// and slide arrows, the muddy slope, currents) carries the player on, one cell at a time,
+    /// until the next cell is blocked; a carry into a warp, or one that never rests, is refused.
     fn step(
         &self,
         c: (i16, i16),
@@ -985,6 +1051,45 @@ impl<'a> Grid<'a> {
         d: Dir,
         grass: bool,
         target: (i16, i16),
+    ) -> Option<((i16, i16), u8)> {
+        let (n, e) = self.move_onto(c, e, d, Some(target))?;
+        if n == target && !self.walkable(n, false) {
+            return Some((n, e));
+        }
+        if !self.walkable(n, false) {
+            return None;
+        }
+        let (mut cur, mut e, mut facing) = (n, e, d);
+        for _ in 0..256 {
+            let Some((fd, turns)) = forced_dir(self.behavior(cur), facing) else {
+                return (cur == target || self.walkable(cur, grass)).then_some((cur, e));
+            };
+            match self.move_onto(cur, e, fd, None) {
+                Some((nn, _)) if self.behavior(nn).enters_warp() => return None,
+                Some((nn, en)) if self.walkable(nn, false) => {
+                    (cur, e) = (nn, en);
+                    if turns {
+                        facing = fd;
+                    }
+                }
+                _ => return (cur == target || self.walkable(cur, grass)).then_some((cur, e)),
+            }
+        }
+        None
+    }
+
+    /// The cell one move from `c` (the player at elevation `e`) toward `d` reaches, and the
+    /// elevation there, by the geometry only (bounds, walls, ledges jumped toward their
+    /// direction, elevations). On foot: an elevation mismatch (Gen3 `IsElevationMismatchAt`:
+    /// water is elevation 1 under the land's 3) refuses the move, except onto `target` when
+    /// nobody walks onto it (a door, an object: the explorer's `first_dir_avoiding`); a 15 cell
+    /// (a bridge) on either side keeps the elevation (`ObjectEventUpdateElevation`).
+    fn move_onto(
+        &self,
+        c: (i16, i16),
+        e: u8,
+        d: Dir,
+        target: Option<(i16, i16)>,
     ) -> Option<((i16, i16), u8)> {
         let (dx, dy) = d.delta();
         let mut n = (c.0 + dx, c.1 + dy);
@@ -1001,9 +1106,7 @@ impl<'a> Grid<'a> {
             return None;
         }
         let en = self.elevation(n);
-        // A target nobody walks onto (a door, an object) has no elevation rule (as the
-        // explorer's `first_dir_avoiding`).
-        let onto = n != target || self.walkable(n, false);
+        let onto = Some(n) != target || self.walkable(n, false);
         if onto && e != 0 && en != 0 && en != 15 && en != e {
             return None;
         }
@@ -1012,7 +1115,7 @@ impl<'a> Grid<'a> {
         } else {
             en
         };
-        (n == target || self.walkable(n, grass)).then_some((n, e2))
+        Some((n, e2))
     }
 
     fn first_dir(&self, from: (i16, i16), e: u8, to: (i16, i16), grass: bool) -> Option<Dir> {
