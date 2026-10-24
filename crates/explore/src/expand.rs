@@ -171,15 +171,6 @@ pub fn new_game<G: GameData>(game: G) -> Session<G> {
     s
 }
 
-pub(crate) fn dir_key(d: Dir) -> Buttons {
-    match d {
-        Dir::Down => Buttons::DOWN,
-        Dir::Up => Buttons::UP,
-        Dir::Left => Buttons::LEFT,
-        Dir::Right => Buttons::RIGHT,
-    }
-}
-
 /// Watches a walk for frames without moving.
 #[derive(Default)]
 struct Stall {
@@ -317,6 +308,12 @@ impl<'a, G: GameData> Driver<'a, G> {
             nonbattle: 0,
             battle_frames: 0,
         }
+    }
+
+    /// The button that walks or turns towards `d` (the world's input map: Silice's inverted
+    /// controls).
+    fn dkey(&self, d: Dir) -> Buttons {
+        self.w().input_map(self.s.game()).key_for(d)
     }
 
     fn w(&self) -> &World {
@@ -627,7 +624,7 @@ impl<'a, G: GameData> Driver<'a, G> {
                 }),
             });
         }
-        self.press(dir.map_or(Buttons::NONE, dir_key))
+        self.press(dir.map_or(Buttons::NONE, |d| self.dkey(d)))
     }
 
     /// The cell a step toward `d` lands on (over a ledge), if the planner calls it walkable
@@ -648,7 +645,7 @@ impl<'a, G: GameData> Driver<'a, G> {
     fn face_and_press(&mut self, d: Dir, what: &'static str) -> Result<(), ExpandError> {
         let p = self.w().objects().player();
         if p.facing != d {
-            return self.press(dir_key(d));
+            return self.press(self.dkey(d));
         }
         if !p.is_settled() || self.last != Buttons::NONE {
             return self.press(Buttons::NONE);
@@ -703,7 +700,7 @@ impl<'a, G: GameData> Driver<'a, G> {
                     if n > self.limits.enter_frames {
                         return Err(ExpandError::NoEffect("step: never moved"));
                     }
-                    self.press(dir_key(dir))?;
+                    self.press(self.dkey(dir))?;
                 }
                 self.press(Buttons::NONE)?;
             }
@@ -716,7 +713,7 @@ impl<'a, G: GameData> Driver<'a, G> {
                     if n > self.limits.enter_frames {
                         return Err(ExpandError::NoEffect("push: the map never changed"));
                     }
-                    self.press(dir_key(dir))?;
+                    self.press(self.dkey(dir))?;
                 }
             }
             MacroKind::Interact => {
@@ -1024,7 +1021,7 @@ impl<'a, G: GameData> Driver<'a, G> {
             if n > self.limits.enter_frames {
                 return Err(ExpandError::NoEffect("face: never turned"));
             }
-            self.press(dir_key(d))?;
+            self.press(self.dkey(d))?;
         }
         self.press(Buttons::NONE)?;
         self.resolve()?;
@@ -1046,7 +1043,7 @@ impl<'a, G: GameData> Driver<'a, G> {
             if n > self.limits.enter_frames {
                 return Err(ExpandError::NoEffect("enter: no warp"));
             }
-            self.press(dir_key(dir))?;
+            self.press(self.dkey(dir))?;
         }
         Ok(())
     }
@@ -1065,7 +1062,7 @@ impl<'a, G: GameData> Driver<'a, G> {
             if n > self.limits.enter_frames {
                 return Err(ExpandError::NoEffect("cross: no map change"));
             }
-            self.press(dir_key(dir))?;
+            self.press(self.dkey(dir))?;
         }
         Ok(())
     }
@@ -1127,7 +1124,7 @@ impl<'a, G: GameData> Driver<'a, G> {
                 to = if to == at { other } else { at };
             }
             let dir = self.next_dir(to);
-            self.press(dir.map_or(Buttons::NONE, dir_key))?;
+            self.press(dir.map_or(Buttons::NONE, |d| self.dkey(d)))?;
         }
         Ok(())
     }

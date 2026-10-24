@@ -809,6 +809,12 @@ impl World {
         &self.s.objects
     }
 
+    /// The field's d-pad mapping (`SpecialIds::var_input_map`): drivers press
+    /// `input_map(game).key_for(dir)` to walk or turn towards `dir`.
+    pub fn input_map(&self, game: &impl GameData) -> crate::InputMap {
+        self.s.input_map(&game.special_ids())
+    }
+
     pub fn text(&self) -> &TextBox {
         &self.s.text
     }

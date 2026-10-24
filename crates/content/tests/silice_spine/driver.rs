@@ -675,7 +675,7 @@ impl Run {
     fn face(&mut self, d: Dir) {
         self.settle();
         if self.w.objects().player().facing != d {
-            self.step(dir_button(d));
+            self.step(self.w.input_map(&self.g).key_for(d));
             self.settle();
         }
         assert_eq!(self.w.objects().player().facing, d);
@@ -695,7 +695,7 @@ impl Run {
         let p = self.pos();
         let mut n = 0;
         while self.pos() == p && !self.w.script_running() && n < 40 {
-            self.step(dir_button(d));
+            self.step(self.w.input_map(&self.g).key_for(d));
             n += 1;
         }
         self.settle();
@@ -707,7 +707,7 @@ impl Run {
         let from = self.w.map();
         let mut n = 0;
         while self.w.map() == from {
-            self.step(dir_button(d));
+            self.step(self.w.input_map(&self.g).key_for(d));
             n += 1;
             assert!(
                 n < 200,
@@ -759,7 +759,7 @@ impl Run {
             );
             let mut n = 0;
             while self.pos() == p && !self.busy() && n < 40 {
-                self.step(dir_button(d));
+                self.step(self.w.input_map(&self.g).key_for(d));
                 n += 1;
             }
             if self.pos() == p {
@@ -966,14 +966,6 @@ fn forced_dir(b: Behavior, facing: Dir) -> Option<(Dir, bool)> {
     }
 }
 
-fn dir_button(d: Dir) -> Buttons {
-    match d {
-        Dir::Up => Buttons::UP,
-        Dir::Down => Buttons::DOWN,
-        Dir::Left => Buttons::LEFT,
-        Dir::Right => Buttons::RIGHT,
-    }
-}
 
 /// The planner's view of the current map: collision, behaviors (walls, ledges one way, warps
 /// as targets only, encounter tiles), the objects' cells, and the cells scripts repainted
