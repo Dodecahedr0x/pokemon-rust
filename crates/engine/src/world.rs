@@ -346,6 +346,15 @@ impl State {
         for &f in ids.flags_cleared_on_map_change {
             self.vars.set_flag(f, false);
         }
+        // The input map is the map's own: its scripts set it again (`SetInputMap`).
+        self.set_var_opt(ids.var_input_map, 0);
+    }
+
+    /// The field's d-pad mapping (`SpecialIds::var_input_map`).
+    pub(crate) fn input_map(&self, ids: &SpecialIds) -> crate::InputMap {
+        ids.var_input_map.map_or(crate::InputMap::Normal, |v| {
+            crate::InputMap::from_code(self.vars.var(v))
+        })
     }
 
     /// Spawns the templates whose hide flag is clear (Gen3 `TrySpawnObjectEvents`).
@@ -581,6 +590,18 @@ impl World {
     /// Player control and field triggers (Gen3 `ProcessPlayerFieldInput`, then `PlayerStep`).
     /// Returns whether `update_player` ran.
     fn control(&mut self, game: &impl GameData, f: &mut Frame) -> bool {
+        let ids = game.special_ids();
+        // The idle counter (`SpecialIds::var_idle_frames`): field frames with no button held.
+        if let Some(v) = ids.var_idle_frames {
+            let n = if self.s.input.held == Buttons::NONE {
+                self.s.vars.var(v).saturating_add(1)
+            } else {
+                0
+            };
+            self.s.vars.set_var(v, n);
+        }
+        // The d-pad as the field reads it (`SpecialIds::var_input_map`).
+        let held = self.s.input_map(&ids).apply(self.s.input.held);
         // Gen3 `ProcessPlayerFieldInput` checks trainer sight first, on every field-input frame
         // (`CheckForTrainersWantingBattle`, field_control_avatar.c:147; Milestone 8 Task I).
         if let Some(sighting) = sight::check(game, &self.s) {
@@ -599,7 +620,12 @@ impl World {
         if p.is_settled() && !p.frozen && !s.objects.at_forced_tile_center(&s.ground(game)) {
             // Gen3 `GetPlayerPosition` / `GetInFrontOfPlayerPosition`: `PlayerGetElevation`.
             let ((x, y), facing, elevation) = (p.pos(), p.facing, p.position_elevation());
-            let pushing = s.input.dpad() == Some(facing);
+            let pushing = (crate::flow::Input {
+                held,
+                pressed: Buttons::NONE,
+            })
+            .dpad()
+                == Some(facing);
             // Gen3 `TrySetupDiveEmergeScript` (B underwater), before the step checks.
             if s.input.is_pressed(Buttons::B)
                 && let Some(id) = s.dive_emerge_prompt(game)
@@ -691,10 +717,9 @@ impl World {
                 return false;
             }
         }
-        let ids = game.special_ids();
         let s = &mut self.s;
         let can_run = map.allow_running && ids.flag_running.is_some_and(|fl| s.vars.flag(fl));
-        let input = PlayerInput::from_buttons(s.input.held, can_run);
+        let input = PlayerInput::from_buttons(held, can_run);
         // Strength in use (Wave C): `TryPushBoulder`'s flag and graphics.
         let pushable = game
             .pushable_boulder()

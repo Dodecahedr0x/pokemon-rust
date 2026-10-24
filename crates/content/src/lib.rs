@@ -268,6 +268,8 @@ pub(crate) fn gen3_special_ids() -> engine::data::SpecialIds {
         flag_shown_box_was_full: Some(consts::FLAG_SHOWN_BOX_WAS_FULL_MESSAGE),
         var_daily_wilds: None,
         berry_trees: 0,
+        var_input_map: None,
+        var_idle_frames: None,
     }
 }
 

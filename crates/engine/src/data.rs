@@ -627,6 +627,10 @@ pub enum MovementType {
     RunInPlace(Dir),
     /// Gen3 `WALK_SLOWLY_IN_PLACE_*` (`walk_in_place_slow`).
     WalkSlowlyInPlace(Dir),
+    // ---- Silice wave ----
+    /// [`MovementType::Wander`] walking backwards: each step faces away from where it goes
+    /// (a game rule: Silice's Reverse-City residents).
+    WanderBackwards,
 }
 
 /// An object template. `Copy` so the world can keep a per-visit copy that scripts edit
@@ -1114,6 +1118,10 @@ pub enum ItemUse {
     StatStage(u8, i8),
     /// An evolution stone (any item that evolves through `EVO_ITEM`).
     Evolution,
+    /// An item that triggers trade evolutions, used as a stone (a game rule: Silice's PIERRE
+    /// LIEN): `EVO_TRADE`, and `EVO_TRADE_ITEM` while the mon holds the item, which is used
+    /// up with it.
+    TradeEvolution,
     /// A repel lasting this many steps.
     Repel(u16),
     EscapeRope,
@@ -1276,6 +1284,14 @@ pub struct SpecialIds {
     pub var_daily_wilds: Option<VarId>,
     /// Berry trees kept (Gen3 `BERRY_TREES_COUNT`, 128; [`crate::berry`]); 0: none.
     pub berry_trees: u8,
+    // ---- Silice wave (game rules Gen3 does not have; `None` keeps them off) ----
+    /// The field's d-pad mapping ([`crate::InputMap::code`]; 0 is the normal walking), set by
+    /// [`crate::script::Request::SetInputMap`] and cleared on every map change (the map's
+    /// scripts set it again). Silice's inverted controls.
+    pub var_input_map: Option<VarId>,
+    /// Counts the field frames the player could act and held no button (saturating; any
+    /// button resets it to 0), for scripts to read (Silice's idle timers).
+    pub var_idle_frames: Option<VarId>,
 }
 
 /// What [`GameData::step_count_script`] reads and may change, after a finished player step.
@@ -1314,6 +1330,8 @@ impl Default for SpecialIds {
             flag_shown_box_was_full: None,
             var_daily_wilds: None,
             berry_trees: 0,
+            var_input_map: None,
+            var_idle_frames: None,
         }
     }
 }
