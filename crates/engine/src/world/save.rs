@@ -50,6 +50,9 @@ pub(crate) struct SaveStatus {
     pub(crate) different: bool,
     /// The Hall of Fame asked for a save: raised on the first capturable frame.
     pub(crate) pending: bool,
+    /// The World is the boot main menu's (`World::main_menu`): only then does
+    /// `World::main_menu_choice` read the answer.
+    pub(crate) main_menu: bool,
 }
 
 impl SaveStatus {
@@ -59,6 +62,7 @@ impl SaveStatus {
             present: false,
             different: true,
             pending: false,
+            main_menu: false,
         }
     }
 
@@ -68,6 +72,7 @@ impl SaveStatus {
             present: true,
             different: false,
             pending: false,
+            main_menu: false,
         }
     }
 
@@ -209,6 +214,7 @@ impl World {
     pub fn main_menu(game: &impl GameData, meta: crate::checkpoint::SaveMeta) -> World {
         let mut w = World::new(game);
         w.s.save.present = true;
+        w.s.save.main_menu = true;
         let mut f = crate::video::Frame::default();
         super::screens::open(
             &mut w.s,
@@ -229,7 +235,7 @@ impl World {
 
     /// The main menu's choice once it has closed ([`World::main_menu`]); `None` before.
     pub fn main_menu_choice(&self) -> Option<MainMenuChoice> {
-        if !matches!(self.s.mode, Mode::Field) {
+        if !self.s.save.main_menu || !matches!(self.s.mode, Mode::Field) {
             return None;
         }
         match self.s.answer? {
