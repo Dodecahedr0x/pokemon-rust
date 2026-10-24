@@ -105,6 +105,36 @@ pub fn phare_at_123() -> Start {
     }
 }
 
+/// Reverse's room (room 3's arrival, (6, 10)) after his flight (`FLAG_SIL_REVERSE_BATTU`), at
+/// `story`: Chapter 12 shows him for his rematch from 123 to 126 only (G-49).
+async fn gym_after_flight(ctx: engine::script::Ctx, story: u16) {
+    end_of_chapter_6(ctx.clone()).await;
+    ctx.set_flag(FLAG_SIL_REVERSE_BATTU, true).await;
+    ctx.set_var(VAR_SIL_STORY, story).await;
+}
+
+/// [`gym_after_flight`] at 126, Reverse's last story value in his gym.
+pub fn gym_at_126() -> Start {
+    Start {
+        map: GYM,
+        x: 6,
+        y: 10,
+        facing: Dir::Up,
+        setup: |ctx| Box::pin(gym_after_flight(ctx, 126)),
+    }
+}
+
+/// [`gym_after_flight`] at 127: Thomas is at the Breach, Reverse is not in his gym.
+pub fn gym_at_127() -> Start {
+    Start {
+        map: GYM,
+        x: 6,
+        y: 10,
+        facing: Dir::Up,
+        setup: |ctx| Box::pin(gym_after_flight(ctx, 127)),
+    }
+}
+
 /// The start state's party: Chapter 6's end as its run (`sil7_ch6`) leaves it, the KADABRA
 /// (with Chapter 6's Shock Wave, taught first) leading.
 pub const PARTY: &[(SpeciesId, u8)] = &[

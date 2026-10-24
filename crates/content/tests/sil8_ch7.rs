@@ -44,6 +44,26 @@ fn the_lighthouse_shows_thomas_at_story_122_only() {
     ]);
 }
 
+/// G-49 (the author's ruling): Reverse is not in his gym while Thomas is at the Breach. After
+/// his flight he is shown again for his rematch at 123–126, and hidden from 127 (the Breach's camp).
+#[test]
+fn reverse_is_in_his_gym_until_thomas_camps_at_the_breach() {
+    let mut r = Run::starting_at(2_000, ch07::gym_at_126());
+    r.play(&[
+        Step::Settle,
+        Step::Check("reverse_126", |r| {
+            assert!(!r.w.flag(FLAG_SIL_HIDE_GYM07_REVERSE))
+        }),
+    ]);
+    let mut r = Run::starting_at(2_000, ch07::gym_at_127());
+    r.play(&[
+        Step::Settle,
+        Step::Check("reverse_127", |r| {
+            assert!(r.w.flag(FLAG_SIL_HIDE_GYM07_REVERSE))
+        }),
+    ]);
+}
+
 /// D-30: the PIERRE LIEN used from the bag on the KADABRA evolves it (an ALAKAZAM keeps its
 /// moves) and is used up.
 #[test]
