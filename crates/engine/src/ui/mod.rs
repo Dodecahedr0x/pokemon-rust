@@ -13,6 +13,7 @@
 //! `new` and [`Screen`] impl; the shared widgets go in [`kit`] (Task K).
 
 pub mod bag;
+pub mod easy_chat;
 pub mod evolution;
 pub mod fly_map;
 pub mod hall_of_fame;
@@ -74,6 +75,8 @@ pub enum ScreenKind {
     HallOfFame,
     /// The Hall of Fame screen from its credits: no record, no save (`Request::Credits`).
     Credits,
+    /// Gen3 `ShowEasyChatScreen` (`special ShowEasyChatScreen`) of `EASY_CHAT_TYPE_*` (Wave G).
+    EasyChat(u8),
 }
 
 /// The question the save dialog asks after "Would you like to save the game?" yes (Gen3
@@ -166,6 +169,7 @@ pub enum ScreenKindTag {
     FlyMap,
     HallOfFame,
     Credits,
+    EasyChat,
 }
 
 impl ScreenKind {
@@ -184,6 +188,7 @@ impl ScreenKind {
             ScreenKind::Naming(_) => ScreenKindTag::Naming,
             ScreenKind::FlyMap => ScreenKindTag::FlyMap,
             ScreenKind::HallOfFame => ScreenKindTag::HallOfFame,
+            ScreenKind::EasyChat(_) => ScreenKindTag::EasyChat,
             ScreenKind::Credits => ScreenKindTag::Credits,
         }
     }
@@ -223,6 +228,7 @@ impl ScreenKind {
                 h.write_u16(v);
             }
             ScreenKind::Bag(m) => h.write(&[m as u8]),
+            ScreenKind::EasyChat(k) => h.write(&[k]),
             ScreenKind::Mart { items } => {
                 h.write_u16(items.len() as u16);
                 for i in items {
@@ -353,6 +359,7 @@ pub enum ScreenState {
     Naming(naming::NamingScreen),
     FlyMap(fly_map::FlyMap),
     HallOfFame(hall_of_fame::HallOfFame),
+    EasyChat(easy_chat::EasyChat),
 }
 
 impl ScreenState {
@@ -377,6 +384,7 @@ impl ScreenState {
             ScreenKind::Naming(k) => ScreenState::Naming(naming::NamingScreen::new(k)),
             ScreenKind::FlyMap => ScreenState::FlyMap(fly_map::FlyMap::new()),
             ScreenKind::HallOfFame => ScreenState::HallOfFame(hall_of_fame::HallOfFame::new()),
+            ScreenKind::EasyChat(k) => ScreenState::EasyChat(easy_chat::EasyChat::new(k)),
             ScreenKind::Credits => ScreenState::HallOfFame(hall_of_fame::HallOfFame::credits()),
         }
     }
@@ -396,6 +404,7 @@ impl ScreenState {
             ScreenState::Naming(s) => s.step(cx, input),
             ScreenState::FlyMap(s) => s.step(cx, input),
             ScreenState::HallOfFame(s) => s.step(cx, input),
+            ScreenState::EasyChat(s) => s.step(cx, input),
         }
     }
 
@@ -415,6 +424,7 @@ impl ScreenState {
             ScreenState::Naming(s) => s.hash(h),
             ScreenState::FlyMap(s) => s.hash(h),
             ScreenState::HallOfFame(s) => s.hash(h),
+            ScreenState::EasyChat(s) => s.hash(h),
         }
     }
 }

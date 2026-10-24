@@ -177,6 +177,9 @@ symbols! {
     active_battler = "gActiveBattler" @ 0x02024064,
     absent_battler_flags = "gAbsentBattlerFlags" @ 0x02024210,
     multi_use_player_cursor = "gMultiUsePlayerCursor" @ 0x03005d74,
+    // The Easy Chat screen (`easy_chat.c`).
+    cb2_easy_chat_screen = "CB2_EasyChatScreen" @ 0x0811a278,
+    easy_chat_screen = "sEasyChatScreen" @ 0x0203a118,
     // Rotating gates (`rotating_gate.c`): the puzzle and its ROM tables.
     rotating_gate_puzzle_config = "sRotatingGate_PuzzleConfig" @ 0x0203a044,
     rotating_gate_puzzle_count = "sRotatingGate_PuzzleCount" @ 0x0203a048,

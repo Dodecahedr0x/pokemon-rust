@@ -361,8 +361,8 @@
     "SPECIAL_RetrieveLotteryNumber": Unsupported,
     "SPECIAL_ReturnFromLinkRoom": Unsupported,
     "SPECIAL_RockSmashWildEncounter": Native, // Request::RockSmashEncounter (the map's rock smash table, then a field wild battle)
-    "SPECIAL_RotatingGate_InitPuzzle": Unsupported,
-    "SPECIAL_RotatingGate_InitPuzzleAndGraphics": Unsupported,
+    "SPECIAL_RotatingGate_InitPuzzle": Native, // Wave G: rotating_gate.c, the gates' starting orientations in the temp vars (GameData::rotating_gates)
+    "SPECIAL_RotatingGate_InitPuzzleAndGraphics": Ignore, // Wave G: the gate sprites (not drawn); the puzzle comes from GameData::rotating_gates
     "SPECIAL_RunUnionRoom": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_SaveBardSongLyrics": Unsupported,
     "SPECIAL_SaveForBattleTowerLink": Unsupported,
@@ -412,7 +412,7 @@
     "SPECIAL_SetFavorLadyState_Complete": Unsupported,
     "SPECIAL_SetHiddenItemFlag": Native, // sets the hidden item's flag (VAR_0x8004)
     "SPECIAL_SetHipsterTaughtWord": Unsupported,
-    "SPECIAL_SetLilycoveLadyGfx": Unsupported,
+    "SPECIAL_SetLilycoveLadyGfx": Native, // Wave G: the lady by the trainer id (InitLilycoveLady); the contest mon is always COOL's (the category is not kept)
     "SPECIAL_SetLinkContestPlayerGfx": Unsupported,
     "SPECIAL_SetMatchCallRegisteredFlag": Ignore, // Match Call is M9: IsTrainerRegistered answers 0
     "SPECIAL_SetMauvilleOldManObjEventGfx": Native, // VAR_OBJ_GFX_ID_0 = OBJ_EVENT_GFX_BARD (every old man type uses the bard's sprite)
@@ -436,7 +436,7 @@
     "SPECIAL_ShouldDistributeEonTicket": Default(0), // no Mystery Gift
     "SPECIAL_ShouldDoBrailleRegicePuzzle": Unsupported,
     "SPECIAL_ShouldDoBrailleRegirockEffectOld": Unsupported,
-    "SPECIAL_ShouldHideFanClubInterviewer": Default(0), // TV shows are M13: the interviewer stays
+    "SPECIAL_ShouldHideFanClubInterviewer": Default(1), // Wave G: tv.c answers TRUE without a link battle record (linkBattleRecords.entries[0] empty), which the engine never has
     "SPECIAL_ShouldReadyContestArtist": Unsupported,
     "SPECIAL_ShouldShowBoxWasFullMessage": Default(0), // the PC box does not fill in Act 1
     "SPECIAL_ShouldTryGetTrainerScript": Default(0), // the engine's sight starts one trainer's script at a time (sNoOfPossibleTrainerRetScripts <= 1)
@@ -450,7 +450,7 @@
     "SPECIAL_ShowDeptStoreElevatorFloorSelect": Unsupported,
     "SPECIAL_ShowDodrioBerryPickingRecords": Unsupported,
     "SPECIAL_ShowEasyChatProfile": Unsupported, // unreachable: ShowEasyChatScreen cancels
-    "SPECIAL_ShowEasyChatScreen": Native, // degraded: no Easy Chat screen, cancelled
+    "SPECIAL_ShowEasyChatScreen": Native, // degraded: Wave G's Easy Chat screen without its keyboard (the phrase never changes: VAR_RESULT 0)
     "SPECIAL_ShowFieldMessageStringVar4": Unsupported,
     "SPECIAL_ShowFrontierExchangeCornerItemIconWindow": Unsupported,
     "SPECIAL_ShowFrontierGamblerGoMessage": Unsupported,
@@ -532,7 +532,7 @@
     "SPECIAL_UpdateBattlePointsWindow": Unsupported,
     "SPECIAL_UpdateCyclingRoadState": Unsupported,
     "SPECIAL_UpdateShoalTideFlag": Unsupported,
-    "SPECIAL_UpdateTrainerFanClubGameClear": Unsupported,
+    "SPECIAL_UpdateTrainerFanClubGameClear": Native, // Wave G: the first fans, the members shown, VAR_LILYCOVE_FAN_CLUB_STATE 1; degraded: no play time for VAR_FANCLUB_LOSE_FAN_TIMER
     "SPECIAL_ValidateEReaderTrainer": Unsupported,
     "SPECIAL_ValidateMixingGameLanguage": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_ValidateSavedWonderCard": Default(0), // no Mystery Gift

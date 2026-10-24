@@ -581,6 +581,14 @@ const fn elevations_compatible(a: u8, b: u8) -> bool {
     a == 0 || b == 0 || a == b
 }
 
+/// What a forced step runs into (Gen3 `DoForcedMovement`'s collisions that still move).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum ForcedHit {
+    Free,
+    Ledge,
+    StopSurfing,
+}
+
 /// Every object: the current map's, plus the previous map's still in view after crossing a
 /// connection. Index 0 is always the player.
 pub struct Objects {
@@ -611,6 +619,13 @@ pub struct Objects {
     /// `FLAG_SYS_USE_STRENGTH` and `OBJ_EVENT_GFX_PUSHABLE_BOULDER`). Set by the World before
     /// each `update_player` from the flag: derived state, neither hashed nor snapshotted.
     pushable: Option<GfxId>,
+    /// The map's rotating gates and their orientations (Gen3 `rotating_gate.c`), set by the
+    /// World before each `update_player` from the temp vars and read back after: derived
+    /// state, neither hashed nor snapshotted.
+    gates: Option<(
+        &'static [crate::data::RotatingGate],
+        crate::gates::Orientations,
+    )>,
 }
 
 pub use virtual_obj::{VIRTUAL_MAX, VirtualObject};
@@ -636,6 +651,7 @@ impl Objects {
             virtuals: Vec::new(),
             surfing: false,
             pushable: None,
+            gates: None,
         }
     }
 
@@ -653,6 +669,23 @@ impl Objects {
     /// push), or `None` while Strength is not in use.
     pub fn set_pushable(&mut self, gfx: Option<GfxId>) {
         self.pushable = gfx;
+    }
+
+    /// Sets the rotating gates the player collides with this frame ([`Objects::update_player`];
+    /// `None` on a map without a puzzle).
+    pub fn set_gates(
+        &mut self,
+        gates: Option<(
+            &'static [crate::data::RotatingGate],
+            crate::gates::Orientations,
+        )>,
+    ) {
+        self.gates = gates;
+    }
+
+    /// The gates' orientations after `update_player` (a step may have turned one).
+    pub fn gate_orientations(&self) -> Option<crate::gates::Orientations> {
+        self.gates.map(|(_, o)| o)
     }
 
     /// Gen3 `TryPushBoulder`: the player walks into a pushable object (`pushable`) whose
@@ -1029,17 +1062,27 @@ impl Objects {
 
     /// The forced step the player takes this frame, if one applies and is free: Gen3
     /// `TryDoMetatileBehaviorForcedMovement` up to the collision test (see [`forced`]).
-    fn forced_step(&self, terrain: &impl Terrain) -> Option<(forced::ForcedStep, bool)> {
+    fn forced_step(&self, terrain: &impl Terrain) -> Option<(forced::ForcedStep, ForcedHit)> {
         if self.forced == ForcedState::Held {
             return None;
         }
         let p = &self.objs[0];
         let step = forced::forced_step(terrain.behavior(p.x, p.y), p.facing)?;
         let (dx, dy) = step.dir.delta();
-        // Gen3 `CheckForPlayerAvatarCollision`: a ledge is jumped (`PlayerJumpLedge`).
-        let ledge = terrain.behavior(p.x + dx, p.y + dy) == Behavior::Ledge(step.dir);
-        (ledge || self.collision_at(terrain, 0, step.dir) == Collision::None)
-            .then_some((step, ledge))
+        let (tx, ty) = (p.x + dx, p.y + dy);
+        // Gen3 `DoForcedMovement` / `CheckForPlayerAvatarCollision`: a ledge is jumped
+        // (`PlayerJumpLedge`); a current pushing a surfer onto land ends Surf
+        // (`COLLISION_STOP_SURFING`: `CanStopSurfing` starts `CreateStopSurfingTask`).
+        if terrain.behavior(tx, ty) == Behavior::Ledge(step.dir) {
+            return Some((step, ForcedHit::Ledge));
+        }
+        match self.collision_at(terrain, 0, step.dir) {
+            Collision::None => Some((step, ForcedHit::Free)),
+            Collision::ElevationMismatch if self.can_stop_surfing(terrain, tx, ty) => {
+                Some((step, ForcedHit::StopSurfing))
+            }
+            _ => None,
+        }
     }
 
     /// Gen3 `CanStopSurfing`: surfing, the land cell (x, y) is elevation 3 and no object
@@ -1105,9 +1148,19 @@ impl Objects {
         if p.frozen {
             return PlayerEvent::Idle;
         }
-        if let Some((step, ledge)) = forced {
+        if let Some((step, hit)) = forced {
             let (dx, dy) = step.dir.delta();
             let (x, y) = (p.x + dx, p.y + dy);
+            if hit == ForcedHit::StopSurfing {
+                // As the keypad's dismount below: a jump onto the land cell.
+                self.surfing = false;
+                self.objs[0].begin(ActionKind::Jump(1), step.dir);
+                return PlayerEvent::StepStarted {
+                    to: (x, y),
+                    dir: step.dir,
+                };
+            }
+            let ledge = hit == ForcedHit::Ledge;
             let o = &mut self.objs[0];
             let locked = o.facing_locked;
             o.facing_locked |= step.keep_facing;
@@ -1162,6 +1215,17 @@ impl Objects {
         if collision != Collision::None {
             self.objs[0].begin(ActionKind::InPlace(BUMP_FRAMES), dir);
             return PlayerEvent::Bumped(dir);
+        }
+        // Gen3 `CheckForRotatingGatePuzzleCollision` on a free cell: the gate whose arm the
+        // step pushes turns, or blocks. A blocked step plays nothing (Emerald leaves
+        // `COLLISION_ROTATING_GATE` out of `PlayerNotOnBikeCollide`: no bump, no turn).
+        if let Some((gates, o)) = self.gates {
+            match crate::gates::step(gates, o, dir, (tx, ty), |x, y| {
+                block_collision(terrain.block(x, y))
+            }) {
+                Some(o2) => self.gates = Some((gates, o2)),
+                None => return PlayerEvent::Idle,
+            }
         }
         let kind = if self.surfing {
             // Gen3 `PlayerNotOnBikeMoving`: surfing is `PlayerWalkFast`, whatever B does.

@@ -688,6 +688,10 @@ impl GameData for Game {
         prelude::hole_warp(map)
     }
 
+    fn rotating_gates(&self, map: MapId) -> &'static [engine::data::RotatingGate] {
+        prelude::rotating_gates(map)
+    }
+
     fn fall_script(&self) -> Option<ScriptId> {
         data::SCRIPT_FALL_DOWN_HOLE
     }

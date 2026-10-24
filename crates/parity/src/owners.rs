@@ -132,7 +132,7 @@ pub const SCREENS: &[(&str, &str, &str, &str, &[&str])] = &[
     (
         "easy_chat.c",
         "Easy Chat",
-        "",
+        "ui/easy_chat.rs",
         "none",
         &["SPECIAL_ShowEasyChatScreen"],
     ),

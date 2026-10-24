@@ -303,6 +303,10 @@ impl GameData for Spy {
     fn player_surf_sprite(&self) -> Option<&'static SpriteData> {
         Game.player_surf_sprite()
     }
+
+    fn rotating_gates(&self, map: MapId) -> &'static [engine::data::RotatingGate] {
+        Game.rotating_gates(map)
+    }
 }
 
 // ---- the runner ----

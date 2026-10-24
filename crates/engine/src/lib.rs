@@ -12,6 +12,7 @@ pub mod debug;
 pub mod field;
 pub mod flow;
 pub mod fx;
+pub mod gates;
 pub mod grid;
 pub mod hash;
 pub mod input;

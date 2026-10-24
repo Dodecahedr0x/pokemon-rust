@@ -386,6 +386,11 @@ pub enum Request {
     /// Task S): answers `Unit` once they end; the game is saved on the first capturable
     /// frame after it (`world/save.rs`).
     HallOfFame,
+    /// `special ShowEasyChatScreen` of `EASY_CHAT_TYPE_*` `kind` (Wave G): answers `Bool`
+    /// (the words were confirmed; false when quit).
+    EasyChat {
+        kind: u8,
+    },
     /// The evolution scene (Silice `play_evolution`): answers `Bool` (evolved).
     Evolve {
         slot: u8,
@@ -803,6 +808,7 @@ impl Request {
             Request::SaveDialog => (59, 0, 0, 0, 0),
             // Task S: tag 200, clear of the others.
             Request::HallOfFame => (200, 0, 0, 0, 0),
+            Request::EasyChat { kind } => (201, kind as u16, 0, 0, 0),
             Request::Evolve {
                 slot,
                 into,
@@ -1560,6 +1566,11 @@ impl Ctx {
     /// field is idle again.
     pub fn hall_of_fame(&self) -> Req<()> {
         self.req(Request::HallOfFame, unit)
+    }
+
+    /// The Easy Chat screen of `EASY_CHAT_TYPE_*` `kind`: whether the words were confirmed.
+    pub fn easy_chat(&self, kind: u8) -> Req<bool> {
+        self.req(Request::EasyChat { kind }, Response::bool)
     }
 
     /// The evolution scene: whether the mon evolved.

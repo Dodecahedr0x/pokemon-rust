@@ -100,10 +100,16 @@ pub fn trainer_flags<G: GameData>(game: &G, spine: &SpineRun) -> BTreeMap<u16, b
     out
 }
 
+/// `FLAG_MIRAGE_TOWER_VISIBLE`: set or cleared on `Random() & 1` at every Route 111 entry
+/// (`SetMirageTowerVisibility`), so it follows the RNG.
+const RANDOM_FLAG: &str = "flag FLAG_MIRAGE_TOWER_VISIBLE";
+
 /// Splits `deltas` into (parity deltas, noise). The noise: when the games beat different
 /// trainers whose sight depends on the RNG or timing ([`trainer_flags`]), those trainer flags,
 /// and what follows from those battles: the money, the Match Call registrations
 /// (`FLAG_REGISTERED_*`, set on beating a rematch trainer) and the lead's exp, level and HP.
+/// Also the Mirage Tower: Route 111's `SetMirageTowerVisibility` draws `Random() & 1` on every
+/// entry ([`RANDOM_FLAG`]), and the layout without the tower follows from the flag.
 pub fn split_noise(
     ours: &Semantic,
     theirs: &Semantic,
@@ -114,11 +120,19 @@ pub fn split_noise(
         .filter(|f| trainers.get(f) == Some(&true))
         .map(|&f| format!("flag {}", explore::semantic::flag_name(f)))
         .collect();
-    if timed.is_empty() {
+    let mirage = deltas.iter().any(|d| d.field == RANDOM_FLAG);
+    if timed.is_empty() && !mirage {
         return (deltas, Vec::new());
     }
+    let trained = !timed.is_empty();
     deltas.into_iter().partition(|d| {
         let f = d.field.as_str();
+        if f == RANDOM_FLAG || (mirage && f == "layout") {
+            return false;
+        }
+        if !trained {
+            return true;
+        }
         let noise = timed.iter().any(|t| t == f)
             || f == "money"
             || f.starts_with("flag FLAG_REGISTERED_")
@@ -773,6 +787,24 @@ mod tests {
         let (real, noise) = split_noise(&ours, &theirs, d, &trainers);
         assert_eq!(real.len(), 2);
         assert!(noise.is_empty());
+    }
+
+    #[test]
+    fn the_mirage_towers_coin_flip_and_its_layout_are_noise() {
+        let d = |f: &str| Delta {
+            field: f.into(),
+            ours: "0".into(),
+            vanilla: "1".into(),
+        };
+        let s = sem(&[], 0);
+        let deltas = vec![d(RANDOM_FLAG), d("layout"), d("var A")];
+        let (real, noise) = split_noise(&s, &s, deltas, &BTreeMap::new());
+        assert_eq!(real.len(), 1, "{real:?}");
+        assert_eq!(real[0].field, "var A");
+        assert_eq!(noise.len(), 2);
+        // Without the flag, a layout delta stays a finding.
+        let (real, _) = split_noise(&s, &s, vec![d("layout")], &BTreeMap::new());
+        assert_eq!(real.len(), 1);
     }
 
     #[test]

@@ -206,6 +206,8 @@ impl GameData for LGame {
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
         match id {
             HOUSE_TRANSITION => Box::pin(async move {
+                let here = ctx.current_map().await;
+                ctx.set_var(VAR_SEEN_MAP, here.0).await;
                 match ctx.var(VAR_HOUSE).await {
                     1 => ctx.set_map_layout(HOUSE_ALT_LAYOUT).await,
                     // A layout the game has no variant of for the house (one equal to its own).
@@ -264,6 +266,19 @@ fn set_map_layout_in_on_transition_loads_the_variant_until_the_next_map() {
     w.s.vars.set_var(VAR_HOUSE, 0);
     warp_l(&mut w, TOWN);
     assert_eq!(w.s.field.layout(), None);
+}
+
+/// Where [`LGame`]'s house `on_transition` records the current map it sees.
+const VAR_SEEN_MAP: VarId = VarId(0x4031);
+
+/// Gen3 `LoadMapFromWarp`: the location is the new map's before `RunOnTransitionMapScript`
+/// (`RotatingGate_InitPuzzle` reads `gSaveBlock1Ptr->location` there).
+#[test]
+fn on_transition_sees_the_map_being_entered() {
+    let mut w = World::new(&LGame);
+    run_l(&mut w, 16);
+    warp_l(&mut w, HOUSE);
+    assert_eq!(w.s.vars.var(VAR_SEEN_MAP), HOUSE.0);
 }
 
 /// Wave F (checkpoint schema 6): a capture on a map under a layout override keeps it, the

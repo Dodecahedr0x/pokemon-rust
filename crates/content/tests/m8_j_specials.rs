@@ -142,7 +142,9 @@ impl Rec {
             Request::PartySize => Response::Value(self.party),
             Request::PlayerPos => Response::Pos(0, 0),
             Request::CurrentMap => Response::Value(self.map),
-            Request::YesNo { .. } | Request::RockSmashEncounter => Response::Bool(false),
+            Request::YesNo { .. } | Request::RockSmashEncounter | Request::EasyChat { .. } => {
+                Response::Bool(false)
+            }
             Request::Multichoice { .. } => Response::Value(content::MULTI_B_PRESSED),
             Request::ChoosePartyMon(_) => Response::Value(1),
             Request::BattleWild { .. }
@@ -413,7 +415,13 @@ fn native_specials_issue_their_requests_in_order() {
         (
             "SPECIAL_ShowEasyChatScreen",
             1,
-            vec![degraded("SPECIAL_ShowEasyChatScreen"), set(VAR_RESULT, 0)],
+            // Wave G: the Easy Chat screen of `VAR_0x8004`'s type, left without confirming.
+            vec![
+                degraded("SPECIAL_ShowEasyChatScreen"),
+                Request::GetVar(VAR_0x8004),
+                Request::EasyChat { kind: 0 },
+                set(VAR_RESULT, 0),
+            ],
             0,
         ),
         (
@@ -1139,6 +1147,9 @@ fn wave_c_cases(covered: &mut BTreeSet<&'static str>) -> Vec<Case> {
         "SPECIAL_IncrementDailyPlantedBerries",
         "SPECIAL_OpenPokenavForTutorial",
         "SPECIAL_SetMauvilleOldManObjEventGfx",
+        "SPECIAL_RotatingGate_InitPuzzle",
+        "SPECIAL_SetLilycoveLadyGfx",
+        "SPECIAL_UpdateTrainerFanClubGameClear",
     ];
     if cfg!(pkr_silice) {
         covered.extend(story);
@@ -1202,6 +1213,39 @@ fn wave_c_cases(covered: &mut BTreeSet<&'static str>) -> Vec<Case> {
                     Request::Random(2),
                     Request::GetFlag(FLAG_FORCE_MIRAGE_TOWER_VISIBLE),
                     Request::SetFlag(FLAG_MIRAGE_TOWER_VISIBLE, false),
+                ],
+                0,
+            ),
+            // Wave G. A map without a gate puzzle: nothing to reset.
+            (
+                "SPECIAL_RotatingGate_InitPuzzle",
+                1,
+                vec![Request::CurrentMap],
+                0,
+            ),
+            // Trainer id 0: the quiz lady (`(0 % 6) >> 1`).
+            (
+                "SPECIAL_SetLilycoveLadyGfx",
+                1,
+                vec![
+                    q(Query::PlayerIdLow),
+                    set(VAR_OBJ_GFX_ID_0, OBJ_EVENT_GFX_WOMAN_4),
+                ],
+                0,
+            ),
+            // The first fans (bits 7, 8, 10 and 13: 9600, vanilla's), the members shown.
+            (
+                "SPECIAL_UpdateTrainerFanClubGameClear",
+                1,
+                vec![
+                    Request::GetVar(VAR_FANCLUB_FAN_COUNTER),
+                    set(VAR_FANCLUB_FAN_COUNTER, 9600),
+                    Request::SetFlag(FLAG_HIDE_FANCLUB_OLD_LADY, false),
+                    Request::SetFlag(FLAG_HIDE_FANCLUB_BOY, false),
+                    Request::SetFlag(FLAG_HIDE_FANCLUB_LITTLE_BOY, false),
+                    Request::SetFlag(FLAG_HIDE_FANCLUB_LADY, false),
+                    Request::SetFlag(FLAG_HIDE_LILYCOVE_FAN_CLUB_INTERVIEWER, false),
+                    set(VAR_LILYCOVE_FAN_CLUB_STATE, 1),
                 ],
                 0,
             ),

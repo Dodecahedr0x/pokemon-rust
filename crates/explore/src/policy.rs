@@ -166,7 +166,19 @@ impl Policy {
             Some((_, ScreenState::HallOfFame(h)))
                 if h.stage() == engine::ui::hall_of_fame::Stage::Credits
         );
-        let k = if let Some(k) = half {
+        // The Easy Chat screen (Wave G): B to its quit prompt, then YES (it opens on NO).
+        let easy_chat = match w.screens().and_then(|s| s.top()) {
+            Some((_, ScreenState::EasyChat(e))) => {
+                use engine::ui::easy_chat::Prompt;
+                Some(match e.prompt() {
+                    Prompt::Quit { cursor: 0 } | Prompt::Confirm { cursor: 0 } => Buttons::A,
+                    Prompt::Quit { .. } | Prompt::Confirm { .. } => Buttons::UP,
+                    Prompt::Phrase { .. } | Prompt::Buttons { .. } => Buttons::B,
+                })
+            }
+            _ => None,
+        };
+        let k = if let Some(k) = half.or(easy_chat) {
             k
         } else if credits {
             Buttons::START
