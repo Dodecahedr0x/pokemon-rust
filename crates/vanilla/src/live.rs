@@ -303,7 +303,12 @@ impl<'g, G: GameData> Live<'g, G> {
                 self.v.tap(Buttons::A)?;
                 self.v.settle(MACRO_FRAMES)?;
             }
-            Step::Walk(dir) => self.v.walk_dir(dir, MACRO_FRAMES)?,
+            Step::Walk(dir) => {
+                self.v.walk_dir(dir, MACRO_FRAMES)?;
+                if let Some(at) = self.v.bumped.take() {
+                    self.note = Some(format!("vanilla bumped {dir:?} at {at:?}"));
+                }
+            }
             Step::Path { dirs, .. } => {
                 // KNOWN ENGINE GAP (double sight): two trainers seeing the player at once fight
                 // one double battle on Gen3; our engine (no double battles) fights two singles,
@@ -317,6 +322,9 @@ impl<'g, G: GameData> Live<'g, G> {
                     }
                     let battles = self.v.battles.len();
                     self.v.walk_dir(dir, MACRO_FRAMES)?;
+                    if let Some(at) = self.v.bumped.take() {
+                        self.note = Some(format!("vanilla bumped {dir:?} at {at:?}"));
+                    }
                     use crate::state::layout::{BATTLE_TYPE_DOUBLE, BATTLE_TYPE_TRAINER};
                     let double = BATTLE_TYPE_DOUBLE | BATTLE_TYPE_TRAINER;
                     skip += (self.v.battles[battles..].iter())

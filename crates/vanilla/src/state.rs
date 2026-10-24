@@ -106,6 +106,9 @@ pub mod layout {
     // gBattleTypeFlags
     pub const BATTLE_TYPE_TRAINER: u32 = 1 << 3;
     pub const BATTLE_TYPE_DOUBLE: u32 = 1 << 0;
+    /// `gPlayerAvatar.flags`, and its `PLAYER_AVATAR_FLAG_SURFING`.
+    pub const PA_FLAGS: u32 = 0;
+    pub const PLAYER_AVATAR_FLAG_SURFING: u8 = 1 << 3;
     /// `PARTY_MENU_TYPE_IN_BATTLE` (`include/constants/party_menu.h`).
     pub const PARTY_MENU_TYPE_IN_BATTLE: u8 = 1;
     pub const BATTLE_TYPE_FIRST_BATTLE: u32 = 1 << 4;
@@ -351,6 +354,8 @@ pub struct Vanilla {
     /// A `Train`, `TrainFresh`, `Grass` or `Catch` step is playing: wild battles are fought
     /// (or caught) whatever the lead's HP.
     pub training: bool,
+    /// The cell a `walk_dir` bumped at, nothing happening (taken by the caller).
+    pub bumped: Option<(i16, i16)>,
 }
 
 impl Vanilla {
@@ -370,6 +375,7 @@ impl Vanilla {
             buying: None,
             hall_of_fame: false,
             training: false,
+            bumped: None,
         }
     }
 

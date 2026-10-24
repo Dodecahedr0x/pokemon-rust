@@ -15,7 +15,7 @@
 use crate::state::{Mode, Vanilla, layout::*};
 use anyhow::{Result, anyhow};
 use engine::Buttons;
-use engine::data::{Dir, GameData, MapData, MapId, MoveId, SpeciesId};
+use engine::data::{Behavior, Dir, GameData, MapData, MapId, MoveId, SpeciesId, Water};
 use explore::oracle::{Planner, overrides_from_grid};
 use explore::policy::{
     YES_ONCE, best_damaging_slot_of, first_damaging_slot_of, forget_slot_of, toward,
@@ -458,6 +458,27 @@ impl Vanilla {
             .collect()
     }
 
+    /// Whether `map` (our data, as the planner reads it) has water currents.
+    fn has_currents<G: GameData>(&mut self, game: &G, map: MapId) -> bool {
+        if !game.has_map(map) {
+            return false;
+        }
+        let (w, h) = {
+            let m = game.map(map);
+            (m.width as i16, m.height as i16)
+        };
+        let overrides = self.overrides(game, map);
+        let planner = self.planner(game, map, &overrides, Vec::new());
+        (0..h).any(|y| {
+            (0..w).any(|x| matches!(planner.behavior((x, y)), Behavior::Water(Water::Current(_))))
+        })
+    }
+
+    /// `gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_SURFING`.
+    pub fn surfing(&mut self) -> bool {
+        self.emu.read_u8(self.sym.player_avatar + PA_FLAGS) & PLAYER_AVATAR_FLAG_SURFING != 0
+    }
+
     /// The rotating gate puzzle of the current map and the gates' orientations (Gen3
     /// `GetCurrentMapRotatingGatePuzzleType`: Fortree's Gym, `MAP_FORTREE_CITY_GYM` 12.1, and
     /// the Trick House's sixth puzzle, `MAP_ROUTE110_TRICK_HOUSE_PUZZLE6` 29.8), read from
@@ -632,6 +653,7 @@ impl Vanilla {
         self.settle(max_frames)?;
         let start = self.current_map()?;
         let mut stalls = 0;
+        let currents = self.has_currents(game, start);
         loop {
             let me = self.player_object().ok_or_else(|| anyhow!("no player"))?;
             let map = self.current_map()?;
@@ -653,8 +675,37 @@ impl Vanilla {
                     planner.walkable((x - MAP_OFFSET, y - MAP_OFFSET))
                 })
             });
+            // Currents (Seafloor Cavern): a walk that rides them, and surfs from land.
+            let surfing = self.surfing();
+            let current = currents
+                .then(|| {
+                    crate::currents::first_dir(me.cell, to, surfing, |c| {
+                        use crate::currents::Cell;
+                        if !planner.walkable(c) {
+                            return Cell::Blocked;
+                        }
+                        match planner.behavior(c) {
+                            Behavior::Water(Water::Current(d)) => Cell::Current(d),
+                            Behavior::Water(_) => Cell::Water,
+                            _ => Cell::Land,
+                        }
+                    })
+                })
+                .flatten();
+            if let Some(d) = current
+                && !surfing
+                && matches!(
+                    planner.behavior((me.cell.0 + d.delta().0, me.cell.1 + d.delta().1)),
+                    Behavior::Water(_)
+                )
+            {
+                // Onto the water from land: Surf (A, then YES).
+                self.interact(d, end.saturating_sub(self.frames))?;
+                continue;
+            }
             let (elevation, layout) = (self.player_elevation(), self.layout_id());
             let dir = gated
+                .or(current)
                 .or_else(|| planner.first_dir(me.cell, to))
                 .ok_or_else(|| {
                     anyhow!(
@@ -754,6 +805,7 @@ impl Vanilla {
                 .filter_map(|i| self.object_event(i))
                 .find(|o| !o.is_player && o.map == map && Some(o.cell) == ahead)
                 .map(|o| o.local_id);
+            let mut held = 0;
             while self.mode() == Mode::FieldIdle
                 && self.player_object().map(|o| o.cell) == at
                 && self.current_map()? == map
@@ -761,7 +813,14 @@ impl Vanilla {
                 if self.frames >= end {
                     return Err(anyhow!("step {dir:?}: never moved"));
                 }
+                if held > 4 * BUMP_FRAMES && blocker.is_none() {
+                    // A bump and nothing else (the field idles): vanilla cannot take this
+                    // step (ours could). The cell delta tells it; the run goes on.
+                    self.bumped = at;
+                    return Ok(());
+                }
                 self.step(button(dir))?;
+                held += 1;
             }
             self.settle(end.saturating_sub(self.frames))?;
             // Gen3's push (`Task_PushBoulder`) walks the player in place while the boulder
