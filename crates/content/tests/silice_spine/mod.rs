@@ -81,7 +81,43 @@ pub mod ch08;
 pub mod ch09;
 pub mod driver;
 
-use engine::data::{Dir, FlagId, MapId, SpeciesId};
+use engine::data::{Dir, FlagId, GameData, MapId, MoveId, SpeciesId};
+use engine::script::{Ctx, GiveMonExtra};
+
+/// Gen3 `GiveBoxMonInitialMoveset`'s moves for `species` at `level` (the learnset up to the
+/// level, the first move shifted out when the four are taken): what `givemon` teaches.
+pub fn initial_moves(species: SpeciesId, level: u8) -> [MoveId; 4] {
+    let t = content::Game.battle();
+    let mut m: Vec<MoveId> = Vec::new();
+    for lm in t.species_info(species).learnset {
+        if lm.level > level {
+            break;
+        }
+        if m.contains(&lm.mov) {
+            continue;
+        }
+        if m.len() == 4 {
+            m.remove(0);
+        }
+        m.push(lm.mov);
+    }
+    assert_eq!(m.len(), 4, "{species:?} at {level}: fewer than four moves");
+    [m[0], m[1], m[2], m[3]]
+}
+
+/// The lead KADABRA of Chapters 7 and 8's start states: `givemon` with its level's moves and
+/// Chapter 6's Shock Wave (TM34) over Role Play, as `sil7_ch6` leaves it.
+pub async fn give_kadabra_with_shock_wave(ctx: &Ctx, level: u8) {
+    use content::consts::{MOVE_ROLE_PLAY, MOVE_SHOCK_WAVE, SPECIES_KADABRA};
+    let mut moves = initial_moves(SPECIES_KADABRA, level);
+    assert_eq!(moves[1], MOVE_ROLE_PLAY);
+    moves[1] = MOVE_SHOCK_WAVE;
+    let extra: &'static GiveMonExtra = Box::leak(Box::new(GiveMonExtra {
+        moves: Some(moves),
+        ..GiveMonExtra::default()
+    }));
+    ctx.give_mon_with(SPECIES_KADABRA, level, extra).await;
+}
 
 pub use driver::{Run, Start};
 
@@ -114,6 +150,12 @@ pub enum Step {
     /// A TM or HM taught from the bag to party slot `mon`, forgetting move slot `forget` when
     /// its four are full ([`TeachTm`]).
     Teach(TeachTm),
+    /// An item used from the bag on party slot `mon` (a medicine, an evolution stone, the
+    /// PIERRE LIEN): `World::use_item`, the party menu on the slot, and the messages.
+    UseOn {
+        item: u16,
+        mon: u8,
+    },
     Hook(Hook),
     Check(&'static str, fn(&Run)),
 }

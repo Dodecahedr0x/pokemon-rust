@@ -146,10 +146,8 @@ pub async fn PortRessac_NavireCocket_Sc01(ctx: Ctx) {
     ctx.lock().await;
     say(&ctx, Port_Ressac_Navire_Sc01_T1).await;
     say(&ctx, Port_Ressac_Navire_Sc01_T2).await;
-    // The log itself, read once here. fallback: show_log(LOG_04), the Mallette's LOG menu
-    // (SIL2 on M9's kit): the source's own fallback, the log as a message.
+    // show_log(LOG_04): the log as a message, as the Mallette's RAPPORTS reads it again.
     say(&ctx, Port_Ressac_Navire_Log04).await;
-    fallback(&ctx, "log_menu").await;
     say(&ctx, Port_Ressac_Navire_Sc01_T3).await;
     ctx.set_flag(FLAG_SIL_LOG_04, true).await;
     set_story(&ctx, 45).await;

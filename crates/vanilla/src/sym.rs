@@ -145,6 +145,48 @@ symbols! {
     cb2_update_party_menu = "CB2_UpdatePartyMenu" @ 0x081b01b0,
     task_handle_choose_mon_input = "Task_HandleChooseMonInput" @ 0x081b1370,
     party_menu = "gPartyMenu" @ 0x0203cec8,
+    /// `struct PartyMenuInternal *`: `actions[8]` at +15, `numActions` at +23 (the field
+    /// moves' selection menu).
+    party_menu_internal = "sPartyMenuInternal" @ 0x0203cec4,
+    /// The party menu's action list input (`sMenu`'s cursor).
+    task_handle_selection_menu_input = "Task_HandleSelectionMenuInput" @ 0x081b3730,
+    /// The fly map: its callback, its data (`regionMap` at +8) and the full map's input
+    /// callback (the cursor is still).
+    cb2_fly_map = "CB2_FlyMap" @ 0x081248d4,
+    fly_map = "sFlyMap" @ 0x0203a148,
+    process_region_map_input_full = "ProcessRegionMapInput_Full" @ 0x081230c4,
+    /// `struct RegionMapLocation { u8 x, y, width, height; const u8 *name; }` per `MAPSEC`.
+    region_map_entries = "gRegionMapEntries" @ 0x085a147c,
+    /// The Poké Mart: the BUY / SELL / QUIT menu's task, the buy screen's callback, its list
+    /// and quantity tasks, `struct ShopData *` (`selectedRow` at +0x2006, `scrollOffset` at
+    /// +0x2008) and `struct MartInfo` (`itemList` at +8).
+    task_shop_menu = "Task_ShopMenu" @ 0x080dfb88,
+    cb2_buy_menu = "CB2_BuyMenu" @ 0x080dfd64,
+    task_buy_menu = "Task_BuyMenu" @ 0x080e0ac8,
+    task_buy_how_many = "Task_BuyHowManyDialogueHandleInput" @ 0x080e0d88,
+    shop_data = "sShopData" @ 0x02039f70,
+    mart_info = "sMartInfo" @ 0x02039f60,
+    /// `GameClear`'s screens: the Hall of Fame, then the credits (then a reset).
+    cb2_do_hall_of_fame_screen = "CB2_DoHallOfFameScreen" @ 0x08173694,
+    cb2_hall_of_fame = "CB2_HallOfFame" @ 0x08173560,
+    cb2_start_credits_sequence = "CB2_StartCreditsSequence" @ 0x08175620,
+    cb2_credits = "CB2_Credits" @ 0x081754dc,
+    /// The choose-half party menu (`PARTY_MENU_TYPE_CHOOSE_HALF`) and its order.
+    selected_order_from_party = "gSelectedOrderFromParty" @ 0x0203cef8,
+    battler_party_indexes = "gBattlerPartyIndexes" @ 0x0202406e,
+    active_battler = "gActiveBattler" @ 0x02024064,
+    absent_battler_flags = "gAbsentBattlerFlags" @ 0x02024210,
+    multi_use_player_cursor = "gMultiUsePlayerCursor" @ 0x03005d74,
+    // Rotating gates (`rotating_gate.c`): the puzzle and its ROM tables.
+    rotating_gate_puzzle_config = "sRotatingGate_PuzzleConfig" @ 0x0203a044,
+    rotating_gate_puzzle_count = "sRotatingGate_PuzzleCount" @ 0x0203a048,
+    rotating_gate_rotation_north = "sRotatingGate_RotationInfoNorth" @ 0x08591ff8,
+    rotating_gate_rotation_south = "sRotatingGate_RotationInfoSouth" @ 0x08592008,
+    rotating_gate_rotation_west = "sRotatingGate_RotationInfoWest" @ 0x08592018,
+    rotating_gate_rotation_east = "sRotatingGate_RotationInfoEast" @ 0x08592028,
+    rotating_gate_arms_clockwise = "sRotatingGate_ArmPositionsClockwiseRotation" @ 0x08592038,
+    rotating_gate_arms_anticlockwise = "sRotatingGate_ArmPositionsAntiClockwiseRotation" @ 0x08592058,
+    rotating_gate_arm_layout = "sRotatingGate_ArmLayout" @ 0x08592078,
 }
 
 /// Every address of every name in a symbol listing: any line whose first token is a hex

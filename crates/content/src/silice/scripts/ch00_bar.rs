@@ -107,8 +107,6 @@ pub async fn BricoBourg_Bar_Sc03(ctx: Ctx) {
     ctx.face_player().await;
     say(&ctx, Bar_Sc03_T1).await;
     ctx.delay(30).await;
-    // fallback: screen_shake (`Request::ScreenShake`, SIL2 Wave 0 in the M9 plan): a fade out
-    // and in.
     screen_shake(&ctx, 8, 20).await;
     // fallback: play_se (audio, M12): a no-op that reports; the source's SE_EXPLOSION is the
     // decomp's SE_M_EXPLOSION. BOUM is in T2.

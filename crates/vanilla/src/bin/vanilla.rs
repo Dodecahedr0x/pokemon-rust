@@ -10,9 +10,11 @@
 //! Options: `--db PATH` (default: the explore db), `--no-db` (print only), `--quiet` (no
 //! per-step deltas); for iterating on the driver, `--cache DIR` (save vanilla's state at every
 //! position), `--from N` (start from the cache's position N instead of a new game) and
-//! `--to N` (stop after position N). Needs `PKR_ROM_US` (BPEE).
+//! `--to N` (stop after position N); `branches --from N --cache DIR` takes the cache's states
+//! before N as the origins (a cache a whole `--cache` run wrote), `--branch ID` replays that
+//! branch only. Needs `PKR_ROM_US` (BPEE).
 
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Context, Result, bail};
 use content::Emerald;
 use engine::checkpoint::build_hash;
 use explore::branch::Action;
@@ -25,7 +27,7 @@ use std::time::Instant;
 use vanilla::oracle::{self, BranchPlan, OracleRun, Row};
 
 const USAGE: &str = "usage: vanilla <spine|branches> [--db PATH] [--no-db] [--quiet] \
-                     [--limit N] [--outcome NAME] [--cache DIR] [--from N] [--to N]";
+                     [--limit N] [--outcome NAME] [--cache DIR] [--from N] [--to N] [--branch ID]";
 
 /// New deltas printed per row (all are stored).
 const MAX_PRINTED: usize = 30;
@@ -37,6 +39,7 @@ struct Opts {
     outcome: Option<String>,
     cache: Option<PathBuf>,
     from: usize,
+    branch: Option<u64>,
     to: Option<usize>,
 }
 
@@ -52,6 +55,7 @@ fn main() -> Result<()> {
         outcome: None,
         cache: None,
         from: 0,
+        branch: None,
         to: None,
     };
     let mut it = args[1..].iter();
@@ -65,6 +69,7 @@ fn main() -> Result<()> {
             "--cache" => o.cache = Some(PathBuf::from(it.next().context(USAGE)?)),
             "--from" => o.from = it.next().context(USAGE)?.parse()?,
             "--to" => o.to = Some(it.next().context(USAGE)?.parse()?),
+            "--branch" => o.branch = Some(it.next().context(USAGE)?.parse()?),
             _ => bail!(USAGE),
         }
     }
@@ -99,7 +104,10 @@ fn print_row(r: &Row, quiet: bool) {
         println!("      NOTE: {n}");
     }
     if r.rerolls > 0 {
-        println!("      vanilla lost a battle: replayed {} times", r.rerolls);
+        println!(
+            "      vanilla lost a battle (or nearly): replayed {} times",
+            r.rerolls
+        );
     }
     if !quiet {
         for d in r.new.iter().take(MAX_PRINTED) {
@@ -146,7 +154,6 @@ fn run(o: &Opts, branches: bool) -> Result<()> {
         );
         live
     } else {
-        ensure!(!branches, "branches need a whole run (no --from)");
         let dir = o.cache.as_ref().context("--from needs --cache")?;
         let mut live = vanilla::live::Live::new(v, &game);
         resume.history = oracle::Resume::load(dir, o.from, &mut live)?;
@@ -158,9 +165,14 @@ fn run(o: &Opts, branches: bool) -> Result<()> {
         live
     };
     let quiet = o.quiet;
-    let run = oracle::run_spine_range(&game, &ours, &mut live, branches, resume, |r| {
+    let mut run = oracle::run_spine_range(&game, &ours, &mut live, branches, resume, |r| {
         print_row(r, quiet)
     })?;
+    if branches && o.from > 0 {
+        // The origins before `--from`: the cache's states (from a whole run).
+        let dir = o.cache.as_ref().context("--from needs --cache")?;
+        run.prepend_cached(dir, o.from)?;
+    }
     let wall = t.elapsed();
     summary(&ours, &run, wall.as_secs_f64());
     let mut db = match &o.db {
@@ -205,11 +217,13 @@ fn run(o: &Opts, branches: bool) -> Result<()> {
         Some(w) => outcome == w,
         None => outcome == "rejoined" || outcome == "diverged_expected",
     };
-    let mut picked: Vec<_> = rows
-        .iter()
-        .filter(|b| want(&b.outcome) && (b.origin as usize) < run.states.len())
+    let wanted = |b: &&explore::db::BranchRow| {
+        o.branch.is_none_or(|id| b.id as u64 == id) && want(&b.outcome)
+    };
+    let mut picked: Vec<_> = (rows.iter().filter(wanted))
+        .filter(|b| (b.origin as usize) < run.states.len())
         .collect();
-    let skipped = rows.iter().filter(|b| want(&b.outcome)).count() - picked.len();
+    let skipped = rows.iter().filter(wanted).count() - picked.len();
     if let Some(n) = o.limit {
         picked.truncate(n);
     }

@@ -24,6 +24,7 @@
 //! `data::FORM_CHANGES`), the trainers' AI item bags (`data::trainer_items`), and the field
 //! rules, per-trainer rules and mid-battle lines of [`rules`].
 
+pub mod mallette;
 pub mod new_game;
 pub mod prelude;
 pub mod rules;
@@ -33,9 +34,9 @@ mod game_tests;
 #[cfg(test)]
 mod tests;
 
-use crate::consts::{FLAG_SIL_MODULE_CASCADE, FLAG_SIL_MODULE_PLONGEE, FLAG_SIL_MODULE_SURF};
 use crate::consts::{
     SIL_FLAGS_CLEARED_ON_MAP_CHANGE, SIL_HEAL_LOCATIONS, SIL_RESPAWN, SIL_RUNNING_FLAG,
+    VAR_SIL_IDLE_FRAMES, VAR_SIL_INPUT_MAP,
 };
 use crate::{NEW_GAME_SCRIPT, data};
 use engine::battle::{BattleRules, FieldRule, TrainerLine};
@@ -65,8 +66,32 @@ impl GameData for Game {
             respawn_default: SIL_RESPAWN,
             var_wild_set: None,
             script_whiteout: None,
+            // Reverse-City's inverted controls and its emitters' idle timer (Ch7).
+            var_input_map: Some(VAR_SIL_INPUT_MAP),
+            var_idle_frames: Some(VAR_SIL_IDLE_FRAMES),
             ..crate::gen3_special_ids()
         }
+    }
+
+    /// The Mallette's modules ([`mallette::field_move_gate`]).
+    fn field_move_gate(&self, m: FieldMove) -> FieldMoveGate {
+        mallette::field_move_gate(m)
+    }
+
+    fn field_move_label(&self, m: FieldMove) -> Option<&'static [u8]> {
+        mallette::field_move_label(self.battle(), m)
+    }
+
+    fn field_move_script(&self, m: FieldMove) -> Option<ScriptId> {
+        mallette::field_move_script(m)
+    }
+
+    fn waterfall_refused_script(&self) -> Option<ScriptId> {
+        Some(data::script_ids::Mallette_CannotUseWaterfall)
+    }
+
+    fn dive_emerge_script(&self) -> Option<ScriptId> {
+        Some(data::script_ids::Mallette_UseDiveUnderwater)
     }
 
     /// The new game: `game.ron`'s start, running [`new_game::new_game`].
@@ -82,37 +107,6 @@ impl GameData for Game {
         SIL_HEAL_LOCATIONS
             .get(usize::from(id).checked_sub(1)?)
             .copied()
-    }
-
-    /// The Mallette's water modules (SIL4 Ch9): usable while the module's flag is set, whatever
-    /// the party knows. Surf is the Hydro-Propulseur (Ch4), Waterfall the Turbine à Flux (Ch7),
-    /// Dive the Sonde de Pression (Ch8). The other field abilities stay scripts (Cut, Strength,
-    /// Flash and Rock Smash are their obstacles' own scripts; no fly map yet).
-    fn field_move_gate(&self, m: FieldMove) -> FieldMoveGate {
-        match m {
-            FieldMove::Surf => FieldMoveGate::Flag(FLAG_SIL_MODULE_SURF),
-            FieldMove::Waterfall => FieldMoveGate::Flag(FLAG_SIL_MODULE_CASCADE),
-            FieldMove::Dive => FieldMoveGate::Flag(FLAG_SIL_MODULE_PLONGEE),
-            _ => FieldMoveGate::Never,
-        }
-    }
-
-    /// `scripts/field_moves.rs`'s `EventScript_Use*`.
-    fn field_move_script(&self, m: FieldMove) -> Option<ScriptId> {
-        match m {
-            FieldMove::Surf => data::SCRIPT_USE_SURF,
-            FieldMove::Waterfall => data::SCRIPT_USE_WATERFALL,
-            FieldMove::Dive => data::SCRIPT_USE_DIVE,
-            _ => None,
-        }
-    }
-
-    fn waterfall_refused_script(&self) -> Option<ScriptId> {
-        data::SCRIPT_CANNOT_USE_WATERFALL
-    }
-
-    fn dive_emerge_script(&self) -> Option<ScriptId> {
-        data::SCRIPT_USE_DIVE_UNDERWATER
     }
 
     /// The map's dive or emerge connection, keeping the cell, unless that cell is outside the

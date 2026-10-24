@@ -18,11 +18,10 @@ use anyhow::{Result, anyhow, bail, ensure};
 use engine::Buttons;
 use engine::data::{Dir, GameData, MapId};
 use explore::model::{Macro, MacroKind, Opts};
-use explore::oracle::Planner;
 use explore::semantic::map_name;
 use explore::spine::{
-    BattlePlan, Bypass, NEW_GAME_MAP, RETRIES, Step, StepOpts, TIRED_PP, TRAIN_BATTLES, TRAIN_DRY,
-    WAIT_FOR_FRAMES, WAIT_SCRIPT_FRAMES,
+    BattlePlan, Bypass, CATCH_BATTLES, NEW_GAME_MAP, RETRIES, Step, StepOpts, TIRED_PP,
+    TRAIN_BATTLES, TRAIN_DRY, WAIT_FOR_FRAMES, WAIT_SCRIPT_FRAMES,
 };
 
 /// Frames one macro may take (`explore::spine::PLAY_MACRO_FRAMES`, and battles on top).
@@ -38,6 +37,10 @@ pub struct Live<'g, G: GameData> {
     pub opts: StepOpts,
     /// Times the last [`Live::play`] replayed its step after a lost battle.
     pub rerolls: u32,
+    /// Our lead's level once the step being played is done (the oracle sets it): a `Train`
+    /// or `TrainFresh` on vanilla trains to it when it is above the step's level, so the
+    /// battles after it are fought at the same level (vanilla's RNG gives other exp).
+    pub ours_lead_level: Option<u8>,
     /// What the last step played natively for a [`Step::Bypass`].
     pub note: Option<String>,
     /// The last step was already behind vanilla (a script had taken the player through its
@@ -67,7 +70,7 @@ const MAP_TYPE_UNDERGROUND: u8 = 4;
 const MAP_TYPE_INDOOR: u8 = 8;
 
 /// Replays of a step whose battle vanilla lost ([`Live::play`]).
-pub const REROLLS: u32 = 6;
+pub const REROLLS: u32 = 16;
 
 impl<'g, G: GameData> Live<'g, G> {
     pub fn new(mut v: Vanilla, game: &'g G) -> Self {
@@ -77,6 +80,7 @@ impl<'g, G: GameData> Live<'g, G> {
             game,
             opts: StepOpts::default(),
             rerolls: 0,
+            ours_lead_level: None,
             note: None,
             ahead: false,
             budget: 0,
@@ -106,8 +110,9 @@ impl<'g, G: GameData> Live<'g, G> {
     /// Plays one spine step ([`Live::play_once`]). A step whose battle vanilla lost (a
     /// whiteout our engine's spine never has) is played again from the state before it with
     /// another RNG (a few idle frames first), up to [`REROLLS`] times: vanilla's RNG is not
-    /// ours, and a lost battle derails the rest of the comparison. [`Live::rerolls`] counts
-    /// the replays of the last step.
+    /// ours, and a lost battle derails the rest of the comparison. A step whose battles left
+    /// the lead under a quarter of its HP is played again the same way. [`Live::rerolls`]
+    /// counts the replays of the last step.
     pub fn play(&mut self, step: &Step) -> Result<()> {
         if !step.plays() {
             return self.play_once(step);
@@ -126,7 +131,13 @@ impl<'g, G: GameData> Live<'g, G> {
             let r = self.play_once(step);
             let lost = (self.v.outcomes[outcomes..].iter())
                 .any(|&o| o == B_OUTCOME_LOST || o == B_OUTCOME_DREW);
-            if !lost || self.rerolls >= REROLLS {
+            // A battle won with the lead nearly out (outside training, which stops on a tired
+            // lead itself): the next trainer may be lost with no replay left to change it
+            // (Route 116's trainer, then Rusturf Tunnel's). Played again the same way.
+            let worn = !self.v.training
+                && self.v.battles.len() > battles
+                && (self.v.party().first()).is_some_and(|m| m.hp * 4 < m.max_hp);
+            if !(lost || worn) || self.rerolls >= REROLLS {
                 return r;
             }
             self.rerolls += 1;
@@ -142,6 +153,19 @@ impl<'g, G: GameData> Live<'g, G> {
 
     /// Plays one spine step (`explore::spine::Exec::play`'s rules).
     pub fn play_once(&mut self, step: &Step) -> Result<()> {
+        self.v.training = matches!(
+            step,
+            Step::Train { .. } | Step::TrainFresh { .. } | Step::Grass { .. } | Step::Catch { .. }
+        );
+        if self.v.hall_of_fame {
+            // `GameClear` took vanilla to the Hall of Fame (then the credits and a reset):
+            // nothing more is played.
+            if step.plays() {
+                self.ahead = true;
+                self.note = Some("vanilla is at the Hall of Fame (GameClear's screens)".into());
+            }
+            return Ok(());
+        }
         if let Some(want) = step.map() {
             let want = self.resolve_map(want);
             let on = self.map()?;
@@ -201,12 +225,16 @@ impl<'g, G: GameData> Live<'g, G> {
             step,
             Step::Grass { .. } | Step::Train { .. } | Step::TrainFresh { .. }
         );
+        let catch = match *step {
+            Step::Catch { species, .. } => species,
+            _ => 0,
+        };
         let opts = Opts {
             run_wild: self.opts.run_wild || !pacing,
             choice: self.opts.choice.take().unwrap_or(0),
             best_move: self.opts.best_move,
             learn: self.opts.learn,
-            catch: 0,
+            catch,
         };
         self.answer(opts);
         let start = self.map()?;
@@ -214,17 +242,47 @@ impl<'g, G: GameData> Live<'g, G> {
             Step::Goto { x, y, .. } => self.goto(start, (x, y), &[])?,
             Step::GotoAvoiding { x, y, avoid, .. } => self.goto(start, (x, y), avoid)?,
             Step::Enter { x, y, dir, .. } => {
+                // A warp to another warp of the same map (Aqua Hideout's pads): done once the
+                // player stands on the destination warp, the map unchanged.
+                let warps = &self.game.map(start).warps;
+                let same_map = (warps.iter())
+                    .find(|w| (w.x, w.y) == (x, y) && w.dest_map == start)
+                    .and_then(|w| warps.get(w.dest_warp as usize))
+                    .map(|d| (d.x, d.y));
                 for _ in 0..RETRIES {
-                    if self.map()? != start {
+                    if self.map()? != start
+                        || (same_map.is_some() && Some(self.cell()?) == same_map)
+                    {
                         break;
                     }
                     self.enter((x, y), dir)?;
+                }
+                if let Some(d) = same_map {
+                    let at = self.cell()?;
+                    ensure!(
+                        at == d,
+                        "entered ({x}, {y}) but at {at:?}, not its warp's {d:?}"
+                    );
+                    return Ok(());
                 }
                 let want = (self.game.map(start).warps.iter())
                     .find(|w| (w.x, w.y) == (x, y))
                     .map(|w| w.dest_map)
                     .filter(|&m| self.game.has_map(m));
                 let on = self.map()?;
+                // Vanilla's settle already ran the destination's scene through its next warp
+                // (the Champion's room walking the player into the Hall of Fame): one map ahead.
+                if let Some(m) = want.filter(|&m| m != on)
+                    && (self.game.map(m).warps.iter()).any(|w| w.dest_map == on)
+                {
+                    self.ahead = true;
+                    self.note = Some(format!(
+                        "vanilla's settle went on through {} to {}",
+                        map_name(m),
+                        map_name(on)
+                    ));
+                    return Ok(());
+                }
                 if want.is_some_and(|m| m != on) || (want.is_none() && on == start) {
                     bail!(
                         "entered ({x}, {y}) but on {}, not {:?}",
@@ -258,10 +316,18 @@ impl<'g, G: GameData> Live<'g, G> {
                 self.v.tap(Buttons::A)?;
                 self.v.settle(MACRO_FRAMES)?;
             }
-            Step::Walk(dir) => self.v.walk_dir(dir, MACRO_FRAMES)?,
+            Step::Walk(dir) => {
+                self.v.walk_dir(dir, MACRO_FRAMES)?;
+                if let Some(at) = self.v.bumped.take() {
+                    self.note = Some(format!("vanilla bumped {dir:?} at {at:?}"));
+                }
+            }
             Step::Path { dirs, .. } => {
                 for &dir in dirs {
                     self.v.walk_dir(dir, MACRO_FRAMES)?;
+                    if let Some(at) = self.v.bumped.take() {
+                        self.note = Some(format!("vanilla bumped {dir:?} at {at:?}"));
+                    }
                 }
             }
             Step::Exit { dir, to } => {
@@ -311,13 +377,24 @@ impl<'g, G: GameData> Live<'g, G> {
             }
             Step::Train { x, y, level, .. } | Step::TrainFresh { x, y, level, .. } => {
                 let fresh = matches!(step, Step::TrainFresh { .. });
+                let level = level.max(self.ours_lead_level.unwrap_or(0));
                 let (mut n, mut dry) = (0, 0);
-                while self.v.party().first().is_some_and(|m| {
-                    m.level < level
-                        && !(fresh
-                            && (m.hp * 2 < m.max_hp
-                                || m.pp.iter().map(|&p| u32::from(p)).sum::<u32>() < TIRED_PP))
-                }) {
+                while let Some(m) = self.v.party().first().cloned() {
+                    let pp = m.pp.iter().map(|&p| u32::from(p)).sum::<u32>();
+                    let tired = m.hp * 2 < m.max_hp || pp < TIRED_PP;
+                    if m.level >= level || (fresh && tired) {
+                        break;
+                    }
+                    // Vanilla's RNG is not ours: more battles to the level wear the lead down
+                    // to a whiteout ours never has. A lead nearly out stops the training short
+                    // of the level (a level delta, the `~lv` noise) rather than losing.
+                    if !fresh && (m.hp * 4 < m.max_hp || pp < TIRED_PP / 2) {
+                        self.note = Some(format!(
+                            "vanilla stopped training at level {} (lead at {}/{} HP, {pp} PP), short of {level}",
+                            m.level, m.hp, m.max_hp
+                        ));
+                        break;
+                    }
                     n += 1;
                     ensure!(
                         n <= TRAIN_BATTLES,
@@ -338,9 +415,13 @@ impl<'g, G: GameData> Live<'g, G> {
                     );
                 }
             }
-            // Not driven on the ROM yet: the battle bag's ball and Fly's region map.
-            Step::Catch { species, .. } => bail!("catch {species}: not driven on the ROM yet"),
-            Step::Fly { dest, .. } => bail!("fly to {dest}: not driven on the ROM yet"),
+            Step::Catch { x, y, species, .. } => self.catch((x, y), species)?,
+            Step::Fly { mon, dest, to } => {
+                self.v.fly(mon, dest, crate::drive::FLY_FRAMES)?;
+                let to = self.resolve_map(to);
+                let on = self.map()?;
+                ensure!(on == to, "flew to {}, not {}", map_name(on), map_name(to));
+            }
             Step::Battle(_) | Step::Choose(_) | Step::Expect(_) | Step::Checkpoint(_) => {
                 unreachable!("handled above")
             }
@@ -362,6 +443,7 @@ impl<'g, G: GameData> Live<'g, G> {
     /// Plays one macro (`explore::expand`'s rules) with its options.
     pub fn play_macro(&mut self, m: &Macro) -> Result<()> {
         self.answer(m.opts);
+        self.v.training = matches!(m.kind, MacroKind::Grass { .. });
         let start = self.map()?;
         match m.kind {
             MacroKind::Settle => self.v.settle(MACRO_FRAMES)?,
@@ -370,8 +452,15 @@ impl<'g, G: GameData> Live<'g, G> {
                 self.v.settle(MACRO_FRAMES)?;
             }
             MacroKind::Enter { x, y, dir } => self.enter((x, y), dir)?,
-            MacroKind::Cross { x, y, dir } => self.cross((x, y), dir)?,
-            MacroKind::Talk { local_id } => self.talk(local_id)?,
+            MacroKind::Cross { x, y, dir } => {
+                // A crossing that does not happen (water past the edge, no Surf) is no error
+                // for our Driver's macro either: the end states tell.
+                if let Err(e) = self.cross((x, y), dir) {
+                    self.note = Some(format!("vanilla's cross did not happen: {e:#}"));
+                    self.v.settle(MACRO_FRAMES)?;
+                }
+            }
+            MacroKind::Talk { local_id } => self.talk_with(local_id, true)?,
             MacroKind::Inspect { x, y, dir } => {
                 let (dx, dy) = dir.delta();
                 if self.v.walk_to(self.game, (x - dx, y - dy), MACRO_FRAMES)? == Walk::Reached {
@@ -400,7 +489,7 @@ impl<'g, G: GameData> Live<'g, G> {
                 item,
                 qty,
             } => self.buy(local_id, engine::data::ItemId(item), qty)?,
-            MacroKind::Fly { dest, .. } => bail!("fly to {dest}: not driven on the ROM yet"),
+            MacroKind::Fly { mon, dest } => self.v.fly(mon, dest, crate::drive::FLY_FRAMES)?,
             MacroKind::Push { dir } => {
                 if self.map()? == start {
                     self.v.push(dir, MACRO_FRAMES)?;
@@ -410,23 +499,48 @@ impl<'g, G: GameData> Live<'g, G> {
         Ok(())
     }
 
-    /// Plays a [`Step::Buy`]: the oracle does not drive Gen3's shop screens, so the purchase
-    /// is written into vanilla's bag and money (an oracle stand-in, noted); the clerk is not
-    /// talked to.
+    /// Plays a [`Step::Buy`] natively: talks to clerk `local_id`, whose `pokemart` opens the
+    /// shop, and [`Vanilla::settle`] buys through it ([`Vanilla::mart_key`]: BUY, the item,
+    /// the quantity, yes, then out of the screens).
     fn buy(&mut self, local_id: u8, item: engine::data::ItemId, qty: u16) -> Result<()> {
         self.v.settle(MACRO_FRAMES)?;
-        let info = (self.game.item(item)).ok_or_else(|| anyhow!("buy: no item {}", item.0))?;
-        let cost = u32::from(info.price) * u32::from(qty);
+        let had = self.v.bag_count(item.0);
+        self.v.buying = Some((item.0, qty, had));
+        let r = self.talk(local_id);
+        self.v.buying = None;
+        r?;
+        let now = self.v.bag_count(item.0);
         ensure!(
-            self.v.buy(info.pocket, item.0, qty, cost)?,
-            "buy: {qty} of item {} (¥{cost}) do not fit or are not affordable",
+            now >= had.saturating_add(qty),
+            "buy: {now} of item {} in the bag after the mart, not {had} + {qty}",
             item.0
         );
-        self.note = Some(format!(
-            "buy: not played natively (the oracle does not drive the shop): {qty} of item {} \
-             for ¥{cost} written into vanilla's bag and money (clerk {local_id} not talked to)",
-            item.0
-        ));
+        Ok(())
+    }
+
+    /// Plays a [`Step::Catch`]: paces on `at` (grass or water) until `species` joins the party
+    /// (or the PC), a ball at it each battle and RUN from the rest ([`Vanilla::answers`]'
+    /// `catch`), at most [`CATCH_BATTLES`] battles.
+    fn catch(&mut self, at: (i16, i16), species: u16) -> Result<()> {
+        let size = self.v.party().len();
+        let (mut n, mut dry) = (0, 0);
+        while self.v.party().len() == size {
+            n += 1;
+            ensure!(
+                n <= CATCH_BATTLES,
+                "no species {species} caught in {CATCH_BATTLES} tries"
+            );
+            if !self.grass(at)? {
+                dry += 1;
+                ensure!(dry <= TRAIN_DRY, "no encounter {dry} times");
+                self.v.hold(Buttons::NONE, 31, MACRO_FRAMES)?;
+            }
+        }
+        let got = self.v.party().get(size).map(|m| m.species);
+        ensure!(
+            got == Some(species),
+            "caught species {got:?}, not {species}"
+        );
         Ok(())
     }
 
@@ -560,7 +674,9 @@ impl<'g, G: GameData> Live<'g, G> {
     /// Whether cell `c` of `map` is open terrain (objects aside).
     fn walkable(&mut self, map: MapId, c: (i16, i16)) -> bool {
         let overrides = self.v.overrides(self.game, map);
-        Planner::new(self.game, map, &overrides, Vec::new()).walkable(c)
+        self.v
+            .planner(self.game, map, &overrides, Vec::new())
+            .walkable(c)
     }
 
     /// Whether `to` is reachable on `map` now (objects in the way).
@@ -568,7 +684,7 @@ impl<'g, G: GameData> Live<'g, G> {
         let me = self.cell()?;
         let overrides = self.v.overrides(self.game, map);
         let occupied = self.v.occupied(map);
-        let p = Planner::new(self.game, map, &overrides, occupied);
+        let p = self.v.planner(self.game, map, &overrides, occupied);
         Ok(me == to || p.first_dir(me, to).is_some())
     }
 
@@ -727,8 +843,14 @@ impl<'g, G: GameData> Live<'g, G> {
     fn enter(&mut self, at: (i16, i16), dir: Dir) -> Result<()> {
         let map = self.map()?;
         let overrides = self.v.overrides(self.game, map);
-        let approach = Planner::new(self.game, map, &overrides, Vec::new()).enter_approach(at, dir);
-        if self.v.walk_to(self.game, approach, MACRO_FRAMES)? != Walk::Reached {
+        let approach = (self.v)
+            .planner(self.game, map, &overrides, Vec::new())
+            .enter_approach(at, dir);
+        if self.v.walk_to(self.game, approach, MACRO_FRAMES)? != Walk::Reached
+            // A trigger on the approach whose scene moved the player off it (Scott pushing the
+            // player away from Slateport's Battle Tent): the enter ends there, as ours.
+            || self.cell()? != approach
+        {
             return self.v.settle(MACRO_FRAMES);
         }
         self.v.push(dir, MACRO_FRAMES)
@@ -744,6 +866,12 @@ impl<'g, G: GameData> Live<'g, G> {
 
     /// Walks next to object `local_id` of the current map, faces it and presses A.
     fn talk(&mut self, local_id: u8) -> Result<()> {
+        self.talk_with(local_id, false)
+    }
+
+    /// [`Live::talk`]; `macro_rules`: a script that takes over the walk ends the talk (our
+    /// `Driver`'s `Talk` macro, which ends at the first interruption), instead of walking on.
+    fn talk_with(&mut self, local_id: u8, macro_rules: bool) -> Result<()> {
         for _ in 0..RETRIES {
             self.v.settle(MACRO_FRAMES)?;
             let map = self.map()?;
@@ -762,10 +890,18 @@ impl<'g, G: GameData> Live<'g, G> {
                 sides.sort_by_key(|c| warps.iter().any(|w| (w.x, w.y) == *c));
                 let mut walked = false;
                 for c in sides {
-                    if self.reachable(map, c)? && self.v.walk_to(self.game, c, MACRO_FRAMES).is_ok()
-                    {
-                        walked = true;
-                        break;
+                    if !self.reachable(map, c)? {
+                        continue;
+                    }
+                    match self.v.walk_to(self.game, c, MACRO_FRAMES) {
+                        Ok(w) if macro_rules && w != Walk::Reached => {
+                            return self.v.settle(MACRO_FRAMES);
+                        }
+                        Ok(_) => {
+                            walked = true;
+                            break;
+                        }
+                        Err(_) => {}
                     }
                 }
                 ensure!(
@@ -779,7 +915,7 @@ impl<'g, G: GameData> Live<'g, G> {
             let occupied = self.v.occupied(map);
             let me = self.cell()?;
             let (approaches, reachable) = {
-                let p = Planner::new(self.game, map, &overrides, occupied);
+                let p = self.v.planner(self.game, map, &overrides, occupied);
                 let a = p.talk_approaches(o.cell);
                 let r: Vec<_> = (a.iter())
                     .filter(|&&(c, _)| c == me || p.first_dir(me, c).is_some())
@@ -803,6 +939,9 @@ impl<'g, G: GameData> Live<'g, G> {
             let mut last = None;
             for &(c, _) in &reachable {
                 match self.v.walk_to(self.game, c, MACRO_FRAMES) {
+                    Ok(w) if macro_rules && w != Walk::Reached => {
+                        return self.v.settle(MACRO_FRAMES);
+                    }
                     Ok(_) => {
                         last = None;
                         break;
@@ -831,7 +970,8 @@ impl<'g, G: GameData> Live<'g, G> {
         let map = self.map()?;
         let overrides = self.v.overrides(self.game, map);
         let occupied = self.v.occupied(map);
-        let other = Planner::new(self.game, map, &overrides, occupied)
+        let other = (self.v)
+            .planner(self.game, map, &overrides, occupied)
             .grass_partner(at)
             .ok_or_else(|| anyhow!("grass: no walkable neighbour of {at:?}"))?;
         let end = self.v.frames + GRASS_FRAMES;

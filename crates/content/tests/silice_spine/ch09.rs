@@ -17,12 +17,12 @@
 //!   `TourNebulaAscenseur` (3, 6), §5.7's proposal).
 //!
 //! **Real engine features the path drives:** Surf and Dive by an A press (gated by the module
-//! flags, `field_moves.rs`), the dismount by walking ashore, the south arrow warp, Nébula's
+//! flags, `scripts/mallette.rs`), the dismount by walking ashore, the south arrow warp, Nébula's
 //! fixed dive warps (`DIVE_WARPS`), and two mart screens (the driver leaves a shop with B).
 //!
 //! **The fallbacks the path relies on** (`ch09_*.rs`): the Champ Magnétique is an A press on the
-//! cabinet; the hidden items are signs; Benou's and Julien's calls are plain messages; the
-//! camera pan of the diversion stays on the player; no script changes the music.
+//! cabinet; the hidden items are signs; Benou's and Julien's calls are plain messages; no script
+//! changes the music. Sc01's white flash and Sc03's camera pan to the Grande Porte are real.
 //!
 //! **The party** ([`PARTY`]): Chapter 8's end as `sil9_ch8` leaves it (KADABRA 69 leading,
 //! TYPHLOSION 76, LAIRON 35, MAREEP 14, PORYGON 25, DUGTRIO 26). No hook, no training: the
@@ -170,7 +170,7 @@ pub fn steps() -> Vec<Step> {
         Step::Interact(Right),
         Step::Check("surf", |r| {
             assert!(r.w.objects().surfing());
-            assert!(r.has_text(gText_WantToUseSurf));
+            assert!(r.has_text(Mallette_Surf_Ask));
         }),
         // Marin (27, 17) sees (27, 18–21); Océane (41, 13) sees (37–40, 13).
         goto(ROUTE, 27, 21),
@@ -263,7 +263,7 @@ pub fn steps() -> Vec<Step> {
         Step::Check("route_s09_sc04", |r| {
             assert_eq!(r.w.map(), CONDUITE);
             assert!(r.w.flag(FLAG_SIL_S09_PREMIERE_PLONGEE));
-            assert!(r.has_text(Text_WantToDive));
+            assert!(r.has_text(Mallette_Plongee_Ask));
             assert!(r.has_text(Route_S09_Sc04_T1));
         }),
         goto(CONDUITE, 37, 52),
@@ -537,14 +537,16 @@ pub fn check_end(r: &Run) {
     assert_eq!(r.w.events_dropped(), 0);
     for name in [
         "play_music",
-        "screen_flash",
         "mallette_call",
         "end_call",
         "strength",
         "play_se",
         "hidden item",
-        "camera_pan",
     ] {
         assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);
+    }
+    // Sc01's flash and Sc03's camera pan are the engine's own (SIL-M).
+    for name in ["screen_flash", "camera_pan"] {
+        assert!(!r.degraded.contains(name), "{name}: {:?}", r.degraded);
     }
 }

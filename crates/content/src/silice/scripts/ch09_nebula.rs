@@ -105,15 +105,19 @@ pub async fn Nebula_Sc01(ctx: Ctx) {
     ctx.release_all().await;
 }
 
+/// The Grande Porte's door (its left cell, `Nebula_EventScript_GrandePorte`), Sc03's camera target.
+const GRANDE_PORTE: (i16, i16) = (28, 10);
+
 /// Nebula_Sc03, the diversion: the Bassin's fence either side of its gate (44, 11) and (44, 13),
 /// at `VAR_SIL_STORY` 94. The signal (yes/no); Gwada on the giant screen, Mathieu on the bus
 /// shelter, Adrien at the loudspeaker; the crowd looks up; the gate guards run to the Grande
 /// Porte; the Bassin's guard leaves. Sets `FLAG_SIL_NEBULA_DIVERSION`, the friends gone from the
 /// Gargote, and 95. Before 94 and after, the fence is silent (the source gives it no line).
 ///
-/// fallback: `camera_pan(GRANDE_PORTE)` and back (no camera scripting): the scene plays where the
-/// player stands; the guards are moved under a fade (`set_object_pos`), which also stands in
-/// for their run (the source's `Walk(Left) x4` would take them away from the door). The giant
+/// `camera_pan(GRANDE_PORTE)` pans from the player to the Grande Porte's door ([`GRANDE_PORTE`])
+/// and `camera_pan(PLAYER)` back after the guards' chief speaks. The guards are moved under a
+/// fade (`set_object_pos`), which stands in for their run (the source's `Walk(Left) x4` would
+/// take them away from the door). The giant
 /// screen's `set_metatile(ECRAN_GEANT, ECRAN_GWADA)` has no metatile in SilNebula; Mathieu's jump
 /// is left out; the crowd already faces up (towards the screen and the sky).
 pub async fn Nebula_Sc03(ctx: Ctx) {
@@ -126,7 +130,8 @@ pub async fn Nebula_Sc03(ctx: Ctx) {
         return;
     }
     say(&ctx, Nebula_Sc03_T1).await;
-    fallback(&ctx, "camera_pan").await;
+    let (px, py) = ctx.player_pos().await;
+    camera_pan(&ctx, GRANDE_PORTE.0 - px, GRANDE_PORTE.1 - py).await;
     // fallback: play_music(MUS_EVER_GRANDE).
     fallback(&ctx, "play_music").await;
     say(&ctx, Nebula_Sc03_T2).await;
@@ -142,6 +147,7 @@ pub async fn Nebula_Sc03(ctx: Ctx) {
     }
     ctx.fade(Fade::FromBlack).await;
     say(&ctx, Nebula_Sc03_T6).await;
+    camera_pan(&ctx, 0, 0).await;
     // The Bassin guard's run north (`Walk(Up) x8`) is closed by the fence: he leaves under a fade.
     ctx.fade(Fade::ToBlack).await;
     hide(&ctx, LOCALID_NEBULA_GARDE_BASSIN).await;

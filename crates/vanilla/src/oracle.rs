@@ -17,7 +17,7 @@ use engine::data::GameData;
 use explore::branch::Action;
 use explore::model::{FindingDraft, FindingKind, Macro};
 use explore::oracle::{History, ParityLog, parity_message, tolerance};
-use explore::semantic::{Delta, Semantic, Tolerance, diff};
+use explore::semantic::{Delta, Semantic, Tolerance, diff, map_name};
 use explore::sim::Live as OurLive;
 use explore::spine::{Exec, SpineRun, Step};
 use std::collections::{BTreeMap, BTreeSet};
@@ -346,6 +346,33 @@ impl Resume {
     }
 }
 
+impl OracleRun {
+    /// Puts the cache's states and histories of the positions before `from` (a cache a whole
+    /// `--cache` run wrote) ahead of this `--from` run's, so a branch can start at any origin.
+    pub fn prepend_cached(&mut self, dir: &std::path::Path, from: usize) -> Result<()> {
+        let mut states = Vec::with_capacity(from + self.states.len());
+        let mut history = Vec::with_capacity(from + self.history.len());
+        for i in 0..from {
+            let (st, meta) = Resume::paths(dir, i);
+            states.push(Some(
+                std::fs::read(&st).with_context(|| format!("{}", st.display()))?,
+            ));
+            let m: Vec<u64> = (std::fs::read_to_string(meta)?.split_whitespace())
+                .map(|t| t.parse())
+                .collect::<Result<_, _>>()?;
+            anyhow::ensure!(m.len() == 7, "bad meta at {i}");
+            history.push(History {
+                random_battle: m[5] != 0,
+                hurt_since_heal: m[6] != 0,
+            });
+        }
+        states.append(&mut self.states);
+        history.append(&mut self.history);
+        (self.states, self.history) = (states, history);
+        Ok(())
+    }
+}
+
 /// [`run_spine`] over [`Resume`]'s range.
 pub fn run_spine_range<G: GameData>(
     game: &G,
@@ -387,6 +414,8 @@ pub fn run_spine_range<G: GameData>(
             .map(|s| spine.steps[s]);
         let before = live.v.frames;
         live.rerolls = 0;
+        let ours = ours_at(game, spine, i)?;
+        live.ours_lead_level = ours.party.first().map(|m| m.level);
         let error = match step {
             Some(s) => live.play(&s).err().map(|e| format!("{e:#}")),
             None => None,
@@ -399,7 +428,6 @@ pub fn run_spine_range<G: GameData>(
         update(&mut h, &mut live.v, battles);
         battles = live.v.battles.len();
         let p = &spine.positions[i];
-        let ours = ours_at(game, spine, i)?;
         // Our lead gained exp in a step vanilla fought nothing: our engine met a wild mon
         // vanilla did not (its RNG), so levels are RNG-dependent from here on.
         let ours_exp = ours.party.first().map(|m| m.exp);
@@ -407,7 +435,7 @@ pub fn run_spine_range<G: GameData>(
             h.random_battle = true;
         }
         prev_exp = ours_exp;
-        let theirs = live.v.state()?.semantic();
+        let theirs = live.v.state()?.semantic_in(game);
         let tol = tolerance(h);
         let (deltas, noise) = split_noise(&ours, &theirs, diff(&ours, &theirs, tol), &trainers);
         let (deltas, leveling) = split_leveling(game, &ours, &theirs, deltas, tol);
@@ -558,11 +586,29 @@ pub fn branch<G: GameData + Clone + 'static>(
         }
         Action::Macro(_) => {}
     }
+    // Our map before and after every macro played: an `Enter` or `Cross` vanilla's settle already
+    // made (a frame script ours runs as its own macro) is skipped there.
+    let our_map = |o: &OurLive<'_, '_, G>| o.last_end().map(|c| c.world.field.map);
+    let mut maps: Vec<(Option<engine::data::MapId>, Option<engine::data::MapId>)> = Vec::new();
     if ours_error.is_none() {
         for m in b.macros {
-            if let Err(e) = ours.step_with(m, &mut explore::policy::Policy::new()) {
+            let before = our_map(&ours);
+            let played = ours.step_with(m, &mut explore::policy::Policy::new());
+            maps.push((before, our_map(&ours)));
+            if let Err(e) = played {
                 ours_error = Some(format!("{m:?}: {e:?}"));
                 break;
+            }
+            if live.v.trace
+                && let Some(w) = (ours.last_end()).and_then(|s| World::restore(game, &s).ok())
+            {
+                let s = Semantic::from_world(&w, game);
+                println!(
+                    "  ours macro {:?}: on {} at {:?}",
+                    m.kind,
+                    map_name(s.map),
+                    s.cell
+                );
             }
         }
     } else {
@@ -576,10 +622,26 @@ pub fn branch<G: GameData + Clone + 'static>(
     );
     // ---- vanilla ----
     live.v.emu.load_state(&state)?;
+    // The driver's own state belongs to the run that ended (the spine's last step left it at
+    // the Hall of Fame, where `settle` returns at once): the origin's state starts afresh.
+    live.v.hall_of_fame = false;
+    live.v.bumped = None;
+    live.v.buying = None;
+    live.ahead = false;
+    live.note = None;
+    anyhow::ensure!(
+        !live.v.at_hall_of_fame(),
+        "vanilla is at the Hall of Fame at origin {} (GameClear's screens): nothing to play",
+        b.origin
+    );
     live.opts = origin.opts;
     let from = live.v.frames;
     let battles = live.v.battles.len();
     let mut vanilla_error = None;
+    live.ours_lead_level = None;
+    // Vanilla at the origin, for the origin's deltas when this run has no row there (a
+    // `--from` run).
+    let theirs_at_origin = live.v.state()?.semantic_in(game);
     if let Action::Choice { step, choice } = b.action {
         live.opts.choice = Some(choice);
         if let Err(e) = live.play(&spine.steps[step as usize]) {
@@ -587,24 +649,44 @@ pub fn branch<G: GameData + Clone + 'static>(
         }
     }
     if vanilla_error.is_none() {
-        for m in chained {
+        for (i, m) in chained.iter().enumerate() {
+            let on = live.v.current_map().ok();
+            if matches!(
+                m.kind,
+                explore::MacroKind::Enter { .. } | explore::MacroKind::Cross { .. }
+            ) && let Some(&(before, after)) = maps.get(i)
+                && on != before
+                && on == after
+            {
+                if live.v.trace {
+                    println!("  macro {:?}: vanilla already there", m.kind);
+                }
+                continue;
+            }
             if let Err(e) = live.play_macro(m) {
                 vanilla_error = Some(format!("{m:?}: {e:#}"));
                 let _ = live.v.settle(crate::live::MACRO_FRAMES);
                 break;
             }
+            if live.v.trace {
+                let map = live.v.current_map().ok().map(map_name);
+                let at = live.v.player_object().map(|o| o.cell);
+                println!(
+                    "  [{}] macro {:?}: on {map:?} at {at:?}",
+                    live.v.frames, m.kind
+                );
+            }
         }
     }
     let mut h = oracle.history.get(b.origin).copied().unwrap_or_default();
     update(&mut h, &mut live.v, battles);
-    let theirs = live.v.state()?.semantic();
+    let theirs = live.v.state()?.semantic_in(game);
     let tol = tolerance(h);
     // The deltas the origin already had are the spine's findings.
-    let at_origin: Vec<Delta> = oracle
-        .rows
-        .get(b.origin)
-        .map(|r| r.deltas.clone())
-        .unwrap_or_default();
+    let at_origin: Vec<Delta> = match oracle.rows.iter().find(|r| r.index == b.origin) {
+        Some(r) => r.deltas.clone(),
+        None => diff(&ours_at(game, spine, b.origin)?, &theirs_at_origin, tol),
+    };
     let (deltas, _noise) = split_noise(
         &ours_sem,
         &theirs,
@@ -671,6 +753,7 @@ mod tests {
             respawn: None,
             objects: BTreeMap::new(),
             homes: BTreeMap::new(),
+            layout: None,
         }
     }
 

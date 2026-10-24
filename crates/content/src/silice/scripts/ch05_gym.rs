@@ -367,9 +367,7 @@ pub async fn Owlys_Gym_Sc01(ctx: Ctx) {
     // fallback: show_sync (the sync gauge): nothing drawn; Sync's text gives the value.
     show_sync(&ctx, 50).await;
     say(&ctx, Owlys_Gym_Sc01_Sync).await;
-    // fallback: show_log(LOG_05) (the Mallette's log menu): the log's text as a message (the
-    // source's own fallback).
-    fallback(&ctx, "log_menu").await;
+    // show_log(LOG_05): the log as a message, as the Mallette's RAPPORTS reads it again.
     say(&ctx, Owlys_Gym_Log05).await;
     ctx.set_flag(FLAG_SIL_LOG_05, true).await;
     ctx.set_flag(FLAG_SIL_OWLYS_MATHIEU_RESTE, true).await;

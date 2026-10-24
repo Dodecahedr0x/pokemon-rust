@@ -28,7 +28,8 @@ fn every_movement_type_is_known() {
         | MovementType::WalkSequence(_)
         | MovementType::JogInPlace(_)
         | MovementType::RunInPlace(_)
-        | MovementType::WalkSlowlyInPlace(_) => initial_facing(m),
+        | MovementType::WalkSlowlyInPlace(_)
+        | MovementType::WanderBackwards => initial_facing(m),
     };
     assert_eq!(known(MovementType::WanderHorizontal), Dir::Left);
 }

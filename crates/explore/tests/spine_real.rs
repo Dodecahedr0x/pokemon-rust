@@ -13,8 +13,10 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 104_523;
 
 /// The whole Emerald spine's frame count (to its last step, to its last checkpoint); 3,032,538
-/// before Wave G's doubles (Fortree's and Mossdeep's gym pairs, Tate and Liza, Steven).
-const EMERALD_FRAMES: u64 = 3_172_864;
+/// before Wave G's doubles (Fortree's and Mossdeep's gym pairs, Tate and Liza, Steven);
+/// 3,172,864 before a macro released an A the last one ended on (Gen3 `newKeys`: +1 to +4
+/// frames from Route 118, and Victory Road B1F's `Wait(2)`s gone).
+const EMERALD_FRAMES: u64 = 3_166_366;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -67,8 +69,9 @@ const EMERALD_LABELS: &[&str] = &[
 const SPINE_BLOCKERS: &[&str] = &[];
 
 /// The Silice spine's frame count to the end of Chapter 0 (21,821 until `2fc4c16` redrew
-/// Brico-Bourg on its own tileset: the walks are 8 frames shorter).
-const SILICE_CH0_FRAMES: u64 = 21_813;
+/// Brico-Bourg on its own tileset: the walks are 8 frames shorter; 21,813 until the bar's and
+/// the town's shakes became `Request::ScreenShake` in place of a fade out and in: 34 shorter).
+const SILICE_CH0_FRAMES: u64 = 21_779;
 
 fn play() -> SpineRun {
     let s = spine::run(&Emerald::for_shells(), spine::steps(), &Config::default());

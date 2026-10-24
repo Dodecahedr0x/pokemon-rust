@@ -6,7 +6,7 @@
 //!
 //! The lake is crossed with the Hydro-Propulseur and the conduit reached with the Sonde de
 //! Pression: the engine's Surf and Dive, gated by the module flags (`crate::silice::Game::
-//! field_move_gate`, `field_moves.rs`). P2 dives through the map's Dive connection into the
+//! field_move_gate`, `scripts/mallette.rs`). P2 dives through the map's Dive connection into the
 //! conduit (`RouteS09_Underwater`), whose south exit is a south arrow warp onto Nébula's quai.
 
 use super::ch04_port::{Pushable, push_object};
@@ -81,7 +81,8 @@ pub async fn RouteS09_Sc01(ctx: Ctx) {
     // fallback: play_music(MUS_ABNORMAL_WEATHER) (no music change in a script yet; the map's
     // own music plays).
     fallback(&ctx, "play_music").await;
-    screen_flash(&ctx).await;
+    // `screen_flash()`: the source's white flash.
+    screen_flash(&ctx, WHITE).await;
     say(&ctx, Route_S09_Sc01_T1).await;
     say(&ctx, Route_S09_Sc01_T2).await;
     mallette_call(&ctx, "BENOU").await;

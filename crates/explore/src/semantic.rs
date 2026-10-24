@@ -57,6 +57,15 @@ pub struct Semantic {
     /// The same objects' spawn cells (Gen3 `initialCoords`, our `Object::home`): what decides
     /// whether Gen3 has an object spawned around the camera ([`in_spawn_view`]).
     pub homes: BTreeMap<u8, (i16, i16)>,
+    /// The current map's layout override (Gen3 `setmaplayoutindex`, `mapLayoutId`), only
+    /// when the game has that variant of the map ([`layout_override`]): `None` is the map's own.
+    pub layout: Option<u16>,
+}
+
+/// `layout` as an override of `map`: `Some` only when `game` has a variant of `map` with that
+/// layout (the map's own layout id, or one it has no variant of, is no override).
+pub fn layout_override<G: GameData>(game: &G, map: MapId, layout: Option<u16>) -> Option<u16> {
+    layout.filter(|&l| game.has_map(map) && game.map_layout(map, l).is_some())
 }
 
 /// Whether Gen3 keeps an object whose spawn cell is `home` spawned with the player on `player`,
@@ -212,6 +221,7 @@ impl Semantic {
             respawn: game.heal_location(w.respawn()).map(|(m, _, _)| m),
             objects,
             homes,
+            layout: layout_override(game, map, w.map_layout()),
         }
     }
 
@@ -257,6 +267,7 @@ pub fn diff(ours: &Semantic, vanilla: &Semantic, tol: Tolerance) -> Vec<Delta> {
     put("map".into(), map_name(ours.map), map_name(vanilla.map));
     put("cell".into(), show(ours.cell), show(vanilla.cell));
     put("facing".into(), show(ours.facing), show(vanilla.facing));
+    put("layout".into(), show(ours.layout), show(vanilla.layout));
     for f in ours.flags.symmetric_difference(&vanilla.flags) {
         let set = |s: &BTreeSet<u16>| if s.contains(f) { "set" } else { "clear" };
         put(
@@ -384,7 +395,18 @@ mod tests {
             respawn: Some(MapId(9)),
             objects: BTreeMap::from([(1, (3, 3))]),
             homes: BTreeMap::from([(1, (3, 3))]),
+            layout: None,
         }
+    }
+
+    #[test]
+    fn a_layout_override_is_a_delta() {
+        let mut v = base();
+        v.layout = Some(0x1A3);
+        let d = diff(&base(), &v, Tolerance::default());
+        assert_eq!(d.len(), 1, "{d:?}");
+        assert_eq!(d[0].field, "layout");
+        assert_eq!((d[0].ours.as_str(), d[0].vanilla.as_str()), ("None", "Some(419)"));
     }
 
     #[test]

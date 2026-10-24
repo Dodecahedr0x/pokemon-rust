@@ -132,9 +132,7 @@ pub async fn RouteS02_Sc03(ctx: Ctx) {
     };
     move_wait(&ctx, LOCALID_ROUTE_S02_GWADA, to_player).await;
     say(&ctx, Route_S02_Sc03_T1).await;
-    // fallback: screen_flash(YELLOW) (`Request::ScreenFlash`, SIL2 Wave 0 in the M9 plan): a
-    // fade out and in.
-    screen_flash(&ctx).await;
+    screen_flash(&ctx, YELLOW).await;
     say(&ctx, Route_S02_Sc03_T2).await;
     battle_trainer(&ctx, TRAINER_SIL_GWADA_1, Route_S02_Gwada_Defeat).await;
     say(&ctx, Route_S02_Sc03_T3).await;

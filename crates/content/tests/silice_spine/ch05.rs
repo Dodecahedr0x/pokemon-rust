@@ -672,8 +672,6 @@ pub fn check_end(r: &Run) {
         "battle_multi",
         "play_fanfare",
         "show_sync",
-        "log_menu",
-        "screen_shake",
         "moving light",
         "hidden item",
     ] {

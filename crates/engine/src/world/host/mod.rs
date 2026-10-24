@@ -488,7 +488,16 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             Request::ScreenFlash { .. }
             | Request::ScreenShake { .. }
             | Request::SetTint { .. }
+            | Request::TextOnBlack(_)
+            | Request::CameraPan { .. }
             | Request::WaitInputOrTimeout(_) => fx::begin(self, r),
+            Request::SetInputMap(m) => {
+                match game.special_ids().var_input_map {
+                    Some(v) => s.vars.set_var(v, m.code()),
+                    None => s.log("input map in a game without one ignored"),
+                }
+                UNIT
+            }
             Request::MoneyGet
             | Request::CoinsGet
             | Request::CoinsAdd(_)
@@ -560,6 +569,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
         if let Request::ScreenFlash { .. }
         | Request::ScreenShake { .. }
         | Request::SetTint { .. }
+        | Request::CameraPan { .. }
         | Request::WaitInputOrTimeout(_) = r
         {
             return fx::resume(self, r);

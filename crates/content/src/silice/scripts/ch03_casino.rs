@@ -9,6 +9,7 @@
 //! `money_remove`).
 
 use crate::silice::prelude::*;
+use engine::script::GiveMonExtra;
 
 /// The maps whose scripts this file owns: strict (every script they name must exist).
 pub const MAPS: &[&str] = &["ViberCity_Casino", "ViberCity_Casino_B1F"];
@@ -539,11 +540,8 @@ pub async fn ViberCity_Casino_B1F_Sc02(ctx: Ctx) {
     // fallback: the open capsule's metatile (Facility has none): the capsule is not redrawn.
     fallback(&ctx, "capsule metatile").await;
     ctx.fade(Fade::FromBlack).await;
-    ctx.give_mon(SPECIES_PORYGON, 25).await;
-    // fallback: give_mon with custom moves, a held item and an OT (§9: CONVERSION 2, PSYBEAM,
-    // RECOVER, AGILITY; the Up-Grade; "COCKET"): the level-25 moves, and the Up-Grade in the bag.
-    fallback(&ctx, "give_mon custom").await;
-    add_item(&ctx, ITEM_UP_GRADE, 1).await;
+    // §9: CONVERSION 2, PSYBEAM, RECOVER, AGILITY; the Up-Grade held; OT "COCKET".
+    ctx.give_mon_with(SPECIES_PORYGON, 25, &PORYGON).await;
     say(&ctx, Casino_B1F_Sc02_T3).await;
     ctx.set_flag(FLAG_SIL_CASINO_LOYAL, true).await;
     ctx.set_flag(FLAG_SIL_PORYGON_LIBERE, true).await;
@@ -555,6 +553,19 @@ pub async fn ViberCity_Casino_B1F_Sc02(ctx: Ctx) {
     hide(&ctx, LOCALID_CASINO_B1F_ROMAIN).await;
     ctx.release_all().await;
 }
+
+/// The Casino's PORYGON (§9). The source names no OT id: 0. (The engine keeps no OT name yet.)
+static PORYGON: GiveMonExtra = GiveMonExtra {
+    moves: Some([
+        MOVE_CONVERSION_2,
+        MOVE_PSYBEAM,
+        MOVE_RECOVER,
+        MOVE_AGILITY,
+    ]),
+    item: Some(ItemId(ITEM_UP_GRADE)),
+    ot: Some((crate::data::TEXTS[Casino_B1F_Porygon_DO.0 as usize], 0)),
+    nickname: None,
+};
 
 /// SBIRE 1 (3, 3), facing right.
 pub async fn ViberCity_Casino_B1F_EventScript_Sbire1(ctx: Ctx) {

@@ -159,8 +159,7 @@ pub async fn ReverseCity_Gym_Sc01(ctx: Ctx) {
     // The moonwalk (`WalkBackwardsFast(Up) x6`) has a wall right above him (6, 3), the top of
     // the hall of reflections: the source's §9 fallback for Reverse instead, the flash and he
     // is gone.
-    // fallback: screen_flash(PIXELS_NOIRS) (§9): a fade out and in (prelude).
-    screen_flash(&ctx).await;
+    screen_flash(&ctx, BLACK).await;
     hide(&ctx, LOCALID_GYM07_REVERSE).await;
     show(&ctx, LOCALID_GYM07_PIXELS_NOIRS, FLAG_SIL_HIDE_GYM07_PIXELS).await;
     say(&ctx, Gym07_Sc01_T7).await;
@@ -217,9 +216,7 @@ pub async fn ReverseCity_Gym_Sc02(ctx: Ctx) {
     say(&ctx, Gym07_Sc02_T6).await;
     say(&ctx, Gym07_Sc02_T7).await;
     ctx.set_flag(FLAG_SIL_LOG_07, true).await;
-    // fallback: the log on the Mallette's screen (`msgbox(…, Sign)`, the log menu): the log's
-    // text as a message (the source's own fallback, as Chapters 3–5).
-    fallback(&ctx, "log_menu").await;
+    // The log (`msgbox(…, Sign)`): the log as a message, as the Mallette's RAPPORTS reads it again.
     say(&ctx, Gym07_Sc02_Log07).await;
     say(&ctx, Gym07_Sc02_T8).await;
     say(&ctx, Gym07_Sc02_T9).await;
