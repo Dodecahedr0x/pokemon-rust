@@ -39,6 +39,8 @@
 //!   leaves these out, or replays them as its own setup. A spine holds one only where a
 //!   buttons-only run cannot do without it (documented at the hook: [`ch01::SECOND`]); probes
 //!   that need one are separate lists ([`ch00::labo_brambles_probe`]).
+//! - [`Step::Menu`]: the entry the next script multichoice takes (the Tower's elevator).
+//! - [`Step::Days`]: the clock's day set (a new day: the post-game's daily rematches).
 //! - [`Step::Check`]: a labelled checkpoint with its assertions; a natural place for the
 //!   explorer's `Checkpoint(label)`.
 //!
@@ -88,6 +90,7 @@ pub mod ch08;
 pub mod ch09;
 pub mod ch10;
 pub mod ch11;
+pub mod ch12;
 pub mod driver;
 
 use engine::data::{Dir, FlagId, GameData, MapId, MoveId, SpeciesId};
@@ -175,6 +178,13 @@ pub enum Step {
     },
     Hook(Hook),
     Check(&'static str, fn(&Run)),
+    /// The next script multichoice menu (an elevator's floors) takes this entry: the cursor is
+    /// moved onto it, then A. A player decision, so it is spine data; without it, A answers a
+    /// menu at its cursor.
+    Menu(u8),
+    /// The clock's day (`World::set_rtc_days`, the hardware clock a shell reads): the daily
+    /// flags reset on the next map load (the post-game's rematches).
+    Days(u16),
 }
 
 /// [`Step::Teach`]: the bag's USE on TM or HM `item` (`ItemId`), on party slot `mon`; "forget a
