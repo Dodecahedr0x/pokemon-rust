@@ -301,6 +301,13 @@ impl State {
         origin: Origin,
         f: &mut Frame,
     ) {
+        // A trainer's own rules (`GameData::trainer_rules`) when the request names none.
+        let rules = match kind {
+            BattleKind::Trainer { trainer, .. } if rules == Default::default() => {
+                game.trainer_rules(trainer).copied().unwrap_or_default()
+            }
+            _ => rules,
+        };
         let double = double.or_else(|| match kind {
             BattleKind::Trainer { trainer, .. }
                 if game.trainer(trainer).is_some_and(|t| t.double) =>

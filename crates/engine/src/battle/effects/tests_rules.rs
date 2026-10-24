@@ -94,6 +94,19 @@ static PRISM: FieldRule = FieldRule {
     ],
 };
 
+/// Rule 4: every foe mon that enters gets +1 Attack (Silice's overdose).
+static RAGE: FieldRule = FieldRule {
+    effects: &[RuleEffect::new(
+        When::SwitchIn,
+        Who::FOE,
+        What::Stage {
+            stat: Stat::Atk,
+            delta: 1,
+            limit: 0,
+        },
+    )],
+};
+
 static LINES: [TrainerLine; 3] = [
     TrainerLine {
         when: LineWhen::SendOut(0),
@@ -162,6 +175,7 @@ impl GameData for RGame {
             1 => Some(&ROLL),
             2 => Some(&STROBE),
             3 => Some(&PRISM),
+            4 => Some(&RAGE),
             _ => None,
         }
     }
@@ -430,4 +444,23 @@ fn a_trainer_uses_its_potion_once_under_a_quarter_hp() {
     r.choose(Choice::Move(0));
     let l = r.choose(Choice::Move(0));
     assert!(!starts(&l, "Trainer1UsedItem"), "{l:?}");
+}
+
+#[test]
+fn switch_in_effects_run_for_the_lead_and_every_mon_sent_after() {
+    let mut r = RRun::new(
+        trainer(),
+        rule(4),
+        &[m(PLAIN, 90, &[BIG_HIT])],
+        &[m(PLAIN, 2, &[SPLASH]), m(PLAIN, 2, &[SPLASH])],
+    );
+    assert_eq!(r.b.battler(O).stages[Stat::Atk as usize], 1);
+    assert_eq!(r.b.battler(P).stages[Stat::Atk as usize], 0);
+    r.choose(Choice::Move(0));
+    assert_eq!(
+        r.b.battler(O).mon.hp,
+        r.b.battler(O).mon.max_hp,
+        "the second mon is out"
+    );
+    assert_eq!(r.b.battler(O).stages[Stat::Atk as usize], 1);
 }

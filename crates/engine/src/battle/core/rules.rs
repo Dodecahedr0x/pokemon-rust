@@ -228,7 +228,7 @@ impl Battle {
         self.run_rule(env, |w| w == When::Start, None);
         for side in self.sides().collect::<Vec<_>>() {
             if self.is_present(side) {
-                self.last_in(env, side);
+                self.entered(env, side);
             }
         }
     }
@@ -253,10 +253,15 @@ impl Battle {
         );
     }
 
-    /// `side` sent out a mon: its `When::LastIn` effects, once, when it is the side's last.
-    pub(crate) fn last_in(&mut self, env: &mut Env, side: Side) {
+    /// `side` sent out a mon: its `When::SwitchIn` effects, then its `When::LastIn` ones,
+    /// once, when it is the side's last.
+    pub(crate) fn entered(&mut self, env: &mut Env, side: Side) {
+        if self.x.rule.is_none() {
+            return;
+        }
+        self.run_rule(env, |w| w == When::SwitchIn, Some(side));
         let s = side.s();
-        if self.x.rule.is_none() || self.x.last_in[s] || !self.is_last(side) {
+        if self.x.last_in[s] || !self.is_last(side) {
             return;
         }
         self.x.last_in[s] = true;

@@ -1453,6 +1453,12 @@ pub trait GameData {
         let _ = id;
         None
     }
+    /// The rules of every battle against trainer `id` whose request names none (a trainer
+    /// seen on its route, Silice's deaf room or data injector); `None`: a Gen3 battle.
+    fn trainer_rules(&self, id: TrainerId) -> Option<&'static battle::BattleRules> {
+        let _ = id;
+        None
+    }
     /// Trainer `id`'s mid-battle lines ([`battle::rules::TrainerLine`]).
     fn trainer_lines(&self, id: TrainerId) -> &'static [battle::TrainerLine] {
         let _ = id;

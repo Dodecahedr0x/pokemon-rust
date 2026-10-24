@@ -7,7 +7,7 @@
 //! - A field rule ([`FieldRule`], `GameData::battle_rule(id)`) is data: a list of
 //!   [`RuleEffect`]s, each "when, on whom, what, and which text". Instant effects (a message, a
 //!   stat stage, a status, a heal or a loss of HP) run at the battle's start, at a turn's start
-//!   or end, or when a side sends out its last mon; continuous ones (accuracy, speed, damage
+//!   or end, when a mon enters, or when a side sends out its last mon; continuous ones (accuracy, speed, damage
 //!   taken, a drain on the damage dealt, sound moves failing, a confusion ward) hold during the
 //!   turns they name. Turns count from 1.
 //! - Trainer lines ([`TrainerLine`], `GameData::trainer_lines(trainer)`): authored texts the
@@ -129,6 +129,8 @@ pub enum When {
     During(Turns),
     /// Once per side, when it sends out its last mon that can fight.
     LastIn,
+    /// Each time a mon enters: the leads after [`When::Start`], then every switch-in.
+    SwitchIn,
 }
 
 /// A set of turns (from 1): `from..=until` (`until` 0: no end) where

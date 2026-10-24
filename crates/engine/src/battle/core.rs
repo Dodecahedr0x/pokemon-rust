@@ -1989,9 +1989,9 @@ impl Battle {
             None => self.send_out_events(env, side, false),
         }
         super::effects::spikes(self, env, side);
-        // Silice's field rules: the side's last mon.
+        // Silice's field rules: a mon entered, the side's last.
         if self.battler(side).mon.hp > 0 {
-            self.last_in(env, side);
+            self.entered(env, side);
         }
         // Primal Reversion on entry (Gen6), then the switch-in abilities.
         self.primal_reversion(env, side);

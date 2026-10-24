@@ -40,6 +40,18 @@ static NORMAL_EVOS: [Evolution; 3] = [
     },
 ];
 
+/// A trainer whose battles have rules of their own (`GameData::trainer_rules`, Silice's
+/// Mélomane), with the test trainer's data.
+const RULES_TRAINER: TrainerId = TrainerId(3);
+static TRAINER_RULES: crate::battle::BattleRules = crate::battle::BattleRules {
+    inverse: true,
+    field: None,
+    background: None,
+    foe_back: false,
+    clone_player: false,
+    intro: None,
+};
+
 /// A double-battle trainer (as Gina & Mia on Route 104), with the test trainer's party.
 const DOUBLE_TRAINER: TrainerId = TrainerId(2);
 static DOUBLE_DATA: crate::mon::TrainerData = crate::mon::TrainerData {
@@ -122,7 +134,13 @@ impl GameData for GGame {
         if id == DOUBLE_TRAINER {
             return Some(&DOUBLE_DATA);
         }
+        if id == RULES_TRAINER {
+            return Game.trainer(TRAINER);
+        }
         Game.trainer(id)
+    }
+    fn trainer_rules(&self, id: TrainerId) -> Option<&'static crate::battle::BattleRules> {
+        (id == RULES_TRAINER).then_some(&TRAINER_RULES)
     }
     fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
         Game.heal_location(id)
@@ -587,4 +605,20 @@ fn a_clone_battle_fights_a_healed_copy_of_the_party_with_the_rules_background() 
     assert_eq!(foes, [(WATER, 30), (FIRE, 20)]);
     assert_eq!(b.setup().environment, crate::battle::Environment::Cave);
     assert!(b.setup().rules.foe_back);
+}
+
+#[test]
+fn a_trainer_with_rules_battles_under_them_unless_the_request_names_its_own() {
+    for (who, inverse) in [(RULES_TRAINER, true), (TRAINER, false)] {
+        let mut g = G::new();
+        start(&mut g.w, move |ctx| {
+            Box::pin(async move {
+                ctx.give_mon(WATER, 30).await;
+                ctx.battle_trainer(who, TextId(0)).await;
+            })
+        });
+        g.mash(20_000, |w| w.in_battle());
+        let (_, b, _) = g.w.battle().unwrap();
+        assert_eq!(b.setup().rules.inverse, inverse, "{who:?}");
+    }
 }
