@@ -1076,6 +1076,31 @@ pub struct TrainerData {
     pub party: &'static [TrainerMon],
 }
 
+/// An in-game partner's mon (Gen3 `sStevenMons`, `battle_tower.c`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct PartnerMon {
+    pub species: SpeciesId,
+    pub level: u8,
+    /// `fixedIV` (every IV).
+    pub iv: u8,
+    /// `nature`: the personality `FillPartnerParty` draws for (see [`PartnerData`]).
+    pub nature: u8,
+    /// HP, Atk, Def, Speed, SpAtk, SpDef.
+    pub evs: [u8; 6],
+    pub moves: [Option<MoveId>; 4],
+}
+
+/// The in-game partner of a multi battle (Gen3 `FillPartnerParty(TRAINER_STEVEN_PARTNER)`,
+/// `BATTLE_TYPE_INGAME_PARTNER`).
+#[derive(Clone, Copy, Debug)]
+pub struct PartnerData {
+    /// The `gTrainers` entry named and drawn for the partner (`TRAINER_STEVEN`).
+    pub trainer: crate::data::TrainerId,
+    /// `STEVEN_OTID`.
+    pub ot_id: u32,
+    pub mons: &'static [PartnerMon],
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct WildMon {
     pub species: SpeciesId,

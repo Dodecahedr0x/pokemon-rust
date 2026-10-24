@@ -144,6 +144,12 @@ pub struct Extra {
     pub halve_defense: bool,
     /// `MOVE_SOLAR_BEAM` in rain, sandstorm or hail: the damage is halved.
     pub weak_solar: bool,
+    /// A double battle with two battlers on the defender's side
+    /// (`CountAliveMonsInBattle(BATTLE_ALIVE_DEF_SIDE) == 2`): a screen takes a third
+    /// (`2 * (damage / 3)`), and a `MOVE_TARGET_BOTH` move is halved.
+    pub double_def: bool,
+    /// The move is `MOVE_TARGET_BOTH` (halved with [`Extra::double_def`]).
+    pub spread: bool,
 }
 
 /// [`base_damage_x`] with a Gen3 `u8` power and no weather.
@@ -285,9 +291,7 @@ pub fn base_damage_x(
         if a.status == Status::Burn && a.ability != Ability::Guts {
             damage /= 2;
         }
-        if x.screen {
-            damage /= 2;
-        }
+        damage = screen_spread(damage, x);
         if damage == 0 {
             damage = 1;
         }
@@ -302,9 +306,7 @@ pub fn base_damage_x(
             sp_defense as u32,
             d.stage(Stat::SpDef),
         );
-        if x.screen {
-            damage /= 2;
-        }
+        damage = screen_spread(damage, x);
         match (x.weather, ty) {
             (DamageWeather::Rain, Type::Fire) => damage /= 2,
             (DamageWeather::Rain, Type::Water) => damage = 15 * damage / 10,
@@ -323,6 +325,23 @@ pub fn base_damage_x(
         }
     }
     damage + 2
+}
+
+/// `CalculateBaseDamage`'s screen (Reflect / Light Screen), then its "moves hitting both foes
+/// deal less damage" halving.
+fn screen_spread(damage: i32, x: Extra) -> i32 {
+    let mut damage = damage;
+    if x.screen {
+        damage = if x.double_def {
+            2 * (damage / 3)
+        } else {
+            damage / 2
+        };
+    }
+    if x.spread && x.double_def {
+        damage /= 2;
+    }
+    damage
 }
 
 /// `Cmd_typecalc`'s same-type attack bonus: ×15/10.

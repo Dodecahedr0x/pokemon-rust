@@ -65,9 +65,7 @@ pub(super) fn uproar_keeps_awake(b: &Battle, side: Side) -> Option<Side> {
     if b.battler(side).ability == Ability::Soundproof {
         return None;
     }
-    [Side::Player, Side::Opponent]
-        .into_iter()
-        .find(|&s| b.battler(s).v.uproar > 0)
+    b.sides().into_iter().find(|&s| b.battler(s).v.uproar > 0)
 }
 
 /// Insomnia / Vital Spirit.
@@ -285,7 +283,7 @@ pub(super) fn flinch(
         }
         return;
     }
-    if b.actions[effect as usize].is_some() {
+    if b.actions[effect.i()].is_some() {
         b.battler_mut(effect).flinched = true;
     }
 }
@@ -520,7 +518,7 @@ fn fraction(max_hp: u16, div: u16) -> i32 {
 /// abilities (Shed Skin, Truant), Leech Seed, poison, toxic, burn, Uproar, the Charge timer,
 /// then Yawn. Residual damage ignores Bide (`HITMARKER_IGNORE_BIDE`).
 pub(super) fn end_turn(b: &mut Battle, env: &mut Env) {
-    for side in b.order {
+    for side in b.turn_sides() {
         let foe = side.other();
         // ENDTURN_INGRAIN.
         super::mech::end_turn_ingrain(b, env, side);
@@ -599,7 +597,7 @@ fn uproar_turn(b: &mut Battle, env: &mut Env, side: Side) {
     if b.battler(side).v.uproar == 0 {
         return;
     }
-    for s in [Side::Player, Side::Opponent] {
+    for s in b.sides() {
         let m = b.battler(s);
         if matches!(m.mon.status, Status::Sleep(_))
             && m.mon.hp > 0

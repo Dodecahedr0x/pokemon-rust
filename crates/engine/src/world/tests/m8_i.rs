@@ -44,11 +44,24 @@ static ARENA: MapData = MapData {
     map_type: 0,
 };
 
-/// The trainers' script: `TrainerApproach` (as content's `trainer_battle`), then a battle.
+/// The trainers' script: `TrainerApproach` (as content's `trainer_battle`), then a sighted
+/// trainer's `TrainerPair` (a second trainer's script runs, or this one is that second
+/// trainer and ends), then a battle.
 async fn trainer_script(ctx: Ctx, obj: u8, flag: FlagId) {
     let r = ctx.request(Request::TrainerApproach { obj }).await;
-    ctx.set_flag(FLAG_APPROACHED, matches!(r, Response::Unit))
-        .await;
+    let approached = matches!(r, Response::Unit | Response::Bool(true));
+    ctx.set_flag(FLAG_APPROACHED, approached).await;
+    if matches!(r, Response::Bool(true)) {
+        let pair = Request::TrainerPair {
+            trainer: TRAINER,
+            defeat: TextId(0),
+        };
+        match ctx.request(pair).await {
+            Response::Value(s) => Arena.script(ScriptId(s), ctx.clone()).await,
+            Response::Bool(true) => return,
+            _ => {}
+        }
+    }
     ctx.battle_trainer(TRAINER, TextId(0)).await;
     ctx.set_flag(flag, true).await;
     ctx.release_all().await;
@@ -162,7 +175,7 @@ fn sight_needs_range_facing_a_clear_path_and_an_unset_flag() {
         obj: 1,
         script: TRAINER_1_SCRIPT,
         distance: 3,
-        second: false,
+        second: None,
     };
     assert_eq!(sees(&mut w, (5, 3), false), Some(hit));
     assert_eq!(
@@ -362,12 +375,12 @@ fn double_trainers_need_two_usable_mons_and_a_second_trainer_needs_them_too() {
     // Trainer 2 under (5, 3) as well.
     w.s.objects.set_pos(2, 5, 6);
     let one = sees(&mut w, (5, 3), false).unwrap();
-    assert_eq!((one.obj, one.second), (1, false), "one mon: the scan stops");
+    assert_eq!((one.obj, one.second), (1, None), "one mon: the scan stops");
     let mut w2 = arena(2);
     assert_eq!(sees(&mut w2, (5, 3), true).map(|s| s.obj), Some(1));
     w2.s.objects.set_pos(2, 5, 6);
     let two = sees(&mut w2, (5, 3), false).unwrap();
-    assert_eq!((two.obj, two.second), (1, true));
+    assert_eq!((two.obj, two.second), (1, Some((2, TRAINER_2_SCRIPT, 3))));
     // A fainted mon is not usable.
     w2.s.party.get_mut(1).unwrap().hp = 0;
     assert_eq!(sees(&mut w2, (5, 3), true), None);
@@ -439,20 +452,22 @@ fn talking_to_a_trainer_skips_the_approach() {
 }
 
 #[test]
-fn two_trainers_seeing_report_the_second_degraded() {
+fn two_trainers_seeing_fight_together() {
     let mut w = arena(2);
     w.s.objects.set_pos(2, 5, 6);
     w.s.objects.set_pos(PLAYER, 4, 3);
     // Step right onto (5, 3): trainer 1 at 3 cells, trainer 2 (now on (5, 6)) at 3 cells below.
-    let mut seen = false;
-    for _ in 0..40 {
+    let mut double = None;
+    for _ in 0..600 {
         step(&mut w, Buttons::RIGHT, 1);
-        if w.events()
-            .contains(&Event::Report(Report::Degraded("double sight")))
-        {
-            seen = true;
+        if let Some((_, b, _)) = w.battle() {
+            double = Some(b.setup().double);
             break;
         }
     }
-    assert!(seen, "double sight reported");
+    let double = double.expect("a battle").expect("a double battle");
+    assert_eq!(double.second, Some((TRAINER, TextId(0))));
+    // Both walked up (Gen3 `TryPrepareSecondApproachingTrainer`): trainer 2 next to the player.
+    assert_eq!(w.objects().get(1).unwrap().pos(), (6, 3));
+    assert_eq!(w.objects().get(2).unwrap().pos(), (5, 4));
 }

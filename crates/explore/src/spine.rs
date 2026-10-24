@@ -599,11 +599,18 @@ pub const PLAY_MACRO_FRAMES: u32 = 12_000;
 /// `Train` retry replays the same rolls (the RNG does not advance on idle frames).
 pub const PLAY_GRASS_FRAMES: u32 = 9_600;
 
-/// `cfg` with [`PLAY_MACRO_FRAMES`] and [`PLAY_GRASS_FRAMES`] (spine and branch sessions).
+/// The battle frame cap of spine and branch sessions, at least: a double battle of four
+/// battlers against six foes (Wave G: Steven's multi battle at the Space Center, ~14,000
+/// frames) outlasts the single battles' 12,000.
+pub const PLAY_BATTLE_FRAMES: u32 = 24_000;
+
+/// `cfg` with [`PLAY_MACRO_FRAMES`], [`PLAY_GRASS_FRAMES`] and [`PLAY_BATTLE_FRAMES`] (spine
+/// and branch sessions).
 pub fn play_config(cfg: &Config) -> Config {
     let mut c = cfg.clone();
     c.limits.macro_frames = c.limits.macro_frames.max(PLAY_MACRO_FRAMES);
     c.limits.grass_frames = c.limits.grass_frames.max(PLAY_GRASS_FRAMES);
+    c.limits.battle_frames = c.limits.battle_frames.max(PLAY_BATTLE_FRAMES);
     c
 }
 

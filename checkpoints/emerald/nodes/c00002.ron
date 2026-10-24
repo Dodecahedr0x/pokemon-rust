@@ -4,8 +4,8 @@
         label: "route:after_wild",
         schema: 6,
         build: (
-            engine: 11051983103929903487,
-            content: 4130182656904400097,
+            engine: 1709344238647373991,
+            content: 3699024651427477014,
         ),
         frame: 6400,
         map: (16),
@@ -16,8 +16,8 @@
         schema: 2,
         parent: Checkpoint(1),
         build: (
-            engine: 11051983103929903487,
-            content: 4130182656904400097,
+            engine: 1709344238647373991,
+            content: 3699024651427477014,
         ),
         start_frame: 4570,
         inputs: [

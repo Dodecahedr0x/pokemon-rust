@@ -161,7 +161,7 @@ pub(super) fn plain(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitRes
         }
         E::Return | E::Frustration => {
             // `friendshiptodamagecalculation` (`gDynamicBasePower` 0 keeps the table power).
-            let f = b.parties[u.attacker as usize]
+            let f = b.parties[u.attacker.s()]
                 .get(a.mon.party as usize)
                 .map_or(0, |p| p.friendship) as u32;
             let f = if u.info.effect == E::Return {
@@ -176,7 +176,7 @@ pub(super) fn plain(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitRes
             None
         }
         E::HiddenPower => {
-            let ivs = b.parties[u.attacker as usize]
+            let ivs = b.parties[u.attacker.s()]
                 .get(a.mon.party as usize)
                 .map_or([0; 6], |p| p.ivs);
             let (power, ty) = hidden_power(ivs);
@@ -359,8 +359,8 @@ fn rapid_spin(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
     } else if m.seeded {
         b.battler_mut(a).seeded = false;
         say(env, u, Str::PkmnShedLeechSeed, a);
-    } else if b.fx.spikes[a as usize] > 0 {
-        b.fx.spikes[a as usize] = 0;
+    } else if b.fx.spikes[a.s()] > 0 {
+        b.fx.spikes[a.s()] = 0;
         say(env, u, Str::PkmnBlewAwaySpikes, a);
     }
 }
@@ -390,7 +390,7 @@ fn knock_off(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
     let m = b.battler_mut(t);
     m.x.item = None;
     m.x.hold = None;
-    b.fx.knocked_off[t as usize] |= 1 << party;
+    b.fx.knocked_off[t.s()] |= 1 << party;
     say_with(
         env,
         u,
@@ -409,7 +409,7 @@ fn thief(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
         return;
     }
     let am = *b.battler(a);
-    if b.fx.knocked_off[a as usize] & (1 << am.mon.party) != 0 {
+    if b.fx.knocked_off[a.s()] & (1 << am.mon.party) != 0 {
         return;
     }
     let tm = *b.battler(t);
@@ -432,8 +432,8 @@ fn thief(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
         let m = b.battler_mut(side);
         m.x.item = item;
         m.x.hold = hold;
-        b.x.holds[side as usize][party as usize] = hold;
-        if let Some(p) = b.parties[side as usize].get_mut(party as usize) {
+        b.x.holds[side.s()][party as usize] = hold;
+        if let Some(p) = b.parties[side.s()].get_mut(party as usize) {
             p.held = item;
         }
     }
@@ -534,17 +534,21 @@ pub(super) fn earthquake(
             [Buff::Number(m), Buff::None, Buff::None],
         );
     }
-    if b.battler(u.target).fx.semi == Some(SemiKind::Dig) {
-        u.multiplier = 2;
-    }
-    if !b.accuracy(env, &u) {
-        b.miss_message(env, &u);
-        return None;
-    }
-    let r = b.damage(env, &u);
-    let r = b.deal(env, &u, r);
-    b.try_faint(env, u.target);
-    Some(r)
+    // BattleScript_HitsAllWithUndergroundBonusLoop, each target.
+    super::each_target(b, env, &u, |b, env, u| {
+        let mut u = *u;
+        if b.battler(u.target).fx.semi == Some(SemiKind::Dig) {
+            u.multiplier = 2;
+        }
+        if !b.accuracy(env, &u) {
+            b.miss_message(env, &u);
+            return None;
+        }
+        let r = b.damage(env, &u);
+        let r = b.deal(env, &u, r);
+        b.try_faint(env, u.target);
+        Some(r)
+    })
 }
 
 /// `BattleScript_EffectBrickBreak`: `removelightscreenreflect` on the target's side; the
@@ -555,7 +559,7 @@ pub(super) fn brick_break(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<
         return None;
     }
     b.attack_string(env, u);
-    let side = u.target as usize;
+    let side = u.target.s();
     let had = b.fx.reflect[side].is_some() || b.fx.light_screen[side].is_some();
     b.fx.reflect[side] = None;
     b.fx.light_screen[side] = None;
@@ -738,15 +742,18 @@ pub(super) fn explosion(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<Hi
     let hp = b.battler(u.attacker).mon.hp as i32;
     b.change_hp_passive(env, u.attacker, hp);
     anim(env, u);
-    let r = b.damage(env, u);
-    let hit = if b.accuracy(env, u) {
-        let r = b.deal_with(env, u, r, false);
-        b.try_faint(env, u.target);
-        Some(r)
-    } else {
-        b.miss_message(env, u);
-        None
-    };
+    // BattleScript_ExplosionLoop, each target.
+    let hit = super::each_target(b, env, u, |b, env, u| {
+        let r = b.damage(env, u);
+        if b.accuracy(env, u) {
+            let r = b.deal_with(env, u, r, false);
+            b.try_faint(env, u.target);
+            Some(r)
+        } else {
+            b.miss_message(env, u);
+            None
+        }
+    });
     b.try_faint(env, u.attacker);
     hit
 }
@@ -1131,7 +1138,7 @@ pub(super) fn spit_up(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitR
 /// (`CalculateBaseDamage`), it lands at the end of the third turn.
 pub(super) fn future_sight(b: &mut Battle, env: &mut Env, u: &MoveUse, doom: bool) {
     b.attack_string(env, u);
-    let t = u.target as usize;
+    let t = u.target.i();
     if b.fx.future[t].is_some() {
         b.fail(env, u);
         return;

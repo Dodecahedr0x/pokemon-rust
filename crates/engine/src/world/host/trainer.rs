@@ -4,7 +4,8 @@
 //!
 //! `TrainerApproach { obj }` is issued by content's `trainer_battle` before every regular kind.
 //! - If a sighting is pending, the approach runs and the request is answered `Response::Unit`
-//!   once the player faces the trainer (the host's waiting answer). `obj` is not compared: the
+//!   once the player faces the trainer (the host's waiting answer), `Response::Bool(true)` when
+//!   a second trainer is involved ([`resume`], Wave G). `obj` is not compared: the
 //!   pending sighting started this script, and Emerald's `trainerbattle_*` macros pass local
 //!   id 0 (Task L: on the real build no approach ran before this).
 //! - Else it is answered at once with `Response::Value(n)`, `n` the player's usable mons (HP
@@ -26,6 +27,18 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
     Some(Response::Value(usable))
 }
 
+/// The answer once the approach is done: `Unit`, or `Bool(true)` when a second trainer saw
+/// the player too or this is that second trainer's script (Wave G): only then does content
+/// issue [`Request::TrainerPair`], so a lone sighting's requests are as before.
+pub(super) fn resume<G: GameData>(h: &mut Host<'_, G>) -> Option<Response> {
+    let p = &h.s.pair;
+    Some(if p.next.is_some() || p.second_running.is_some() {
+        Response::Bool(true)
+    } else {
+        Response::Unit
+    })
+}
+
 /// One frame of the approach; true once the script may go on.
 pub(super) fn done<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> bool {
     let _ = r;
@@ -43,4 +56,27 @@ pub(super) fn done<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> bool {
         }
         ApproachStep::Done => true,
     }
+}
+
+/// `TrainerPair` (Wave G, Gen3 `TryPrepareSecondApproachingTrainer`): the second trainer's
+/// script starts its approach (`Value(script)`), or that script notes trainer B
+/// (`Bool(true)`), or there is no second trainer (`Unit`).
+pub(super) fn pair<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Response> {
+    let Request::TrainerPair { trainer, defeat } = *r else {
+        return UNIT;
+    };
+    let s = &mut *h.s;
+    if let Some(script) = s.pair.second_running.take() {
+        s.pair.b = Some((trainer, defeat, script));
+        return Some(Response::Bool(true));
+    }
+    let Some((obj, script, distance)) = s.pair.next.take() else {
+        return UNIT;
+    };
+    // Gen3 `gSelectedObjectEvent` / `gSpecialVar_LastTalked`: the second trainer.
+    let map = s.field.map();
+    s.selected = Some((obj, map));
+    s.objects.sight_pending(obj, distance);
+    s.pair.second_running = Some(script);
+    Some(Response::Value(script.0))
 }

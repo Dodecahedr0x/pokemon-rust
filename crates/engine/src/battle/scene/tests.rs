@@ -76,6 +76,7 @@ impl Run {
             kind,
             opponents: party(opponents),
             environment: Environment::Grass,
+            double: None,
         };
         let mut battle = Battle::new(&game, setup.clone(), &party(player), &mut rng);
         let mut scene = BattleScene::new(&setup, named("ASH"));
@@ -221,7 +222,7 @@ fn scripted_playback_and_menu_input() {
             mov: None,
             buffs: [Buff::None; 3],
             wait,
-            slots: [0, 0],
+            slots: [0; 4],
         })
     };
     let mut events = alloc::vec![
@@ -422,7 +423,7 @@ fn trainer_battle_second_mon_and_defeat_text() {
     while r.scene.finished().is_none() {
         let b = if r.frames.is_multiple_of(4) { A } else { NONE };
         r.frame(b);
-        saw_defeat |= r.scene.play == Play::Defeated(true);
+        saw_defeat |= r.scene.play == Play::Defeated(true, false);
         assert!(r.frames < 20_000);
     }
     assert_eq!(r.scene.finished(), Some(BattleOutcome::Won));
@@ -586,7 +587,7 @@ fn script_msg(id: Str, wait: MsgWait) -> BattleEvent {
         mov: None,
         buffs: [Buff::None; 3],
         wait,
-        slots: [0, 0],
+        slots: [0; 4],
     })
 }
 

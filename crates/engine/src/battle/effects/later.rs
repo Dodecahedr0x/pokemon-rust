@@ -80,9 +80,9 @@ pub(super) fn left_field(b: &mut Battle, env: &mut Env, ability: Ability) {
         (Weather::HarshSun, Ability::DesolateLand) => (Ability::DesolateLand, Str::HarshSunFaded),
         _ => return,
     };
-    let kept = [Side::Player, Side::Opponent]
-        .iter()
-        .any(|&s| b.battler(s).ability == source && b.battler(s).mon.hp > 0);
+    let kept = b
+        .sides()
+        .any(|s| b.battler(s).ability == source && b.battler(s).mon.hp > 0);
     if kept {
         return;
     }
@@ -129,7 +129,7 @@ pub(super) fn field_end_turn(b: &mut Battle, env: &mut Env) {
     if (b.x.weather != Weather::Sand && !hail) || b.weather() != b.x.weather {
         return;
     }
-    for side in b.order {
+    for side in b.turn_sides() {
         let m = b.battler(side);
         let immune = if hail {
             m.types.contains(&Type::Ice)

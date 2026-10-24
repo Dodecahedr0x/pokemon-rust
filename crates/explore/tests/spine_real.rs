@@ -12,8 +12,9 @@ use explore::spine::{self, SpineRun};
 /// (an engine or content change on its path), worth a look before updating it.
 const EMERALD_BADGE1_FRAMES: u64 = 104_523;
 
-/// The whole Emerald spine's frame count (to its last step, to its last checkpoint).
-const EMERALD_FRAMES: u64 = 3_032_538;
+/// The whole Emerald spine's frame count (to its last step, to its last checkpoint); 3,032,538
+/// before Wave G's doubles (Fortree's and Mossdeep's gym pairs, Tate and Liza, Steven).
+const EMERALD_FRAMES: u64 = 3_172_864;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[

@@ -283,10 +283,34 @@ impl State {
         origin: Origin,
         f: &mut Frame,
     ) {
+        self.start_battle_with(game, kind, opponents, None, origin, f);
+    }
+
+    /// [`World::start_battle`] with the double battle's setup (two trainers, the in-game
+    /// partner). A trainer whose data says double (`trainerbattle_double`, the twins) battles
+    /// in doubles without one.
+    pub(super) fn start_battle_with(
+        &mut self,
+        game: &impl GameData,
+        kind: BattleKind,
+        opponents: Party,
+        double: Option<crate::battle::Double>,
+        origin: Origin,
+        f: &mut Frame,
+    ) {
+        let double = double.or_else(|| match kind {
+            BattleKind::Trainer { trainer, .. }
+                if game.trainer(trainer).is_some_and(|t| t.double) =>
+            {
+                Some(crate::battle::Double::default())
+            }
+            _ => None,
+        });
         let setup = BattleSetup {
             kind,
             opponents,
             environment: self.environment(game),
+            double,
         };
         let transition = BattleTransition::new(&kind);
         // The run (about 4 KiB) is built in its heap allocation: `Box::new` of a literal copies
@@ -321,13 +345,6 @@ impl State {
             (*b).enable_player_forms(game, |f| self.vars.flag(f));
             &*b
         };
-        if let BattleKind::Trainer { trainer, .. } = battle.setup().kind
-            && game.trainer(trainer).is_some_and(|t| t.double)
-        {
-            // A double battle runs as singles against the same party (decision Q3). The one
-            // place this is reported, for every trainer battle (scripted or by sight).
-            report(self, Report::Degraded("double battle"));
-        }
         let mut scene = BattleScene::new(battle.setup(), self.player_name);
         if let Some(b) = (self.bag.pocket(Pocket::PokeBalls).iter()).find(|b| b.qty > 0) {
             scene.set_balls(b.item, b.qty);
@@ -585,7 +602,47 @@ fn after_win(game: &impl GameData, s: &mut State, battle: &Battle) {
         }
         s.money = s.money.saturating_add(money).min(max);
     }
+    // Wave G: `SetBattledTrainersFlags` also sets trainer B's flag (content sets A's).
+    if let Some((_, _, script)) = s.pair.b.take()
+        && let Some(flag) = game.trainer_flag_of(script)
+    {
+        s.vars.set_flag(flag, true);
+    }
     super::evolve::after_win(game, s, battle);
+}
+
+/// The opponents of a trainer battle (Gen3 `CreateNPCTrainerParty`): trainer A's party, or,
+/// with trainer B (`BATTLE_TYPE_TWO_OPPONENTS`, Wave G), at most three of A's
+/// (`gEnemyParty[0..]`) then at most three of B's (`gEnemyParty[3..]`), with the battle's
+/// [`crate::battle::Double`]. `None` when A is unknown or has no mon that can fight.
+pub(super) fn trainer_party(
+    game: &impl GameData,
+    rng: &mut crate::rng::Rng,
+    trainer: crate::data::TrainerId,
+    second: Option<(crate::data::TrainerId, crate::data::TextId)>,
+) -> Option<(Party, Option<crate::battle::Double>)> {
+    use crate::battle::MULTI_PARTY_SIZE;
+    use crate::trainer::{create_trainer_party, create_trainer_party_up_to};
+    let t = game.battle();
+    let a = game.trainer(trainer)?;
+    let Some((b, b_defeat)) = second else {
+        let p = create_trainer_party(t, a, rng);
+        return p.first_usable().is_some().then_some((p, None));
+    };
+    let half = MULTI_PARTY_SIZE as usize;
+    let mut p = create_trainer_party_up_to(t, a, rng, half);
+    let split = p.len() as u8;
+    if let Some(bt) = game.trainer(b) {
+        for m in create_trainer_party_up_to(t, bt, rng, half).iter() {
+            let _ = p.push(*m);
+        }
+    }
+    let double = crate::battle::Double {
+        second: Some((b, b_defeat)),
+        partner: None,
+        split: [0, split],
+    };
+    p.first_usable().is_some().then_some((p, Some(double)))
 }
 
 /// Re-uploads the field after a battle or the starter screen owned the screen (black frame):
@@ -697,6 +754,16 @@ impl World {
                     run.outcome = Some(outcome);
                     s.event(super::Event::BattleEnded(outcome));
                     s.party = run.battle.party(Side::Player).clone();
+                    // Wave G: the in-game partner's mons leave with it (Gen3's script loads
+                    // the saved party back over `gPlayerParty`).
+                    if run.battle.has_partner() {
+                        let mut own = Party::default();
+                        let n = run.battle.party_range(Side::Player).end as usize;
+                        for m in s.party.iter().take(n) {
+                            let _ = own.push(*m);
+                        }
+                        s.party = own;
+                    }
                     // Gen3 `HandleAction_UseItem` takes each ball out of the bag as it is used.
                     if let Some((ball, n)) = run.scene.balls_thrown() {
                         s.bag.remove(Pocket::PokeBalls, ball, n);

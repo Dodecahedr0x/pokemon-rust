@@ -88,9 +88,12 @@ pub(crate) fn reads_first_turn(t: &BattleTables, b: &crate::battle::core::Battle
 /// `CheckFocusPunch_ClearVarsBeforeTurnStarts`: "tightening its focus" for each battler about
 /// to use Focus Punch (not asleep, not loafing), then `TryClearRageStatuses`.
 pub(crate) fn before_turn(b: &mut Battle, env: &mut Env) {
-    for side in [Side::Player, Side::Opponent] {
+    for side in b.sides() {
+        if b.is_absent(side) {
+            continue;
+        }
         let m = b.battler(side);
-        let chosen = match b.actions[side as usize] {
+        let chosen = match b.actions[side.i()] {
             Some(Action::Move(s)) => m.mon.moves[s as usize],
             _ => None,
         };
@@ -118,7 +121,7 @@ pub(in crate::battle::effects) fn reroute(
     let a = u.attacker;
     let m = *b.battler(a);
     if let Some(lock) = m.fx.lock {
-        return Some(b.move_use(env, a, lock, None));
+        return Some(keep_target(b, u, b.move_use(env, a, lock, None)));
     }
     let (mov, pos) = m.fx.encore?;
     if m.mon.moves[pos as usize] != Some(mov) {
@@ -130,7 +133,20 @@ pub(in crate::battle::effects) fn reroute(
     if u.slot.is_none() || u.slot == Some(pos) {
         return None;
     }
-    Some(b.move_use(env, a, mov, Some(pos)))
+    Some(keep_target(b, u, b.move_use(env, a, mov, Some(pos))))
+}
+
+/// Doubles: the locked or encored move keeps the chosen move's target when it targets the
+/// same way (a simplification of `HandleAction_UseMove`'s `GetMoveTarget` re-roll).
+fn keep_target(b: &Battle, u: &MoveUse, n: MoveUse) -> MoveUse {
+    if b.is_double() && n.info.target == u.info.target {
+        MoveUse {
+            target: u.target,
+            ..n
+        }
+    } else {
+        n
+    }
 }
 
 // ---- the move ----
@@ -151,9 +167,9 @@ pub(in crate::battle::effects) fn start_move(b: &mut Battle, u: &MoveUse) {
         attacker: u.attacker,
         target: u.target,
         physical: physical_of(u),
-        hit: [false; 2],
+        hit: [false; 4],
         sleep_talk: false,
-        lowered: [false; 2],
+        lowered: [false; 4],
         called: None,
         mov: u.mov,
         slot: u.slot,
@@ -281,7 +297,7 @@ pub(crate) fn record_damage(b: &mut Battle, side: Side, dealt: u16) {
         rec.special = Some((dealt, source));
     }
     if let Some(c) = &mut b.fx.cur {
-        c.hit[side as usize] = true;
+        c.hit[side.i()] = true;
     }
 }
 
@@ -313,7 +329,7 @@ pub(crate) fn destiny_bond(b: &mut Battle, env: &mut Env, side: Side) {
 pub(in crate::battle::effects) fn move_end_first(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     let t = u.target;
     let m = b.battler(t);
-    let hit = b.fx.cur.is_some_and(|c| c.hit[t as usize]);
+    let hit = b.fx.cur.is_some_and(|c| c.hit[t.i()]);
     if !m.fx.rage
         || m.mon.hp == 0
         || u.attacker == t
@@ -374,7 +390,7 @@ pub(crate) fn clear_bonds(b: &mut Battle, side: Side) {
 /// `switchineffects`' Spikes: max HP / ((5 - layers) * 2), not on a Flying or Levitate
 /// battler (`BattleScript_SpikesOn*`: the HP, then the message).
 pub(crate) fn spikes(b: &mut Battle, env: &mut Env, side: Side) {
-    let n = b.fx.spikes[side as usize];
+    let n = b.fx.spikes[side.s()];
     let m = b.battler(side);
     if n == 0 || m.mon.hp == 0 || m.types.contains(&Type::Flying) || m.ability == Ability::Levitate
     {
@@ -399,7 +415,7 @@ pub(in crate::battle::effects) fn trapped(b: &Battle, side: Side) -> bool {
 
 /// The side's Safeguard is up.
 pub(in crate::battle::effects) fn safeguarded(b: &Battle, side: Side) -> bool {
-    b.fx.safeguard[side as usize] > 0
+    b.fx.safeguard[side.s()] > 0
 }
 
 // ---- end of turn ----
@@ -407,7 +423,7 @@ pub(in crate::battle::effects) fn safeguarded(b: &Battle, side: Side) -> bool {
 /// `TurnValuesCleanUp(TRUE)` and `HandleEndTurn_ContinueBattle`: the protections end; a
 /// sleeping battler's lock ends.
 pub(in crate::battle::effects) fn turn_passed(b: &mut Battle) {
-    for side in [Side::Player, Side::Opponent] {
+    for side in b.sides() {
         let m = b.battler_mut(side);
         m.fx.protected = false;
         m.fx.endured = false;
@@ -419,7 +435,7 @@ pub(in crate::battle::effects) fn turn_passed(b: &mut Battle) {
 
 /// `TurnValuesCleanUp(FALSE)`: the damage records clear, the recharge counts down.
 pub(in crate::battle::effects) fn turn_clean_up(b: &mut Battle) {
-    for side in [Side::Player, Side::Opponent] {
+    for side in b.sides() {
         let fx = &mut b.battler_mut(side).fx;
         fx.rec.physical = None;
         fx.rec.special = None;
@@ -427,6 +443,9 @@ pub(in crate::battle::effects) fn turn_clean_up(b: &mut Battle) {
         fx.bounce = false;
         fx.snatch = false;
     }
+    // `gProtectStructs` (Helping Hand) and, at its end, the side timers' `followmeTimer`.
+    b.fx.helping_hand = 0;
+    b.fx.follow_me = [None; 2];
 }
 
 fn hurt(b: &mut Battle, env: &mut Env, side: Side, div: u16, id: Str, buffs: [Buff; 3]) {
@@ -540,16 +559,17 @@ pub(crate) fn wish_perish_pending(b: &Battle) -> bool {
     b.fx.future.iter().any(Option::is_some) || b.battlers.iter().any(|m| m.fx.perish.is_some())
 }
 
-/// One event of `HandleWishPerishSongOnTurnEnd` from `state` (0..2: the future attacks by
-/// battler index; 2..4: the perish counts in turn order). The state to go on from after an
+/// One event of `HandleWishPerishSongOnTurnEnd` from `state` (0..n: the future attacks by
+/// battler index; n..2n: the perish counts in turn order; n = `gBattlersCount`). The state to go on from after an
 /// event, whose faints are handled first (`BattleTurnPassed` runs `HandleFaintedMonActions`
 /// again before it); `None` when done.
 pub(crate) fn wish_perish(b: &mut Battle, env: &mut Env, state: u8) -> Option<u8> {
     let mut i = state;
-    while i < 2 {
-        let side = [Side::Player, Side::Opponent][i as usize];
+    let n = b.count() as u8;
+    while i < n {
+        let side = Side::at(i as usize);
         i += 1;
-        let s = side as usize;
+        let s = side.i();
         let Some(mut f) = b.fx.future[s] else {
             continue;
         };
@@ -565,8 +585,8 @@ pub(crate) fn wish_perish(b: &mut Battle, env: &mut Env, state: u8) -> Option<u8
         future_attack(b, env, side, f);
         return Some(i);
     }
-    while i < 4 {
-        let side = b.order[(i - 2) as usize];
+    while i < 2 * n {
+        let side = b.order[(i - n) as usize];
         i += 1;
         let m = b.battler(side);
         let Some(n) = m.fx.perish else {

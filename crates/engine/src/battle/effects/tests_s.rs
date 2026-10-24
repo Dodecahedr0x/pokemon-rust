@@ -384,6 +384,7 @@ impl Run {
             kind,
             opponents: party(foes),
             environment: Environment::Grass,
+            double: None,
         };
         let mut b = Battle::new(&SGame, setup, &party(player), &mut rng);
         if ring {
@@ -649,7 +650,7 @@ fn quick_claw_reads_the_turn_number() {
         holding(m(PLAIN, 5, &[TACKLE]), QUICK_CLAW),
         m(PLAIN, 90, &[TACKLE]),
     );
-    r.b.actions = [Some(Action::Move(0)); 2];
+    r.b.actions = [Some(Action::Move(0)), Some(Action::Move(0)), None, None];
     for (turn, first) in [(0u16, P), (13106, P), (13107, O), (0xFFFF, O)] {
         r.b.random_turn = turn;
         let (order, rng, _) = r.env(1, |b, env| b.strike_order(env, false));
@@ -668,7 +669,7 @@ fn kings_rock_rolls_after_damage_and_flinches() {
             holding(m(PLAIN, 90, &[TACKLE, EMBER]), KINGS_ROCK),
             m(PLAIN, 10, &[SPLASH]),
         );
-        r.b.actions = [None, Some(Action::Move(0))];
+        r.b.actions = [None, Some(Action::Move(0)), None, None];
         let ((), rng, _) = r.env(seed, |b, env| {
             let u = b.move_use(env, P, TACKLE, Some(0));
             super::items::move_end(b, env, &u, hit(10));
@@ -682,7 +683,7 @@ fn kings_rock_rolls_after_damage_and_flinches() {
         holding(m(PLAIN, 90, &[TACKLE, EMBER]), KINGS_ROCK),
         m(PLAIN, 10, &[SPLASH]),
     );
-    r.b.actions = [None, Some(Action::Move(0))];
+    r.b.actions = [None, Some(Action::Move(0)), None, None];
     let ((), rng, _) = r.env(seed, |b, env| {
         let u = b.move_use(env, P, TACKLE, Some(0));
         super::items::move_end(b, env, &u, hit(0));
@@ -1094,7 +1095,7 @@ fn rain_and_sun_change_fire_and_water_damage() {
 fn swift_swim_doubles_speed_in_rain() {
     let mut r = Run::wild(m(DRIZZLER, 30, &[SPLASH]), m(PLAIN, 50, &[SPLASH]));
     r.b.battler_mut(P).ability = Ability::SwiftSwim;
-    r.b.actions = [Some(Action::Move(0)); 2];
+    r.b.actions = [Some(Action::Move(0)), Some(Action::Move(0)), None, None];
     let (order, _, _) = r.env(1, |b, env| b.strike_order(env, false));
     assert_eq!(order[0], P);
 }
@@ -1350,7 +1351,7 @@ fn magic_bounce_sends_status_moves_back() {
 fn prankster_moves_status_moves_first_but_not_on_dark() {
     let mut r = Run::wild(m(PLAIN, 10, &[GROWL]), m(PLAIN, 90, &[TACKLE]));
     r.b.battler_mut(P).ability = Ability::Prankster;
-    r.b.actions = [Some(Action::Move(0)); 2];
+    r.b.actions = [Some(Action::Move(0)), Some(Action::Move(0)), None, None];
     let (order, _, _) = r.env(1, |b, env| b.strike_order(env, false));
     assert_eq!(order[0], P);
     let mut r = Run::wild(m(PLAIN, 10, &[GROWL]), m(DARK, 90, &[TACKLE]));

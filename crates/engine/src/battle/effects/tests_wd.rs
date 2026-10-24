@@ -66,7 +66,7 @@ fn hold(r: &mut Run, side: Side, hold: Option<HoldEffect>) {
     let m = r.b.battler_mut(side);
     m.x.item = Some(ITEM);
     m.x.hold = hold;
-    r.b.x.holds[side as usize][0] = hold;
+    r.b.x.holds[side.s()][0] = hold;
 }
 
 /// `Cmd_setsubstitute`: a quarter of the max HP; the substitute takes the hits

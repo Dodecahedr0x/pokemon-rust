@@ -45,6 +45,8 @@ const B_TXT_BUFF1: u8 = 0x00;
 const B_TXT_BUFF2: u8 = 0x01;
 const B_TXT_PLAYER_MON1_NAME: u8 = 0x05;
 const B_TXT_OPPONENT_MON1_NAME: u8 = 0x06;
+const B_TXT_PLAYER_MON2_NAME: u8 = 0x07;
+const B_TXT_OPPONENT_MON2_NAME: u8 = 0x08;
 const B_TXT_ATK_NAME_WITH_PREFIX_MON1: u8 = 0x0D;
 const B_TXT_ATK_NAME_WITH_PREFIX: u8 = 0x0F;
 const B_TXT_DEF_NAME_WITH_PREFIX: u8 = 0x10;
@@ -60,6 +62,8 @@ const B_TXT_TRAINER1_CLASS: u8 = 0x1C;
 const B_TXT_TRAINER1_NAME: u8 = 0x1D;
 const B_TXT_PLAYER_NAME: u8 = 0x23;
 const B_TXT_26: u8 = 0x26;
+const B_TXT_TRAINER2_CLASS: u8 = 0x2E;
+const B_TXT_TRAINER2_NAME: u8 = 0x2F;
 const B_TXT_BUFF3: u8 = 0x34;
 
 /// Gen3 `BattleStringExpandPlaceholders` of `game.battle_text(msg.id)`. Returns Gen3-encoded
@@ -92,13 +96,15 @@ fn push(out: &mut Vec<u8>, s: &[u8]) {
 }
 
 fn placeholder(game: &impl GameData, code: u8, msg: &Msg, names: &Names, out: &mut Vec<u8>) {
-    let nick = |side: Side| party_nick(side, msg.slots[side as usize], names);
+    let nick = |side: Side| party_nick(side, msg.slots[side.i()], names);
     match code {
         B_TXT_BUFF1 => buff(game, &msg.buffs[0], names, out),
         B_TXT_BUFF2 => buff(game, &msg.buffs[1], names, out),
         B_TXT_BUFF3 => buff(game, &msg.buffs[2], names, out),
         B_TXT_PLAYER_MON1_NAME => push(out, nick(Side::Player)),
         B_TXT_OPPONENT_MON1_NAME => push(out, nick(Side::Opponent)),
+        B_TXT_PLAYER_MON2_NAME => push(out, nick(Side::PlayerRight)),
+        B_TXT_OPPONENT_MON2_NAME => push(out, nick(Side::OpponentRight)),
         B_TXT_ATK_NAME_WITH_PREFIX_MON1 | B_TXT_ATK_NAME_WITH_PREFIX => {
             name_with_prefix(game, msg.attacker, msg, names, out)
         }
@@ -121,6 +127,8 @@ fn placeholder(game: &impl GameData, code: u8, msg: &Msg, names: &Names, out: &m
         B_TXT_LAST_ITEM => buff(game, &msg.buffs[2], names, out),
         B_TXT_TRAINER1_CLASS => push(out, names.trainer_class),
         B_TXT_TRAINER1_NAME => push(out, names.trainer_name),
+        B_TXT_TRAINER2_CLASS => push(out, names.trainer2_class),
+        B_TXT_TRAINER2_NAME => push(out, names.trainer2_name),
         B_TXT_PLAYER_NAME => push(out, names.player),
         _ => {}
     }
@@ -129,20 +137,20 @@ fn placeholder(game: &impl GameData, code: u8, msg: &Msg, names: &Names, out: &m
 /// `HANDLE_NICKNAME_STRING_CASE` for the battler on `side`: the party slot it had when the
 /// message was emitted (`msg.slots`).
 fn name_with_prefix(game: &impl GameData, side: Side, msg: &Msg, names: &Names, out: &mut Vec<u8>) {
-    let nick = party_nick(side, msg.slots[side as usize], names);
+    let nick = party_nick(side, msg.slots[side.i()], names);
     tagged(game, side, nick, names, out);
 }
 
 /// The nickname of party slot `party` of `side` (the battler's if there is no such slot).
 fn party_nick<'a>(side: Side, party: u8, names: &'a Names) -> &'a [u8] {
-    names.parties[side as usize]
+    names.parties[side.s()]
         .get(party as usize)
-        .map_or(&names.mons[side as usize].nickname[..], |p| &p.nickname[..])
+        .map_or(&names.mons[side.i()].nickname[..], |p| &p.nickname[..])
 }
 
 /// `nick`, with the wild or foe tag for an opponent.
 fn tagged(game: &impl GameData, side: Side, nick: &[u8], names: &Names, out: &mut Vec<u8>) {
-    if side == Side::Player {
+    if side.is_player() {
         push(out, nick);
         return;
     }

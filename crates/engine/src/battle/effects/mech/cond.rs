@@ -36,7 +36,7 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) -> bool {
             // BattleScript_EffectHaze + `normalisebuffs`.
             b.attack_string(env, u);
             anim(env, u);
-            for s in [Side::Player, Side::Opponent] {
+            for s in b.sides() {
                 b.battler_mut(s).stages = [0; 8];
             }
             say(env, u, Str::StatChangesGone, u.attacker);
@@ -125,13 +125,13 @@ pub(super) fn drop(
     if super::field::mist_blocks(b, env, u, side, true) {
         return false;
     }
-    let lowered = b.fx.cur.is_some_and(|c| c.lowered[side as usize]);
+    let lowered = b.fx.cur.is_some_and(|c| c.lowered[side.i()]);
     if lowered && abilities::blocks_secondary_drop(b, side, stat) {
         return false;
     }
     if abilities::blocks_stat_drop(b, env, u, side, stat) {
         if let Some(c) = &mut b.fx.cur {
-            c.lowered[side as usize] = true;
+            c.lowered[side.i()] = true;
         }
         return false;
     }
@@ -218,8 +218,20 @@ fn swagger(b: &mut Battle, env: &mut Env, u: &MoveUse) {
 }
 
 /// `BattleScript_EffectTeeterDance` on the foe (singles).
+/// Doubles: every battler but the user, in battler order (the script's own loop, without
+/// `moveend` per target).
 fn teeter_dance(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     b.attack_string(env, u);
+    if b.is_double() {
+        for t in b.sides().filter(|&s| s != u.attacker) {
+            teeter_one(b, env, &MoveUse { target: t, ..*u });
+        }
+    } else {
+        teeter_one(b, env, u);
+    }
+}
+
+fn teeter_one(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     let t = u.target;
     // BattleScript_TeeterDanceSubstitutePrevents (after Own Tempo, which `status::confuse`
     // reports).
@@ -386,7 +398,7 @@ fn heal_bell(b: &mut Battle, env: &mut Env, u: &MoveUse, aroma: bool) {
     let a = u.attacker;
     let m = *b.battler(a);
     let blocked = !aroma && m.ability == Ability::Soundproof;
-    let side = a as usize;
+    let side = a.s();
     for i in 0..b.parties[side].len() {
         let Some(p) = b.parties[side].get(i) else {
             continue;
@@ -726,7 +738,7 @@ fn spite(b: &mut Battle, env: &mut Env, u: &MoveUse) {
 fn perish_song(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     b.attack_string(env, u);
     let mut affected = false;
-    for s in [Side::Player, Side::Opponent] {
+    for s in b.sides() {
         let m = b.battler_mut(s);
         if m.fx.perish.is_none() && m.ability != Ability::Soundproof {
             m.fx.perish = Some(3);
@@ -739,7 +751,7 @@ fn perish_song(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     }
     anim(env, u);
     say(env, u, Str::FaintInThree, u.attacker);
-    for s in [Side::Player, Side::Opponent] {
+    for s in b.sides() {
         if b.battler(s).ability == Ability::Soundproof {
             say_with(
                 env,

@@ -485,6 +485,9 @@ impl GameData for Game {
     fn trainer(&self, id: TrainerId) -> Option<&'static crate::mon::TrainerData> {
         (id == TRAINER).then_some(&TRAINER_DATA)
     }
+    fn partner(&self) -> Option<&'static crate::mon::PartnerData> {
+        Some(&wave_g_doubles::PARTNER)
+    }
     fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
         (id == RESPAWN).then_some((HOUSE, 3, 3))
     }
@@ -1159,6 +1162,8 @@ mod wave_c_query;
 mod wavec_field;
 mod wavef_multi;
 mod wavef_rotating_tiles;
+// Wave G: double battles.
+mod wave_g_doubles;
 
 std::thread_local! {
     /// `World::hash` calls made on this thread (each test runs on its own thread).

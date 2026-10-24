@@ -111,6 +111,8 @@ impl Policy {
                         toward(c, best_selectable_slot(battle, t))
                     }
                     Some(OpenMenu::Move(c)) => toward(c, first_selectable_slot(battle, t)),
+                    // Doubles: the cursor (RIGHT cycles) onto the foe the move was picked for.
+                    Some(OpenMenu::Target(c)) => target_key(battle, t, c, opts.best_move),
                     // Learn a stronger level-up move over the weakest known one.
                     Some(OpenMenu::LearnAsk(c))
                         if opts.learn
@@ -319,17 +321,64 @@ fn immune_by_ability(abilities: [Ability; 2], ty: Type) -> bool {
 /// ([`engine::battle::Battle::move_selectable`]): Torment, Disable or Taunt refuse a move and
 /// reopen the move menu, so asking for it again would loop.
 fn best_selectable_slot(battle: &engine::battle::Battle, t: &BattleTables) -> u8 {
-    let (me, foe) = (battle.mon(Side::Player), battle.mon(Side::Opponent));
-    let pp = selectable_pp(me.pp, |s| battle.move_selectable(t, Side::Player, s));
+    let side = battle.choosing();
+    let (me, foe) = (battle.mon(side), battle.mon(target_foe(battle)));
+    let pp = selectable_pp(me.pp, |s| selectable(battle, t, side, s));
     best_damaging_slot_of(me.species, &me.moves, &pp, foe.species, t)
 }
 
 /// [`first_damaging_slot`] over the moves the player may choose now (as
 /// [`best_selectable_slot`]): a Disabled, Tormented or Taunted first slot would loop the menu.
 fn first_selectable_slot(battle: &engine::battle::Battle, t: &BattleTables) -> u8 {
-    let me = battle.mon(Side::Player);
-    let pp = selectable_pp(me.pp, |s| battle.move_selectable(t, Side::Player, s));
+    let side = battle.choosing();
+    let me = battle.mon(side);
+    let pp = selectable_pp(me.pp, |s| selectable(battle, t, side, s));
     first_damaging_slot_of(&me.moves, &pp, t)
+}
+
+/// Doubles: the foe to aim at, the standing opponent with the least HP (finish it off).
+fn target_foe(battle: &engine::battle::Battle) -> Side {
+    let foes = [Side::Opponent, Side::OpponentRight]
+        .into_iter()
+        .take(battle.count() / 2);
+    foes.filter(|&s| battle.is_present(s) && battle.mon(s).hp > 0)
+        .min_by_key(|&s| battle.mon(s).hp)
+        .unwrap_or(Side::Opponent)
+}
+
+/// Whether `side` may choose `slot` now; in doubles not a move that also hits its standing
+/// ally (Earthquake: `MOVE_TARGET_FOES_AND_ALLY`) while another move is usable.
+fn selectable(battle: &engine::battle::Battle, t: &BattleTables, side: Side, slot: u8) -> bool {
+    if !battle.move_selectable(t, side, slot) {
+        return false;
+    }
+    let ally = side.partner();
+    if !battle.is_double() || !battle.is_present(ally) || battle.mon(ally).hp == 0 {
+        return true;
+    }
+    let hits_ally = |s: u8| {
+        battle.mon(side).moves[s as usize]
+            .is_some_and(|m| t.move_info(m).target == engine::mon::MoveTarget::FoesAndAlly)
+    };
+    !hits_ally(slot)
+        || !(0..4).any(|s| s != slot && !hits_ally(s) && battle.move_selectable(t, side, s))
+}
+
+/// The target cursor key: RIGHT until the cursor is on [`target_foe`], then A.
+fn target_key(battle: &engine::battle::Battle, t: &BattleTables, c: u8, best: bool) -> Buttons {
+    let side = battle.choosing();
+    let slot = if best {
+        best_selectable_slot(battle, t)
+    } else {
+        first_selectable_slot(battle, t)
+    };
+    let want = battle
+        .target_choices(t, side, slot)
+        .and_then(|v| v.iter().position(|&s| s == target_foe(battle)));
+    match want {
+        Some(k) if k as u8 != c => Buttons::RIGHT,
+        _ => Buttons::A,
+    }
 }
 
 /// `pp` with the slots `selectable` refuses at 0 (as if out of PP: never picked).

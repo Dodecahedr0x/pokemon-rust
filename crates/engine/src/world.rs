@@ -260,6 +260,10 @@ pub(crate) struct State {
     /// Wave F: the party's backup and the choose-half order while a script uses them
     /// (hashed while not empty, never captured: cleared when the script ends).
     pub(in crate::world) stash: host::Stash,
+    /// Wave G: a two-trainer sighting while its scripts run (Gen3 `gApproachingTrainers[1]`,
+    /// `gTrainerBattleOpponent_B`): hashed while set, never captured (cleared when the script
+    /// ends).
+    pub(in crate::world) pair: sight::Pair,
     // Tool-facing, neither hashed nor snapshotted:
     /// This step's events (cleared at the start of `step`, except the first step of a new
     /// world, which keeps `World::new`'s), at most [`EVENTS_MAX`].
@@ -434,6 +438,7 @@ impl World {
                 rotating_tiles: None,
                 field_move: None,
                 stash: host::Stash::default(),
+                pair: sight::Pair::default(),
                 events: Vec::with_capacity(EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,
@@ -547,6 +552,7 @@ impl World {
             self.s.objects.unfreeze(crate::data::PLAYER);
             // The backup and the order belong to the script that made them (see `Stash`).
             self.s.stash = host::Stash::default();
+            self.s.pair = sight::Pair::default();
         }
         // Gen3 `CB2_WhiteOut` (`special SetCB2WhiteOut`): its 120 frames are over.
         if matches!(
@@ -1032,6 +1038,8 @@ impl World {
         s.stash.hash(&mut h);
         // Task S: the Hall of Fame's pending save.
         s.save.hash(&mut h);
+        // Wave G: a two-trainer sighting, while its scripts run.
+        s.pair.hash(&mut h);
         h.finish()
     }
 }

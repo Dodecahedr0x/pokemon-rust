@@ -20,10 +20,12 @@ fn setup(player: Pokemon, foe_moves: &[MoveId], flags: u32) -> Run {
 /// The AI's choices over seeds 1..40.
 fn choices(r: &Run) -> Vec<u8> {
     (1..40)
-        .map(|s| match choose(&r.b, &TABLES, &mut Rng::new(s)) {
-            Choice::Move(m) => m,
-            c => panic!("{c:?}"),
-        })
+        .map(
+            |s| match choose(&r.b, &TABLES, &mut Rng::new(s), Side::Opponent) {
+                Choice::Move(m) => m,
+                c => panic!("{c:?}"),
+            },
+        )
         .collect()
 }
 
@@ -48,7 +50,7 @@ fn setup_draws_four_rolls_then_the_pick() {
     // ChooseMoveOrAction_Singles' `Random() % numOfBestMoves`.
     let r = setup(target(WATER, 20), &[TACKLE, GROWL], 0);
     let mut rng = Rng::new(9);
-    choose(&r.b, &TABLES, &mut rng);
+    choose(&r.b, &TABLES, &mut rng, Side::Opponent);
     let mut expect = Rng::new(9);
     for _ in 0..5 {
         expect.random();
@@ -99,7 +101,7 @@ fn check_bad_move_status_branches() {
     );
     r.b.battler_mut(Side::Player).confusion = 2;
     let mut rng = Rng::new(1);
-    let mut ai = Ai::setup(&r.b, &TABLES, &mut rng);
+    let mut ai = Ai::setup(&r.b, &TABLES, &mut rng, Side::Opponent, Side::Player);
     ai.check_bad_move(0, SUPERSONIC);
     assert_eq!(ai.score[0], 95);
 }
@@ -129,14 +131,14 @@ fn ai_damage_matches_the_gen3_formula() {
     // (Normal user) ×1.5 = 6, × simulatedRNG / 100 (85..=100) → 5 or 6.
     let r = setup(target(WATER, 20), &[TACKLE], 0);
     let mut rng = Rng::new(1);
-    let ai = Ai::setup(&r.b, &TABLES, &mut rng);
+    let ai = Ai::setup(&r.b, &TABLES, &mut rng, Side::Opponent, Side::Player);
     let d = ai.damage(0, TACKLE);
     assert_eq!(d, 6 * ai.sim[0] / 100);
     // Effectiveness: neutral STAB stays 60; a Ghost target is x0.
     assert_eq!(ai.effectiveness(TACKLE), 60);
     let r = setup(target(GHOST, 20), &[TACKLE], 0);
     let mut rng = Rng::new(1);
-    let ai = Ai::setup(&r.b, &TABLES, &mut rng);
+    let ai = Ai::setup(&r.b, &TABLES, &mut rng, Side::Opponent, Side::Player);
     assert_eq!(ai.effectiveness(TACKLE), 0);
 }
 
@@ -150,7 +152,7 @@ fn check_viability_bide_and_poison() {
     );
     r.b.battler_mut(Side::Opponent).mon.hp = 18;
     let mut rng = Rng::new(1);
-    let mut ai = Ai::setup(&r.b, &TABLES, &mut rng);
+    let mut ai = Ai::setup(&r.b, &TABLES, &mut rng, Side::Opponent, Side::Player);
     ai.check_viability(0, BIDE);
     assert_eq!(ai.score[0], 98);
     ai.check_viability(1, POISON_POWDER);
@@ -160,7 +162,7 @@ fn check_viability_bide_and_poison() {
         &[POISON_POWDER],
         AI_SCRIPT_CHECK_VIABILITY,
     );
-    let mut ai = Ai::setup(&r.b, &TABLES, &mut rng);
+    let mut ai = Ai::setup(&r.b, &TABLES, &mut rng, Side::Opponent, Side::Player);
     ai.check_viability(0, POISON_POWDER);
     assert_eq!(ai.score[0], 99);
 }
@@ -223,7 +225,7 @@ fn first_battle_flee_threshold_is_twenty_percent() {
     };
     let ai = |hp| {
         let r = Run::new(first, &[player(hp)], &[foe], 1);
-        choose(&r.b, &TABLES, &mut Rng::new(5))
+        choose(&r.b, &TABLES, &mut Rng::new(5), Side::Opponent)
     };
     assert_eq!(ai(20), Choice::Run);
     assert!(matches!(ai(21), Choice::Move(_)));
@@ -243,7 +245,7 @@ fn score_wraps_as_s8_then_floors_at_zero() {
     // Cmd_score: `score[i] += d` on an s8, then `if (score[i] < 0) score[i] = 0`.
     let r = setup(target(WATER, 20), &[TACKLE], 0);
     let mut rng = Rng::new(1);
-    let mut ai = Ai::setup(&r.b, &TABLES, &mut rng);
+    let mut ai = Ai::setup(&r.b, &TABLES, &mut rng, Side::Opponent, Side::Player);
     ai.score[0] = 125;
     ai.add(0, 2);
     assert_eq!(ai.score[0], 127);
@@ -264,18 +266,18 @@ fn setup_first_turn_rolls_for_setup_moves_on_turn_zero() {
         AI_SCRIPT_SETUP_FIRST_TURN,
     );
     let mut rng = Rng::new(9);
-    choose(&r.b, &TABLES, &mut rng);
+    choose(&r.b, &TABLES, &mut rng, Side::Opponent);
     assert_eq!(rng, after(9, 6));
     r.b.turn = 1;
     let mut rng = Rng::new(9);
-    choose(&r.b, &TABLES, &mut rng);
+    choose(&r.b, &TABLES, &mut rng, Side::Opponent);
     assert_eq!(rng, after(9, 5));
     // +2 unless the roll is below 80.
     for seed in 1..40 {
         let mut r = setup(target(WATER, 20), &[GROWL], AI_SCRIPT_SETUP_FIRST_TURN);
         r.b.turn = 0;
         let mut rng = Rng::new(seed);
-        let mut ai = Ai::setup(&r.b, &TABLES, &mut rng);
+        let mut ai = Ai::setup(&r.b, &TABLES, &mut rng, Side::Opponent, Side::Player);
         let roll = {
             let mut x = *ai.rng;
             x.random() % 256
@@ -304,7 +306,7 @@ fn should_switch_draws_and_decision() {
     // Nothing landed on the AI's battler yet: no switch, no draw.
     let r = two_mon_trainer(&[TACKLE], 1);
     let mut rng = Rng::new(3);
-    assert_eq!(switch(&r.b, &TABLES, &mut rng), None);
+    assert_eq!(switch(&r.b, &TABLES, &mut rng, Side::Opponent), None);
     assert_eq!(rng, Rng::new(3));
     // Tackle landed: FindMonWithFlagsAndSuperEffective(DOESNT_AFFECT_FOE, 2) finds the Ghost
     // (Normal does nothing to it) with Absorb super effective on the player: one
@@ -316,7 +318,7 @@ fn should_switch_draws_and_decision() {
         let mut r = two_mon_trainer(&[TACKLE], 1);
         r.b.battler_mut(Side::Opponent).last_landed = Some(TACKLE);
         let mut rng = Rng::new(seed);
-        let got = switch(&r.b, &TABLES, &mut rng);
+        let got = switch(&r.b, &TABLES, &mut rng, Side::Opponent);
         assert_eq!(got, go.then_some(1));
         assert_eq!(rng, after(seed, 1));
     }
@@ -328,19 +330,19 @@ fn should_switch_draws_and_decision() {
     let mut r = two_mon_trainer(&[ABSORB], 1);
     r.b.battler_mut(Side::Opponent).last_landed = Some(TACKLE);
     let mut rng = Rng::new(seed);
-    assert_eq!(switch(&r.b, &TABLES, &mut rng), None);
+    assert_eq!(switch(&r.b, &TABLES, &mut rng, Side::Opponent), None);
     assert_eq!(rng, after(seed, 2));
     // AreStatsRaised (more than 3 stages up) keeps it in, without a draw.
     let mut r = two_mon_trainer(&[TACKLE], 1);
     r.b.battler_mut(Side::Opponent).last_landed = Some(TACKLE);
     r.b.battler_mut(Side::Opponent).stages[Stat::Atk as usize] = 4;
     let mut rng = Rng::new(3);
-    assert_eq!(switch(&r.b, &TABLES, &mut rng), None);
+    assert_eq!(switch(&r.b, &TABLES, &mut rng, Side::Opponent), None);
     assert_eq!(rng, Rng::new(3));
     // Wild battles and one-mon trainers never ask.
     let mut r = setup(target(WATER, 20), &[TACKLE], 0);
     r.b.battler_mut(Side::Opponent).last_landed = Some(TACKLE);
-    assert_eq!(switch(&r.b, &TABLES, &mut rng), None);
+    assert_eq!(switch(&r.b, &TABLES, &mut rng, Side::Opponent), None);
     assert_eq!(rng, Rng::new(3));
 }
 
@@ -432,7 +434,7 @@ fn check_viability_task_g_branches() {
     // Draw counts: 4 simulatedRNG + the script's rolls + the pick.
     let draws = |r: &Run| {
         let mut rng = Rng::new(7);
-        choose(&r.b, &TABLES, &mut rng);
+        choose(&r.b, &TABLES, &mut rng, Side::Opponent);
         (0..10).find(|&n| after(7, n) == rng).unwrap()
     };
     // AI_CV_Trap: one roll when the target is badly poisoned or infatuated.
@@ -458,13 +460,13 @@ fn a_trapped_trainer_mon_never_switches() {
     r.b.battler_mut(Side::Opponent).last_landed = Some(TACKLE);
     r.b.battler_mut(Side::Opponent).v.escape_prevented = true;
     let mut rng = Rng::new(3);
-    assert_eq!(switch(&r.b, &TABLES, &mut rng), None);
+    assert_eq!(switch(&r.b, &TABLES, &mut rng, Side::Opponent), None);
     assert_eq!(rng, Rng::new(3));
     let mut r = two_mon_trainer(&[TACKLE], 1);
     r.b.battler_mut(Side::Opponent).last_landed = Some(TACKLE);
     r.b.battler_mut(Side::Opponent).types = [Type::Steel, Type::Steel];
     r.b.battler_mut(Side::Player).ability = Ability::MagnetPull;
     let mut rng = Rng::new(3);
-    assert_eq!(switch(&r.b, &TABLES, &mut rng), None);
+    assert_eq!(switch(&r.b, &TABLES, &mut rng, Side::Opponent), None);
     assert_eq!(rng, Rng::new(3));
 }

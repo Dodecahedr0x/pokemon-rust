@@ -441,6 +441,7 @@ pub fn battle() -> BattleIn {
         trainer_money: Default::default(),
         dex: Default::default(),
         rematches: Default::default(),
+        partners: Default::default(),
         player_back: PicIn {
             tiles: (0..4).flat_map(|_| pic(1)).collect(),
             palette: back_pal,

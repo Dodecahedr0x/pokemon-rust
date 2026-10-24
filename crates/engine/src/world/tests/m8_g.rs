@@ -420,9 +420,9 @@ fn the_battle_starts_on_the_transitions_first_frame() {
 }
 
 #[test]
-fn a_double_battle_runs_as_singles_and_is_reported() {
-    // Decision Q3: a double trainer with two usable mons fights singles against the same
-    // party; Gen3 would pay the doubled prize (BATTLE_TYPE_DOUBLE): 4 × 2 × 4 × 2 = 64.
+fn a_double_trainer_battles_in_doubles() {
+    // A double trainer with two usable mons fights a double battle (Wave G); the prize is
+    // doubled (BATTLE_TYPE_DOUBLE): 4 × 2 × 4 × 2 = 64.
     let mut g = G::new();
     start(&mut g.w, |ctx| {
         Box::pin(async move {
@@ -434,7 +434,7 @@ fn a_double_battle_runs_as_singles_and_is_reported() {
     });
     g.mash(20_000, |w| !w.script_running());
     assert!(g.w.flag(FLAG_DONE));
-    assert_eq!(g.reports(), [Report::Degraded("double battle")]);
+    assert!(g.reports().is_empty(), "{:?}", g.reports());
     assert_eq!(g.w.money(), 64);
     // A single trainer reports nothing.
     let mut g = G::new();

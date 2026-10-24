@@ -4,8 +4,8 @@
         label: "spine:act1:may",
         schema: 6,
         build: (
-            engine: 11051983103929903487,
-            content: 4130182656904400097,
+            engine: 1709344238647373991,
+            content: 3699024651427477014,
         ),
         frame: 12226,
         map: (18),
@@ -16,8 +16,8 @@
         schema: 2,
         parent: Checkpoint(6),
         build: (
-            engine: 11051983103929903487,
-            content: 4130182656904400097,
+            engine: 1709344238647373991,
+            content: 3699024651427477014,
         ),
         start_frame: 7695,
         inputs: [

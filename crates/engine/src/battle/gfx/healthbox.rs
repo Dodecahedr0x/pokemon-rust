@@ -79,6 +79,7 @@ const fn status_icon(s: Status) -> Option<u8> {
 }
 
 /// Per-side layout, in box tiles (Gen3 byte offsets / 32).
+#[derive(Clone, Copy)]
 struct Layout {
     tiles: usize,
     vram: u16,
@@ -124,11 +125,29 @@ const OPPONENT: Layout = Layout {
     status_color: 13,
 };
 
-const fn layout(side: Side) -> &'static Layout {
-    match side {
-        Side::Player => &PLAYER,
-        Side::Opponent => &OPPONENT,
+/// `InitBattlerHealthboxCoords` in doubles (sprite centres), by battler position.
+const DOUBLE_XY: [(i16, i16); 4] = [(159, 76), (44, 19), (171, 101), (32, 44)];
+
+/// The layout of `side`'s box. Doubles (degraded): the singles graphics at the doubles
+/// positions, the player's boxes cut to their top 64x32 (no exp bar, as Gen3's doubles box);
+/// the right battlers use their own VRAM and palette banks.
+fn layout(side: Side, double: bool) -> Layout {
+    let mut l = if side.is_player() { PLAYER } else { OPPONENT };
+    if side.is_right() {
+        (l.vram, l.bar, l.palette) = if side.is_player() {
+            (obj::PLAYER2_BOX, obj::PLAYER2_BAR, obj::PAL_PLAYER2_BOX)
+        } else {
+            (obj::ENEMY2_BOX, obj::ENEMY2_BAR, obj::PAL_ENEMY2_BOX)
+        };
     }
+    if double {
+        let (x, y) = DOUBLE_XY[side.i()];
+        l.pos = (x - 32, y - 16);
+        if side.is_player() {
+            l.shape = (ObjShape::Wide, 3);
+        }
+    }
+    l
 }
 
 /// HP numbers of the player's box: `HpTextIntoHealthboxObject` destinations.
@@ -247,6 +266,7 @@ fn decimal(v: u16, right_align: bool, out: &mut Text) {
 #[derive(Clone)]
 pub struct Healthbox {
     side: Side,
+    double: bool,
     gfx: &'static BattleGfx,
     /// RAM copy of the box tiles (what VRAM holds once `dirty` is flushed).
     tiles: Vec<Tile>,
@@ -271,9 +291,15 @@ pub struct Healthbox {
 
 impl Healthbox {
     pub fn new(side: Side, gfx: &'static BattleGfx) -> Self {
-        let n = layout(side).tiles;
+        Self::with(side, false, gfx)
+    }
+
+    /// [`Healthbox::new`] at the singles (`double` false) or doubles position.
+    pub fn with(side: Side, double: bool, gfx: &'static BattleGfx) -> Self {
+        let n = layout(side, double).tiles;
         Healthbox {
             side,
+            double,
             gfx,
             tiles: vec![[0; 8]; n],
             dirty: 0,
@@ -299,10 +325,11 @@ impl Healthbox {
     /// (a new mon on a loaded box) use [`Healthbox::set_mon`], which uploads within budget.
     /// The exp bar tiles are reset to the base graphic: redraw them (`ExpBar::invalidate`).
     pub fn load(&mut self, mon: &BattleMon, f: &mut Frame) {
-        let l = layout(self.side);
-        let base = match self.side {
-            Side::Player => &self.gfx.healthbox_player,
-            Side::Opponent => &self.gfx.healthbox_opponent,
+        let l = layout(self.side, self.double);
+        let base = if self.side.is_player() {
+            &self.gfx.healthbox_player
+        } else {
+            &self.gfx.healthbox_opponent
         };
         let n = base.tiles.len().min(l.tiles);
         if n > 0 {
@@ -346,7 +373,7 @@ impl Healthbox {
         self.set_level(mon.level);
         self.max_hp = mon.max_hp;
         self.hp = mon.hp;
-        if self.side == Side::Player {
+        if self.side.is_player() {
             self.draw_hp_max();
             self.draw_hp();
         }
@@ -359,7 +386,7 @@ impl Healthbox {
     pub fn set_hp(&mut self, hp: u16) {
         if hp != self.hp {
             self.hp = hp;
-            if self.side == Side::Player {
+            if self.side.is_player() {
                 self.draw_hp();
             }
         }
@@ -379,7 +406,7 @@ impl Healthbox {
             5 * (3 - digits.min(3)),
             3,
         );
-        self.text_into(&w, layout(self.side).level, 0, 3);
+        self.text_into(&w, layout(self.side, self.double).level, 0, 3);
     }
 
     pub fn set_status(&mut self, status: Status) {
@@ -404,7 +431,7 @@ impl Healthbox {
             }
             Gender::Genderless => {}
         }
-        for &(dst, src, n) in layout(self.side).nick {
+        for &(dst, src, n) in layout(self.side, self.double).nick {
             self.text_into(&w, dst, src, n);
         }
     }
@@ -432,7 +459,7 @@ impl Healthbox {
 
     /// `UpdateStatusIconInHealthbox`.
     fn draw_status(&mut self) {
-        let l = layout(self.side);
+        let l = layout(self.side, self.double);
         let g = self.gfx;
         let get = |t: &'static [Tile], i: usize| t.get(i).copied().unwrap_or([0; 8]);
         let hp_label = [get(g.hpbar.tiles, 1), get(g.hpbar.tiles, 2)];
@@ -444,14 +471,14 @@ impl Healthbox {
                 hp_label
             }
             Some(icon) => {
-                let set = if self.side == Side::Opponent { 15 } else { 0 };
+                let set = if !self.side.is_player() { 15 } else { 0 };
                 for i in 0..3 {
                     let t = get(g.status.tiles, set + icon as usize * 3 + i);
                     self.put(l.status + i, t);
                 }
                 self.palette[l.status_color] = STATUS_COLORS[icon as usize];
                 self.palette_dirty = true;
-                if self.side == Side::Opponent {
+                if !self.side.is_player() {
                     [get(g.hpbar.tiles, 0), get(g.misc.tiles, MISC_FRAME_END)]
                 } else {
                     hp_label
@@ -495,9 +522,10 @@ impl Healthbox {
     /// `StartHealthboxSlideIn` + `SetHealthboxSpriteVisible`: from 115 px outside, 5 px/frame.
     pub fn slide_in(&mut self) {
         self.visible = true;
-        let (start, speed) = match self.side {
-            Side::Player => (SLIDE_START, SLIDE_SPEED),
-            Side::Opponent => (-SLIDE_START, -SLIDE_SPEED),
+        let (start, speed) = if self.side.is_player() {
+            (SLIDE_START, SLIDE_SPEED)
+        } else {
+            (-SLIDE_START, -SLIDE_SPEED)
         };
         self.off.0 = start;
         self.slide = speed;
@@ -528,7 +556,7 @@ impl Healthbox {
 
     /// Top-left of the box this frame.
     pub fn pos(&self) -> (i16, i16) {
-        let p = layout(self.side).pos;
+        let p = layout(self.side, self.double).pos;
         (p.0 + self.off.0, p.1 + self.off.1)
     }
 
@@ -556,7 +584,7 @@ impl Healthbox {
     }
 
     fn flush(&mut self, f: &mut Frame, budget: usize) {
-        let l = layout(self.side);
+        let l = layout(self.side, self.double);
         let mut left = budget;
         if self.palette_dirty {
             f.cmds.push(Cmd::ObjPalette {
@@ -587,7 +615,7 @@ impl Healthbox {
     }
 
     fn push_objs(&self, f: &mut Frame) {
-        let l = layout(self.side);
+        let l = layout(self.side, self.double);
         let (x, y) = self.pos();
         let o = |x, y, tile, palette, (shape, size)| Obj {
             x,

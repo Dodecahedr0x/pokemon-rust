@@ -506,7 +506,7 @@ fn pursuit_ko_gives_exp_and_the_chosen_mon_still_comes_in() {
     // ShouldSwitch after the landed Tackle: the Ghost is immune to it (one `Random() % 2`).
     let seed = seed_where(|s| {
         let r = make(s);
-        r.b.mon(O).hp > 0 && r.b.actions[O as usize] == Some(Action::Switch(1))
+        r.b.mon(O).hp > 0 && r.b.actions[O.i()] == Some(Action::Switch(1))
     });
     let mut r = make(seed);
     r.b.battler_mut(O).mon.hp = 1;
