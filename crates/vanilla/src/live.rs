@@ -20,7 +20,7 @@ use engine::data::{Dir, GameData, MapId};
 use explore::model::{Macro, MacroKind, Opts};
 use explore::semantic::map_name;
 use explore::spine::{
-    BattlePlan, Bypass, NEW_GAME_MAP, RETRIES, Step, StepOpts, TIRED_PP, TRAIN_BATTLES, TRAIN_DRY,
+    BattlePlan, Bypass, CATCH_BATTLES, NEW_GAME_MAP, RETRIES, Step, StepOpts, TIRED_PP, TRAIN_BATTLES, TRAIN_DRY,
     WAIT_FOR_FRAMES, WAIT_SCRIPT_FRAMES,
 };
 
@@ -141,6 +141,15 @@ impl<'g, G: GameData> Live<'g, G> {
 
     /// Plays one spine step (`explore::spine::Exec::play`'s rules).
     pub fn play_once(&mut self, step: &Step) -> Result<()> {
+        if self.v.hall_of_fame {
+            // `GameClear` took vanilla to the Hall of Fame (then the credits and a reset):
+            // nothing more is played.
+            if step.plays() {
+                self.ahead = true;
+                self.note = Some("vanilla is at the Hall of Fame (GameClear's screens)".into());
+            }
+            return Ok(());
+        }
         if let Some(want) = step.map() {
             let want = self.resolve_map(want);
             let on = self.map()?;
@@ -200,12 +209,16 @@ impl<'g, G: GameData> Live<'g, G> {
             step,
             Step::Grass { .. } | Step::Train { .. } | Step::TrainFresh { .. }
         );
+        let catch = match *step {
+            Step::Catch { species, .. } => species,
+            _ => 0,
+        };
         let opts = Opts {
             run_wild: self.opts.run_wild || !pacing,
             choice: self.opts.choice.take().unwrap_or(0),
             best_move: self.opts.best_move,
             learn: self.opts.learn,
-            catch: 0,
+            catch,
         };
         self.answer(opts);
         let start = self.map()?;
@@ -337,9 +350,18 @@ impl<'g, G: GameData> Live<'g, G> {
                     );
                 }
             }
-            // Not driven on the ROM yet: the battle bag's ball and Fly's region map.
-            Step::Catch { species, .. } => bail!("catch {species}: not driven on the ROM yet"),
-            Step::Fly { dest, .. } => bail!("fly to {dest}: not driven on the ROM yet"),
+            Step::Catch { x, y, species, .. } => self.catch((x, y), species)?,
+            Step::Fly { mon, dest, to } => {
+                self.v.fly(mon, dest, crate::drive::FLY_FRAMES)?;
+                let to = self.resolve_map(to);
+                let on = self.map()?;
+                ensure!(
+                    on == to,
+                    "flew to {}, not {}",
+                    map_name(on),
+                    map_name(to)
+                );
+            }
             Step::Battle(_) | Step::Choose(_) | Step::Expect(_) | Step::Checkpoint(_) => {
                 unreachable!("handled above")
             }
@@ -399,7 +421,7 @@ impl<'g, G: GameData> Live<'g, G> {
                 item,
                 qty,
             } => self.buy(local_id, engine::data::ItemId(item), qty)?,
-            MacroKind::Fly { dest, .. } => bail!("fly to {dest}: not driven on the ROM yet"),
+            MacroKind::Fly { mon, dest } => self.v.fly(mon, dest, crate::drive::FLY_FRAMES)?,
             MacroKind::Push { dir } => {
                 if self.map()? == start {
                     self.v.push(dir, MACRO_FRAMES)?;
@@ -409,23 +431,48 @@ impl<'g, G: GameData> Live<'g, G> {
         Ok(())
     }
 
-    /// Plays a [`Step::Buy`]: the oracle does not drive Gen3's shop screens, so the purchase
-    /// is written into vanilla's bag and money (an oracle stand-in, noted); the clerk is not
-    /// talked to.
+    /// Plays a [`Step::Buy`] natively: talks to clerk `local_id`, whose `pokemart` opens the
+    /// shop, and [`Vanilla::settle`] buys through it ([`Vanilla::mart_key`]: BUY, the item,
+    /// the quantity, yes, then out of the screens).
     fn buy(&mut self, local_id: u8, item: engine::data::ItemId, qty: u16) -> Result<()> {
         self.v.settle(MACRO_FRAMES)?;
-        let info = (self.game.item(item)).ok_or_else(|| anyhow!("buy: no item {}", item.0))?;
-        let cost = u32::from(info.price) * u32::from(qty);
+        let had = self.v.bag_count(item.0);
+        self.v.buying = Some((item.0, qty, had));
+        let r = self.talk(local_id);
+        self.v.buying = None;
+        r?;
+        let now = self.v.bag_count(item.0);
         ensure!(
-            self.v.buy(info.pocket, item.0, qty, cost)?,
-            "buy: {qty} of item {} (¥{cost}) do not fit or are not affordable",
+            now >= had.saturating_add(qty),
+            "buy: {now} of item {} in the bag after the mart, not {had} + {qty}",
             item.0
         );
-        self.note = Some(format!(
-            "buy: not played natively (the oracle does not drive the shop): {qty} of item {} \
-             for ¥{cost} written into vanilla's bag and money (clerk {local_id} not talked to)",
-            item.0
-        ));
+        Ok(())
+    }
+
+    /// Plays a [`Step::Catch`]: paces on `at` (grass or water) until `species` joins the party
+    /// (or the PC), a ball at it each battle and RUN from the rest ([`Vanilla::answers`]'
+    /// `catch`), at most [`CATCH_BATTLES`] battles.
+    fn catch(&mut self, at: (i16, i16), species: u16) -> Result<()> {
+        let size = self.v.party().len();
+        let (mut n, mut dry) = (0, 0);
+        while self.v.party().len() == size {
+            n += 1;
+            ensure!(
+                n <= CATCH_BATTLES,
+                "no species {species} caught in {CATCH_BATTLES} tries"
+            );
+            if !self.grass(at)? {
+                dry += 1;
+                ensure!(dry <= TRAIN_DRY, "no encounter {dry} times");
+                self.v.hold(Buttons::NONE, 31, MACRO_FRAMES)?;
+            }
+        }
+        let got = self.v.party().get(size).map(|m| m.species);
+        ensure!(
+            got == Some(species),
+            "caught species {got:?}, not {species}"
+        );
         Ok(())
     }
 

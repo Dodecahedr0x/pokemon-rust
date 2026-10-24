@@ -129,6 +129,41 @@ pub mod layout {
     pub const BAG_POCKET_OF_SB1: [u8; 5] = [0, 4, 1, 2, 3];
     // struct PartyMenu
     pub const PM_SLOT_ID: u32 = 9;
+    /// `gPartyMenu.menuType` (low nibble), `PARTY_MENU_TYPE_CHOOSE_HALF`, and the confirm
+    /// button's slot (`PARTY_SIZE`).
+    pub const PM_MENU_TYPE: u32 = 8;
+    pub const PARTY_MENU_TYPE_CHOOSE_HALF: u8 = 4;
+    pub const PARTY_SIZE: usize = 6;
+    pub const BATTLE_TYPE_INGAME_PARTNER: u32 = 1 << 22;
+    // party_menu.c's `struct PartyMenuInternal` (agbcc): `actions[8]`, `numActions`; the
+    // action ids (`MENU_FIELD_MOVES` 19 + `FIELD_MOVE_FLY` 5).
+    pub const PMI_ACTIONS: u32 = 15;
+    pub const PMI_NUM_ACTIONS: u32 = 23;
+    pub const MENU_FIELD_MOVE_FLY: u8 = 24;
+    // start_menu.c: `MENU_ACTION_POKEMON`.
+    pub const MENU_ACTION_POKEMON: u8 = 1;
+    // region_map.c's fly map (`sFlyMap`: callback, u16 state, u16 mapSecId, then
+    // `struct RegionMap`) and `struct RegionMap`'s fields; the cursor's map origin
+    // (`MAPCURSOR_X_MIN`, `MAPCURSOR_Y_MIN`).
+    pub const FM_STATE: u32 = 4;
+    pub const FM_REGION_MAP: u32 = 8;
+    pub const RM_MAP_SEC_ID: u32 = 0x00;
+    pub const RM_INPUT_CALLBACK: u32 = 0x18;
+    pub const RM_CURSOR_X: u32 = 0x54;
+    pub const RM_CURSOR_Y: u32 = 0x56;
+    pub const MAPCURSOR_X_MIN: u16 = 1;
+    pub const MAPCURSOR_Y_MIN: u16 = 2;
+    // shop.c: `struct ShopData` (after `tilemapBuffers[4][0x400]` and `totalCost`) and
+    // `struct MartInfo`; the buy screen's quantity is its task's `tItemCount` (data[1]).
+    pub const SD_SELECTED_ROW: u32 = 0x2006;
+    pub const SD_SCROLL_OFFSET: u32 = 0x2008;
+    pub const MI_ITEM_LIST: u32 = 8;
+    pub const MI_ITEM_COUNT: u32 = 12;
+    // The battle script's `trygivecaughtmonnick` (the caught mon's nickname yes/no).
+    pub const B_SCR_OP_TRYGIVECAUGHTMONNICK: u8 = 0xF3;
+    // The bag screen's POKé BALLS pocket (`BALLS_POCKET`).
+    pub const BAG_POCKET_BALLS: u8 = 1;
+    pub const BAG_POCKET_BERRIES: u8 = 3;
 }
 
 use layout::*;
@@ -215,6 +250,9 @@ pub struct State {
     pub gender: u8,
     pub trainer_id: u32,
     pub mode: Mode,
+    /// `gSaveBlock1Ptr->mapLayoutId`: the layout the map is loaded with (its own, or a
+    /// `setmaplayoutindex` override).
+    pub layout: u16,
 }
 
 /// Gen3's `DIR_*` to ours (`DIR_NONE` reads as down).
@@ -301,6 +339,12 @@ pub struct Vanilla {
     pub outcomes: Vec<u8>,
     /// Print every mode change [`Vanilla::settle`] sees (`PKR_VANILLA_TRACE`).
     pub trace: bool,
+    /// The purchase [`Vanilla::settle`] makes when a Poké Mart opens: `(item, quantity, the
+    /// bag's count before)`; `None` quits the mart.
+    pub buying: Option<(u16, u16, u16)>,
+    /// [`Vanilla::settle`] saw `GameClear`'s Hall of Fame screen: vanilla goes on to the
+    /// credits and resets, so the run ends there.
+    pub hall_of_fame: bool,
 }
 
 impl Vanilla {
@@ -317,6 +361,8 @@ impl Vanilla {
             battles: Vec::new(),
             outcomes: Vec::new(),
             trace: std::env::var_os("PKR_VANILLA_TRACE").is_some(),
+            buying: None,
+            hall_of_fame: false,
         }
     }
 
@@ -668,6 +714,7 @@ impl Vanilla {
             gender: self.emu.read_u8(sb2 + SB2_GENDER),
             trainer_id: self.emu.read_u32(sb2 + SB2_TRAINER_ID),
             mode: self.mode(),
+            layout: self.emu.read_u16(sb1 + SB1_MAP_LAYOUT_ID),
             flags,
             vars,
         })
@@ -709,6 +756,16 @@ impl State {
                 .filter(|o| !o.is_player && o.visible && o.map == self.map)
                 .map(|o| (o.local_id, o.home))
                 .collect(),
+            // Needs our data to tell an override ([`State::semantic_in`]).
+            layout: None,
+        }
+    }
+
+    /// [`State::semantic`] with the layout override (`explore::semantic::layout_override`).
+    pub fn semantic_in<G: engine::data::GameData>(&self, game: &G) -> Semantic {
+        Semantic {
+            layout: semantic::layout_override(game, self.map, Some(self.layout)),
+            ..self.semantic()
         }
     }
 }

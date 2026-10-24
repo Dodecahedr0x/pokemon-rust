@@ -396,6 +396,19 @@ pub fn run_spine_range<G: GameData>(
             let _ = live.v.settle(crate::live::MACRO_FRAMES);
         }
         let fought = live.v.battles.len() > battles;
+        let partner = crate::state::layout::BATTLE_TYPE_INGAME_PARTNER;
+        if live.v.battles[battles..].iter().any(|f| f & partner != 0) {
+            // Known engine gap: Gen3 fights Steven's multi battle 2v2 with his party and AI
+            // (`BATTLE_TYPE_MULTI | BATTLE_TYPE_INGAME_PARTNER`); our engine has no double
+            // battles and fights Maxie and Tabitha as two singles (degraded
+            // `DoSpecialTrainerBattle`): the party's exp, HP and PP differ from here.
+            let n = "KNOWN ENGINE GAP: Steven's multi battle is 2v2 on vanilla, two singles \
+                     on ours (no double battles)";
+            live.note = Some(match live.note.take() {
+                Some(o) => format!("{o}; {n}"),
+                None => n.to_string(),
+            });
+        }
         update(&mut h, &mut live.v, battles);
         battles = live.v.battles.len();
         let p = &spine.positions[i];
@@ -407,7 +420,7 @@ pub fn run_spine_range<G: GameData>(
             h.random_battle = true;
         }
         prev_exp = ours_exp;
-        let theirs = live.v.state()?.semantic();
+        let theirs = live.v.state()?.semantic_in(game);
         let tol = tolerance(h);
         let (deltas, noise) = split_noise(&ours, &theirs, diff(&ours, &theirs, tol), &trainers);
         let (deltas, leveling) = split_leveling(game, &ours, &theirs, deltas, tol);
@@ -597,7 +610,7 @@ pub fn branch<G: GameData + Clone + 'static>(
     }
     let mut h = oracle.history.get(b.origin).copied().unwrap_or_default();
     update(&mut h, &mut live.v, battles);
-    let theirs = live.v.state()?.semantic();
+    let theirs = live.v.state()?.semantic_in(game);
     let tol = tolerance(h);
     // The deltas the origin already had are the spine's findings.
     let at_origin: Vec<Delta> = oracle
@@ -671,6 +684,7 @@ mod tests {
             respawn: None,
             objects: BTreeMap::new(),
             homes: BTreeMap::new(),
+            layout: None,
         }
     }
 
