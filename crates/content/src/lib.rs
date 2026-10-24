@@ -268,6 +268,8 @@ pub(crate) fn gen3_special_ids() -> engine::data::SpecialIds {
         flag_shown_box_was_full: Some(consts::FLAG_SHOWN_BOX_WAS_FULL_MESSAGE),
         var_daily_wilds: None,
         berry_trees: 0,
+        var_input_map: None,
+        var_idle_frames: None,
     }
 }
 
@@ -287,6 +289,26 @@ pub const MAX_COINS: u16 = 9999;
 /// new-game script) and
 /// `heal_location`. `form_changes` keeps the trait default (no flavour has form-change data
 /// yet; Task A's Silice data adds it here).
+/// The flavour's START menu: Gen3's (`build/ui.rs`), or Silice's with the Mallette.
+#[cfg(not(pkr_silice))]
+fn flavor_start_menu() -> &'static [engine::data::StartItem] {
+    data::START_MENU
+}
+#[cfg(pkr_silice)]
+fn flavor_start_menu() -> &'static [engine::data::StartItem] {
+    &silice::mallette::START_MENU
+}
+
+/// The flavour's multichoice lists: Gen3's, and Silice's Mallette lists.
+#[cfg(not(pkr_silice))]
+fn flavor_multichoice(list: u8) -> Option<&'static [&'static [u8]]> {
+    data::multichoice(list)
+}
+#[cfg(pkr_silice)]
+fn flavor_multichoice(list: u8) -> Option<&'static [&'static [u8]]> {
+    silice::mallette::multichoice(list)
+}
+
 macro_rules! game_data_tables {
     () => {
         fn map(&self, id: ::engine::data::MapId) -> &'static ::engine::data::MapData {
@@ -351,7 +373,7 @@ macro_rules! game_data_tables {
         // ---- Milestone 9 (tables from `build/ui.rs`, empty until Task C) ----
 
         fn start_menu(&self) -> &'static [::engine::data::StartItem] {
-            $crate::data::START_MENU
+            $crate::flavor_start_menu()
         }
 
         fn item_use(&self, id: ::engine::data::ItemId) -> ::engine::data::ItemUse {
@@ -503,7 +525,7 @@ macro_rules! game_data_tables {
         }
 
         fn multichoice(&self, list: u8) -> Option<&'static [&'static [u8]]> {
-            $crate::data::multichoice(list)
+            $crate::flavor_multichoice(list)
         }
 
         fn std_string(&self, id: u8) -> Option<&'static [u8]> {

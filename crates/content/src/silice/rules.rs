@@ -11,6 +11,7 @@
 //! | [`ROLL_CONFUSED`] | 4 | Samuel after a failed sobriety test | [`ROLL`], the player's lead confused |
 //! | [`RUM`] | 4 | Gwada on the coupée | his mons enter with evasion +1, accuracy −1 |
 //! | [`PETALS`] | 6 | the Bushido sanctuary | 8 turns: Grass and Bug heal 1/16 each turn's end |
+//! | [`PETALS_BLINK`] | 6 | a samurai after the player blinked | [`PETALS`], the player's lead Speed −1 |
 //! | [`INJECTOR_ATK`], [`INJECTOR_SPA`] | 7 | Gogo, Romain | the last mon mutates: Atk (SpAtk) +2, Speed +2, Def −1, accuracy −1, then loses 1/8 a turn |
 //! | [`OVERDOSE`] | 8 | Gogo, Romain at Évalon | their mons enter with Atk +1, SpAtk +1, lose 1/16 a turn |
 //! | [`PRISM`] | 10 | Revenge | turns 1–3: the foe takes ×0.5, the player's attacker loses 1/4 of its damage |
@@ -41,6 +42,9 @@ pub const INJECTOR_SPA: u8 = 8;
 pub const OVERDOSE: u8 = 9;
 pub const PRISM: u8 = 10;
 pub const HEART: u8 = 11;
+/// The staring duel lost (Manga_Square_Gym_Sc01's blink): the source's
+/// `set_battle_malus(PLAYER_LEAD, SPEED, -1)` on top of the sanctuary's petals.
+pub const PETALS_BLINK: u8 = 12;
 
 const fn stage(when: When, who: Who, stat: Stat, delta: i8) -> RuleEffect {
     RuleEffect::new(
@@ -124,6 +128,14 @@ static R_PETALS: FieldRule = FieldRule {
     ],
 };
 
+static R_PETALS_BLINK: FieldRule = FieldRule {
+    effects: &[
+        R_PETALS.effects[0],
+        R_PETALS.effects[1],
+        stage(When::Start, Who::PLAYER, Stat::Speed, -1),
+    ],
+};
+
 /// The injector on the foe's last mon: its trainer plants it, it mutates, then burns out.
 macro_rules! injector {
     ($attack:expr) => {
@@ -196,6 +208,7 @@ pub fn battle_rule(id: u8) -> Option<&'static FieldRule> {
         ROLL_CONFUSED => &R_ROLL_CONFUSED,
         RUM => &R_RUM,
         PETALS => &R_PETALS,
+        PETALS_BLINK => &R_PETALS_BLINK,
         INJECTOR_ATK => &R_INJECTOR_ATK,
         INJECTOR_SPA => &R_INJECTOR_SPA,
         OVERDOSE => &R_OVERDOSE,
@@ -224,6 +237,8 @@ pub static WITH_ROLL: BattleRules = field(ROLL);
 pub static WITH_ROLL_CONFUSED: BattleRules = field(ROLL_CONFUSED);
 pub static WITH_RUM: BattleRules = field(RUM);
 pub static WITH_PETALS: BattleRules = field(PETALS);
+/// A samurai's battle after a blink (Manga_Square_Gym_Sc01): the petals, the player's lead slowed.
+pub static WITH_PETALS_BLINK: BattleRules = field(PETALS_BLINK);
 pub static WITH_INJECTOR_ATK: BattleRules = field(INJECTOR_ATK);
 pub static WITH_INJECTOR_SPA: BattleRules = field(INJECTOR_SPA);
 pub static WITH_OVERDOSE: BattleRules = field(OVERDOSE);

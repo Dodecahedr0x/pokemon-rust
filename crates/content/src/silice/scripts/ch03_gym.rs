@@ -141,8 +141,7 @@ pub async fn ViberCity_Gym_Sc02(ctx: Ctx) {
     show_sync(&ctx, 30).await;
     say(&ctx, Nocturne_Sc02_T10).await;
     ctx.set_flag(FLAG_SIL_LOG_03, true).await;
-    // fallback: log_menu (the Mallette's log screen): the log's text as a message (T11).
-    fallback(&ctx, "log_menu").await;
+    // The log (T11): the log as a message, as the Mallette's RAPPORTS reads it again.
     say(&ctx, Nocturne_Sc02_T11).await;
     say(&ctx, Nocturne_Sc02_T12).await;
     say(&ctx, Nocturne_Sc02_T13).await;

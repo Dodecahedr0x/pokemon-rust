@@ -118,8 +118,6 @@ pub async fn BricoBourg_Sc02(ctx: Ctx) {
     say(&ctx, Brico_Bourg_Sc02_T1).await;
     say(&ctx, Brico_Bourg_Sc02_T2).await;
     ctx.delay(30).await;
-    // fallback: screen_shake (`Request::ScreenShake`, SIL2 Wave 0 in the M9 plan): a fade out
-    // and in.
     screen_shake(&ctx, 2, 10).await;
     // fallback: play_se (audio, M12): a no-op that reports. CLIC is in T3.
     play_se(&ctx, "SE_CLICK").await;

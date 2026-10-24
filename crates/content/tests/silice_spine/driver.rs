@@ -209,6 +209,9 @@ impl GameData for Spy {
     fn field_move_gate(&self, m: engine::data::FieldMove) -> engine::data::FieldMoveGate {
         Game.field_move_gate(m)
     }
+    fn field_move_label(&self, m: engine::data::FieldMove) -> Option<&'static [u8]> {
+        Game.field_move_label(m)
+    }
     fn item_use(&self, id: ItemId) -> engine::data::ItemUse {
         Game.item_use(id)
     }
@@ -362,6 +365,7 @@ impl Run {
                 Step::Settle => self.settle(),
                 Step::Swap(a, b) => self.swap(a, b),
                 Step::Teach(t) => self.teach(t),
+                Step::UseOn { item, mon } => self.use_on(item, mon),
                 Step::Hook(h) => {
                     let name = match h {
                         Hook::FlagDuring(n, _) | Hook::MonBefore(n, _, _) => n,
@@ -627,6 +631,35 @@ impl Run {
         panic!("Swap({a}, {b}) never closed the menus");
     }
 
+    /// [`Step::UseOn`]: `World::use_item` (the bag's USE), the party menu on `mon`, the
+    /// messages, until the field is back.
+    fn use_on(&mut self, item: u16, mon: u8) {
+        use engine::ui::ScreenState;
+        use engine::ui::party::Prompt;
+        self.settle();
+        assert!(
+            self.w.use_item(&self.g, ItemId(item)),
+            "UseOn: item {item} cannot be used here"
+        );
+        for i in 0..4000u32 {
+            let top = self.w.screens().and_then(|s| s.top()).map(|(_, st)| st);
+            let keys = match top {
+                None if !self.busy() => break,
+                None => Buttons::NONE,
+                Some(ScreenState::Party(p)) => match p.prompt() {
+                    Prompt::Slot { cursor } if cursor == mon => Buttons::A,
+                    Prompt::Slot { cursor } if cursor < mon => Buttons::DOWN,
+                    Prompt::Slot { .. } => Buttons::UP,
+                    Prompt::Child => Buttons::NONE,
+                    _ => Buttons::A,
+                },
+                Some(_) => Buttons::A,
+            };
+            self.step(if i % 2 == 0 { keys } else { Buttons::NONE });
+        }
+        self.settle();
+    }
+
     /// [`Step::Teach`]: `World::use_item` (the bag's USE), then the party menu on `t.mon`, yes
     /// to "forget a move?", the summary's move `t.forget`, and the messages, until the field is
     /// back; asserts the move was learned.
@@ -675,7 +708,7 @@ impl Run {
     fn face(&mut self, d: Dir) {
         self.settle();
         if self.w.objects().player().facing != d {
-            self.step(dir_button(d));
+            self.step(self.w.input_map(&self.g).key_for(d));
             self.settle();
         }
         assert_eq!(self.w.objects().player().facing, d);
@@ -695,7 +728,7 @@ impl Run {
         let p = self.pos();
         let mut n = 0;
         while self.pos() == p && !self.w.script_running() && n < 40 {
-            self.step(dir_button(d));
+            self.step(self.w.input_map(&self.g).key_for(d));
             n += 1;
         }
         self.settle();
@@ -707,7 +740,7 @@ impl Run {
         let from = self.w.map();
         let mut n = 0;
         while self.w.map() == from {
-            self.step(dir_button(d));
+            self.step(self.w.input_map(&self.g).key_for(d));
             n += 1;
             assert!(
                 n < 200,
@@ -759,7 +792,7 @@ impl Run {
             );
             let mut n = 0;
             while self.pos() == p && !self.busy() && n < 40 {
-                self.step(dir_button(d));
+                self.step(self.w.input_map(&self.g).key_for(d));
                 n += 1;
             }
             if self.pos() == p {
@@ -963,15 +996,6 @@ fn forced_dir(b: Behavior, facing: Dir) -> Option<(Dir, bool)> {
         Behavior::Slide(d) => Some((d, false)),
         Behavior::MuddySlope => Some((Dir::Down, false)),
         _ => None,
-    }
-}
-
-fn dir_button(d: Dir) -> Buttons {
-    match d {
-        Dir::Up => Buttons::UP,
-        Dir::Down => Buttons::DOWN,
-        Dir::Left => Buttons::LEFT,
-        Dir::Right => Buttons::RIGHT,
     }
 }
 

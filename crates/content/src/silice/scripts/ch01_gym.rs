@@ -399,10 +399,8 @@ pub async fn BoisEther_Gym_Sc12(ctx: Ctx) {
     play_se(&ctx, "SE_POKENAV_CALL").await;
     mallette_call(&ctx, "GWADA").await;
     say(&ctx, Gym_Sc12_T2).await;
-    // The log itself, read once here. fallback: the Mallette's LOG menu (SIL2 on M9's kit),
-    // where `FLAG_SIL_LOG_01` would let it be read again: none yet.
+    // The log itself (the log as a message, as the Mallette's RAPPORTS reads it again, once `FLAG_SIL_LOG_01` is set).
     say(&ctx, LOG_01_Texte).await;
-    fallback(&ctx, "log_menu").await;
     say(&ctx, Gym_Sc12_T3).await;
     end_call(&ctx).await;
     say(&ctx, Gym_Sc12_T4).await;

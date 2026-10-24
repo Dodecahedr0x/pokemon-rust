@@ -906,11 +906,11 @@ fn wave_c_cases(covered: &mut BTreeSet<&'static str>) -> Vec<Case> {
                 Request::GetVar(VAR_0x8005),
                 Request::GetVar(VAR_0x8006),
                 Request::GetVar(VAR_0x8007),
+                // The shake waits its own frames: no `Delay` after it.
                 Request::ScreenShake {
                     magnitude: 0,
                     frames: 0,
                 },
-                Request::Delay(0),
             ],
             0,
         ),

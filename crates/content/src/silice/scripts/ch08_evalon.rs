@@ -212,7 +212,6 @@ pub async fn Evalon_Sc01(ctx: Ctx) {
     // fallback: play_se(SE_GRESILLEMENT), a new sound (§9): the decomp's static zap stands in
     // (no sound yet either way); T1 says "BZZT".
     play_se(&ctx, "SE_M_THUNDER_WAVE").await;
-    // fallback: screen_shake(1, 8) (§9): the prelude's fade out and in.
     screen_shake(&ctx, 1, 8).await;
     say(&ctx, Evalon_Sc01_T1).await;
     move_wait(&ctx, LOCALID_EVALON_MATHIEU, MATHIEU_IN).await;

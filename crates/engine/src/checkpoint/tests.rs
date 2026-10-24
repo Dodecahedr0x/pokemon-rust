@@ -759,6 +759,7 @@ fn enum_variant_indices_are_pinned() {
             MovementType::JogInPlace(Dir::Down),
             MovementType::RunInPlace(Dir::Down),
             MovementType::WalkSlowlyInPlace(Dir::Down),
+            MovementType::WanderBackwards,
         ],
         |v| match v {
             MovementType::Face(_) => 0,
@@ -776,6 +777,7 @@ fn enum_variant_indices_are_pinned() {
             MovementType::JogInPlace(_) => 12,
             MovementType::RunInPlace(_) => 13,
             MovementType::WalkSlowlyInPlace(_) => 14,
+            MovementType::WanderBackwards => 15,
         },
     );
     check(

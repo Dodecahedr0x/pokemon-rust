@@ -653,7 +653,6 @@ pub fn check_end(r: &Run) {
     for name in [
         "mart",
         "show_sync",
-        "log_menu",
         "set_sky_alert",
         "clear_sky_alert",
         "battle_two_trainers",
