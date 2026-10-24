@@ -21,20 +21,6 @@ Ids: **G** = gameplay or blocking, **T** = text the agents invented or borrowed,
 
 ### 1a. Difficulty curve and party (read first)
 
-**G-01 · Ch9 → Ch10–11 · The difficulty wall at the Tower**
-- **Question:** The Tower bosses need a party of about 89, but Ch9 ends far below that. Should Ch9 train the player up, or should the Ch10–11 rosters come down?
-- **The numbers:**
-  - The Tower leaders and the Apex bosses have six 240-IV Pokémon each, with held items, Megas, Primals and Revenge's prism. Kimiko's HO-OH (Calm Mind, Recover, Leftovers) beat a KADABRA / TYPHLOSION at 88 / 92.
-  - Ch9 ends with KADABRA 69, TYPHLOSION 76, LAIRON 35, MAREEP 14, PORYGON 25 and DUGTRIO 26.
-  - The bench is weak, and three evolutions are still missing.
-  - The Tower has no grass and only one heal (Mathieu's meal). The cabin climbs as soon as the story reaches 99.
-- **Provisional:** the Ch10 and Ch11 spines start from a constructed party at 89: ALAKAZAM, TYPHLOSION 91, AMPHAROS with TM24, AGGRON, DUGTRIO and PORYGON2. They mend from the bag between leaders. Measured: 87–91 all win; 85 loses to Revenge. The chapters are not chained (`silice_spine/ch10.rs`).
-- **Options:**
-  - (a) Keep the rosters, and give Ch9 or the late game a real training ground and the evolutions: higher-level grass on Route S9, or trainers to rematch. Training on Route S9's level 45 grass would cost "millions of frames".
-  - (b) Lower the Ch10–11 rosters: fewer Pokémon, lower levels or IVs, fewer items.
-  - (c) Both: a moderate cut plus a late training spot.
-  - (d) Add heals inside the Tower.
-
 **G-02 · Ch4 → Ch8 · The intended party chain**
 - **Question:** Which party should each chapter assume?
 - **The gaps:**
@@ -275,18 +261,6 @@ Ids: **G** = gameplay or blocking, **T** = text the agents invented or borrowed,
 **G-45 · Ch12 · `MOVE_SIL_CODE_AQUA`**
 - **Question:** The move (Sc28) contradicts D-00 and D-02b, which allow Gen3 moves only. Is it new move data, or the documented tutor fallback? Due by SIL6.
 - **Provisional (SIL6):** the source's Gen3 fallback per starter (Meganium Ancient Power, Typhlosion Crush Claw, Feraligatr Crunch) through Gen3's tutor screen: the player picks the mon, and any mon can learn it (reported as a fallback).
-
-**G-48 · Ch12 · The Tower hall after Ch9**
-- **Question:** Nébula has no door into the Tower hall after Ch9, so the post-game reaches the hall (and its elevator hub) only by Dive, as Ch9 does. Intended, or should a door open?
-- **Provisional:** Dive only.
-
-**G-49 · Ch12 · Reverse in his gym from 123**
-- **Question:** Reverse's rematch is in his gym from 123, while Thomas is also at the Breach. Is that the intended timing?
-- **Provisional:** in the gym from 123 (`ch07`).
-
-**G-50 · Ch12 · Sc21's tournament in the Library**
-- **Question:** The source sends the player to a Dojo that has no map; a warp also ends a script. Sc21's three battles are fought in place in the Library. Acceptable, or should a Dojo map be built?
-- **Provisional:** in the Library.
 
 **G-51 · Ch12 · The Antennas' battles and rule**
 - **Question:** The three battles run from the top room's on-frame script after the receptionist's warp. The rule is checked at the door only; "ni du Sac" is not enforced in battle. Acceptable?
@@ -563,3 +537,7 @@ There are **250 entries**:
 - **Ch4 question 3:** superseded by R-7. There is no whiteout now; see G-12.
 - **Ch5 question 8 (no grass to train on):** cave floors now draw wild battles (off-grass encounters, M9), and Ch5 runs without its hook. Reopen it if the caves are not meant as training grounds.
 - **Ch5 question 9 (Absol's Scope Lens):** see G-10. The Absolite now works.
+- **G-01 (the Ch9 → Ch10–11 difficulty wall), ruled 2026-10-24:** the jump is fine. The Ch10–11 rosters stay and the player trains up. The Ch10 spine keeps its constructed start party at 89, which stands for a player who trained (`silice_spine/ch10.rs`).
+- **G-48 (the Tower hall only by Dive after Ch9), ruled 2026-10-24:** intended. No door opens.
+- **G-49 (Reverse in his gym while Thomas is at the Breach), ruled 2026-10-24:** he is not. Reverse stands in his gym for his rematch at story 123–126 only (`ch07_gym.rs::reverse_in_gym`). Thomas camps in the Breach from 127 to the end, so the rematch and the Banettite are only available in that window.
+- **G-50 (Sc21's tournament), ruled 2026-10-24:** it happens in the Dojo. The Dojo map already existed (Ch6, `MangaSquare_Dojo`). Adrien asks at the Bibliothèque and warps the player to the tatami (6, 10). The Dojo's on-frame script `MangaSquare_Dojo_PG_Sc21` then fights the three battles, with Tak refereeing.

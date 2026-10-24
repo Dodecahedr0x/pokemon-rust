@@ -5366,6 +5366,7 @@ The branch was merged with master (the Ch8 maps, the Ch3–Ch6 reach fixes, the 
    - The Ch10 and Ch11 spines therefore start from a constructed six-member party at 89 (TYPHLOSION 91): ALAKAZAM, TYPHLOSION, AMPHAROS with TM24, AGGRON, DUGTRIO, PORYGON2. They mend from the bag between leaders, because the Tower has one heal.
    - Measured: 87–91 all win; 85 loses to Revenge.
    - When the chapters are rechained, Ch9 must train to there (Route S9's grass is 45–46), or the rosters must come down. Which should it be?
+   - **Ruled (G-01, 2026-10-24):** the difficulty jump is fine. The Ch10–11 rosters stay and the player is expected to train up before the Tower. The constructed Ch10 start party stays: it stands for a player who trained; the spine does not grind (`silice_spine/ch10.rs` says so).
    - After the SIL-9 merge, chaining from Ch9's end was tried as a design question, and it is not feasible as things stand:
      - Ch9 ends with KADABRA 69, TYPHLOSION 76, LAIRON 35, MAREEP 14, PORYGON 25 and DUGTRIO 26.
      - The Tower has no grass, and the cabin climbs as soon as the story reaches 99.
@@ -5632,7 +5633,7 @@ The "two floors" of an antenna may be one 9 × 9 map with both rooms, or a secon
     - Tauber & Hocseat's first win frees Raikou, and their team becomes `_10`.
     - Loulpix & Doris's first win frees Registeel and Latias.
     - From 130, once his gem is won, Loïc tells of Celebi.
-    - Each gym's leader script (ch01–ch08) calls its rematch. Reverse is in his gym from 123.
+    - Each gym's leader script (ch01–ch08) calls its rematch. Reverse is in his gym from 123 to 126 only (G-49, ruled: not while Thomas is at the Breach, from 127).
 - **Ids:**
   - Appended (`ids.golden`): `FLAG_SIL_FRAGMENT_1..8` (1142–1149) and `FLAG_SIL_ANTENNE_MONTEE` (1165).
   - The maps agent added 1150–1159.
@@ -5643,12 +5644,12 @@ The "two floors" of an antenna may be one 9 × 9 map with both rooms, or a secon
   - Hidden-item signs on the Breach, the No Man's Land, the Crater and the 1F ruin.
 - **Check exceptions:** the 10 `placement-map` exceptions for the post-game gifts are removed, because the scripts now place those gifts.
 - **Spine** (`tests/silice_spine/ch12.rs`, `tests/sil13_ch12.rs`):
-  - 21 segments. Each starts from Ch11's canonical end (`end_of_chapter_11`, story 119), raised to its own story value.
+  - 22 segments (21, then the Dojo tournament for G-50). Each starts from Ch11's canonical end (`end_of_chapter_11`, story 119), raised to its own story value.
   - The segments:
     - Act I: the awakening, the Council, Julien and his daily rematch on a new day (`Step::Days`, then a map load), and the Lighthouse.
     - Act II: Kimiko, Arthur, Silas and his mail.
     - Act III: the Horde, the Tower and the Filter, the outside, the Centrale, the Beacon and the last ceiling.
-    - The options: Benou, the Clone and Mewtwo, Crow's Lounge, a gym rematch, the Stele, an Antenna and a Code Fragment.
+    - The options: Benou, the Clone and Mewtwo, Crow's Lounge, the Friends' Tournament, a gym rematch, the Stele, an Antenna and a Code Fragment.
   - New driver steps:
     - `Step::Menu(i)`: the next multichoice takes entry `i`. The driver waits until the menu is drawn, because an earlier A takes entry 0.
     - `Step::Days(d)`.
@@ -5665,16 +5666,16 @@ The "two floors" of an antenna may be one 9 × 9 map with both rooms, or a secon
 - Hidden items are signs (Ch0's rule).
 
 **Deviations.** Each is marked in code.
-- Sc21 is fought in place in the Library. The source's Dojo has no map, and a warp ends a script.
+- ~~Sc21 is fought in place in the Library.~~ Superseded by G-50 (ruled): Sc21 is fought in the Dojo (see "Author rulings G-01, G-48–G-50 as built" below).
 - The Antennas run their three battles from the top room's on-frame script, after the receptionist's warp, because a warp ends the script.
 - The Antennas' rule is checked at the door only. The "ni du Sac" (no bag) rule is not enforced, because no battle rule exists for it yet.
 - The spine knocks out the legendaries it battles instead of catching them, because the driver never throws a ball. Their objects stay shown, as the clear-point contract says.
 
 **Questions for the author.** These are also in `silice-author-questions.md`, as G-48 to G-51 and T-11.
-1. Is it intended that the Tower hall has no door from Nébula after Ch9? The post-game reaches it only by Dive, as Ch9 does.
+1. Ruled (G-48): the Tower hall has no door from Nébula after Ch9, and the post-game reaches it only by Dive, as Ch9 does. This is intended.
 2. Code-Aqua: is the starter's Gen3 tutor move, taught to any mon the player picks, acceptable, or should the move be written?
-3. Reverse stands in his gym from 123 while Thomas is also at the Breach. Is that right?
-4. Are these two deviations acceptable: Sc21 in the Library, and the Antennas' battles in an on-frame script?
+3. Ruled (G-49): Reverse is not in his gym while Thomas is at the Breach. He stands there from 123 to 126 only.
+4. Ruled for Sc21 (G-50): the tournament is fought in the Dojo. Still open: are the Antennas' battles in an on-frame script acceptable (G-51)?
 5. These texts were never written in the source. For now they are silent, reused or invented:
    - No text: Benou's door sign, painting and door; the Zone 404's slabs; the Braille wall; the Apex's socle; and the Crater's boulder.
    - Only turn to face the player, no line: Gwada outside Sc30, and Adrien before 122.
@@ -5690,6 +5691,19 @@ The "two floors" of an antenna may be one 9 × 9 map with both rooms, or a secon
    - Thomas is hidden after Sc10.
    - The citizens are silent.
    - Gwada's reminders reuse lines.
+
+#### Author rulings G-01, G-48–G-50 as built (2026-10-24)
+
+- **G-50, the Dojo and Sc21.** The Dojo map already existed: `MangaSquare_Dojo` (30 × 22, Building + BattleArena) was built for Ch6 with the studio editor (`games/silice/edits/MangaSquare_Dojo/00–03`), with its warps to Manga-Square (warp 1) and to the gym (`MangaSquare_Gym` warp 0). `ch06_dojo.rs` refers to that real map, so nothing in Ch6 was faked. The G-50 question's premise ("a Dojo that has no map") was wrong; the real blocker was that a warp ends a script.
+  - `MangaSquare_Bibliotheque_PG_Sc21` (Adrien at the Council's table) keeps the source's checks (122–126 or from 130, Gwada at the Tower from 127 to 129, the daily flag), asks, sets `FLAG_SIL_TOURNOI_EN_COURS`, fades and warps to the Dojo (6, 10), the source's cell.
+  - `MangaSquare_Dojo_PG_Sc21` is the Dojo's on-frame script (`VAR_TEMP_1` 0, as the Antennas'). It runs only with the flag set, and clears the flag at once, so a loss's whiteout does not replay it. It shows the four actors (`FLAG_SIL_HIDE_DOJO_PG_TAK`, `_MATHIEU`, `_GWADA` and `_ADRIEN`, set at the start), turns the player east, and plays Tak's referee line (`Manga_Square_PG_Tak_Arbitre`, the source's §4.2). Then it fights Mathieu, Gwada and Adrien in turn on the central tatami, with no heal between. Each beaten friend walks to the bench to the left (row 9), and the next steps up to (7, 10). It ends with the Golden Feather, the Altarianite the first time, and the heal.
+  - Map edit: `MangaSquare_Dojo/04_ch12_tournoi.ron` adds the on-frame script and the four objects (local ids 16–19: Tak `BRAWLY` (7, 8), Mathieu (7, 10), Gwada (8, 10) and Adrien (9, 10)).
+  - Ids: `FLAG_SIL_HIDE_DOJO_PG_TAK`, `_MATHIEU`, `_GWADA` and `_ADRIEN` (1245–1248) and `FLAG_SIL_TOURNOI_EN_COURS` (1249), appended to `ids.golden`. The four hide flags are in `game.ron`'s initial flags.
+  - Spine: the segment `tournoi` (`sil13_ch12::optional_the_friends_tournament_in_the_dojo`) starts west of Adrien in the Bibliothèque at 122. It answers yes, lands on the Dojo's (6, 10) and wins the three battles. It uses Julien's six: Ch12's `PARTY` loses to Gwada's weather team after Mathieu (measured), because nothing is healed between the battles. Kyogre's lead and Rayquaza's Air Lock win with three members standing (about 31.6k frames).
+- **G-49, Reverse.** `ReverseCity_Gym_OnTransition` shows Reverse for his rematch at story 123–126 only (`reverse_in_gym`). Thomas (Reverse himself) sets up his camp in the Breach at 127 (`Breche_PG_Sc10b`) and stays there for the rest of the game. `ReverseCity_Gym_Sc01` (his object and the coord row behind him) does nothing outside that range.
+  - The consequence: Reverse's daily rematch and his Banettite can be had only between 123 and 126.
+- **G-48, the Tower hall by Dive.** Intended. There is no code marker; the plan's question is closed.
+- **G-01, the Ch9 → Ch10 difficulty.** Intended. The Ch10 constructed start party stays, as the comment in `silice_spine/ch10.rs` now says.
 
 ## 4. Contradictions and errors in `contenu-jeu` that block conversion
 
