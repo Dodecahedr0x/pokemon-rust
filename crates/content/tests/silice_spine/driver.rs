@@ -457,12 +457,12 @@ impl Run {
         let w = &self.w;
         !self.reloaded
             && (w.script_running()
-            || w.in_battle()
-            || w.transition_active()
-            || w.starter().is_some()
-            || !w.field_active()
-            || w.text().is_open()
-            || !w.objects().player().is_settled())
+                || w.in_battle()
+                || w.transition_active()
+                || w.starter().is_some()
+                || !w.field_active()
+                || w.text().is_open()
+                || !w.objects().player().is_settled())
     }
 
     /// Presses keys every other frame while anything but the free field runs ([`Run::key`]:
@@ -709,7 +709,10 @@ impl Run {
                 (m.hp, m.stats[0])
             };
             if hp(self).0 == 0 {
-                match [ITEM_REVIVE, ITEM_MAX_REVIVE].into_iter().find(|&i| self.count(i) > 0) {
+                match [ITEM_REVIVE, ITEM_MAX_REVIVE]
+                    .into_iter()
+                    .find(|&i| self.count(i) > 0)
+                {
                     Some(i) => self.use_on(i, slot),
                     None => continue,
                 }
@@ -720,8 +723,15 @@ impl Run {
                 if missing == 0 {
                     break;
                 }
-                let potions = [(ITEM_SUPER_POTION, 50), (ITEM_HYPER_POTION, 200), (ITEM_MAX_POTION, u16::MAX)];
-                let have: Vec<_> = potions.into_iter().filter(|&(i, _)| self.count(i) > 0).collect();
+                let potions = [
+                    (ITEM_SUPER_POTION, 50),
+                    (ITEM_HYPER_POTION, 200),
+                    (ITEM_MAX_POTION, u16::MAX),
+                ];
+                let have: Vec<_> = potions
+                    .into_iter()
+                    .filter(|&(i, _)| self.count(i) > 0)
+                    .collect();
                 let pick = have.iter().find(|&&(_, h)| h >= missing).or(have.last());
                 match pick {
                     Some(&(i, _)) => self.use_on(i, slot),
@@ -760,7 +770,11 @@ impl Run {
             self.step(if i % 2 == 0 { keys } else { Buttons::NONE });
         }
         self.settle();
-        assert_eq!(self.count(item) + 1, before, "Use: item {item} had no effect");
+        assert_eq!(
+            self.count(item) + 1,
+            before,
+            "Use: item {item} had no effect"
+        );
     }
 
     /// Turns the player toward `d` (a tap) without stepping.

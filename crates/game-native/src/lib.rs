@@ -155,8 +155,7 @@ impl<G: GameData> Session<G> {
         }
         // `Event::ReloadLastSave` (Silice's alternate ending): the last save comes back as
         // CONTINUE would bring it (a new game when there is none); nothing is written.
-        if (self.world.events().iter()).any(|e| matches!(e, engine::world::Event::ReloadLastSave))
-        {
+        if (self.world.events().iter()).any(|e| matches!(e, engine::world::Event::ReloadLastSave)) {
             self.reload_last_save();
         }
     }
