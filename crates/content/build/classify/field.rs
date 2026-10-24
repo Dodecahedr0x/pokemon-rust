@@ -100,6 +100,9 @@ pub fn behavior(name: &str) -> String {
             "MB_UP_ESCALATOR" | "MB_DOWN_ESCALATOR" => "Escalator(Dir::Right)",
             // `DoMossdeepGymWarp`: the object templates stay (`SKIP_OBJECT_EVENT_LOAD`).
             "MB_MOSSDEEP_GYM_WARP" => "PadWarp",
+            // Reached only from the B1F geysers, whose exit jumps east
+            // (`FieldCB_LavaridgeGymB1FWarpExit`).
+            "MB_LAVARIDGE_GYM_1F_WARP" => "PopOutWarp(Dir::Right)",
             _ => "Warp",
         }
         .into();

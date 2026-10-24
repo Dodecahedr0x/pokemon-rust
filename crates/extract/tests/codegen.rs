@@ -1130,6 +1130,11 @@ mod lowering {
             i("warpteleport", vec![map(), Byte(0), Half(1), Half(2)]),
             i("warpspinenter", vec![map(), Byte(0), Half(1), Half(2)]),
             i("warpmossdeepgym", vec![map(), Byte(0), Half(1), Half(2)]),
+            // Wave F: the rotating tile puzzle.
+            i("initrotatingtilepuzzle", vec![Half(0)]),
+            i("moverotatingtileobjects", vec![Half(1)]),
+            i("turnrotatingtileobjects", vec![]),
+            i("freerotatingtilepuzzle", vec![]),
             i("warpwhitefade", vec![map(), Byte(0), Half(1), Half(2)]),
             i("warphole", vec![map()]),
             i("setdynamicwarp", vec![map(), Byte(0xFF), Half(3), Half(4)]),
@@ -1705,6 +1710,8 @@ pub use trainer::*;
 // `content::prelude`'s lookups in the build's tables (Task H), which `items` uses.
 pub fn text_named(_: &str) -> Option<engine::data::TextId> { None }
 pub fn item_pocket(_: u16) -> Option<engine::data::Pocket> { None }
+// `content::prelude::puzzle`'s entry (the puzzle tables are the flavour's): a stand-in.
+pub async fn rotating_tile_puzzle(_: &Ctx, _: u16) {}
 
 
 "#;

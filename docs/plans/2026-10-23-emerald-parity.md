@@ -703,9 +703,41 @@ Bypasses `mossdeep-gym-puzzle`, `legendaries-scene`, `rayquaza-scene`, `sky-pill
 - **Not done:** the save behind `GameClear`, the Hall of Fame screen and the credits; the vanilla oracle/driver does not read the layout override; `warpmossdeepgym` (`WarpToEntrance`) is a plain warp, not a pad warp; `SpawnCameraObject`, `ShakeCamera` and `WaitWeather` stay unsupported (the scenes' camera); the twins' double sight is one battle per trainer (no double battles).
 - **Checkpoints and goldens (not re-accepted):** schema 6 changes every checkpoint's encoding (the engine goldens are updated). World hashes move only on override maps, while `keep_templates` is set, and where a cell is `PadWarp`. From Mossdeep's gym on, the Emerald spine's steps, frames and labels move (+22 gym paths, Nate, the Sky Pillar and the E4 changes). `explore branch`: 3,000 branches, 10 divergences (3 signatures, all at step 896 after `hm_dive` on map 0x181C: `NoPath` back to the spine, outside this cluster).
 
+### Re-green after Wave E2 (as built)
+
+Merged on master `70a3d50` (Waves E2, F3 and F2). The rule now is Gen3's: field poison faints, and `EventScript_FieldPoison` whites out when the whole party has fainted.
+
+**What moved, and why.**
+- **The woods.** The fix: a Pecha Berry from Route 104's tree (24, 41), used from the bag (`Step::UseItem`) before the `woods` checkpoint. The berry pick moves the battle RNG, so in this run no Wurmple poisons the lead and the use only says it has no effect. It stays as the guard. The lead never faints from poison on the spine: no `TryFieldPoisonWhiteOut` whiteout and no whiteout at all.
+- **Act 1.** The frames move: `woods` 62,561 → 62,320, `rustboro` 63,664 → 63,423, `badge1` 104,879 → 104,523. `EMERALD_BADGE1_FRAMES` is 104,523. `spine --export --label badge1` keeps c00005–c00009; c00010–c00012 are re-exported and promoted as the same ids.
+- **Spine tuning for the new RNG:**
+  - One more Fortree round (to 50).
+  - A Center heal between the gym's trainers and Winona: goto (15, 3), out, the Center, back in.
+  - The Magma Hideout's 2F 2R Full Restore and Max Elixir, used at Maxie's side (the grunts drained Earthquake and Surf).
+  - Two-frame waits before Victory Road B1F's first boulder and the south rock: an A on the frame a walk settles is not read.
+  - The League training to 99 (at 98, Wallace's Milotic won).
+- **Frames.** `EMERALD_FRAMES` is 3,006,097. The spine reaches `hall_of_fame` at step 1,365.
+- **Merges:**
+  - Extract `FORMAT_MINOR`: F3's pokemart lists keep 10. E2's `EventScript_FieldPoison` moves to 11, with its `MINOR_FILES` line.
+  - `Behavior`: F2's `PadWarp` keeps postcard index 22. E2's `PopOutWarp` moves to 23 (pin test, hash code).
+  - `specials.ron` counts: both waves' changes.
+- **Checkpoints:** one accept covers content 5.11 and schema 6. The other Emerald nodes and the 3 stub nodes rehash.
+
+**Fixed on the way.**
+- `sil1_w0_contracts`: the shared prelude's comment named `FLAG_ENABLE_MR_STONE_POKENAV`. The flag only lives in the story module.
+- F3's `m8_j_specials` on Silice: no Steven multi, no facility var.
+- F2's tests:
+  - The codegen sample lacked the rotating tile puzzle commands.
+  - `GameClear`'s heal location on the stub.
+  - The Route 131 surfer test did not compile on Silice.
+
+**Lanes** (`cargo xtask gates`, `parity`):
+- **fmt, clippy, clippy-ui, test, test-stub, parity:** pass. Hash at most 48 lines (gate 65); loop at most 159 lines (gate 217).
+- **test-silice:** only the known six fail (`sil4_ch3` to `sil9_ch8`).
+
 ### Wave F — Waterfall, Dive, the water door and Fly (as built, branch `worktree-agent-a3c4c85bea9a1a653`)
 
-The bypasses `fly-mauville`, `fly-slateport`, `fly-lilycove`, `water-door-in`, `water-door-out`, `dive-seafloor`, `dive-sootopolis` (×2), `dive-out-sootopolis` (×2) and `waterfall-ever-grande` are gone. With the Sky Pillar cluster merged, `SPINE_BLOCKERS` is empty. `spine_real` is green to `hall_of_fame`: `EMERALD_FRAMES` goes from 3,010,626 to 3,025,632.
+The bypasses `fly-mauville`, `fly-slateport`, `fly-lilycove`, `water-door-in`, `water-door-out`, `dive-seafloor`, `dive-sootopolis` (×2), `dive-out-sootopolis` (×2) and `waterfall-ever-grande` are gone. With the Sky Pillar cluster merged, `SPINE_BLOCKERS` is empty. `spine_real` is green to `hall_of_fame`. After merging master `ae0551e` (E2's field poison), `EMERALD_FRAMES` goes from 3,006,097 to 3,031,502, and `badge1` stays at 104,523.
 
 - **Water doors and arrow warps on water.**
   - `Water::Door` is `MB_WATER_DOOR` and `Water::SouthArrowWarp` is `MB_WATER_SOUTH_ARROW_WARP`. Both are appended to `Water`, so no postcard index shifts.
@@ -723,7 +755,7 @@ The bypasses `fly-mauville`, `fly-slateport`, `fly-lilycove`, `water-door-in`, `
     - else the fixed warp its `on_resume` sets (`setdivewarp`, a 10-entry table in `content::prelude::puzzle`).
   - `setdivewarp` is classified `Ignore`: the table stands for it. Not yet: `Underwater_SealedChamber`'s `MAP_SCRIPT_ON_DIVE_WARP`, which picks a warp by cell.
   - The arrival swaps between surfing and underwater and keeps the facing (`GetAdjustedInitialDirection`).
-  - **Extract format minor 11:** the water scripts are exported as `roots::FIELD_SCRIPTS`; no file is added. The mart branch took minor 10.
+  - **Extract format minor 12:** the water scripts are exported as `roots::FIELD_SCRIPTS[7..]`, after E2's `EventScript_FieldPoison` (minor 11). They go into `scripts/Common_field_move_scripts.ron`, which every extract since minor 8 already has, so `MINOR_FILES` gets no line, as with minor 10.
 - **Fly.**
   - Party menu FLY (`SetUpFieldMove_Fly`) works outdoors only (`Overworld_MapTypeAllowsTeleportAndFly`). Indoors, it reports `Degraded("fly: can't use here")` and goes back to the slots.
   - FLY pushes `ScreenKind::FlyMap` (`ui/fly_map.rs`, degraded). It lists the visited destinations of `GameData::fly_destination`: the `MAPSEC` towns 0 to 15, gated on `FLAG_VISITED_*`, landing on `sMapHealLocations`.
@@ -739,7 +771,7 @@ The bypasses `fly-mauville`, `fly-slateport`, `fly-lilycove`, `water-door-in`, `
 - **Spine.**
   - Swampert's four slots are Strength, Earthquake, Rock Smash and Surf, and Castform learns no HMs. Teaching HM08 to Swampert over Earthquake lost Victory Road and Wallace.
   - So the spine catches a Tentacool and a Wingull on Route 122 (22,33), before Lilycove's Center. Catching on Route 118 shifted the RNG into a whiteout on Route 121.
-  - HM02 goes on the Wingull (slot 3, over Growl). HM08 goes on the Tentacool after `hm_dive` (slot 2, over Poison Sting) and HM07 after `hm_waterfall` (over Constrict).
+  - HM02 goes on the Wingull (slot 3, over Growl). Since E2's field poison, the Tentacool's Poison Sting can poison the lead during the catch, so a Pecha Berry is used after the catches (otherwise the lead faints on Route 121). HM08 goes on the Tentacool after `hm_dive` (slot 2, over Poison Sting) and HM07 after `hm_waterfall` (over Constrict).
   - The spine flies to Mauville (destination 9), Slateport (8) and Lilycove (12).
   - The water door is real both ways: `enter` (70,5) into the pool's arrow warp, then the pool's (13,27) arrow warp back.
   - The dives are real: Route 128 (38,27) → Underwater 128's (38,26) tunnel → the cavern pool; Route 126 (45,66) → Underwater 126 (45,65) → Sootopolis's lake (29,53); the lake's (29,54) → Underwater Sootopolis (9,8) → Route 126.
@@ -752,4 +784,8 @@ The bypasses `fly-mauville`, `fly-slateport`, `fly-lilycove`, `water-door-in`, `
 - **Checkpoints and goldens (not re-accepted):**
   - The battle scene's hash gains the bag's balls and the thrown count. Goldens `bag_*`/`scene_*` move to `(806, 407566406512155080)` and `(1020, 12470217771155615926)`.
   - The Emerald spine's inputs and frames move from Route 122 on (the catches).
-  - The extract's minor 11 moves every node's content hash.
+  - The extract's minor 12 moves every node's content hash.
+- **Checkpoints, accepted after merging `ae0551e`:** one `chore(checkpoints)` commit ran `verify --accept` on the Emerald tree (12 nodes) and the stub tree (3 nodes). Inputs, frames, parents and labels are unchanged; `badge1` stays at 104,523.
+- **Lanes** (`cargo xtask gates`, `parity`):
+  - **fmt, clippy, clippy-ui, test, test-stub, parity:** pass. Route hash 48 lines (gate 65); loop 159 lines (gate 217).
+  - **test-silice:** only the known six fail (`sil4_ch3` to `sil9_ch8`).
