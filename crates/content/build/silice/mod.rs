@@ -104,10 +104,9 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
     // come from `game.ron` (`heal_location()`, Task E).
     let items = data::items(games, &ids, &exc, &enc, &mut w, &mut report).context("items.ron")?;
     consts.extend(items.consts);
-    consts.extend(
-        data::trainers(games, &ids, &exc, &enc, &mut w, &mut report)
-            .context("battle/trainers.ron")?,
-    );
+    let (trainer_consts, bags_rs) = data::trainers(games, &ids, &exc, &enc, &mut w, &mut report)
+        .context("battle/trainers.ron")?;
+    consts.extend(trainer_consts);
     let trainer_count = w
         .battle
         .trainers
@@ -116,7 +115,8 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
         .count();
     let encounter_maps = data::encounters(games, &ids, &mut w).context("battle/encounters.ron")?;
     w.battle.heal = Default::default();
-    let forms = data::form_changes(&ids)?;
+    let forms = data::forms(games, &ids, &mut w).context("battle/forms.ron")?;
+    consts.extend(forms.consts);
 
     let map_numbers: BTreeMap<String, u16> = (ids.files.get(&schema::IdKind::Maps).into_iter())
         .flat_map(|f| &f.ids)
@@ -130,7 +130,7 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
         items.defined,
         items.marts
     )];
-    summary.push(forms);
+    summary.push(forms.report);
     summary.extend(report);
     w.authored = Some(AuthoredIn {
         script_names: reg.scripts.iter().map(|s| s.name.clone()).collect(),
@@ -145,7 +145,7 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
         map_numbers,
         item_bases: items.bases,
         rules: crate::classify::Rules::SILICE,
-        data_rs: items.data_rs,
+        data_rs: items.data_rs + &forms.data_rs + &bags_rs,
     });
     Ok(Silice {
         world: w,

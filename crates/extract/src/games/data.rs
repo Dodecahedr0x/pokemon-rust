@@ -137,6 +137,46 @@ pub struct EncounterHeader {
     pub notes: Vec<String>,
 }
 
+/// `battle/forms.ron`: the battle-only forms (Mega Evolutions, Primal Reversions). Hand-written
+/// (the chapters name the stones, not the forms' data); each form is numbered by
+/// `ids/species.ron` and takes from its base species everything but its stats, types, ability
+/// and weight (name, catch rate, yields, gender, growth, learnset, pics).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct FormsFile {
+    /// The flag the player's mons need to Mega Evolve (`FLAG_SIL_*`); `None`: always.
+    pub mega_flag: Option<String>,
+    pub forms: Vec<FormDef>,
+}
+
+/// One battle-only form.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct FormDef {
+    /// `SPECIES_*_MEGA` / `_PRIMAL` (`ids/species.ron`).
+    pub id: String,
+    /// The Gen3 base species.
+    pub from: String,
+    /// The held item that triggers it (`ITEM_SIL_*`).
+    pub item: String,
+    pub kind: FormKindDef,
+    /// HP, Atk, Def, Speed, SpAtk, SpDef.
+    pub base: [u8; 6],
+    /// `TYPE_*`.
+    pub types: [String; 2],
+    /// `ABILITY_*`.
+    pub ability: String,
+    /// Hectograms.
+    pub weight: u16,
+}
+
+/// How a [`FormDef`] triggers.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FormKindDef {
+    /// Chosen in battle, once per side; the player needs the Mega flag (`game.ron`).
+    Mega,
+    /// On entering the field.
+    Primal,
+}
+
 /// `items.ron`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct ItemsFile {
