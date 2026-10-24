@@ -13,8 +13,10 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 104_523;
 
 /// The whole Emerald spine's frame count (to its last step, to its last checkpoint); 3,032,538
-/// before Wave G's doubles (Fortree's and Mossdeep's gym pairs, Tate and Liza, Steven).
-const EMERALD_FRAMES: u64 = 3_172_864;
+/// before Wave G's doubles (Fortree's and Mossdeep's gym pairs, Tate and Liza, Steven);
+/// 3,172,864 before a macro released an A the last one ended on (Gen3 `newKeys`: +1 to +4
+/// frames from Route 118, and Victory Road B1F's `Wait(2)`s gone).
+const EMERALD_FRAMES: u64 = 3_166_366;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
