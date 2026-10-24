@@ -318,6 +318,25 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_APEX_POUSSIN_PG,
         FLAG_SIL_HIDE_APEX_SOCLE,
         FLAG_SIL_HIDE_TOUR_2F_GWADA,
+        // Ch12 optional maps: the other legendaries, the Antennas' trainers, Tak.
+        FLAG_SIL_HIDE_CELEBI,
+        FLAG_SIL_HIDE_RAIKOU,
+        FLAG_SIL_HIDE_LUGIA,
+        FLAG_SIL_HIDE_REGISTEEL,
+        FLAG_SIL_HIDE_LATIAS,
+        FLAG_SIL_HIDE_KYOGRE,
+        FLAG_SIL_HIDE_JIRACHI,
+        FLAG_SIL_HIDE_DEOXYS,
+        FLAG_SIL_HIDE_ANTENNE_ALPHA_1,
+        FLAG_SIL_HIDE_ANTENNE_ALPHA_2,
+        FLAG_SIL_HIDE_ANTENNE_ALPHA_3,
+        FLAG_SIL_HIDE_ANTENNE_GAMMA_1,
+        FLAG_SIL_HIDE_ANTENNE_GAMMA_2,
+        FLAG_SIL_HIDE_ANTENNE_GAMMA_3,
+        FLAG_SIL_HIDE_ANTENNE_ETA_1,
+        FLAG_SIL_HIDE_ANTENNE_ETA_2,
+        FLAG_SIL_HIDE_ANTENNE_ETA_3,
+        FLAG_SIL_HIDE_MANGA_TAK,
     ] {
         assert!(w.flag(f), "{f:?}");
     }
