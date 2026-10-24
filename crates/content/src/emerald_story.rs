@@ -30,6 +30,32 @@ pub const DAILY_PLANTED_BERRIES: Option<VarId> = Some(VAR_DAILY_PLANTED_BERRIES)
 pub const HAS_MATCH_CALL: Option<FlagId> = Some(FLAG_HAS_MATCH_CALL);
 /// `SetMauvilleOldManObjEventGfx`'s var and graphics (`VAR_OBJ_GFX_ID_0`, the bard).
 pub const MAUVILLE_OLD_MAN_GFX: Option<(VarId, u16)> = Some((VAR_OBJ_GFX_ID_0, OBJ_EVENT_GFX_BARD));
+/// `SetLilycoveLadyGfx`'s vars (`VAR_OBJ_GFX_ID_0`, `_1`), `sLilycoveLadyGfxId` by
+/// `LILYCOVE_LADY_*`, and the contest lady's Zigzagoon (`sContestLadyMonGfxId`'s
+/// `CONTEST_CATEGORY_COOL`).
+pub const LILYCOVE_LADY_GFX: Option<(VarId, VarId, [u16; 3], u16)> = Some((
+    VAR_OBJ_GFX_ID_0,
+    VAR_OBJ_GFX_ID_1,
+    [
+        OBJ_EVENT_GFX_WOMAN_4,
+        OBJ_EVENT_GFX_WOMAN_2,
+        OBJ_EVENT_GFX_GIRL_2,
+    ],
+    OBJ_EVENT_GFX_ZIGZAGOON_1,
+));
+/// `UpdateTrainerFanClubGameClear`'s names: `VAR_FANCLUB_FAN_COUNTER` (the fan club's bits),
+/// `VAR_LILYCOVE_FAN_CLUB_STATE`, and the flags it clears.
+pub const FAN_CLUB: Option<(VarId, VarId, [FlagId; 5])> = Some((
+    VAR_FANCLUB_FAN_COUNTER,
+    VAR_LILYCOVE_FAN_CLUB_STATE,
+    [
+        FLAG_HIDE_FANCLUB_OLD_LADY,
+        FLAG_HIDE_FANCLUB_BOY,
+        FLAG_HIDE_FANCLUB_LITTLE_BOY,
+        FLAG_HIDE_FANCLUB_LADY,
+        FLAG_HIDE_LILYCOVE_FAN_CLUB_INTERVIEWER,
+    ],
+));
 /// The flag Mr. Stone's first Match Call text sets (the PokéNav tutorial's forced call).
 pub const MR_STONE_POKENAV: Option<FlagId> = Some(FLAG_ENABLE_MR_STONE_POKENAV);
 pub const PACIFIDLOG_TM_DAY: Option<VarId> = Some(VAR_PACIFIDLOG_TM_RECEIVED_DAY);
