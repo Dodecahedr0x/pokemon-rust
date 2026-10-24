@@ -1076,6 +1076,7 @@ pub const STRS: &[(&str, StrSrc)] = {
         ("TwoEnemiesDefeated", Key("STRINGID_TWOENEMIESDEFEATED")),
         ("PkmnReadyToHelp", Key("STRINGID_PKMNREADYTOHELP")),
         ("PkmnsXTookAttack", Key("STRINGID_PKMNSXTOOKATTACK")),
+        ("Trainer1UsedItem", Key("STRINGID_TRAINER1USEDITEM")),
         // Post-Gen3: no Gen3 string.
         ("MegaReacting", Missing),
         ("MegaEvolved", Missing),
@@ -1090,5 +1091,7 @@ pub const STRS: &[(&str, StrSrc)] = {
         ("BouncedBack", Missing),
         ("MegaArmed", Missing),
         ("SolarPowerHurt", Missing),
+        // `GameData::text` (the engine expands it, never `battle_text`).
+        ("Authored(_)", Missing),
     ]
 };

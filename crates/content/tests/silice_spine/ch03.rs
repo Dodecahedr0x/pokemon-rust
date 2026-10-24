@@ -763,7 +763,6 @@ pub fn check_end(r: &Run) {
         "give_mon custom",
         "play_music",
         "party_valid_count",
-        "strobe",
         "show_sync",
         "log_menu",
         "play_se",

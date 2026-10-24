@@ -59,6 +59,7 @@ fn trainer_battle_single_follows_trainer_battle_inc() {
                 trainer: tr,
                 defeat: TextId(2),
                 no_whiteout: false,
+                rules: None,
             },
             Request::SetFlag(FlagId(0x503), true),
             // `RegisterTrainerInMatchCall`.
@@ -100,6 +101,7 @@ fn trainer_battle_variants() {
                 trainer: tr,
                 defeat: TextId(4),
                 no_whiteout: false,
+                rules: None,
             },
             Request::SetFlag(FlagId(0x507), true),
             Request::GetFlag(consts::FLAG_HAS_MATCH_CALL),

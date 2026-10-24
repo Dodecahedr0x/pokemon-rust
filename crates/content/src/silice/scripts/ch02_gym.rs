@@ -312,10 +312,8 @@ async fn yohan(ctx: Ctx, talked: bool) {
     move_wait(&ctx, LOCALID_GYM2_YOHAN, YOHAN_SEES).await;
     say(&ctx, Gym2_Sc10_T1).await;
     say(&ctx, Gym2_Sc10_T2).await;
-    // fallback: Mega Evolution (SIL3, plan §3.4: no form change is built yet). The source's own
-    // fallback (§9): Alakazam battles unevolved, a normal battle, and its Gym2_Sc10_Mega screen
-    // is not shown.
-    fallback(&ctx, "mega_evolution").await;
+    // Alakazam Mega Evolves (the Alakazite, `battle/forms.ron`); Gym2_Sc10_Mega is Yohan's
+    // line before it (`silice::rules::trainer_lines`).
     battle_trainer(&ctx, TRAINER_SIL_YOHAN_1, Gym2_Sc10_Defeat).await;
     say(&ctx, Gym2_Sc10_T3).await;
     ctx.set_flag(FLAG_SIL_BADGE_02, true).await;
@@ -438,13 +436,10 @@ pub async fn GrisEchec_Gym_Sourde_EventScript_Melomane(ctx: Ctx) {
         Gym2_Melomane_Defeat,
     )
     .await;
+    // The deaf room's rule, sound moves fail for both sides, is his battles' own
+    // (`silice::rules::trainer_rules`, `DEAF_ROOM`).
     if beaten {
         post_battle(&ctx, Gym2_Melomane_Defeat).await;
-    } else {
-        // fallback: the deaf room's rule, sound moves fail for both sides (`sSoundMovesTable`,
-        // §9): no battle rule yet (SIL3's battle-rule table). The source's own fallback: the
-        // Mélomane keeps his sound team, and the texts make the joke. Reported once he battled.
-        fallback(&ctx, "sound rule").await;
     }
 }
 

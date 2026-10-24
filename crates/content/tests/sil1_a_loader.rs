@@ -943,7 +943,16 @@ mod flavour {
             }
         }
         assert_eq!(content::data::MARTS.len(), file.marts.len());
-        assert!(Game.form_changes().is_empty());
+        // Every Mega stone and orb of `battle/forms.ron` triggers a form (SIL3).
+        let forms = Game.form_changes();
+        assert!(!forms.is_empty());
+        for f in forms {
+            assert!(
+                file.items.iter().any(|d| items[&d.id] as u16 == f.item.0),
+                "{:?}",
+                f.item
+            );
+        }
     }
 
     #[test]

@@ -407,6 +407,24 @@ pub async fn battle_trainer(ctx: &Ctx, trainer: TrainerId, defeat: TextId) -> Ba
     outcome
 }
 
+/// [`battle_trainer`] under `rules` (`silice::rules`) instead of the trainer's own; with
+/// `no_whiteout`, a loss answers `Lost` and the script goes on (R-7, no whiteout).
+pub async fn battle_trainer_with(
+    ctx: &Ctx,
+    trainer: TrainerId,
+    defeat: TextId,
+    no_whiteout: bool,
+    rules: &'static engine::battle::BattleRules,
+) -> BattleOutcome {
+    let outcome = ctx
+        .battle_trainer_rules(trainer, defeat, no_whiteout, rules)
+        .await;
+    if !matches!(outcome, BattleOutcome::Lost | BattleOutcome::Drew) {
+        ctx.set_flag(trainer_flag(trainer), true).await;
+    }
+    outcome
+}
+
 /// Gen3 `Common_EventScript_PkmnCenterNurse` (`data/scripts/pkmn_center_nurse.inc`) without the
 /// Gold Card, Pokérus and Union Room branches: rest the party (yes/no), heal, goodbye, on Gen3's
 /// own `gText_*`. The heal machine's field effect (`FLDEFF_POKECENTER_HEAL`) is a pause.

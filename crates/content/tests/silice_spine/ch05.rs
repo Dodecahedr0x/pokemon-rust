@@ -670,7 +670,6 @@ pub fn check_end(r: &Run) {
     assert_eq!(r.w.events_dropped(), 0);
     for name in [
         "battle_multi",
-        "mega_evolution",
         "play_fanfare",
         "show_sync",
         "log_menu",

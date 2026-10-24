@@ -106,6 +106,7 @@ impl Run {
             opponents: party(opponents),
             environment: Environment::Grass,
             double: None,
+            rules: Default::default(),
         };
         let mut b = Battle::new(&Game, setup, &party(player), &mut rng);
         let mut out = Vec::new();
@@ -730,6 +731,7 @@ fn setup_draws_come_first() {
         opponents: party(&[normal(2)]),
         environment: Environment::Grass,
         double: None,
+        rules: Default::default(),
     };
     let draws = |kind| {
         let mut rng = Rng::new(3);
@@ -795,6 +797,7 @@ fn need_is_busy_before_start() {
         opponents: party(&[normal(2)]),
         environment: Environment::Grass,
         double: None,
+        rules: Default::default(),
     };
     let b = Battle::new(&Game, setup, &party(&[water(5)]), &mut rng);
     assert_eq!(b.need(), Need::Busy);

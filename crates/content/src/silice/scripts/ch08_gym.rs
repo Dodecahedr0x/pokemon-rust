@@ -336,9 +336,7 @@ pub async fn Evalon_Sc09(ctx: Ctx) {
     say(&ctx, Evalon_Sc09_T2).await;
     // fallback: play_music(MUS_VS_GYM_LEADER) (audio, M12).
     fallback(&ctx, "play_music").await;
-    // fallback: Mega Evolution (D-02): the Mawilite is a held item the battle ignores (the
-    // normal form); reported (`mega_evolution`).
-    fallback(&ctx, "mega_evolution").await;
+    // Mawile Mega Evolves (the Mawilite, D-02).
     if lost(battle_trainer(&ctx, TRAINER_SIL_LOULPIX_DORIS, Evalon_LoulpixDoris_Defaite).await) {
         return;
     }

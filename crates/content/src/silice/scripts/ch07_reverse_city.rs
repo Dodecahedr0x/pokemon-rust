@@ -146,10 +146,9 @@ pub async fn ReverseCity_Sc02(ctx: Ctx) {
     say(&ctx, Reverse_City_Sc02_T2).await;
     say(&ctx, Reverse_City_Sc02_T3).await;
     say(&ctx, Reverse_City_Sc02_T4).await;
-    // fallback: the Data Injectors' mutation (§3, §9: the last Pokémon's stat stages, glitched
-    // palette and 1/8 HP a turn): the source's own fallback, already in `trainers.ron` (Donphan's
-    // Liechi Berry and Double-Edge, Kadabra's Petaya Berry); `Injecteur_*` are not shown.
-    fallback(&ctx, "injector_mutation").await;
+    // The Data Injectors' mutation (§3: the last Pokémon's stat stages and 1/8 HP a turn, the
+    // `Injecteur_*` lines) is each battle's field rule (`silice::rules::INJECTOR_*`). The
+    // glitched palette is not drawn; the source's fallback items stay in `trainers.ron`.
     // fallback: battle_two_trainers(GOGO_3, ROMAIN_3, double) (prelude): two single battles in
     // a row, no heal between (the source's own fallback). A loss whites out: the scene replays.
     battle_two_trainers(

@@ -367,7 +367,10 @@ impl BattleScene {
         let gfx = game.battle_gfx();
         let t = game.battle();
         if step == 0 {
-            self.parts = Some(Parts::new(gfx, battle.setup().environment, self.n));
+            let mut parts = Parts::new(gfx, battle.setup().environment, self.n);
+            // Silice's `BattleRules::foe_back`: the foe trainer seen from the back.
+            parts.trainers[1].set_mirror(battle.setup().rules.foe_back);
+            self.parts = Some(parts);
         }
         let p = self.parts.as_mut().expect(LOADED);
         let next = match step {

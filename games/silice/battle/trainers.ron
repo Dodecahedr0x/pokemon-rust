@@ -7381,6 +7381,10 @@
                 "AI_SCRIPT_CHECK_VIABILITY",
             ],
             double: false,
+            items: [
+                "ITEM_FULL_RESTORE",
+                "ITEM_FULL_RESTORE",
+            ],
             party: [
                 (
                     iv: 245,
