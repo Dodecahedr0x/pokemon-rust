@@ -616,6 +616,39 @@ pub enum Request {
     /// `Event::ReloadLastSave` once; the shells replace the World (GBA: the flash slot, read,
     /// not written; native: the last save it persisted, else a new game). Never answered.
     ReloadLastSave,
+    // ---- Milestone 12: sound (`crate::audio`; Gen3 `sound.c`) ----
+    /// `playse`: `PlaySE(song)`.
+    PlaySe(u16),
+    /// `waitse`: answers `Unit` once no sound effect plays (`IsSEPlaying`).
+    WaitSe,
+    /// `playfanfare`: `PlayFanfare(song)`.
+    PlayFanfare(u16),
+    /// `waitfanfare`: answers `Unit` once the fanfare's task ends (`IsFanfareTaskInactive`).
+    WaitFanfare,
+    /// `playbgm song, save`: `PlayNewMapMusic`, and with `save` the song becomes
+    /// `savedMusic`.
+    PlayBgm {
+        song: u16,
+        save: bool,
+    },
+    /// `savebgm`: `Overworld_SetSavedMusic` (0, `MUS_DUMMY`, clears it).
+    SaveBgm(u16),
+    /// `fadedefaultbgm`: `Overworld_ChangeMusicToDefault`.
+    FadeDefaultBgm,
+    /// `fadenewbgm`: `Overworld_ChangeMusicTo`.
+    FadeNewBgm(u16),
+    /// `fadeoutbgm speed`: the BGM fades out over `64 * speed` frames (speed 0 is 1) and
+    /// pauses; answers `Unit` once it has (`IsBGMPausedOrStopped`).
+    FadeOutBgm(u8),
+    /// `fadeinbgm speed`: the paused BGM fades back in (no wait).
+    FadeInBgm(u8),
+    /// `playmoncry species, mode`: `PlayCry_Script` (the BGM ducks while it plays).
+    PlayCry {
+        species: u16,
+        mode: u8,
+    },
+    /// `waitmoncry`: answers `Unit` once the cry and its ducking are over (`IsCryFinished`).
+    WaitCry,
 }
 
 /// Gen3 `PARTY_SIZE`: [`Query::PartyMoveSlot`]'s answer when no party mon knows the move.
@@ -902,6 +935,19 @@ impl Request {
             Request::WaitInputOrTimeout(n) => (64, n, 0, 0, 0),
             // Silice wave: tags 225 and up.
             Request::TextOnBlack(on) => (225, on as u16, 0, 0, 0),
+            // Milestone 12 sound: tags 230 and up.
+            Request::PlaySe(n) => (230, n, 0, 0, 0),
+            Request::WaitSe => (231, 0, 0, 0, 0),
+            Request::PlayFanfare(n) => (232, n, 0, 0, 0),
+            Request::WaitFanfare => (233, 0, 0, 0, 0),
+            Request::PlayBgm { song, save } => (234, song, save as u16, 0, 0),
+            Request::SaveBgm(n) => (235, n, 0, 0, 0),
+            Request::FadeDefaultBgm => (236, 0, 0, 0, 0),
+            Request::FadeNewBgm(n) => (237, n, 0, 0, 0),
+            Request::FadeOutBgm(n) => (238, n as u16, 0, 0, 0),
+            Request::FadeInBgm(n) => (239, n as u16, 0, 0, 0),
+            Request::PlayCry { species, mode } => (240, species, mode as u16, 0, 0),
+            Request::WaitCry => (241, 0, 0, 0, 0),
             Request::CameraPan { x, y, speed } => (226, i(x), i(y), speed as u16, 0),
             Request::SetInputMap(m) => (227, m.code(), 0, 0, 0),
             Request::SetWeather(w) => (228, w as u16, 0, 0, 0),
@@ -1289,6 +1335,56 @@ impl Ctx {
 
     pub fn set_movement_type(&self, obj: u8, movement: MovementType) -> Req<()> {
         self.req(Request::SetMovementType { obj, movement }, unit)
+    }
+
+    // ---- Milestone 12: sound (see the [`Request`] variants) ----
+
+    pub fn play_se(&self, song: u16) -> Req<()> {
+        self.req(Request::PlaySe(song), unit)
+    }
+
+    pub fn wait_se(&self) -> Req<()> {
+        self.req(Request::WaitSe, unit)
+    }
+
+    pub fn play_fanfare(&self, song: u16) -> Req<()> {
+        self.req(Request::PlayFanfare(song), unit)
+    }
+
+    pub fn wait_fanfare(&self) -> Req<()> {
+        self.req(Request::WaitFanfare, unit)
+    }
+
+    pub fn play_bgm(&self, song: u16, save: bool) -> Req<()> {
+        self.req(Request::PlayBgm { song, save }, unit)
+    }
+
+    pub fn save_bgm(&self, song: u16) -> Req<()> {
+        self.req(Request::SaveBgm(song), unit)
+    }
+
+    pub fn fade_default_bgm(&self) -> Req<()> {
+        self.req(Request::FadeDefaultBgm, unit)
+    }
+
+    pub fn fade_new_bgm(&self, song: u16) -> Req<()> {
+        self.req(Request::FadeNewBgm(song), unit)
+    }
+
+    pub fn fade_out_bgm(&self, speed: u8) -> Req<()> {
+        self.req(Request::FadeOutBgm(speed), unit)
+    }
+
+    pub fn fade_in_bgm(&self, speed: u8) -> Req<()> {
+        self.req(Request::FadeInBgm(speed), unit)
+    }
+
+    pub fn play_cry(&self, species: u16, mode: u8) -> Req<()> {
+        self.req(Request::PlayCry { species, mode }, unit)
+    }
+
+    pub fn wait_cry(&self) -> Req<()> {
+        self.req(Request::WaitCry, unit)
     }
 
     pub fn delay(&self, frames: u16) -> Req<()> {

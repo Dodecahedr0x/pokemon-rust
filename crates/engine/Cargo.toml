@@ -5,6 +5,8 @@ version.workspace = true
 publish.workspace = true
 
 [dependencies]
+# Milestone 12: the m4a engine's commands and the World's sound timings (`crate::audio`).
+sound.workspace = true
 # Always on (no feature): checkpoints are written on the GBA too, and agb's `agb_save` already
 # compiles both crates in the ROM build (Milestone 5, decision 1).
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }

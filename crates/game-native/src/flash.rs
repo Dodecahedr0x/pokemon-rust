@@ -243,6 +243,7 @@ mod tests {
                 berry_trees: Vec::new(),
                 map_layout: None,
                 sky: None,
+                audio: None,
             },
         }
     }

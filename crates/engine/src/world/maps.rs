@@ -130,6 +130,8 @@ impl World {
                 let surfing = !underwater && b.surfable();
                 s.objects.set_surfing(surfing);
                 let swapped = (was_underwater && surfing) || (was_surfing && underwater);
+                // Gen3's warp field callbacks: `Overworld_PlaySpecialMapMusic`.
+                s.play_special_map_music(game);
                 let facing = s.transition.arrive_swapping(b, warped_facing, swapped);
                 s.objects.face(PLAYER, facing);
                 s.objects.freeze_all();
@@ -250,6 +252,8 @@ pub(super) fn cross_connection(
     // gradually.
     s.weather.do_current();
     s.field.switch_map_enter(game, to, shift, f);
+    // Gen3 `LoadMapFromCameraTransition`: `TransitionMapMusic`.
+    s.transition_map_music(game, f);
     for script in [map.scripts.on_load, map.scripts.on_resume]
         .into_iter()
         .flatten()

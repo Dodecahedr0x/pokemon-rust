@@ -243,6 +243,8 @@ pub struct Frame {
     /// starter or battle loading chunk, the field's restore): the GBA may overrun the frame
     /// here. Not applied by the shells; the parity test checks every black overrun against it.
     pub bulk: bool,
+    /// The step's sound engine calls, in order (Milestone 12, [`crate::audio`]).
+    pub sound: Vec<sound::Cmd>,
 }
 
 /// BG VRAM bytes (char blocks 0..3; screen blocks 0..31 overlap them).

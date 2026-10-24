@@ -139,6 +139,7 @@ impl World {
                     palette: s.palette,
                 },
             ),
+            audio: (s.audio != s.settled_audio_unsaved(game)).then_some(s.audio),
         }
     }
 
@@ -284,9 +285,14 @@ impl World {
                 last_script: None,
                 save: super::save::SaveStatus::continued(),
                 today: 0,
+                audio: crate::audio::Audio::default(),
             },
             rtc_days: None,
             boot: None,
+        };
+        world.s.audio = match w.audio {
+            Some(a) => a,
+            None => world.s.settled_audio_unsaved(game),
         };
         world.boot = Some(world.restore_frame(game));
         if cp.header.build == build_hash(game) {
@@ -320,6 +326,11 @@ impl World {
         f.brightness = s.fader.level();
         f.lighten = false;
         self.apply_sky(game, true, &mut f);
+        // The music the state implies (a fresh sound engine plays nothing).
+        let bgm = self.s.audio.players[0];
+        if bgm.left > 0 && !bgm.paused {
+            f.sound.push(crate::audio::Cmd::Start(bgm.song));
+        }
         f
     }
 }
