@@ -99,7 +99,10 @@ fn print_row(r: &Row, quiet: bool) {
         println!("      NOTE: {n}");
     }
     if r.rerolls > 0 {
-        println!("      vanilla lost a battle: replayed {} times", r.rerolls);
+        println!(
+            "      vanilla lost a battle (or nearly): replayed {} times",
+            r.rerolls
+        );
     }
     if !quiet {
         for d in r.new.iter().take(MAX_PRINTED) {

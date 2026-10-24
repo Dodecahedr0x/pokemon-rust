@@ -345,6 +345,9 @@ pub struct Vanilla {
     /// [`Vanilla::settle`] saw `GameClear`'s Hall of Fame screen: vanilla goes on to the
     /// credits and resets, so the run ends there.
     pub hall_of_fame: bool,
+    /// A `Train`, `TrainFresh`, `Grass` or `Catch` step is playing: wild battles are fought
+    /// (or caught) whatever the lead's HP.
+    pub training: bool,
 }
 
 impl Vanilla {
@@ -363,6 +366,7 @@ impl Vanilla {
             trace: std::env::var_os("PKR_VANILLA_TRACE").is_some(),
             buying: None,
             hall_of_fame: false,
+            training: false,
         }
     }
 

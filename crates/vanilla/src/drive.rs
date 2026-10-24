@@ -208,7 +208,17 @@ impl Vanilla {
             .emu
             .read_u16(s.battle_mons + BATTLE_MON_SIZE + BM_SPECIES);
         let ball = random && catch != 0 && foe == catch;
-        let run = random && (self.answers.run_wild || catch != 0) && !ball;
+        // A random encounter on a walk (no script waits on it: not a scripted wild battle)
+        // with the lead under half its HP: RUN. Vanilla's RNG meets more wild mons than our
+        // spine on the same walks; fighting them all wears a one-mon party down to a lost
+        // trainer battle further on (Rusturf Tunnel). Not while training or catching.
+        let scripted = self.emu.read_u8(s.script_context_status) != CONTEXT_SHUTDOWN;
+        let worn = {
+            let me = s.battle_mons;
+            2 * self.emu.read_u16(me + BM_HP) < self.emu.read_u16(me + BM_MAX_HP)
+        };
+        let flee = !self.training && !scripted && worn;
+        let run = random && (self.answers.run_wild || catch != 0 || flee) && !ball;
         match mode {
             Mode::BattleAction => toward(
                 self.emu.read_u8(s.action_selection_cursor),

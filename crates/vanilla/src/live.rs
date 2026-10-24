@@ -105,8 +105,9 @@ impl<'g, G: GameData> Live<'g, G> {
     /// Plays one spine step ([`Live::play_once`]). A step whose battle vanilla lost (a
     /// whiteout our engine's spine never has) is played again from the state before it with
     /// another RNG (a few idle frames first), up to [`REROLLS`] times: vanilla's RNG is not
-    /// ours, and a lost battle derails the rest of the comparison. [`Live::rerolls`] counts
-    /// the replays of the last step.
+    /// ours, and a lost battle derails the rest of the comparison. A step whose battles left
+    /// the lead under a quarter of its HP is played again the same way. [`Live::rerolls`]
+    /// counts the replays of the last step.
     pub fn play(&mut self, step: &Step) -> Result<()> {
         if !step.plays() {
             return self.play_once(step);
@@ -125,7 +126,13 @@ impl<'g, G: GameData> Live<'g, G> {
             let r = self.play_once(step);
             let lost = (self.v.outcomes[outcomes..].iter())
                 .any(|&o| o == B_OUTCOME_LOST || o == B_OUTCOME_DREW);
-            if !lost || self.rerolls >= REROLLS {
+            // A battle won with the lead nearly out (outside training, which stops on a tired
+            // lead itself): the next trainer may be lost with no replay left to change it
+            // (Route 116's trainer, then Rusturf Tunnel's). Played again the same way.
+            let worn = !self.v.training
+                && self.v.battles.len() > battles
+                && (self.v.party().first()).is_some_and(|m| m.hp * 4 < m.max_hp);
+            if !(lost || worn) || self.rerolls >= REROLLS {
                 return r;
             }
             self.rerolls += 1;
@@ -141,6 +148,10 @@ impl<'g, G: GameData> Live<'g, G> {
 
     /// Plays one spine step (`explore::spine::Exec::play`'s rules).
     pub fn play_once(&mut self, step: &Step) -> Result<()> {
+        self.v.training = matches!(
+            step,
+            Step::Train { .. } | Step::TrainFresh { .. } | Step::Grass { .. } | Step::Catch { .. }
+        );
         if self.v.hall_of_fame {
             // `GameClear` took vanilla to the Hall of Fame (then the credits and a reset):
             // nothing more is played.
@@ -388,6 +399,7 @@ impl<'g, G: GameData> Live<'g, G> {
     /// Plays one macro (`explore::expand`'s rules) with its options.
     pub fn play_macro(&mut self, m: &Macro) -> Result<()> {
         self.answer(m.opts);
+        self.v.training = matches!(m.kind, MacroKind::Grass { .. });
         let start = self.map()?;
         match m.kind {
             MacroKind::Settle => self.v.settle(MACRO_FRAMES)?,
