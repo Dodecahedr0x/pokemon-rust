@@ -302,6 +302,9 @@ pub async fn choose_starter(ctx: &Ctx) -> u8 {
     ctx.set_var(VAR_SIL_STARTER, i.into()).await;
     ctx.give_mon(SIL_STARTERS[usize::from(i)], SIL_STARTER_LEVEL)
         .await;
+    // Gen3 sets it with the first Pokémon (Birch's lab): the start menu shows POKéMON from now
+    // on (`BuildNormalStartMenu`).
+    ctx.set_flag(FLAG_SYS_POKEMON_GET, true).await;
     i
 }
 

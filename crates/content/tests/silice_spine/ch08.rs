@@ -17,21 +17,28 @@
 //!
 //! Palier 1 (Route_S08_Sc01, 76 → 80, the hiker, the cape, the Ultra Ball, Gaston) is its own
 //! short list ([`route_start`], [`route_steps`]): palier 1 and palier 3 are only joined by
-//! Waterfall and Surf, which the engine does not have, so the chapter's main list starts on
+//! Waterfall and Surf, which the spine does not drive yet, so the chapter's main list starts on
 //! palier 3's first row ([`start`]).
 //!
 //! **The fallbacks the path relies on** (`ch08_*.rs`): the Champ Magnétique is an A press on a
 //! bookcase, a crate or a golem; the dark gallery and the crypt are lit, their coords only test
 //! the module; the skull slabs are coord traps; the multichoices are yes/no (the honest answer,
 //! Mathieu as partner, the right riddle); the Multi battle is two single battles with a heal;
-//! the gym's double battle is a single one; the hidden items are signs.
+//! the hidden items are signs.
 //!
-//! **The party** ([`PARTY`]): Chapter 7's end, as its e2e leaves it (`SPINE_DEBUG=1`): the
-//! ALAKAZAM 56 leading, the AMPHAROS 57, the TYPHLOSION and the AGGRON 47, the WAILORD 45. No
-//! hook and no [`Step::Train`]: the chapter's trainers (46–53) are the training, and the run
-//! heals at the Taverne before the guards and before the gym.
+//! **The party** ([`PARTY`]): Chapter 7's end as `sil8_ch7` leaves it (KADABRA 61 leading, with
+//! Chapter 6's Shock Wave taught again first; TYPHLOSION 66; LAIRON 35, MAREEP 14, PORYGON 25,
+//! DUGTRIO 26). No hook. The chapter's trainers (46–53) train the lead; the run heals at the
+//! Taverne before the guards, before the bell, and between Élise and the leaders (out of the
+//! Citadelle and back: its trials stay done). The leaders' double (Registeel and Latias, 50–53)
+//! needs both leads trained in the town's grass first: the KADABRA to [`LEAD_LEVEL`] (68), the
+//! TYPHLOSION to [`SECOND_LEVEL`] (76). Measured (`SPINE_LEVEL_<l>`): 68/76 and its four
+//! neighbours (67 and 69 with 76, 75 and 77 with 68) win; nearer levels are a coin toss (66/72
+//! wins and 70/72, 65/76, 66/71 lose: the battle policy aims at the foe with the least HP, often
+//! Latias, which resists Fire and Psychic and Recovers). The run ends with the KADABRA at 69 and
+//! the TYPHLOSION at 76.
 
-use super::{Run, Start, Step, goto, goto_avoiding};
+use super::{Run, Start, Step, TeachTm, goto, goto_avoiding};
 use content::consts::*;
 use engine::data::{Dir, ItemId, MapId, SpeciesId};
 use engine::script::Ctx;
@@ -79,11 +86,12 @@ pub fn route_start() -> Start {
 
 /// The start state's party (see the module docs).
 pub const PARTY: &[(SpeciesId, u8)] = &[
-    (SPECIES_ALAKAZAM, 56),
-    (SPECIES_AMPHAROS, 57),
-    (SPECIES_TYPHLOSION, 47),
-    (SPECIES_AGGRON, 47),
-    (SPECIES_WAILORD, 45),
+    (SPECIES_KADABRA, 61),
+    (SPECIES_TYPHLOSION, 66),
+    (SPECIES_LAIRON, 35),
+    (SPECIES_MAREEP, 14),
+    (SPECIES_PORYGON, 25),
+    (SPECIES_DUGTRIO, 26),
 ];
 
 /// Chapter 7's end state (`08-evalon.md`'s prerequisites), on top of Silice's new-game script:
@@ -140,6 +148,9 @@ async fn end_of_chapter_7(ctx: Ctx) {
     ctx.item_add(ItemId(ITEM_HYPER_POTION), 3).await;
     ctx.money_add(20000).await;
     ctx.set_respawn(HEAL_LOCATION_SIL_REVERSE_CITY).await;
+    // The start state cannot set moves (`givemon`'s extras are not applied yet): the bag holds
+    // Chapter 6's TM34 again, and the spine teaches it first (the lead's Shock Wave).
+    ctx.item_add(ItemId(ITEM_TM34), 1).await;
     for &(species, level) in PARTY {
         ctx.give_mon(species, level).await;
     }
@@ -199,8 +210,8 @@ const PALIER_3_AVOID: &[(i16, i16)] = &[
 ];
 /// The Copiste's (11, 10), 2 cells north.
 const COPISTE_SIGHT: &[(i16, i16)] = &[(11, 9), (11, 8)];
-/// Élise's (6, 3), 2 cells west.
-const ELISE_SIGHT: &[(i16, i16)] = &[(5, 3), (4, 3)];
+/// Élise's (6, 3), 1 cell west.
+const ELISE_SIGHT: &[(i16, i16)] = &[(5, 3)];
 /// Room 1's 43 skull slabs (coord traps), never planned through.
 const TRAPS: &[(i16, i16)] = &[
     (2, 41),
@@ -295,6 +306,12 @@ const ROOM_1_AVOID: &[(i16, i16)] = &[
     (6, 46),
 ];
 
+/// The KADABRA's level before the bell and the Citadelle (the leaders' double; measures in the
+/// module docs).
+const LEAD_LEVEL: u8 = 68;
+/// The TYPHLOSION's, second.
+const SECOND_LEVEL: u8 = 76;
+
 /// Into the Taverne, a rest at the innkeeper's, and out.
 const HEAL: &[Step] = &[
     goto(TOWN, 22, 27),
@@ -331,6 +348,12 @@ const PIGEONNIER: &[Step] = &[
 pub fn steps() -> Vec<Step> {
     use Dir::*;
     let mut s = vec![
+        // Chapter 6's Shock Wave over Role Play (see [`end_of_chapter_7`]).
+        Step::Teach(TeachTm {
+            item: ITEM_TM34,
+            mon: 0,
+            forget: 1,
+        }),
         // ---- Route S8, palier 3 ----
         Step::Walk(Left),
         Step::Check("route_s08_sc02", |r| {
@@ -664,6 +687,24 @@ pub fn steps() -> Vec<Step> {
             map: TOWN,
         },
     ]);
+    // The leaders' double (Registeel and Latias, 50–53): both leads trained in the town's grass
+    // (see [`LEAD_LEVEL`]).
+    s.extend_from_slice(&[
+        Step::Train {
+            a: (39, 28),
+            b: (40, 28),
+            level: LEAD_LEVEL,
+            heal: HEAL,
+        },
+        Step::Swap(0, 1),
+        Step::Train {
+            a: (39, 28),
+            b: (40, 28),
+            level: SECOND_LEVEL,
+            heal: HEAL,
+        },
+        Step::Swap(0, 1),
+    ]);
     s.extend_from_slice(HEAL);
     s.extend_from_slice(&[
         // ---- the bronze bell (Sc07) ----
@@ -716,8 +757,8 @@ pub fn steps() -> Vec<Step> {
         Step::Check("renard", |r| {
             assert!(r.beaten(TRAINER_SIL_EVALON_GYM_RENARD))
         }),
-        // Room 3: the crypt (the Surcharge Optique), Morgane.
-        goto(GYM, 5, 25),
+        // Room 3: the crypt (the Surcharge Optique), Morgane (sight 1, from (5, 22)).
+        goto(GYM, 5, 23),
         Step::Walk(Up),
         Step::Check("morgane", |r| {
             assert!(r.beaten(TRAINER_SIL_EVALON_GYM_MORGANE));
@@ -746,6 +787,22 @@ pub fn steps() -> Vec<Step> {
         goto_avoiding(GYM, 5, 4, ELISE_SIGHT),
         Step::Walk(Up),
         Step::Check("elise", |r| assert!(r.beaten(TRAINER_SIL_EVALON_GYM_ELISE))),
+    ]);
+    // The gym's five rooms leave the party spent: out to the Taverne and back up before the
+    // leaders (the trials stay done: the bridge, the Sphinge's door and the beaten trainers).
+    s.extend_from_slice(&[
+        goto_avoiding(GYM, 5, 53, TRAPS),
+        Step::Enter {
+            dir: Down,
+            map: TOWN,
+        },
+    ]);
+    s.extend_from_slice(HEAL);
+    s.extend_from_slice(&[
+        goto(TOWN, 25, 4),
+        Step::Enter { dir: Up, map: GYM },
+        goto_avoiding(GYM, 5, 2, TRAPS),
+        Step::Check("citadelle_heal", |r| assert!(r.healed())),
         goto(GYM, 5, 2),
         Step::Enter {
             dir: Up,
@@ -827,7 +884,6 @@ pub fn check_end(r: &Run) {
         "play_fanfare",
         "coeur_evalon",
         "fade_music",
-        "pc",
     ] {
         assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);
     }

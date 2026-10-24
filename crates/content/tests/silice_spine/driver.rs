@@ -5,7 +5,7 @@
 //! yes/no boxes (yes), takes the [`Step::Choose`] ball on the starter screen, and fights battles
 //! with [`best_move`] (the module docs of `silice_spine`).
 
-use super::{Hook, Step};
+use super::{Hook, Step, TeachTm};
 use content::Game;
 use core::cell::RefCell;
 use engine::World;
@@ -15,7 +15,7 @@ use engine::battle::{Battle, BattleOutcome, Need, Side};
 use engine::data::{
     Behavior, Dir, Emote, Evolution, FlagId, Font, FormChange, GameData, GfxId, ItemId, ItemInfo,
     MapData, MapId, MoveId, NewGame, ScriptId, SpecialIds, SpeciesId, SpriteData, TextId,
-    TrainerId, UiText, WindowGfx, block_collision,
+    TrainerId, UiText, WindowGfx, block_collision, block_elevation,
 };
 use engine::input::Buttons;
 use engine::mon::{BattleTables, Status};
@@ -100,6 +100,10 @@ impl GameData for Spy {
         {
             return Box::pin(async move {
                 Game.script(id, ctx.clone()).await;
+                // Every start state comes after Chapter 0's starter, which sets it
+                // (`prelude::choose_starter`).
+                ctx.set_flag(content::consts::FLAG_SYS_POKEMON_GET, true)
+                    .await;
                 (start.setup)(ctx).await;
             });
         }
@@ -192,6 +196,105 @@ impl GameData for Spy {
     fn map_type(&self, map: MapId) -> engine::data::MapType {
         Game.map_type(map)
     }
+    // Everything else answers as the game does (the spine plays the real game's data).
+    fn map_layout(&self, id: MapId, layout: u16) -> Option<&'static MapData> {
+        Game.map_layout(id, layout)
+    }
+    fn partner(&self) -> Option<&'static engine::mon::PartnerData> {
+        Game.partner()
+    }
+    fn start_menu(&self) -> &'static [engine::data::StartItem] {
+        Game.start_menu()
+    }
+    fn field_move_gate(&self, m: engine::data::FieldMove) -> engine::data::FieldMoveGate {
+        Game.field_move_gate(m)
+    }
+    fn item_use(&self, id: ItemId) -> engine::data::ItemUse {
+        Game.item_use(id)
+    }
+    fn mart_bonus(&self) -> Option<(ItemId, u16, ItemId)> {
+        Game.mart_bonus()
+    }
+    fn item_description(&self, id: ItemId) -> Option<&'static [u8]> {
+        Game.item_description(id)
+    }
+    fn move_description(&self, id: MoveId) -> Option<&'static [u8]> {
+        Game.move_description(id)
+    }
+    fn is_hm_move(&self, m: MoveId) -> bool {
+        Game.is_hm_move(m)
+    }
+    fn tm_move(&self, id: ItemId) -> Option<MoveId> {
+        Game.tm_move(id)
+    }
+    fn can_learn_tm(&self, species: SpeciesId, tm: ItemId) -> bool {
+        Game.can_learn_tm(species, tm)
+    }
+    fn ui_gfx(&self, g: engine::data::UiGfx) -> Option<&'static engine::data::UiPicture> {
+        Game.ui_gfx(g)
+    }
+    fn window_frame(&self, n: u8) -> Option<&'static WindowGfx> {
+        Game.window_frame(n)
+    }
+    fn item_icon(&self, id: ItemId) -> Option<&'static engine::data::Icon> {
+        Game.item_icon(id)
+    }
+    fn mon_icon(&self, species: SpeciesId) -> Option<&'static engine::data::Icon> {
+        Game.mon_icon(species)
+    }
+    fn in_game_trade(&self, n: u8) -> Option<&'static engine::data::InGameTrade> {
+        Game.in_game_trade(n)
+    }
+    fn nature_name(&self, n: u8) -> Option<&'static [u8]> {
+        Game.nature_name(n)
+    }
+    fn step_callback(&self, map: MapId) -> Option<engine::data::StepCallback> {
+        Game.step_callback(map)
+    }
+    fn hole_warp(&self, map: MapId) -> Option<MapId> {
+        Game.hole_warp(map)
+    }
+    fn fall_script(&self) -> Option<ScriptId> {
+        Game.fall_script()
+    }
+    fn step_count_script(&self, step: engine::data::StepCount<'_>) -> Option<ScriptId> {
+        Game.step_count_script(step)
+    }
+    fn field_move_script(&self, m: engine::data::FieldMove) -> Option<ScriptId> {
+        Game.field_move_script(m)
+    }
+    fn waterfall_refused_script(&self) -> Option<ScriptId> {
+        Game.waterfall_refused_script()
+    }
+    fn dive_emerge_script(&self) -> Option<ScriptId> {
+        Game.dive_emerge_script()
+    }
+    fn dive_warp(&self, map: MapId, emerge: bool) -> Option<(MapId, Option<(i16, i16)>)> {
+        Game.dive_warp(map, emerge)
+    }
+    fn fly_destination(&self, i: u8) -> Option<engine::data::FlyDestination> {
+        Game.fly_destination(i)
+    }
+    fn water_encounters(
+        &self,
+        map: MapId,
+        wild_set: u16,
+    ) -> Option<&'static engine::mon::WaterEncounters> {
+        Game.water_encounters(map, wild_set)
+    }
+    fn rock_smash_encounters(
+        &self,
+        map: MapId,
+        wild_set: u16,
+    ) -> Option<&'static engine::mon::WaterEncounters> {
+        Game.rock_smash_encounters(map, wild_set)
+    }
+    fn pushable_boulder(&self) -> Option<(GfxId, FlagId)> {
+        Game.pushable_boulder()
+    }
+    fn player_surf_sprite(&self) -> Option<&'static SpriteData> {
+        Game.player_surf_sprite()
+    }
 }
 
 // ---- the runner ----
@@ -257,6 +360,8 @@ impl Run {
                 Step::Choose(i) => self.choice = i,
                 Step::Train { a, b, level, heal } => self.train(a, b, level, heal),
                 Step::Settle => self.settle(),
+                Step::Swap(a, b) => self.swap(a, b),
+                Step::Teach(t) => self.teach(t),
                 Step::Hook(h) => {
                     let name = match h {
                         Hook::FlagDuring(n, _) | Hook::MonBefore(n, _, _) => n,
@@ -398,8 +503,8 @@ impl Run {
             },
             Some(OpenMenu::StopAsk(0)) => Buttons::A,
             Some(OpenMenu::StopAsk(_)) => Buttons::UP,
-            // A doubles target cursor: its default target.
-            Some(OpenMenu::Target(_)) => Buttons::A,
+            // A doubles target cursor: onto the foe the move was picked for.
+            Some(OpenMenu::Target(c)) => target_key(battle, Game.battle(), c),
             None => Buttons::A,
         }
     }
@@ -408,6 +513,12 @@ impl Run {
     /// the lead's level is `level`; first plays `heal` (then walks back to `a`) whenever the lead
     /// is below half its HP or has a status.
     fn train(&mut self, a: (i16, i16), b: (i16, i16), level: u8, heal: &[Step]) {
+        // A tuning aid: `SPINE_LEVEL_<level>=<n>` trains to `n` instead (the neighbour rule's
+        // measures, one level at a time, without editing the spine).
+        let level = std::env::var(format!("SPINE_LEVEL_{level}"))
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(level);
         let map = self.w.map();
         let towards = |from: (i16, i16), to: (i16, i16)| {
             Dir::ALL
@@ -436,6 +547,130 @@ impl Run {
             self.step_toward(towards(p, if p == a { b } else { a }));
         }
     }
+    /// [`Step::Swap`]: START, POKéMON, slot `a`, SWITCH, slot `b`, then B out of the party
+    /// menu and the start menu (one press, one idle frame, as the settle loop).
+    fn swap(&mut self, a: u8, b: u8) {
+        use engine::data::StartAction;
+        use engine::ui::ScreenState;
+        use engine::ui::party::{Action, Prompt};
+        assert!(a < b, "Swap({a}, {b}): the first slot first");
+        self.settle();
+        let party = |r: &Run| r.w.party().iter().map(|m| m.species).collect::<Vec<_>>();
+        let mut want = party(self);
+        want.swap(a as usize, b as usize);
+        // The start menu's POKéMON entry among the shown ones.
+        let entries: Vec<_> = (Game.start_menu().iter())
+            .filter(|i| i.shown_if.is_none_or(|f| self.w.flag(f)))
+            .collect();
+        let pokemon = (entries.iter())
+            .position(|i| i.action == StartAction::Party)
+            .expect("the start menu shows POKéMON") as u8;
+        let mut opened = false;
+        // Down presses left to move the switch cursor from `a` to `b`.
+        let mut moves = None::<u8>;
+        for i in 0..4000 {
+            let done = party(self) == want;
+            let top = self.w.screens().and_then(|s| s.top()).map(|(_, st)| st);
+            let keys = match top {
+                None if done && !self.busy() => {
+                    self.settle();
+                    return;
+                }
+                None if opened => Buttons::NONE,
+                None if self.busy() => Buttons::NONE,
+                None => Buttons::START,
+                Some(ScreenState::StartMenu(_)) if done => Buttons::B,
+                Some(ScreenState::StartMenu(m)) => match m.cursor() {
+                    None => Buttons::NONE,
+                    Some(c) if c == pokemon => {
+                        opened = true;
+                        Buttons::A
+                    }
+                    Some(c) if c < pokemon => Buttons::DOWN,
+                    Some(_) => Buttons::UP,
+                },
+                Some(ScreenState::Party(p)) => match p.prompt() {
+                    Prompt::Slot { .. } if done => Buttons::B,
+                    Prompt::Slot { cursor } if cursor == a => Buttons::A,
+                    Prompt::Slot { cursor } if cursor < a => Buttons::DOWN,
+                    Prompt::Slot { .. } => Buttons::UP,
+                    Prompt::Actions { .. } => {
+                        let want = (p.actions().iter())
+                            .position(|x| *x == Action::Switch)
+                            .expect("SWITCH (two mons or more)")
+                            as u8;
+                        match p.action_cursor() {
+                            Some(c) if c == want => {
+                                moves = Some(b - a);
+                                Buttons::A
+                            }
+                            Some(c) if c < want => Buttons::DOWN,
+                            _ => Buttons::UP,
+                        }
+                    }
+                    Prompt::Switch { .. } => match moves {
+                        Some(0) | None => Buttons::A,
+                        Some(n) => {
+                            if i % 2 == 0 {
+                                moves = Some(n - 1);
+                            }
+                            Buttons::DOWN
+                        }
+                    },
+                    Prompt::Message => Buttons::A,
+                    p => panic!("Swap({a}, {b}): the party menu at {p:?}"),
+                },
+                Some(_) => panic!("Swap({a}, {b}): another screen is open"),
+            };
+            self.step(if i % 2 == 0 { keys } else { Buttons::NONE });
+        }
+        panic!("Swap({a}, {b}) never closed the menus");
+    }
+
+    /// [`Step::Teach`]: `World::use_item` (the bag's USE), then the party menu on `t.mon`, yes
+    /// to "forget a move?", the summary's move `t.forget`, and the messages, until the field is
+    /// back; asserts the move was learned.
+    fn teach(&mut self, t: TeachTm) {
+        use engine::ui::ScreenState;
+        use engine::ui::party::Prompt;
+        self.settle();
+        let item = ItemId(t.item);
+        let mov = Game.tm_move(item).expect("a TM or HM");
+        assert!(
+            self.w.use_item(&self.g, item),
+            "Teach: item {} cannot be used here",
+            t.item
+        );
+        for i in 0..4000u32 {
+            let top = self.w.screens().and_then(|s| s.top()).map(|(_, st)| st);
+            let keys = match top {
+                None if !self.busy() => break,
+                None => Buttons::NONE,
+                Some(ScreenState::Party(p)) => match p.prompt() {
+                    Prompt::Slot { cursor } if cursor == t.mon => Buttons::A,
+                    Prompt::Slot { cursor } if cursor < t.mon => Buttons::DOWN,
+                    Prompt::Slot { .. } => Buttons::UP,
+                    Prompt::Message => Buttons::A,
+                    Prompt::YesNo { cursor: 0 } => Buttons::A,
+                    Prompt::YesNo { .. } => Buttons::UP,
+                    Prompt::Child => Buttons::NONE,
+                    p => panic!("Teach: the party menu at {p:?}"),
+                },
+                Some(ScreenState::Summary(s)) if s.move_cursor == t.forget => Buttons::A,
+                Some(ScreenState::Summary(_)) => Buttons::DOWN,
+                Some(_) => panic!("Teach: another screen is open"),
+            };
+            self.step(if i % 2 == 0 { keys } else { Buttons::NONE });
+        }
+        self.settle();
+        let mon = self.w.party().get(t.mon as usize).expect("the slot");
+        assert!(
+            mon.moves.contains(&Some(mov)),
+            "Teach: {:?} did not learn {mov:?}",
+            mon.species
+        );
+    }
+
     /// Turns the player toward `d` (a tap) without stepping.
     fn face(&mut self, d: Dir) {
         self.settle();
@@ -488,7 +723,7 @@ impl Run {
     /// way are settled). `avoid`: cells never planned through (sight lines, spore grates).
     fn walk_to(&mut self, target: (i16, i16), avoid: &[(i16, i16)]) {
         let map = self.w.map();
-        let mut stuck = 0;
+        let (mut stuck, mut moves) = (0, 0);
         loop {
             self.settle();
             assert_eq!(self.w.map(), map, "walking to {target:?} left the map");
@@ -515,6 +750,13 @@ impl Run {
                 }
                 waited += 1;
             };
+            // A walk that moves but never arrives (a slide back and forth) fails here, not at
+            // the frame limit.
+            moves += 1;
+            assert!(
+                moves < 2000,
+                "walking to {target:?} on {map:?} never arrives (at {p:?})"
+            );
             let mut n = 0;
             while self.pos() == p && !self.busy() && n < 40 {
                 self.step(dir_button(d));
@@ -531,8 +773,9 @@ impl Run {
     /// `Behavior::land_encounter`) when there is such a path; through them otherwise (a cave).
     fn plan(&self, from: (i16, i16), to: (i16, i16), avoid: &[(i16, i16)]) -> Option<Dir> {
         let grid = Grid::new(&self.g, &self.w, avoid);
-        grid.first_dir(from, to, true)
-            .or_else(|| grid.first_dir(from, to, false))
+        let e = self.w.objects().player().elevation;
+        grid.first_dir(from, e, to, true)
+            .or_else(|| grid.first_dir(from, e, to, false))
     }
 
     pub fn has_text(&self, t: TextId) -> bool {
@@ -597,17 +840,17 @@ fn toward(c: u8, want: u8) -> Buttons {
     }
 }
 
-/// The battle policy's move slot: of the moves with PP, the best expected damage against the
-/// opponent (power × accuracy, ×1.5 for the same type, × Gen3's type chart against its types);
-/// the first such slot on a tie. With no damaging move, the first with PP; with none, slot 0
-/// (the engine uses Struggle).
+/// The battle policy's move slot for the battler choosing now (`Battle::choosing`; in doubles
+/// either of the player's two): of the moves it may choose, the best expected damage against
+/// [`target_foe`] (power × accuracy, ×1.5 for the same type, × Gen3's type chart against its
+/// types); the first such slot on a tie. With no damaging move, the first it may choose; with
+/// none, slot 0 (the engine uses Struggle).
 pub fn best_move(battle: &Battle, t: &BattleTables) -> u8 {
-    let me = battle.mon(Side::Player);
-    let foe = t.species_info(battle.mon(Side::Opponent).species).types;
+    let side = battle.choosing();
+    let me = battle.mon(side);
+    let foe = t.species_info(battle.mon(target_foe(battle)).species).types;
     let own = t.species_info(me.species).types;
-    // Selectable: Disable, Torment, Taunt and Imprison refuse a move and reopen the menu, so
-    // choosing it again would loop forever.
-    let usable = |i: usize| battle.move_selectable(t, Side::Player, i as u8);
+    let usable = |i: usize| selectable(battle, t, side, i as u8);
     let score = |i: usize| {
         let m = t.move_info(me.moves[i].expect("usable"));
         if m.power == 0 {
@@ -634,6 +877,48 @@ pub fn best_move(battle: &Battle, t: &BattleTables) -> u8 {
     best.map(|(_, i)| i)
         .or_else(|| (0..4).find(|&i| usable(i)))
         .unwrap_or(0) as u8
+}
+
+/// Doubles: the foe to aim at, the standing opponent with the least HP (the explorer's
+/// `policy::target_foe`); in singles the opponent.
+fn target_foe(battle: &Battle) -> Side {
+    let foes = [Side::Opponent, Side::OpponentRight]
+        .into_iter()
+        .take(battle.count() / 2);
+    foes.filter(|&s| battle.is_present(s) && battle.mon(s).hp > 0)
+        .min_by_key(|&s| battle.mon(s).hp)
+        .unwrap_or(Side::Opponent)
+}
+
+/// Whether `side` may choose `slot` now (Disable, Torment, Taunt and Imprison refuse a move and
+/// reopen the menu, so choosing it again would loop forever); in doubles not a move that also
+/// hits its standing ally (Magnitude, Earthquake) while another move is usable.
+fn selectable(battle: &Battle, t: &BattleTables, side: Side, slot: u8) -> bool {
+    if !battle.move_selectable(t, side, slot) {
+        return false;
+    }
+    let ally = side.partner();
+    if !battle.is_double() || !battle.is_present(ally) || battle.mon(ally).hp == 0 {
+        return true;
+    }
+    let hits_ally = |s: u8| {
+        battle.mon(side).moves[s as usize]
+            .is_some_and(|m| t.move_info(m).target == engine::mon::MoveTarget::FoesAndAlly)
+    };
+    !hits_ally(slot)
+        || !(0..4).any(|s| s != slot && !hits_ally(s) && battle.move_selectable(t, side, s))
+}
+
+/// The doubles target cursor's key: RIGHT until the cursor is on [`target_foe`], then A.
+fn target_key(battle: &Battle, t: &BattleTables, c: u8) -> Buttons {
+    let side = battle.choosing();
+    let want = battle
+        .target_choices(t, side, best_move(battle, t))
+        .and_then(|v| v.iter().position(|&s| s == target_foe(battle)));
+    match want {
+        Some(k) if k as u8 != c => Buttons::RIGHT,
+        _ => Buttons::A,
+    }
 }
 
 /// A move's worth outside any matchup, for learning: power × accuracy, ×1.5 for the same type
@@ -665,6 +950,20 @@ pub fn learn_slot(battle: &Battle, t: &BattleTables) -> Option<u8> {
         .filter(|&(w, _)| w > 0)
         .min()?;
     (worth(mov) > weakest).then_some(slot as u8)
+}
+
+/// The direction a forced-movement cell of behavior `b` carries a player facing `facing`, and
+/// whether the player turns that way (`objects::forced::forced_step`), if it is one.
+fn forced_dir(b: Behavior, facing: Dir) -> Option<(Dir, bool)> {
+    match b {
+        Behavior::Ice => Some((facing, true)),
+        Behavior::ForcedWalk(d) | Behavior::Water(engine::data::Water::Current(d)) => {
+            Some((d, true))
+        }
+        Behavior::Slide(d) => Some((d, false)),
+        Behavior::MuddySlope => Some((Dir::Down, false)),
+        _ => None,
+    }
 }
 
 fn dir_button(d: Dir) -> Buttons {
@@ -737,7 +1036,61 @@ impl<'a> Grid<'a> {
             && !(avoid_grass && self.behavior(c).land_encounter())
     }
 
-    fn step(&self, c: (i16, i16), d: Dir, grass: bool, target: (i16, i16)) -> Option<(i16, i16)> {
+    fn elevation(&self, c: (i16, i16)) -> u8 {
+        block_elevation(self.block(c))
+    }
+
+    /// One planned step from `c` (the player at elevation `e`) toward `d`: the cell the player
+    /// comes to rest on, and its elevation. A forced-movement cell (`objects::forced`: ice, walk
+    /// and slide arrows, the muddy slope, currents) carries the player on, one cell at a time,
+    /// until the next cell is blocked; a carry into a warp, or one that never rests, is refused.
+    fn step(
+        &self,
+        c: (i16, i16),
+        e: u8,
+        d: Dir,
+        grass: bool,
+        target: (i16, i16),
+    ) -> Option<((i16, i16), u8)> {
+        let (n, e) = self.move_onto(c, e, d, Some(target))?;
+        if n == target && !self.walkable(n, false) {
+            return Some((n, e));
+        }
+        if !self.walkable(n, false) {
+            return None;
+        }
+        let (mut cur, mut e, mut facing) = (n, e, d);
+        for _ in 0..256 {
+            let Some((fd, turns)) = forced_dir(self.behavior(cur), facing) else {
+                return (cur == target || self.walkable(cur, grass)).then_some((cur, e));
+            };
+            match self.move_onto(cur, e, fd, None) {
+                Some((nn, _)) if self.behavior(nn).enters_warp() => return None,
+                Some((nn, en)) if self.walkable(nn, false) => {
+                    (cur, e) = (nn, en);
+                    if turns {
+                        facing = fd;
+                    }
+                }
+                _ => return (cur == target || self.walkable(cur, grass)).then_some((cur, e)),
+            }
+        }
+        None
+    }
+
+    /// The cell one move from `c` (the player at elevation `e`) toward `d` reaches, and the
+    /// elevation there, by the geometry only (bounds, walls, ledges jumped toward their
+    /// direction, elevations). On foot: an elevation mismatch (Gen3 `IsElevationMismatchAt`:
+    /// water is elevation 1 under the land's 3) refuses the move, except onto `target` when
+    /// nobody walks onto it (a door, an object: the explorer's `first_dir_avoiding`); a 15 cell
+    /// (a bridge) on either side keeps the elevation (`ObjectEventUpdateElevation`).
+    fn move_onto(
+        &self,
+        c: (i16, i16),
+        e: u8,
+        d: Dir,
+        target: Option<(i16, i16)>,
+    ) -> Option<((i16, i16), u8)> {
         let (dx, dy) = d.delta();
         let mut n = (c.0 + dx, c.1 + dy);
         if !self.in_bounds(n) || Behavior::walled(self.behavior(c), self.behavior(n), d) {
@@ -749,21 +1102,34 @@ impl<'a> Grid<'a> {
             }
             n = (n.0 + dx, n.1 + dy);
         }
-        (self.in_bounds(n) && (n == target || self.walkable(n, grass))).then_some(n)
+        if !self.in_bounds(n) {
+            return None;
+        }
+        let en = self.elevation(n);
+        let onto = Some(n) != target || self.walkable(n, false);
+        if onto && e != 0 && en != 0 && en != 15 && en != e {
+            return None;
+        }
+        let e2 = if en == 15 || self.elevation(c) == 15 {
+            e
+        } else {
+            en
+        };
+        Some((n, e2))
     }
 
-    fn first_dir(&self, from: (i16, i16), to: (i16, i16), grass: bool) -> Option<Dir> {
-        let mut seen = BTreeSet::from([from]);
-        let mut queue = VecDeque::from([(from, None::<Dir>)]);
-        while let Some((c, d0)) = queue.pop_front() {
+    fn first_dir(&self, from: (i16, i16), e: u8, to: (i16, i16), grass: bool) -> Option<Dir> {
+        let mut seen = BTreeSet::from([(from, e)]);
+        let mut queue = VecDeque::from([(from, e, None::<Dir>)]);
+        while let Some((c, e, d0)) = queue.pop_front() {
             if c == to {
                 return d0;
             }
             for d in Dir::ALL {
-                if let Some(n) = self.step(c, d, grass, to)
-                    && seen.insert(n)
+                if let Some((n, en)) = self.step(c, e, d, grass, to)
+                    && seen.insert((n, en))
                 {
-                    queue.push_back((n, Some(d0.unwrap_or(d))));
+                    queue.push_back((n, en, Some(d0.unwrap_or(d))));
                 }
             }
         }

@@ -5,7 +5,7 @@
 //! Palais, the vault and the north gate to Route S8 (`VAR_SIL_STORY` 76). The checkpoints assert
 //! the story steps, flags, the badge, the bag and the scene texts by text id, never a French
 //! literal; the end asserts the Chapter 7 fallbacks were reported. The chapter's trainers are
-//! the training; no hook. About 121 000 frames.
+//! the training, with the TYPHLOSION trained for Reverse; no hook. About 266 000 frames.
 
 #![cfg(pkr_silice)]
 
@@ -15,7 +15,7 @@ use content::consts::*;
 use silice_spine::{Run, Step, ch07};
 
 /// Every frame of the path, at most.
-const FRAME_LIMIT: u64 = 160_000;
+const FRAME_LIMIT: u64 = 350_000;
 
 #[test]
 fn chapter_7_plays_from_route_s7_to_the_seventh_badge_and_route_s8() {

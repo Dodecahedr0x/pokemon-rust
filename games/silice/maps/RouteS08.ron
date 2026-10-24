@@ -252,7 +252,7 @@
             trainer_type: "TRAINER_TYPE_NONE",
             trainer_sight_or_berry_tree: 0,
             script: Some("RouteS08_EventScript_Rocher"),
-            flag: None,
+            flag: Some("FLAG_TEMP_11"),
         ),
     ],
     warps: [

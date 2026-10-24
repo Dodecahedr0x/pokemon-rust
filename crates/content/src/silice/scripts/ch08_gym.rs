@@ -199,8 +199,8 @@ pub async fn Evalon_Citadelle_EventScript_GardeCrypte(ctx: Ctx) {
     msgbox(&ctx, Evalon_Gym_Salle3_Sign, MsgBox::Npc).await;
 }
 
-/// MAGE NOIRE MORGANE (5, 21), sight 3 down: a `double: true` entry (the engine fights it as a
-/// single battle, reported `double battle`).
+/// MAGE NOIRE MORGANE (5, 21), sight 1 down (she meets the player where the room widens, never
+/// on the 1-wide (5, 23)): a `double: true` entry, a double battle.
 pub async fn Evalon_Citadelle_EventScript_Morgane(ctx: Ctx) {
     if trainer(
         &ctx,
@@ -294,8 +294,8 @@ pub async fn Evalon_Citadelle_EventScript_CoffreDroite(ctx: Ctx) {
     find_item(&ctx, ITEM_SIL_ORBE_EVEIL, 1).await;
 }
 
-/// CLERC ÉLISE (6, 3), sight 2 left, beside the stairs' only approach: a `double: true` entry
-/// (fought as a single battle).
+/// CLERC ÉLISE (6, 3), sight 1 left, beside the stairs' only approach (5, 3), met there (never
+/// drawn onto it): a `double: true` entry (a double battle).
 pub async fn Evalon_Citadelle_EventScript_Elise(ctx: Ctx) {
     if trainer(
         &ctx,
@@ -313,7 +313,7 @@ pub async fn Evalon_Citadelle_EventScript_Elise(ctx: Ctx) {
 // ---- 2F: the throne room (Sc09) ----
 
 /// Evalon_Sc09, Loulpix and Doris (talk to Loulpix, (5, 5), from (5, 6)) at `VAR_SIL_STORY` 84:
-/// the battle (one `double: true` entry, fought as a single battle), the Résonance Badge
+/// the battle (one `double: true` entry, a double battle), the Résonance Badge
 /// (`FLAG_SIL_BADGE_08`), the Sonde de Pression (`FLAG_SIL_MODULE_PLONGEE`), the Cœur d'Évalon,
 /// TM19 and TM23, the Épée de Légende from the Paladin rank (reputation 8), sync 80,
 /// `LOG_08`, the friends gone (`FLAG_SIL_HIDE_EVALON_AMIS` and the Taverne's). Sets 85. Before

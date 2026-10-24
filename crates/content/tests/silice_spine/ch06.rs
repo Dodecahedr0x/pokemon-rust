@@ -15,7 +15,7 @@
 //! Every battle is won by the battle policy. No hook: the gym quiz's answers are the books the
 //! run reads (the `multichoice` fallback, `ch06_gym.rs`).
 
-use super::{Run, Start, Step, goto, goto_avoiding};
+use super::{Run, Start, Step, TeachTm, goto, goto_avoiding};
 use content::consts::*;
 use engine::data::{Dir, ItemId, MapId, SpeciesId};
 use engine::script::Ctx;
@@ -173,26 +173,17 @@ pub fn start() -> Start {
     }
 }
 
-/// The start state's party, from the chapters before (none is chained into the spine): Chapter
-/// 4's end (`sil5_ch4`: KADABRA 42, TYPHLOSION 42) and Chapter 5's end (`sil6_ch5`: TYPHLOSION
-/// 41, LAIRON 39, LANTURN 36 from its hook, FLAAFFY 21), evened out by a player who uses the
-/// whole team: the KADABRA 44, the TYPHLOSION 42, the LAIRON an AGGRON at 42, a WAILORD at 40
-/// caught surfing Route S5 (Chapter 5's sea, wild WAILORD at 34; the spine cannot surf there, so
-/// Chapter 5's hook gives a LANTURN instead), and the MAREEP line, never trained by a spine
-/// (MAREEP 12 in Chapter 4, FLAAFFY 21 in Chapter 5), an AMPHAROS at 44 that now leads (Electric
-/// for Tak's Lapras, Scyther, Ninjask and Charizard). The lead is the one [`Step::Train`] raises.
-///
-/// The run ends with AMPHAROS 53, KADABRA 45, TYPHLOSION 42, AGGRON 42, WAILORD 40; Chapter 7's
-/// start (`ch07::PARTY`) adds about five levels to each bench member for Manga-Square's trainers
-/// the spine walks round. Other leads were measured against Tak with Chapter 5's end as the
-/// bench (the plan's Ch6 review): an ALAKAZAM wins one level in two from 50 to 56, a TYPHLOSION
-/// (Ember, Flame Wheel, Swift) loses at every level from 46 to 54.
+/// The start state's party: Chapter 5's end as its run (`sil6_ch5`) leaves it, the KADABRA
+/// leading (the one [`Step::Train`] raises; Chapter 3's TM34 gives it Shock Wave for Tak's
+/// Lapras, Ninjask and Charizard). The run ends with the KADABRA at 59 and the TYPHLOSION at 62
+/// (`ch07::PARTY`).
 pub const PARTY: &[(SpeciesId, u8)] = &[
-    (SPECIES_AMPHAROS, 44),
-    (SPECIES_KADABRA, 44),
-    (SPECIES_TYPHLOSION, 42),
-    (SPECIES_AGGRON, 42),
-    (SPECIES_WAILORD, 40),
+    (SPECIES_KADABRA, 50),
+    (SPECIES_TYPHLOSION, 52),
+    (SPECIES_LAIRON, 35),
+    (SPECIES_MAREEP, 14),
+    (SPECIES_PORYGON, 25),
+    (SPECIES_DUGTRIO, 26),
 ];
 
 /// Chapter 5's end state (`06-manga-square.md`'s prerequisites), on top of Silice's new-game
@@ -238,6 +229,7 @@ async fn end_of_chapter_5(ctx: Ctx) {
     ctx.item_add(ItemId(ITEM_SIL_MALLETTE), 1).await;
     ctx.item_add(ItemId(ITEM_SUPER_POTION), 5).await;
     ctx.item_add(ItemId(ITEM_HYPER_POTION), 3).await;
+    ctx.item_add(ItemId(ITEM_TM34), 1).await;
     ctx.money_add(15000).await;
     ctx.set_respawn(HEAL_LOCATION_SIL_OWLYS).await;
     for &(species, level) in PARTY {
@@ -245,16 +237,23 @@ async fn end_of_chapter_5(ctx: Ctx) {
     }
 }
 
-/// The level the lead trains to before the Dojo's queue (three fans in a row, 41–42).
+/// The level the lead trains to before the Dojo's queue (three fans in a row, 41–42). A floor:
+/// the KADABRA arrives above it (Chapter 5's end).
 pub const LEVEL_DOJO: u8 = 45;
-/// The level the lead trains to before the gym (the samurai's hasty variants at 43–44).
+/// The level the lead trains to before the gym (the samurai's hasty variants at 43–44). A
+/// floor, as [`LEVEL_DOJO`].
 pub const LEVEL_GYM: u8 = 46;
-/// The level the lead trains to before Tak (six Pokémon, 42–46), once the doors are open. The
-/// three levels pass with each one's neighbours (±1, the others fixed), and so does each
-/// [`PARTY`] level but the WAILORD's 39. 55 also passes with every neighbour; 50–52 win about
-/// one run in two. Tak stays the run's risk (his NINJASK Baton-Passes Swords Dance to HITMONLEE
-/// and CHARIZARD, and the battle policy never switches), so a change upstream can tip him.
-pub const LEVEL_TAK: u8 = 53;
+/// The level the lead (the KADABRA, Shock Wave taught) trains to before Tak (six Pokémon,
+/// 42–46), once the doors are open; then the TYPHLOSION trains to [`LEVEL_TAK_SECOND`]. Tak is
+/// the run's risk: his NINJASK Baton-Passes Swords Dance to HITMONLEE and CHARIZARD, the battle
+/// policy never switches, and the bench (LAIRON 35, MAREEP 14, PORYGON 25, DUGTRIO 26) cannot
+/// stop a boosted CHARIZARD. Measured (KADABRA, TYPHLOSION): the KADABRA alone loses at 53–59,
+/// 62 and 63 (wins at 60, 61 and 64); with the TYPHLOSION trained, 59/62 wins and so do its
+/// four neighbours 58/62, 60/62, 59/61 and 59/63 (57/62 and 60/61 lose; 53/60, 54/60, 56/60 and
+/// 57/60 win, 52/60 and 55/60 lose).
+pub const LEVEL_TAK: u8 = 59;
+/// The TYPHLOSION's level before Tak (see [`LEVEL_TAK`]).
+pub const LEVEL_TAK_SECOND: u8 = 62;
 
 /// Chapter 6's steps.
 pub fn steps() -> Vec<Step> {
@@ -265,6 +264,13 @@ pub fn steps() -> Vec<Step> {
                 assert_eq!(r.w.map(), ROUTE);
                 assert_eq!(r.w.var(VAR_SIL_STORY), 60);
                 assert!(r.has_text(Route_S06_Sc01_T1));
+            }),
+            // The leaders' TM34 (Chapter 3) for the KADABRA: Shock Wave over Role Play, an
+            // answer to Tak's Lapras, Scyther, Ninjask and Charizard.
+            Step::Teach(TeachTm {
+                item: ITEM_TM34,
+                mon: 0,
+                forget: 1,
             }),
             // Up the pilgrims' path, round Kotaro and Gaston, to the plateau's stairs top.
             goto_avoiding(ROUTE, 13, 50, KOTARO_SIGHT),
@@ -461,6 +467,10 @@ pub fn steps() -> Vec<Step> {
         TO_GRASS,
         &[
             train(LEVEL_TAK),
+            // The TYPHLOSION next, as the lead, then back to second.
+            Step::Swap(0, 1),
+            train(LEVEL_TAK_SECOND),
+            Step::Swap(0, 1),
             Step::Check("trained_tak", |r| {
                 eprintln!("party before Tak: {:?}", party(r));
             }),

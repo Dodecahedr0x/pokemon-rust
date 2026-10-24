@@ -211,7 +211,7 @@ fn main() {
         ("overrides.rs", &sc.overrides),
         ("report.txt", &format!("{}{}", sc.report, g.report)),
         ("battle.rs", &g.battle),
-        ("ui.rs", &ui::generate(&world, flavor == "emerald")),
+        ("ui.rs", &ui::generate(&world, flavor != "stub")),
     ] {
         write_if_changed(&out.join(name), src.as_bytes()).unwrap();
     }

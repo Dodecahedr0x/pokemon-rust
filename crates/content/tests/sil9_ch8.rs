@@ -6,7 +6,8 @@
 //! (`VAR_SIL_STORY` 86). Palier 1 (Route_S08_Sc01) is its own test: palier 1 and palier 3 are
 //! only joined by Waterfall and Surf. The checkpoints assert the story steps, flags, the badge,
 //! the bag and the scene texts by text id, never a French literal; the end asserts the Chapter 8
-//! fallbacks were reported. The chapter's trainers are the training; no hook.
+//! fallbacks were reported. Both leads are trained for the leaders' double, and the run heals
+//! between Élise and the leaders; no hook. About 730 000 frames, most of them training.
 
 #![cfg(pkr_silice)]
 
@@ -15,7 +16,7 @@ mod silice_spine;
 use silice_spine::{Run, ch08};
 
 /// Every frame of the main path, at most.
-const FRAME_LIMIT: u64 = 200_000;
+const FRAME_LIMIT: u64 = 850_000;
 
 #[test]
 fn chapter_8_plays_from_route_s8_to_the_eighth_badge_and_route_s9() {

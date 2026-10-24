@@ -20,20 +20,19 @@
 //! Port-Ressac's jetty and plays the sea (its trainers, the wreck, the coral cave's Lokhlass,
 //! the Banc), which is not played now.
 //!
-//! **The party** ([`end_of_chapter_4`]): Chapter 2's end (QUILAVA 26, MAREEP 12, ARON 30) plus
-//! about 4–5 levels a chapter for Chapters 3 and 4 (QUILAVA 35, LAIRON 37, FLAAFFY 21). There
-//! is no Chapter-long training: the chapter's land (the rift, the East Cave) is cave floor, where
+//! **The party** ([`PARTY`], [`end_of_chapter_4`]): Chapter 4's end as `sil5_ch4` leaves it
+//! (KADABRA 41 leading, TYPHLOSION 49, LAIRON 35, MAREEP 14, PORYGON 25, DUGTRIO 26). There is
+//! no Chapter-long training: the chapter's land (the rift, the East Cave) is cave floor, where
 //! wild Pokémon are met (Gen3's land rule) but the paths cross it only where they must (the
 //! rift's two wild battles are part of the run). The silo's and the cave's trainers are the
-//! training (QUILAVA 35 to TYPHLOSION 41, LAIRON 37 to 39 by Skycker), with a heal at the
-//! Centre after the alley, before the silo's third grunt, mid-silo, before the Silo Chief,
-//! after the silo and the cave, and before the watchers and Skycker. The one
-//! [`Step::Train`] is on the silo basement's cave floor, before the Silo Chief
-//! ([`CHEF_LEVEL`]). One hooked fourth Pokémon for Skycker ([`FOURTH`]).
+//! training, with a heal at the Centre after the alley, before the silo's third grunt, mid-silo,
+//! before the Silo Chief, after the silo and the cave, and before the watchers and Skycker. The
+//! one [`Step::Train`] is on the silo basement's cave floor, before the Silo Chief
+//! ([`CHEF_LEVEL`]). No hook. The run ends with the KADABRA at 50 and the TYPHLOSION at 52.
 
-use super::{Hook, Run, Start, Step, goto, goto_avoiding};
+use super::{Run, Start, Step, goto, goto_avoiding};
 use content::consts::*;
-use engine::data::{Dir, ItemId, MapId};
+use engine::data::{Dir, ItemId, MapId, SpeciesId};
 use engine::script::Ctx;
 
 const SEA: MapId = MAP_ROUTE_S05;
@@ -72,8 +71,15 @@ pub fn ilot() -> Start {
     }
 }
 
-/// The start state's levels (see the module docs).
-pub const START_LEVEL: u8 = 35;
+/// The start state's party: Chapter 4's end as its run (`sil5_ch4`) leaves it.
+pub const PARTY: &[(SpeciesId, u8)] = &[
+    (SPECIES_KADABRA, 41),
+    (SPECIES_TYPHLOSION, 49),
+    (SPECIES_LAIRON, 35),
+    (SPECIES_MAREEP, 14),
+    (SPECIES_PORYGON, 25),
+    (SPECIES_DUGTRIO, 26),
+];
 
 /// Chapter 4's end state (`05-owlys.md`'s prerequisites), on top of Silice's new-game script:
 /// Chapters 0–2 as `ch02`'s end (the Mallette, the running shoes, CYNDAQUIL's line, badges 1–2,
@@ -119,9 +125,9 @@ async fn end_of_chapter_4(ctx: Ctx, story: u16) {
     ctx.set_var(VAR_SIL_STARTER, 1).await;
     ctx.set_var(VAR_SIL_CH0_GATE, 1).await;
     ctx.item_add(ItemId(ITEM_SIL_MALLETTE), 1).await;
-    ctx.give_mon(SPECIES_QUILAVA, START_LEVEL).await;
-    ctx.give_mon(SPECIES_LAIRON, 37).await;
-    ctx.give_mon(SPECIES_FLAAFFY, 21).await;
+    for &(species, level) in PARTY {
+        ctx.give_mon(species, level).await;
+    }
 }
 
 /// The islet's steps: Route_S05_Sc01 (story 50), the sailor's Punch Bottle then his shop
@@ -254,7 +260,9 @@ const B1F_HEAL: &[Step] = &[
 ];
 
 /// The lead's level before the Silo Chief, after [`Step::Train`] on the basement's floor.
-const CHEF_LEVEL: u8 = 40;
+/// Measured with Chapter 4's end party (`SPINE_LEVEL_48`): 47–49 win (Houndoom is the risk),
+/// 46 loses, 50 runs past the frame limit.
+const CHEF_LEVEL: u8 = 48;
 
 /// Lilith's sight in the East Cave (25, 13) left, 4 cells: off the hall's path.
 const LILITH_SIGHT: &[(i16, i16)] = &[(21, 13), (22, 13), (23, 13), (24, 13)];
@@ -301,17 +309,6 @@ const GYM_HEAL: &[Step] = &[
     },
 ];
 
-/// The party's fourth Pokémon, for Skycker only (a test hook, the chapter's one): a LANTURN at
-/// 36 (Route S4 and S5's wild lists, §6), joining before `Owlys_Gym_Sc01`. Re-tuned under the
-/// spine's learn policy (`driver::learn_slot`), which changes nothing here: neither line learns
-/// a move between 35 and 41, so the TYPHLOSION (Smokescreen, Ember, Quick Attack, Flame Wheel)
-/// and the LAIRON (Roar, Take Down, Iron Tail, Protect) keep their start movesets. They win
-/// every battle up to the watchers but lose to Skycker's five (38–42: Crobat, Skarmory, Noctowl,
-/// Absol, Houndoom); his Houndoom wins untouched. Lanturn's Electric moves hit his three Flying
-/// types, and Water resists Houndoom's Fire. Measured: no hook, or a LANTURN at 30–34, loses
-/// to Skycker; 35–39 win (36 is the lowest whose neighbours win).
-pub const FOURTH: Hook = Hook::MonBefore("Owlys_Gym_Sc01", SPECIES_LANTURN, 38);
-
 /// Chapter 5's main steps, from [`start`].
 pub fn steps() -> Vec<Step> {
     use Dir::*;
@@ -321,7 +318,7 @@ pub fn steps() -> Vec<Step> {
             assert_eq!(r.w.var(VAR_SIL_STORY), 50);
             assert!(r.w.flag(FLAG_SIL_BADGE_04));
             assert!(!r.w.flag(FLAG_SIL_BADGE_05));
-            assert_eq!(r.w.party().len(), 3);
+            assert_eq!(r.w.party().len(), PARTY.len());
         }),
         // ---- the rift ----
         goto(FAILLE, 14, 13),
@@ -592,7 +589,6 @@ pub fn steps() -> Vec<Step> {
     s.extend_from_slice(GYM_HEAL);
     s.extend_from_slice(&[
         // Skycker (14, 3).
-        Step::Hook(FOURTH),
         goto_avoiding(GYM, 14, 4, GYM_AVOID),
         Step::Interact(Up),
         Step::Check("gym_sc01", |r| {

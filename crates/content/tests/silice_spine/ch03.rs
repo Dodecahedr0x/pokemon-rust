@@ -39,12 +39,21 @@ const B1F: MapId = MAP_VIBER_CITY_CASINO_B1F;
 
 /// The lead's level before the Station Lumière (its trainers are 26–29, §5).
 /// Lower loses (re-measured with the learn policy: 32 and 30 lose a battle on the chained run).
-pub const STATION_LEVEL: u8 = 34;
+pub const STATION_LEVEL: u8 = 35;
 
 /// The lead's level before the Nocturne (Tauber & Hocseat's six are 28–34, Raikou the ace, §4).
-/// 38 rather than 36 since the learn policy: at 36 (37 on the start state) the Dugtrio of
-/// [`FIFTH`] meets Raikou too late and the run loses; 38, 39 and 40 win on both runs.
-pub const GYM_LEVEL: u8 = 38;
+/// Since double battles (Wave G1), the leaders are what `trainers.ron` says, a double battle
+/// (`double: true`): two of the party fight at once, so the run trains a second member too
+/// ([`SECOND_LEVEL`]) and puts it second ([`Step::Swap`]). Measured (both runs, the
+/// [`FIFTH`] hook kept): the TYPHLOSION alone at 38, 40, 42 and 44 loses (Gengar and Raikou
+/// left untouched); 44 with the LAIRON at 35 wins, and so do its neighbours 43 and 45 (LAIRON
+/// 35) and LAIRON 34 (TYPHLOSION 44); LAIRON 36 loses on the start state. Without the hook,
+/// 44/35 and 45/36 lose to Raikou.
+pub const GYM_LEVEL: u8 = 44;
+
+/// The ARON's level (it evolves at 32) before the Nocturne, trained as the lead after
+/// [`GYM_LEVEL`], then the second of the double battle's pair (see [`GYM_LEVEL`]).
+pub const SECOND_LEVEL: u8 = 35;
 
 /// The party's fifth Pokémon, from the leaders' battle on (a test hook, the chapter's one): a
 /// DUGTRIO (Route S2's wild DIGLETT, Chapter 2's list) caught and evolved, at 26 (its evolution
@@ -483,6 +492,12 @@ pub fn steps() -> Vec<Step> {
     v.extend_from_slice(HEAL);
     v.extend(casino());
     v.push(train(GYM_LEVEL));
+    // The ARON trains next (it leads the grass, then goes back to third): the leaders fight
+    // a double battle, the TYPHLOSION and the LAIRON in front.
+    v.extend_from_slice(HEAL);
+    v.push(Step::Swap(0, 2));
+    v.push(train(SECOND_LEVEL));
+    v.push(Step::Swap(0, 2));
     v.extend_from_slice(HEAL);
     v.extend(gym());
     v.extend([
@@ -667,8 +682,12 @@ fn gym() -> Vec<Step> {
             assert_eq!(r.w.var(VAR_SIL_NOCTURNE_STATE), 2);
             assert!(r.has_text(Nocturne_Sc01_T2));
         }),
-        // ---- Tauber & Hocseat (Nocturne_Sc02) ----
+        // The double battle's pair: the LAIRON second.
+        Step::Swap(1, 2),
         Step::Hook(FIFTH),
+    ]);
+    v.extend([
+        // ---- Tauber & Hocseat (Nocturne_Sc02) ----
         goto(GYM, 6, 3),
         Step::Check("nocturne_sc02", |r| {
             assert!(r.beaten(TRAINER_SIL_TAUBER_HOCSEAT_1));

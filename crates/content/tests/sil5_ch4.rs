@@ -13,8 +13,9 @@ mod silice_spine;
 
 use silice_spine::{Run, ch04};
 
-/// Every frame of the run, at most (the training is most of it).
-const FRAME_LIMIT: u64 = 450_000;
+/// Every frame of the run, at most (the training is most of it: the KADABRA's 24 → 37 takes
+/// about 100 wild battles in the dunes; the run ends at about frame 663 000).
+const FRAME_LIMIT: u64 = 800_000;
 
 #[test]
 fn chapter_4_plays_from_the_glass_tunnel_to_julien_s_call() {

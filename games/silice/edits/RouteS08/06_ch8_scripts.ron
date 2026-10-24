@@ -4,4 +4,9 @@
     // "SIL1 Task F as built"), so the hidden item is a sign running hidden_item. To restore once the
     // engine picks hidden items up: Replace(index: 7, event: Bg((x: 33, y: 6, elevation: 0, kind: HiddenItem(item: "ITEM_HYPER_POTION", flag: "FLAG_SIL_ITEM_S08_CACHE_1")))).
     Replace(index: 7, event: Bg((x: 33, y: 6, elevation: 0, kind: Script(facing: 0, script: Some("RouteS08_EventScript_HiddenHyperPotion"))))),
+    // The cracked rock is Chapter 7's silica block, Gen3's breakable rock: as Route S7's blocks
+    // (`RouteS07/06_ch7_scripts.ron`), a temp flag keeps it gone while the player is on the map.
+    // Without one, the view's spawn brought it back on the next step and shut the braises nook
+    // (31, 10) behind the player: a softlock.
+    Replace(index: 15, event: Object((local_id: 16, id: Some("LOCALID_S08_ROCHER"), gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", x: 31, y: 10, elevation: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", range_x: 0, range_y: 0, trainer_type: "TRAINER_TYPE_NONE", trainer_sight_or_berry_tree: 0, script: Some("RouteS08_EventScript_Rocher"), flag: Some("FLAG_TEMP_11")))),
 ]
