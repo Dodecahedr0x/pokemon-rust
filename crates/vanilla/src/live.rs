@@ -453,7 +453,7 @@ impl<'g, G: GameData> Live<'g, G> {
             }
             MacroKind::Enter { x, y, dir } => self.enter((x, y), dir)?,
             MacroKind::Cross { x, y, dir } => self.cross((x, y), dir)?,
-            MacroKind::Talk { local_id } => self.talk(local_id)?,
+            MacroKind::Talk { local_id } => self.talk_with(local_id, true)?,
             MacroKind::Inspect { x, y, dir } => {
                 let (dx, dy) = dir.delta();
                 if self.v.walk_to(self.game, (x - dx, y - dy), MACRO_FRAMES)? == Walk::Reached {
@@ -859,6 +859,12 @@ impl<'g, G: GameData> Live<'g, G> {
 
     /// Walks next to object `local_id` of the current map, faces it and presses A.
     fn talk(&mut self, local_id: u8) -> Result<()> {
+        self.talk_with(local_id, false)
+    }
+
+    /// [`Live::talk`]; `macro_rules`: a script that takes over the walk ends the talk (our
+    /// `Driver`'s `Talk` macro, which ends at the first interruption), instead of walking on.
+    fn talk_with(&mut self, local_id: u8, macro_rules: bool) -> Result<()> {
         for _ in 0..RETRIES {
             self.v.settle(MACRO_FRAMES)?;
             let map = self.map()?;
@@ -877,10 +883,18 @@ impl<'g, G: GameData> Live<'g, G> {
                 sides.sort_by_key(|c| warps.iter().any(|w| (w.x, w.y) == *c));
                 let mut walked = false;
                 for c in sides {
-                    if self.reachable(map, c)? && self.v.walk_to(self.game, c, MACRO_FRAMES).is_ok()
-                    {
-                        walked = true;
-                        break;
+                    if !self.reachable(map, c)? {
+                        continue;
+                    }
+                    match self.v.walk_to(self.game, c, MACRO_FRAMES) {
+                        Ok(w) if macro_rules && w != Walk::Reached => {
+                            return self.v.settle(MACRO_FRAMES);
+                        }
+                        Ok(_) => {
+                            walked = true;
+                            break;
+                        }
+                        Err(_) => {}
                     }
                 }
                 ensure!(
@@ -918,6 +932,9 @@ impl<'g, G: GameData> Live<'g, G> {
             let mut last = None;
             for &(c, _) in &reachable {
                 match self.v.walk_to(self.game, c, MACRO_FRAMES) {
+                    Ok(w) if macro_rules && w != Walk::Reached => {
+                        return self.v.settle(MACRO_FRAMES);
+                    }
                     Ok(_) => {
                         last = None;
                         break;
