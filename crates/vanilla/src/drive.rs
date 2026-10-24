@@ -15,7 +15,7 @@
 use crate::state::{Mode, Vanilla, layout::*};
 use anyhow::{Result, anyhow};
 use engine::Buttons;
-use engine::data::{Dir, GameData, MapId, MoveId, SpeciesId};
+use engine::data::{Dir, GameData, MapData, MapId, MoveId, SpeciesId};
 use explore::oracle::{Planner, overrides_from_grid};
 use explore::policy::{
     YES_ONCE, best_damaging_slot_of, first_damaging_slot_of, forget_slot_of, toward,
@@ -379,7 +379,51 @@ impl Vanilla {
         let grid: Vec<u16> = (bytes.chunks(2))
             .map(|b| u16::from_le_bytes([b[0], b[1]]))
             .collect();
-        overrides_from_grid(game.map(map), w, h, &grid).unwrap_or_default()
+        let data = self.layout_data(game, map);
+        overrides_from_grid(data, w, h, &grid).unwrap_or_default()
+    }
+
+    /// `gSaveBlock1Ptr->mapLayoutId`: the layout the current map is loaded with (its own, or
+    /// a `setmaplayoutindex` override).
+    pub fn layout_id(&mut self) -> Option<u16> {
+        let sb1 = self.save_block1().ok()?;
+        Some(self.emu.read_u16(sb1 + SB1_MAP_LAYOUT_ID))
+    }
+
+    /// Our data for map `map` as vanilla has it loaded: its layout override's variant
+    /// ([`Vanilla::layout_id`], `GameData::map_layout`), else its own.
+    pub fn layout_data<G: GameData>(&mut self, game: &G, map: MapId) -> &'static MapData {
+        let own = game.map(map);
+        match self.layout_id() {
+            Some(l) => game.map_layout(map, l).unwrap_or(own),
+            None => own,
+        }
+    }
+
+    /// The player's elevation (`ObjectEvent.currentElevation`): on a bridge or under it.
+    pub fn player_elevation(&mut self) -> Option<u8> {
+        let id = u32::from(self.emu.read_u8(self.sym.player_avatar + PA_OBJECT_EVENT_ID));
+        if id >= OBJECT_EVENTS {
+            return None;
+        }
+        let at = self.sym.object_events + id * OBJECT_EVENT_SIZE + OE_ELEVATION;
+        Some(self.emu.read_u8(at) & 0xF)
+    }
+
+    /// Our planner on `map` as vanilla has it now: its layout (the override), the player's
+    /// elevation, `overrides` and the `occupied` cells.
+    pub fn planner<'a, G: GameData>(
+        &mut self,
+        game: &'a G,
+        map: MapId,
+        overrides: &'a [((i16, i16), u16)],
+        occupied: Vec<(i16, i16)>,
+    ) -> Planner<'a, G> {
+        let layout = self.layout_id();
+        let elevation = self.player_elevation();
+        Planner::new(game, map, overrides, occupied)
+            .with_layout(map, layout)
+            .with_elevation(elevation)
     }
 
     /// Walks to `to` on the current map (`game`'s collision data), settling whenever a script
@@ -418,7 +462,8 @@ impl Vanilla {
             let overrides = self.overrides(game, start);
             let mut occupied = self.occupied(start);
             occupied.extend_from_slice(avoid);
-            let dir = Planner::new(game, start, &overrides, occupied)
+            let dir = self
+                .planner(game, start, &overrides, occupied)
                 .first_dir(me.cell, to)
                 .ok_or_else(|| {
                     anyhow!("walk_to: no path from {:?} to {to:?} on {start:?}", me.cell)

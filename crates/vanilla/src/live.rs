@@ -18,7 +18,6 @@ use anyhow::{Result, anyhow, bail, ensure};
 use engine::Buttons;
 use engine::data::{Dir, GameData, MapId};
 use explore::model::{Macro, MacroKind, Opts};
-use explore::oracle::Planner;
 use explore::semantic::map_name;
 use explore::spine::{
     BattlePlan, Bypass, NEW_GAME_MAP, RETRIES, Step, StepOpts, TIRED_PP, TRAIN_BATTLES, TRAIN_DRY,
@@ -560,7 +559,7 @@ impl<'g, G: GameData> Live<'g, G> {
     /// Whether cell `c` of `map` is open terrain (objects aside).
     fn walkable(&mut self, map: MapId, c: (i16, i16)) -> bool {
         let overrides = self.v.overrides(self.game, map);
-        Planner::new(self.game, map, &overrides, Vec::new()).walkable(c)
+        self.v.planner(self.game, map, &overrides, Vec::new()).walkable(c)
     }
 
     /// Whether `to` is reachable on `map` now (objects in the way).
@@ -568,7 +567,7 @@ impl<'g, G: GameData> Live<'g, G> {
         let me = self.cell()?;
         let overrides = self.v.overrides(self.game, map);
         let occupied = self.v.occupied(map);
-        let p = Planner::new(self.game, map, &overrides, occupied);
+        let p = self.v.planner(self.game, map, &overrides, occupied);
         Ok(me == to || p.first_dir(me, to).is_some())
     }
 
@@ -727,7 +726,9 @@ impl<'g, G: GameData> Live<'g, G> {
     fn enter(&mut self, at: (i16, i16), dir: Dir) -> Result<()> {
         let map = self.map()?;
         let overrides = self.v.overrides(self.game, map);
-        let approach = Planner::new(self.game, map, &overrides, Vec::new()).enter_approach(at, dir);
+        let approach = (self.v)
+            .planner(self.game, map, &overrides, Vec::new())
+            .enter_approach(at, dir);
         if self.v.walk_to(self.game, approach, MACRO_FRAMES)? != Walk::Reached {
             return self.v.settle(MACRO_FRAMES);
         }
@@ -779,7 +780,7 @@ impl<'g, G: GameData> Live<'g, G> {
             let occupied = self.v.occupied(map);
             let me = self.cell()?;
             let (approaches, reachable) = {
-                let p = Planner::new(self.game, map, &overrides, occupied);
+                let p = self.v.planner(self.game, map, &overrides, occupied);
                 let a = p.talk_approaches(o.cell);
                 let r: Vec<_> = (a.iter())
                     .filter(|&&(c, _)| c == me || p.first_dir(me, c).is_some())
@@ -831,7 +832,8 @@ impl<'g, G: GameData> Live<'g, G> {
         let map = self.map()?;
         let overrides = self.v.overrides(self.game, map);
         let occupied = self.v.occupied(map);
-        let other = Planner::new(self.game, map, &overrides, occupied)
+        let other = (self.v)
+            .planner(self.game, map, &overrides, occupied)
             .grass_partner(at)
             .ok_or_else(|| anyhow!("grass: no walkable neighbour of {at:?}"))?;
         let end = self.v.frames + GRASS_FRAMES;

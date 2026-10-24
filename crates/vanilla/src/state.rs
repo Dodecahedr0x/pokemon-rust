@@ -17,6 +17,7 @@ pub mod layout {
     // struct SaveBlock1
     pub const SB1_LOCATION: u32 = 0x04; // struct WarpData: s8 mapGroup, s8 mapNum, s8 warpId, s16 x, y
     pub const SB1_LAST_HEAL_LOCATION: u32 = 0x1C;
+    pub const SB1_MAP_LAYOUT_ID: u32 = 0x32;
     pub const SB1_MONEY: u32 = 0x490;
     pub const SB1_COINS: u32 = 0x494;
     /// `bagPocket_Items`, `_KeyItems`, `_PokeBalls`, `_TMHM`, `_Berries` (`struct ItemSlot`:
@@ -56,6 +57,7 @@ pub mod layout {
     pub const OE_LOCAL_ID: u32 = 0x08;
     pub const OE_MAP_NUM: u32 = 0x09;
     pub const OE_MAP_GROUP: u32 = 0x0A;
+    pub const OE_ELEVATION: u32 = 0x0B; // low nibble: currentElevation
     pub const OE_INITIAL_COORDS: u32 = 0x0C;
     pub const OE_CURRENT_COORDS: u32 = 0x10;
     pub const OE_FACING: u32 = 0x18; // low nibble: DIR_SOUTH 1, NORTH 2, WEST 3, EAST 4
