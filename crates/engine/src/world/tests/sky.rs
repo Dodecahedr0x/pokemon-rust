@@ -227,7 +227,10 @@ fn crossings_are_gradual_warps_instant_and_unsettled_weather_is_state() {
     assert_eq!(r.hash(), w.hash());
     // The colour map in 60 frames, the rain's loading (`init_frames`) in 115.
     for _ in 0..120 {
-        let (a, b) = (step(&g, &mut w, Buttons::NONE, 1), step(&g, &mut r, Buttons::NONE, 1));
+        let (a, b) = (
+            step(&g, &mut w, Buttons::NONE, 1),
+            step(&g, &mut r, Buttons::NONE, 1),
+        );
         assert_eq!(w.hash(), r.hash());
         assert_eq!(bg_palettes(&a).is_empty(), bg_palettes(&b).is_empty());
     }
@@ -235,7 +238,11 @@ fn crossings_are_gradual_warps_instant_and_unsettled_weather_is_state() {
     assert!(w.s.weather.is_default(), "settled at last");
     // The rain's particles: in front, in the reserved bank.
     let f = step(&g, &mut w, Buttons::NONE, 1);
-    assert!(f.objs.iter().any(|o| o.palette == crate::sky::PARTICLE_BANK));
+    assert!(
+        f.objs
+            .iter()
+            .any(|o| o.palette == crate::sky::PARTICLE_BANK)
+    );
     assert!(
         f.objs
             .iter()
@@ -284,11 +291,17 @@ fn script_weather_requests() {
     step(&NONE, &mut w, Buttons::NONE, 3);
     assert_eq!(w.s.weather.saved, weather::SANDSTORM);
     assert_eq!(w.s.weather.current, weather::NONE);
-    start(&mut w, |ctx| Box::pin(async move { ctx.do_weather().await }));
+    start(&mut w, |ctx| {
+        Box::pin(async move { ctx.do_weather().await })
+    });
     step(&NONE, &mut w, Buttons::NONE, 3);
     assert_eq!(w.s.weather.current, weather::SANDSTORM);
     let f = step(&NONE, &mut w, Buttons::NONE, 1);
-    assert!(f.objs.iter().any(|o| o.palette == crate::sky::PARTICLE_BANK));
+    assert!(
+        f.objs
+            .iter()
+            .any(|o| o.palette == crate::sky::PARTICLE_BANK)
+    );
     start(&mut w, |ctx| {
         Box::pin(async move {
             ctx.reset_weather().await;
@@ -298,7 +311,11 @@ fn script_weather_requests() {
     step(&NONE, &mut w, Buttons::NONE, 3);
     assert_eq!(w.s.weather.current, weather::NONE);
     let f = step(&NONE, &mut w, Buttons::NONE, 1);
-    assert!(f.objs.iter().all(|o| o.palette != crate::sky::PARTICLE_BANK));
+    assert!(
+        f.objs
+            .iter()
+            .all(|o| o.palette != crate::sky::PARTICLE_BANK)
+    );
 }
 
 /// A weather coord event sets its weather as the player steps on it.
@@ -369,7 +386,10 @@ fn a_palette_override_blends_and_ends() {
     assert_eq!(w.s.palette.map(|p| p.current), Some(8));
     assert_ne!(w.hash(), rest);
     let cp = w.checkpoint(&NONE).unwrap();
-    assert_eq!(cp.world.sky.and_then(|k| k.palette).map(|p| p.amount), Some(8));
+    assert_eq!(
+        cp.world.sky.and_then(|k| k.palette).map(|p| p.amount),
+        Some(8)
+    );
     let r = World::restore(&NONE, &cp).unwrap();
     assert_eq!(r.hash(), w.hash());
     // Grey, inverted: other modes recolour too.
@@ -384,7 +404,10 @@ fn a_palette_override_blends_and_ends() {
             pulse: 0,
             keep: false,
         };
-        assert_ne!(p.apply(weather::rgb(20, 10, 0), 16), weather::rgb(20, 10, 0));
+        assert_ne!(
+            p.apply(weather::rgb(20, 10, 0), 16),
+            weather::rgb(20, 10, 0)
+        );
     }
     // Back to 0: the override ends.
     start(&mut w, move |ctx| {
@@ -482,7 +505,9 @@ fn an_overlay_reveals_its_stages_and_the_script_waits() {
     assert_eq!(*counts.last().unwrap(), 0);
     assert!(w.flag(FLAG_DONE));
     // An overlay the game lacks is skipped.
-    start(&mut w, |ctx| Box::pin(async move { ctx.show_overlay(9, 10).await }));
+    start(&mut w, |ctx| {
+        Box::pin(async move { ctx.show_overlay(9, 10).await })
+    });
     step(&NONE, &mut w, Buttons::NONE, 2);
     assert!(!w.script_running());
 }

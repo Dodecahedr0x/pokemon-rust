@@ -19,7 +19,9 @@ fn translate_keeps_known_and_game_kinds_and_cycles_by_stage() {
     assert_eq!(translate(16, 0), NONE);
     assert_eq!(translate(GAME_FIRST + 2, 0), GAME_FIRST + 2);
     assert_eq!(
-        (0..4).map(|s| translate(ROUTE119_CYCLE, s)).collect::<alloc::vec::Vec<_>>(),
+        (0..4)
+            .map(|s| translate(ROUTE119_CYCLE, s))
+            .collect::<alloc::vec::Vec<_>>(),
         [SUNNY, RAIN, RAIN_THUNDERSTORM, RAIN]
     );
     assert_eq!(translate(ROUTE123_CYCLE, 2), RAIN);
@@ -183,7 +185,10 @@ fn color_maps_match_gen3() {
     for v in 0..32u8 {
         assert_eq!(m[1][0][v as usize], v);
     }
-    assert_eq!(m[0][2][31], ((31u16 << 8) - 3 * ((31u16 << 8) / 16) >> 8) as u8);
+    assert_eq!(
+        m[0][2][31],
+        ((31u16 << 8) - 3 * ((31u16 << 8) / 16) >> 8) as u8
+    );
     // The last map is white.
     assert_eq!(m[1][COLOR_MAPS - 1][31], 31);
     assert!(m[1][COLOR_MAPS - 1][20] > 20);

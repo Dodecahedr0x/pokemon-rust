@@ -1142,6 +1142,7 @@ mod m8_h;
 mod m8_i;
 mod m8_m;
 // Milestone 9: one file per task.
+mod hidden_items;
 mod m9_b;
 mod m9_bm;
 mod m9_e;

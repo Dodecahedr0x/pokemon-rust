@@ -1450,7 +1450,11 @@ fn the_fields_weather_starts_the_battles() {
     };
     for (w, line, weather) in [
         (BattleWeather::Rain, "ItIsRaining@P ~64", Weather::Rain),
-        (BattleWeather::Sandstorm, "SandstormIsRaging@P ~64", Weather::Sand),
+        (
+            BattleWeather::Sandstorm,
+            "SandstormIsRaging@P ~64",
+            Weather::Sand,
+        ),
         (BattleWeather::Sun, "SunlightStrong@P ~64", Weather::Sun),
     ] {
         let (b, intro) = run(Some(w), m(PLAIN, 10, &[SPLASH]));

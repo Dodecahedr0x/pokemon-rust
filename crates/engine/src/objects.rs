@@ -32,8 +32,8 @@ use crate::script::{Speed, Step};
 use alloc::vec::Vec;
 use anim::Anim;
 pub(crate) use approach::{Approach, ApproachStep};
-use emote::EmoteFx;
 pub use draw::{EMOTE_TILES, SKY_FIRST_TILE, SKY_TILES};
+use emote::EmoteFx;
 pub use emote::{EMOTE_FRAMES, EMOTES_MAX};
 #[cfg(test)]
 use movement::{DELAYS_MEDIUM, DELAYS_SHORT, ROTATE_DELAY};

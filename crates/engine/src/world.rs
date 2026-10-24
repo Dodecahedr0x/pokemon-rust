@@ -552,7 +552,8 @@ impl World {
         self.frame = self.frame.wrapping_add(1);
         self.s.today = self.days();
         self.s.input.update_mode(keys, self.s.options.button_mode);
-        let reserved = crate::sky::reserved_banks(game, &self.s.weather, self.s.fx.overlay.as_ref());
+        let reserved =
+            crate::sky::reserved_banks(game, &self.s.weather, self.s.fx.overlay.as_ref());
         self.s.objects.reserve_banks(reserved);
         match core::mem::replace(&mut self.s.mode, Mode::Field) {
             Mode::Field => self.step_field(game, &mut f),
@@ -788,10 +789,18 @@ impl World {
                     };
                     script.map(|sc| (sc, Some((id, facing, m))))
                 });
+                let mut hidden = None;
                 let script = object_script.or_else(|| {
                     match interact_target(map, fx, fy, fe, facing, front, |_, _, _| None) {
                         Some(Target::Bg(i)) => match map.bgs[i].kind {
                             BgKind::Script { script, .. } => Some((script, None)),
+                            // Gen3 `GetInteractedBackgroundEventScript`: `VAR_0x8004` the
+                            // flag, `VAR_0x8005` the item, nothing once the flag is set.
+                            BgKind::HiddenItem { item, flag } if !s.vars.flag(flag) => {
+                                let script = game.hidden_item_script()?;
+                                hidden = Some((flag, item));
+                                Some((script, None))
+                            }
                             BgKind::HiddenItem { .. } => None,
                         },
                         _ => None,
@@ -803,6 +812,10 @@ impl World {
                     .or_else(|| s.surf_prompt(game).map(|id| (id, None)))
                     .or_else(|| s.waterfall_prompt(game).map(|id| (id, None)));
                 if let Some((id, talked)) = script {
+                    if let Some((flag, item)) = hidden {
+                        self.s.vars.set_var(VarId(0x8004), flag.0);
+                        self.s.vars.set_var(VarId(0x8005), item);
+                    }
                     self.start_script(game, id, talked);
                     return false;
                 }
@@ -1243,9 +1256,8 @@ fn player_name(name: &[u8]) -> PlayerName {
 /// The weather coord events of the current map at (x, y) ([`GameData::weather_coords`]): the
 /// first one matching sets its weather (Gen3 `DoCoordEventWeather` → `SetWeather`).
 fn coord_weather(game: &impl GameData, s: &mut State, x: i16, y: i16, elevation: u8) {
-    let hit = (game.weather_coords(s.field.map()).iter()).find(|c| {
-        c.x == x && c.y == y && crate::flow::event_matches(c.elevation, elevation)
-    });
+    let hit = (game.weather_coords(s.field.map()).iter())
+        .find(|c| c.x == x && c.y == y && crate::flow::event_matches(c.elevation, elevation));
     if let Some(w) = hit.and_then(|c| crate::weather::from_coord(c.weather)) {
         s.weather.set_weather(w);
     }
