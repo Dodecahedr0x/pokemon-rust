@@ -5,7 +5,9 @@
 //! trainers' battle and victory music, and the song names (Silice's `play_se("SE_*")`).
 //!
 //! Silice (`games/silice/sound.ron`): its `MUS_SIL_*` songs and invented `SE_*` names play
-//! the extracted Emerald song the table gives, until the author's tracks land.
+//! the extracted Emerald song the table gives, until the author's tracks land: a
+//! `games/silice/music/MUS_SIL_*.mid` is converted (`extract::sound::midi`) and added to the
+//! song table, with the voicegroup of the Emerald song it replaces, and plays instead.
 //!
 //! Without an extract's `sound/` (the stub, test fixtures) the blob and tables are empty:
 //! nothing plays and nothing waits.
@@ -33,6 +35,48 @@ const TREECKO: usize = 277;
 /// `CRY_MODE_*` count, `CRY_VOLUME`, `CRY_PRIORITY_NORMAL`.
 const CRY_MODES: u8 = 13;
 
+/// Adds each `<music>/<NAME>.mid` to the song table as song `NAME` (a BGM, with the voicegroup
+/// of the Emerald song `sound.ron` gives for `NAME`); returns their numbers by name.
+fn import_music(
+    sd: &mut SoundDir,
+    music: &Path,
+    sil: &SoundFile,
+    names: &BTreeMap<&str, u16>,
+) -> Result<BTreeMap<String, u16>> {
+    let mut out = BTreeMap::new();
+    let Ok(entries) = std::fs::read_dir(music) else {
+        return Ok(out);
+    };
+    let mut paths: Vec<_> = entries
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().is_some_and(|x| x.eq_ignore_ascii_case("mid")))
+        .collect();
+    paths.sort();
+    for path in paths {
+        let name = path.file_stem().unwrap().to_string_lossy().into_owned();
+        let what = || format!("{}", path.display());
+        let stand_in = (sil.songs.get(&name))
+            .with_context(|| format!("{}: {name} has no entry in sound.ron", what()))?;
+        let voicegroup = (names.get(stand_in.as_str()))
+            .and_then(|&n| sd.songs.songs.get(n as usize))
+            .and_then(|e| e.song.as_ref())
+            .map(|f| sd.song_files[f].voicegroup.clone())
+            .with_context(|| format!("{}: no voicegroup from {stand_in}", what()))?;
+        let bytes = std::fs::read(&path).with_context(what)?;
+        let file = extract::sound::midi::convert(&bytes, &voicegroup).with_context(what)?;
+        let key = format!("sil_{}", name.to_lowercase());
+        sd.song_files.insert(key.clone(), file);
+        out.insert(name.clone(), sd.songs.songs.len() as u16);
+        sd.songs.songs.push(extract::schema::SongTableEntry {
+            name,
+            player: 0,
+            me: 0,
+            song: Some(key),
+        });
+    }
+    Ok(out)
+}
+
 pub fn generate(world: &World, silice: Option<&Path>) -> Result<SoundOut> {
     let dir = world.dir.as_ref().map(|d| d.join("sound"));
     let Some(dir) = dir.filter(|d| d.join("songs.ron").exists()) else {
@@ -41,10 +85,19 @@ pub fn generate(world: &World, silice: Option<&Path>) -> Result<SoundOut> {
             rs: empty(),
         });
     };
-    let sd = SoundDir::read(&dir)?;
+    let mut sd = SoundDir::read(&dir)?;
+    let names: BTreeMap<&str, u16> = SOUNDS.iter().map(|&(v, n)| (n, v)).collect();
+    // Silice's songs and effects, and the author's tracks.
+    let sil: SoundFile = match silice {
+        Some(g) => read_ron(&g.join("sound.ron"))?,
+        None => SoundFile::default(),
+    };
+    let imported = match silice {
+        Some(g) => import_music(&mut sd, &g.join("music"), &sil, &names)?,
+        None => BTreeMap::new(),
+    };
     let bin = sd.blob()?;
     let blob = Blob::new(&bin).context("the sound blob's header")?;
-    let names: BTreeMap<&str, u16> = SOUNDS.iter().map(|&(v, n)| (n, v)).collect();
     let song = |n: &str| -> Result<u16> {
         names
             .get(n)
@@ -132,11 +185,6 @@ pub fn generate(world: &World, silice: Option<&Path>) -> Result<SoundOut> {
     }
     writeln!(rs, "];")?;
 
-    // Silice's songs and effects.
-    let sil: SoundFile = match silice {
-        Some(g) => read_ron(&g.join("sound.ron"))?,
-        None => SoundFile::default(),
-    };
     // Song names (Gen3's, then Silice's effects as the songs they play), for `song_named`.
     let mut by_name: BTreeMap<String, u16> =
         names.iter().map(|(n, v)| (n.to_string(), *v)).collect();
@@ -158,11 +206,13 @@ pub fn generate(world: &World, silice: Option<&Path>) -> Result<SoundOut> {
                 continue;
             }
             let num = num as u16;
-            let to = sil
-                .songs
-                .get(&name)
-                .with_context(|| format!("games/silice/sound.ron: no Emerald song for {name}"))?;
-            sil_songs.insert(num, song(to)?);
+            let plays = match imported.get(&name) {
+                Some(&n) => n,
+                None => song(sil.songs.get(&name).with_context(|| {
+                    format!("games/silice/sound.ron: no Emerald song for {name}")
+                })?)?,
+            };
+            sil_songs.insert(num, plays);
             by_name.insert(name, num);
         }
         if let Some(n) = sil.songs.keys().find(|n| !by_name.contains_key(*n)) {

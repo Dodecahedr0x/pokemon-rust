@@ -18,6 +18,7 @@
 //! (`voicegroup_017`, `sample_042`, `wave_03`, `keysplit_1`), numbered in ROM order.
 
 pub mod blob;
+pub mod midi;
 pub mod track;
 
 use crate::ROM_BASE;

@@ -86,6 +86,40 @@ fn dry_run_lengths_are_gen3_like() {
     assert_eq!(AUDIO.species_cry[280], 270);
 }
 
+/// Silice: each author track (`games/silice/music/<NAME>.mid`) is a song of its own past
+/// Emerald's table (not its stand-in) and makes a sound.
+#[test]
+fn silice_author_tracks_play() {
+    let Some(blob) = blob() else { return };
+    if !matches!(content::FLAVOR, content::Flavor::Silice) {
+        return;
+    }
+    let music = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../games/silice/music");
+    let Ok(dir) = std::fs::read_dir(&music) else {
+        return;
+    };
+    let emerald_songs = (extract::text::charmap::SOUNDS.iter())
+        .map(|s| s.0 + 1)
+        .max()
+        .unwrap();
+    for path in dir.filter_map(|e| e.ok().map(|e| e.path())) {
+        if path.extension().is_none_or(|x| x != "mid") {
+            continue;
+        }
+        let name = path.file_stem().unwrap().to_string_lossy().into_owned();
+        let n = song_named(&name).unwrap_or_else(|| panic!("{name} has no song"));
+        assert!(n >= emerald_songs, "{name} plays song {n}, an Emerald one");
+        let mut s = Synth::new(blob, 32768);
+        s.apply(Cmd::Start(n));
+        let mut out = vec![(0i16, 0i16); 32768 * 2];
+        s.render(&mut out);
+        assert!(
+            out.iter().any(|&(l, _)| l.unsigned_abs() > 256),
+            "{name} is silent"
+        );
+    }
+}
+
 /// Trainers get Gen3's class music; the low-HP SE loops.
 #[test]
 fn trainer_and_battle_music() {
