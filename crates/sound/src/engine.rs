@@ -697,6 +697,12 @@ impl<'a> Engine<'a> {
         }
     }
 
+    /// Mono output (`SetPokemonCryStereo(FALSE)`, Emerald's default): both sides get both
+    /// FIFOs.
+    pub fn mono(&self) -> bool {
+        self.mono
+    }
+
     /// The DirectSound channels for a mixer back end.
     pub fn ds_chans(&self) -> [ChanView; CHANS] {
         core::array::from_fn(|c| {

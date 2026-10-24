@@ -8,6 +8,7 @@ extern crate alloc;
 // `cfg(pkr_silice)` (`build.rs`, from `content`'s `links` metadata) is the content's flavour.
 const _: () = assert!(cfg!(pkr_silice) == matches!(content::FLAVOR, content::Flavor::Silice));
 
+mod audio;
 mod panic;
 mod save;
 mod save_logic;
@@ -184,6 +185,12 @@ fn main(mut gba: agb::Gba) -> ! {
     let mut watch = Watch::paint();
     let game = GAME;
     let mut video = Video::new();
+    // Milestone 12: agb's mixer takes timers 0 and 1 and DMA 1 and 2 (the shell uses timers 2
+    // and 3 and DMA 3).
+    let mut audio = audio::Audio::new(
+        gba.mixer.mixer(agb::sound::mixer::Frequency::Hz10512),
+        content::sound::AUDIO.blob,
+    );
     let timers = gba.timers.timers();
     let mut clock = timers.timer3;
     clock
@@ -195,6 +202,9 @@ fn main(mut gba: agb::Gba) -> ! {
     let world = &mut booted;
     let mut frame = world.initial_frame();
     video.apply_blanked(&frame);
+    if let Some(a) = audio.as_mut() {
+        a.apply(&frame.sound);
+    }
     // Its commands are done; the loop re-applies only its registers.
     frame.cmds.clear();
     // Boot order on the debug region: build and boot, then the boot World's hash, `frame`
@@ -249,6 +259,7 @@ fn main(mut gba: agb::Gba) -> ! {
         if let Some(choice) = world.main_menu_choice() {
             *world = save::chosen_world(&game, slots.as_mut(), choice);
             frame = world.initial_frame();
+            frame.sound.insert(0, engine::audio::Cmd::StopAll);
             video.apply_blanked(&frame);
             frame.cmds.clear();
         }
@@ -261,8 +272,13 @@ fn main(mut gba: agb::Gba) -> ! {
                 engine::world::MainMenuChoice::Continue,
             );
             frame = world.initial_frame();
+            frame.sound.insert(0, engine::audio::Cmd::StopAll);
             video.apply_blanked(&frame);
             frame.cmds.clear();
+        }
+        // Milestone 12: the frame's sound commands, then `SoundMain` and the mixer.
+        if let Some(a) = audio.as_mut() {
+            a.frame(&frame.sound);
         }
         publish_reports(world, &mut reports);
         // The tour's warp lands between two steps (its mirror in `emu/tests/tour.rs` does the
