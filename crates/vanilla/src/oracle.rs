@@ -346,6 +346,33 @@ impl Resume {
     }
 }
 
+impl OracleRun {
+    /// Puts the cache's states and histories of the positions before `from` (a cache a whole
+    /// `--cache` run wrote) ahead of this `--from` run's, so a branch can start at any origin.
+    pub fn prepend_cached(&mut self, dir: &std::path::Path, from: usize) -> Result<()> {
+        let mut states = Vec::with_capacity(from + self.states.len());
+        let mut history = Vec::with_capacity(from + self.history.len());
+        for i in 0..from {
+            let (st, meta) = Resume::paths(dir, i);
+            states.push(Some(
+                std::fs::read(&st).with_context(|| format!("{}", st.display()))?,
+            ));
+            let m: Vec<u64> = (std::fs::read_to_string(meta)?.split_whitespace())
+                .map(|t| t.parse())
+                .collect::<Result<_, _>>()?;
+            anyhow::ensure!(m.len() == 7, "bad meta at {i}");
+            history.push(History {
+                random_battle: m[5] != 0,
+                hurt_since_heal: m[6] != 0,
+            });
+        }
+        states.append(&mut self.states);
+        history.append(&mut self.history);
+        (self.states, self.history) = (states, history);
+        Ok(())
+    }
+}
+
 /// [`run_spine`] over [`Resume`]'s range.
 pub fn run_spine_range<G: GameData>(
     game: &G,
@@ -612,6 +639,9 @@ pub fn branch<G: GameData + Clone + 'static>(
     let battles = live.v.battles.len();
     let mut vanilla_error = None;
     live.ours_lead_level = None;
+    // Vanilla at the origin, for the origin's deltas when this run has no row there (a
+    // `--from` run).
+    let theirs_at_origin = live.v.state()?.semantic_in(game);
     if let Action::Choice { step, choice } = b.action {
         live.opts.choice = Some(choice);
         if let Err(e) = live.play(&spine.steps[step as usize]) {
@@ -653,11 +683,10 @@ pub fn branch<G: GameData + Clone + 'static>(
     let theirs = live.v.state()?.semantic_in(game);
     let tol = tolerance(h);
     // The deltas the origin already had are the spine's findings.
-    let at_origin: Vec<Delta> = oracle
-        .rows
-        .get(b.origin)
-        .map(|r| r.deltas.clone())
-        .unwrap_or_default();
+    let at_origin: Vec<Delta> = match oracle.rows.iter().find(|r| r.index == b.origin) {
+        Some(r) => r.deltas.clone(),
+        None => diff(&ours_at(game, spine, b.origin)?, &theirs_at_origin, tol),
+    };
     let (deltas, _noise) = split_noise(
         &ours_sem,
         &theirs,

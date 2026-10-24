@@ -171,15 +171,7 @@ fn run(o: &Opts, branches: bool) -> Result<()> {
     if branches && o.from > 0 {
         // The origins before `--from`: the cache's states (from a whole run).
         let dir = o.cache.as_ref().context("--from needs --cache")?;
-        let mut before = Vec::with_capacity(o.from + run.states.len());
-        for i in 0..o.from {
-            let st = dir.join(format!("{i}.state"));
-            before.push(Some(
-                std::fs::read(&st).with_context(|| format!("{}", st.display()))?,
-            ));
-        }
-        before.append(&mut run.states);
-        run.states = before;
+        run.prepend_cached(dir, o.from)?;
     }
     let wall = t.elapsed();
     summary(&ours, &run, wall.as_secs_f64());
