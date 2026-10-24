@@ -122,7 +122,11 @@ pub fn steps() -> Vec<Step> {
             assert!(r.beaten(TRAINER_SIL_POUSSIN_1));
             assert_eq!(r.w.var(VAR_SIL_STORY), 112);
             assert!(r.w.flag(FLAG_SIL_HIDE_APEX_POUSSIN));
-            r.printed_in_order(&[Sommet_Apex_Sc03_T3, Sommet_Apex_Sc04_T8, Sommet_Apex_Sc04_T10]);
+            r.printed_in_order(&[
+                Sommet_Apex_Sc03_T3,
+                Sommet_Apex_Sc04_T8,
+                Sommet_Apex_Sc04_T10,
+            ]);
         }),
         Step::Mend(6),
         // The console (12, 4), trigger A: both choices of the alternate ending answer No (their
@@ -231,7 +235,8 @@ pub fn elysium_apex_start() -> Start {
                 end_of_chapter_10(ctx.clone()).await;
                 ctx.set_var(VAR_SIL_STORY, 112).await;
                 ctx.set_flag(FLAG_SIL_HIDE_APEX_POUSSIN, true).await;
-                ctx.set_flag(content::prelude::trainer_flag(TRAINER_SIL_POUSSIN_1), true).await;
+                ctx.set_flag(content::prelude::trainer_flag(TRAINER_SIL_POUSSIN_1), true)
+                    .await;
                 give_party(&ctx, PARTY).await;
             })
         },
@@ -306,7 +311,12 @@ fn check_elysium(r: &Run, question: engine::data::TextId) {
     assert_eq!(r.w.var(VAR_SIL_FIN_SCENE), 0);
     assert!(!r.w.flag(FLAG_SIL_GAME_CLEAR));
     assert!(!r.has_text(Nebula_Sc13_T1));
-    for name in ["elysium_free_roam", "hide_player", "show_title", "credits_montage"] {
+    for name in [
+        "elysium_free_roam",
+        "hide_player",
+        "show_title",
+        "credits_montage",
+    ] {
         assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);
     }
 }

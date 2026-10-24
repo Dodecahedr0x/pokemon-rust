@@ -278,7 +278,9 @@ pub fn steps() -> Vec<Step> {
         Step::Walk(Up),
     ]);
     // The hidden path: north 4, east 3, north 3, west 3, north to the helm's foot (11, 3).
-    for d in [Up, Up, Up, Up, Right, Right, Right, Up, Up, Up, Left, Left, Left] {
+    for d in [
+        Up, Up, Up, Up, Right, Right, Right, Up, Up, Up, Left, Left, Left,
+    ] {
         s.push(Step::Walk(d));
     }
     s.extend([
