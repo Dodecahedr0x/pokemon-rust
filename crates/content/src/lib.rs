@@ -627,7 +627,12 @@ impl GameData for Game {
         data::SCRIPT_USE_DIVE_UNDERWATER
     }
 
-    fn dive_warp(&self, map: MapId, emerge: bool) -> Option<(MapId, Option<(i16, i16)>)> {
+    fn dive_warp(
+        &self,
+        map: MapId,
+        emerge: bool,
+        _at: (i16, i16),
+    ) -> Option<(MapId, Option<(i16, i16)>)> {
         prelude::dive_warp(map, emerge)
     }
 

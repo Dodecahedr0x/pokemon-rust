@@ -269,8 +269,13 @@ impl GameData for Spy {
     fn dive_emerge_script(&self) -> Option<ScriptId> {
         Game.dive_emerge_script()
     }
-    fn dive_warp(&self, map: MapId, emerge: bool) -> Option<(MapId, Option<(i16, i16)>)> {
-        Game.dive_warp(map, emerge)
+    fn dive_warp(
+        &self,
+        map: MapId,
+        emerge: bool,
+        at: (i16, i16),
+    ) -> Option<(MapId, Option<(i16, i16)>)> {
+        Game.dive_warp(map, emerge, at)
     }
     fn fly_destination(&self, i: u8) -> Option<engine::data::FlyDestination> {
         Game.fly_destination(i)

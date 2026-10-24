@@ -1589,11 +1589,18 @@ pub trait GameData {
     }
 
     /// Where Dive leads from `map` (Gen3 `SetDiveWarp`): `emerge` up from an underwater map,
-    /// else down. The map's dive or emerge connection keeps the player's cell (`None`
-    /// coordinates); else the fixed dive warp its `on_resume` script sets (`setdivewarp`, here
-    /// answered per map as [`GameData::hole_warp`]). `None`: no dive warp.
-    fn dive_warp(&self, map: MapId, emerge: bool) -> Option<(MapId, Option<(i16, i16)>)> {
-        let _ = (map, emerge);
+    /// else down, the player on cell `at`. The map's dive or emerge connection keeps the
+    /// player's cell (`None` coordinates); else the fixed dive warp its `on_resume` or
+    /// `on_dive_warp` script sets (`setdivewarp`, here answered per map as
+    /// [`GameData::hole_warp`]; an `on_dive_warp` script may pick it by the player's cell, hence
+    /// `at`). `None`: no dive warp (nothing happens).
+    fn dive_warp(
+        &self,
+        map: MapId,
+        emerge: bool,
+        at: (i16, i16),
+    ) -> Option<(MapId, Option<(i16, i16)>)> {
+        let _ = (map, emerge, at);
         None
     }
 
