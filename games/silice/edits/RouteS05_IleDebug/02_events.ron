@@ -1,0 +1,15 @@
+// Header, warps, objects, bg events.
+[
+    Header((music: "MUS_SEALED_CHAMBER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_ROUTE", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the mat (4, 8), Route_S05_PG_Sc27's arrival (warp(MAP_ROUTE_S05_ILE_DEBUG, 4, 8)); pushing south
+    // on it goes back to Route S5's warp 3, a landing on the wreck's sandbank (46, 22).
+    Warp(x: 4, y: 8, dest_map: "RouteS05", dest_warp: 3),
+    // 1: Deoxys in the centre (Route_S05_PG_Sc27's second half). Hidden until FLAG_SIL_CLE_DEBUG_INSTALLEE's
+    // scene clears FLAG_SIL_HIDE_DEOXYS (set at the start); a capture sets it again.
+    Object(x: 4, y: 4, gfx: "OBJ_EVENT_GFX_DEOXYS", id: "LOCALID_ILE_DEBUG_DEOXYS", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS05_IleDebug_EventScript_Deoxys", flag: "FLAG_SIL_HIDE_DEOXYS"),
+    // The hidden Starf Berry in the north-east corner (8, 0), with its flag (as Breche's PG items). The engine
+    // ignores BgKind::HiddenItem: when the Ch12 scripts are written this becomes a sign running hidden_item
+    // (Ch0-Ch10's fallback), e.g. Replace(index: 1, event: Bg((x: 8, y: 0, elevation: 0, kind: Script(facing:
+    // 0, script: Some("RouteS05_IleDebug_EventScript_HiddenStarf"))))).
+    HiddenItem(x: 8, y: 0, item: "ITEM_STARF_BERRY", flag: "FLAG_SIL_ITEM_PG_ILE_STARF"),
+]

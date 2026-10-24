@@ -1,0 +1,16 @@
+// Cells. The whole islet is the checkerboard, walkable: B the void black 513, g the green floor 554 (both
+// collision 0, elevation 3). The exit (4, 8) is CableClub's grey mat 545 (MB_SOUTH_ARROW_WARP), the cell
+// Route_S05_PG_Sc27 warps the player onto.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "BgBgBgBgB",
+        "gBgBgBgBg",
+        "BgBgBgBgB",
+        "gBgBgBgBg",
+        "BgBgBgBgB",
+        "gBgBgBgBg",
+        "BgBgBgBgB",
+        "gBgBgBgBg",
+        "BgBgXgBgB",
+    ], legend: {'B': (metatile: 513, collision: 0, elevation: 3), 'g': (metatile: 554, collision: 0, elevation: 3), 'X': (metatile: 545, collision: 0, elevation: 3)}),
+]

@@ -1,0 +1,13 @@
+// Chapter 12 (post-game): the door of Antenna Alpha (MAP_ROUTE_S02_ANTENNE, 12-post-game.md section 4.3).
+[
+    // The old Cocket relay: a two-cell Cocket container on the grass north of the route (18-19, 2-3), its
+    // doorway (18, 3) (SilRoutesS2S3's 555, MB_ANIMATED_DOOR, as the depot's south portal on Route S3);
+    // entered from (18, 4) by pushing north. Arriving from the antenna walks the player south onto (18, 4).
+    Ascii(x: 18, y: 2, rows: ["ab", "Dc"], legend: {'a': (metatile: 557, collision: 1, elevation: 3), 'b': (metatile: 558, collision: 1, elevation: 3), 'D': (metatile: 555, collision: 0, elevation: 3), 'c': (metatile: 560, collision: 1, elevation: 3)}),
+    // Warp 0: the doorway, to the antenna's mats (its warp 0).
+    Warp(x: 18, y: 3, dest_map: "RouteS02_Antenne", dest_warp: 0),
+    // The route's first warp is now on its west side, so lint-reach seeds its main area there and the east
+    // side becomes the one across cable C: this replaces 03_allow's "edge west 2-5" allowance (the same cable,
+    // seen from the other side).
+    AllowReach(subject: "edge east 3-5", reason: "reached from the west only across cable C (31-32, 9), which RouteS02_EventScript_Cable2 cuts with the Lame-Frequence (Chapter 1's module); the player arrives from the west"),
+]

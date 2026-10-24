@@ -270,6 +270,13 @@
             dest_map: "ReverseCity",
             dest_warp: 9,
         ),
+        (
+            x: 34,
+            y: 28,
+            elevation: 0,
+            dest_map: "RouteS08_GrotteStele",
+            dest_warp: 0,
+        ),
     ],
     coords: [
         (

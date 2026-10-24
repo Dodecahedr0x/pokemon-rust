@@ -1,0 +1,18 @@
+// Chapter 12 (post-game): the Shaker's sliding bookcase, the way down to Crow's Lounge (MAP_BRICO_BOURG_BAR_LOUNGE).
+[
+    // The bookcase at the back, 3 cells right of the counter's east end (9, 3): x 12, where Ch0 drew a
+    // back door with no warp (529/537). It is a bottle shelf (Shop 553 over 561), solid.
+    // Brico_Bourg_Bar_PG_Sc22 slides it (set_metatile(SHAKER_BIBLIOTHEQUE, ESCALIER)) and sets
+    // FLAG_SIL_LOUNGE_OUVERT; BricoBourg_Bar_OnLoad redraws it open on every load from that flag: (12, 1) to
+    // Shop's stairs 592 (MB_NON_ANIMATED_DOOR), collision 0, and (12, 0) to the wall top 530 (collision 1).
+    Paint(x: 12, y: 0, metatile: 553, collision: 1),
+    Paint(x: 12, y: 1, metatile: 561, collision: 1),
+    // Warp 2: the bookcase, to the Lounge's stairs (its warp 0). Arriving from the Lounge walks the player
+    // south onto (12, 2) (the stairs are a non-animated door).
+    Warp(x: 12, y: 1, dest_map: "BricoBourg_Bar_Lounge", dest_warp: 0),
+    // The bar had no on-load script: BricoBourg_Bar_OnLoad is new (Ch12's; Ch0's BricoBourg_Bar_OnTransition
+    // is kept).
+    ScriptsSet(on_load: "BricoBourg_Bar_OnLoad"),
+    AllowCollision(cells: [(12, 1)], reason: "the Lounge's bookcase (warp 2) stays a solid shelf until Brico_Bourg_Bar_PG_Sc22 slides it and BricoBourg_Bar_OnLoad redraws it as the stairs 592 from FLAG_SIL_LOUNGE_OUVERT"),
+    AllowReach(subject: "warp 2", reason: "the Lounge's bookcase, a solid shelf until Brico_Bourg_Bar_PG_Sc22 slides it (FLAG_SIL_LOUNGE_OUVERT, redrawn by BricoBourg_Bar_OnLoad)"),
+]

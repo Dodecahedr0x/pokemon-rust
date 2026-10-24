@@ -292,6 +292,13 @@
             dest_map: "MangaSquare",
             dest_warp: 6,
         ),
+        (
+            x: 18,
+            y: 22,
+            elevation: 0,
+            dest_map: "RouteS07_Antenne",
+            dest_warp: 0,
+        ),
     ],
     coords: [
         (
