@@ -2618,5 +2618,17 @@
             name: "FLAG_SIL_HIDE_TOUR_DRONE",
             num: 1260,
         ),
+        (
+            name: "FLAG_SIL_HIDE_HOUSE_EPILOGUE_2",
+            num: 1275,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_HOUSE_ELYSIUM_2",
+            num: 1276,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_HOUSE_ELYSIUM_3",
+            num: 1277,
+        ),
     ],
 )

@@ -217,19 +217,8 @@ pub async fn Nebula_TourHall_Sc02(ctx: Ctx) {
     warp(&ctx, MAP_TOUR_NEBULA_ASCENSEUR, 3, 6).await;
 }
 
-/// The elevator's door (12, 1). Before the first ride the coord row (y 3) runs Tour_Hall_Sc02;
-/// from 99 (back from the Tower, Ch10's R-6) the door takes the player into the cabin as Sc02
-/// does (§5.7's proposal). Chapter 10 owns the cabin and may rewrite this door's script.
-/// **Merge note:** SIL-10's `ch10_ascenseur.rs` defines this name (the cabin warp for story
-/// 99..=117); at the merge, keep Chapter 10's and delete this one.
-pub async fn Nebula_TourHall_EventScript_Ascenseur(ctx: Ctx) {
-    if story(&ctx).await < 99 {
-        return;
-    }
-    ctx.lock_all().await;
-    ctx.fade(Fade::ToBlack).await;
-    warp(&ctx, MAP_TOUR_NEBULA_ASCENSEUR, 3, 6).await;
-}
+// The elevator's door (12, 1), `Nebula_TourHall_EventScript_Ascenseur`, is Chapter 10's
+// (`ch10_ascenseur.rs`: the cabin from story 99).
 
 /// The bay windows: the diversion outside.
 pub async fn Nebula_TourHall_EventScript_Vitre(ctx: Ctx) {

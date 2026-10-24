@@ -222,6 +222,13 @@
         "FLAG_SIL_HIDE_ZENITH_ASC_ADRIEN",
         "FLAG_SIL_HIDE_ZENITH_ASC_GWADA",
         "FLAG_SIL_HIDE_ZENITH_ASC_JULIEN",
+        // Ch11 on the Ch0 player's house: Gwada and Julien for Brico_Bourg_Sc14 (one flag each), and the
+        // three friends at the table for Elysium_E4 (one flag each); shown only by those scenes.
+        "FLAG_SIL_HIDE_HOUSE_EPILOGUE",
+        "FLAG_SIL_HIDE_HOUSE_EPILOGUE_2",
+        "FLAG_SIL_HIDE_HOUSE_ELYSIUM",
+        "FLAG_SIL_HIDE_HOUSE_ELYSIUM_2",
+        "FLAG_SIL_HIDE_HOUSE_ELYSIUM_3",
         // Ch12 (post-game; each map's OnTransition or scene owns them): the legendaries placed on the
         // maps start hidden (their unlocking scene or condition clears the flag, a capture sets it again:
         // the source's flag means "caught"), and so does the Latiosite ball (Latios's capture clears its

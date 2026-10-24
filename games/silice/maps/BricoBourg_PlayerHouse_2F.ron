@@ -78,7 +78,13 @@
         on_resume: None,
         on_return_to_field: None,
         on_dive_warp: None,
-        on_frame: [],
+        on_frame: [
+            (
+                var: "VAR_SIL_FIN_SCENE",
+                value: 14,
+                script: "BricoBourg_PlayerHouse_2F_Sc14",
+            ),
+        ],
         on_warp_into: [],
     ),
 )

@@ -1,0 +1,4 @@
+// SIL Ch11 scripts: Elysium_E5 (the only one awake) on VAR_SIL_FIN_SCENE 5, set by Elysium_E4.
+[
+    ScriptsSet(on_frame: [(var: "VAR_SIL_FIN_SCENE", value: 5, script: "TroneZenith_Elysium_E5")]),
+]

@@ -448,3 +448,81 @@ fn the_hall_of_fame_shows_the_record_then_the_credits_then_saves_in_the_room() {
     let cp = w.save_snapshot(&Game).unwrap();
     check_restore(&cp);
 }
+
+/// Silice `save_game` (R-6): no dialog, `Event::Saved` raised, `Bool` answered, and the save
+/// restores as CONTINUE would (the script gone, the vars kept).
+#[test]
+fn a_scripted_save_saves_without_the_dialog() {
+    let mut w = started();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.set_var(VAR_RESULT, 7).await;
+            let saved = ctx.save_game().await;
+            ctx.set_var(VAR_RESULT, saved as u16 + 10).await;
+        })
+    });
+    let mut saved = None;
+    let mut cp = None;
+    for _ in 0..20 {
+        if let Some(ok) = saved_event(&mut w, &Game, Buttons::NONE) {
+            saved = Some(ok);
+            cp = Some(w.save_snapshot(&Game).unwrap());
+        }
+        assert!(w.screens().is_none(), "no dialog");
+        if !w.script_running() {
+            break;
+        }
+    }
+    assert_eq!(saved, Some(true));
+    assert!(!w.script_running());
+    assert_eq!(w.var(VAR_RESULT), 11, "answered true");
+    let back = check_restore(&cp.unwrap());
+    assert_eq!(back.var(VAR_RESULT), 7, "saved before the answer");
+    assert!(!back.script_running());
+}
+
+/// The credits alone: from the credits' pages, no record and no save afterwards.
+#[test]
+fn the_credits_alone_end_without_saving() {
+    let mut w = started();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.credits().await;
+            ctx.set_var(VAR_RESULT, 3).await;
+        })
+    });
+    until_g(&mut w, &Game, 100, |w| hof_stage(w).is_some());
+    assert_eq!(hof_stage(&w), Some(Stage::Credits));
+    // The field's fade-out and the screen's fade-in first.
+    run(&mut w, Buttons::NONE, 60);
+    tap(&mut w, Buttons::START, 2);
+    assert_eq!(hof_stage(&w), Some(Stage::TheEnd));
+    tap(&mut w, Buttons::B, 2);
+    for _ in 0..600 {
+        assert_eq!(saved_event(&mut w, &Game, Buttons::NONE), None, "no save");
+    }
+    assert_eq!(w.var(VAR_RESULT), 3);
+    assert!(!w.script_running());
+}
+
+/// `reload_last_save` raises `Event::ReloadLastSave` once and is never answered.
+#[test]
+fn reload_last_save_raises_its_event_once_and_waits() {
+    let mut w = started();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.reload_last_save().await;
+            ctx.set_var(VAR_RESULT, 9).await;
+        })
+    });
+    let mut raised = 0;
+    for _ in 0..300 {
+        run(&mut w, Buttons::NONE, 1);
+        raised += (w.events().iter())
+            .filter(|e| matches!(e, Event::ReloadLastSave))
+            .count();
+    }
+    assert_eq!(raised, 1);
+    assert!(w.script_running(), "never answered");
+    assert_ne!(w.var(VAR_RESULT), 9);
+}

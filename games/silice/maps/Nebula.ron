@@ -723,6 +723,16 @@
                 value: 126,
                 script: "Nebula_PG_Sc10",
             ),
+            (
+                var: "VAR_SIL_FIN_SCENE",
+                value: 13,
+                script: "Nebula_Sc13",
+            ),
+            (
+                var: "VAR_SIL_FIN_SCENE",
+                value: 2,
+                script: "Nebula_Elysium_E2",
+            ),
         ],
         on_warp_into: [],
     ),

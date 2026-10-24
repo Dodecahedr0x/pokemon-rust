@@ -8954,6 +8954,11 @@
             speaker: Some("Sign"),
         ),
         (
+            id: "Tour_Ascenseur_Panneau",
+            chapter: "10-tour-piliers",
+            speaker: Some("Sign"),
+        ),
+        (
             id: "Tour_Ascenseur_Sc00a_T1",
             chapter: "10-tour-piliers",
             speaker: Some("Default"),

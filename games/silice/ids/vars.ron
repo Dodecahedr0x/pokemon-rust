@@ -104,5 +104,9 @@
             name: "VAR_SIL_IDLE_FRAMES",
             num: 16451,
         ),
+        (
+            name: "VAR_SIL_FIN_SCENE",
+            num: 16460,
+        ),
     ],
 )

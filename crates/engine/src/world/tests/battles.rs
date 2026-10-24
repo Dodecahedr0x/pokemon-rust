@@ -330,3 +330,28 @@ fn battle_state_is_hashed() {
     run(&mut a, Buttons::NONE, 1);
     assert_ne!(a.hash(), h, "the transition advanced");
 }
+
+#[test]
+fn a_no_whiteout_trainer_battle_answers_lost_and_keeps_the_script() {
+    let mut w = started();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.give_mon(NORMAL, 2).await;
+            let o = ctx.battle_trainer_no_whiteout(TRAINER, TextId(0)).await;
+            ctx.set_flag(FLAG_DONE, o == BattleOutcome::Lost).await;
+        })
+    });
+    run(&mut w, Buttons::NONE, 1);
+    assert!(w.in_battle());
+    let at = (w.map(), pos(&w));
+    mash(&mut w, 20_000, |w| {
+        assert!(
+            !w.battle()
+                .is_some_and(|b| matches!(b.0, Stage::Whiteout(_))),
+            "no whiteout"
+        );
+        !w.script_running()
+    });
+    assert!(w.flag(FLAG_DONE), "answered Lost to the script");
+    assert_eq!((w.map(), pos(&w)), at, "stays where the battle was");
+}

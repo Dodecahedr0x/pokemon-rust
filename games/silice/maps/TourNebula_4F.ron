@@ -253,9 +253,9 @@
             x: 17,
             y: 19,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_MAX_REVIVE",
-                flag: "FLAG_SIL_ITEM_TOUR_4F_MAX_REVIVE",
+            kind: Script(
+                facing: 0,
+                script: Some("TourNebula_4F_EventScript_HiddenMaxRevive"),
             ),
         ),
     ],

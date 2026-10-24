@@ -1,0 +1,7 @@
+// SIL Ch10 scripts: the map changes the Chapter 10 scripts need.
+[
+    // The hidden-item fallback (as Ch0-Ch8): the engine ignores BgKind::HiddenItem, so the hidden item is a
+    // sign running hidden_item. To restore once the engine picks hidden items up:
+    // Replace(index: 11, event: Bg((x: 17, y: 19, elevation: 0, kind: HiddenItem(item: "ITEM_MAX_REVIVE", flag: "FLAG_SIL_ITEM_TOUR_4F_MAX_REVIVE")))).
+    Replace(index: 11, event: Bg((x: 17, y: 19, elevation: 0, kind: Script(facing: 0, script: Some("TourNebula_4F_EventScript_HiddenMaxRevive"))))),
+]

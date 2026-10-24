@@ -252,6 +252,18 @@ fn main(mut gba: agb::Gba) -> ! {
             video.apply_blanked(&frame);
             frame.cmds.clear();
         }
+        // `Event::ReloadLastSave` (Silice's alternate ending): the flash slot comes back as
+        // CONTINUE would bring it, read and not written (a new game when it holds none).
+        if (world.events().iter()).any(|e| matches!(e, Event::ReloadLastSave)) {
+            *world = save::chosen_world(
+                &game,
+                slots.as_mut(),
+                engine::world::MainMenuChoice::Continue,
+            );
+            frame = world.initial_frame();
+            video.apply_blanked(&frame);
+            frame.cmds.clear();
+        }
         publish_reports(world, &mut reports);
         // The tour's warp lands between two steps (its mirror in `emu/tests/tour.rs` does the
         // same), and each map gets its own maxima.

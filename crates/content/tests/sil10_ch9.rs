@@ -6,7 +6,8 @@
 //! Julien's calls, Surf across the lake), the Station de Pompage's pumps, Dive into the conduit,
 //! Nébula (the Gargote, the Centre, the Comptoir, the diversion), the Bassin's dive under the
 //! Tower, B1F and the hall's security corridor, and the crystal elevator into Chapter 10's
-//! cabin (`VAR_SIL_STORY` 99). The checkpoints assert the story steps, flags, trainers, the bag
+//! cabin (`VAR_SIL_STORY` 99), whose first climb (Chapter 10's) leaves the player on 1F at 100.
+//! The checkpoints assert the story steps, flags, trainers, the bag
 //! and the scene texts by text id, never a French literal; the end asserts the Chapter 9
 //! fallbacks were reported. No hook, no training.
 

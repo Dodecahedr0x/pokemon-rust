@@ -272,6 +272,12 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_ZENITH_ASC_ADRIEN,
         FLAG_SIL_HIDE_ZENITH_ASC_GWADA,
         FLAG_SIL_HIDE_ZENITH_ASC_JULIEN,
+        // Ch11 on the player's house: the epilogue's Gwada and Julien, the Elysium table's friends.
+        FLAG_SIL_HIDE_HOUSE_EPILOGUE,
+        FLAG_SIL_HIDE_HOUSE_EPILOGUE_2,
+        FLAG_SIL_HIDE_HOUSE_ELYSIUM,
+        FLAG_SIL_HIDE_HOUSE_ELYSIUM_2,
+        FLAG_SIL_HIDE_HOUSE_ELYSIUM_3,
         // Ch12: the legendaries on the maps, the Latiosite, and the post-game actors.
         FLAG_SIL_HIDE_ARTICUNO,
         FLAG_SIL_HIDE_ZAPDOS,

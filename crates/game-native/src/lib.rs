@@ -40,6 +40,9 @@ pub struct Session<G: GameData> {
     drawn: bool,
     /// The save the main menu's CONTINUE restores (Milestone 9 Task S, [`Session::boot_sav`]).
     continue_cp: Option<Checkpoint>,
+    /// The last save known to the shell (the booted one, then each in-game save): what
+    /// `Event::ReloadLastSave` brings back.
+    last_save: Option<Checkpoint>,
 }
 
 impl<G: GameData> Session<G> {
@@ -76,6 +79,7 @@ impl<G: GameData> Session<G> {
                 };
                 let world = World::main_menu(&game, shown);
                 let mut s = Self::boot(game, world);
+                s.last_save = Some(cp.clone());
                 s.continue_cp = Some(cp);
                 s
             }
@@ -103,6 +107,7 @@ impl<G: GameData> Session<G> {
             drawn: false,
             save: None,
             continue_cp: None,
+            last_save: None,
         };
         s.reset();
         s
@@ -146,7 +151,25 @@ impl<G: GameData> Session<G> {
             if self.save.is_none() {
                 self.world.save_failed();
             }
+            self.last_save = self.save.clone().or(self.last_save.take());
         }
+        // `Event::ReloadLastSave` (Silice's alternate ending): the last save comes back as
+        // CONTINUE would bring it (a new game when there is none); nothing is written.
+        if (self.world.events().iter()).any(|e| matches!(e, engine::world::Event::ReloadLastSave)) {
+            self.reload_last_save();
+        }
+    }
+
+    /// Replaces the world by the last save (`Event::ReloadLastSave`), or a new game when
+    /// there is none, on a fresh PPU.
+    fn reload_last_save(&mut self) {
+        let restored = (self.last_save.as_ref()).and_then(|cp| World::restore(&self.game, cp).ok());
+        self.world = restored.unwrap_or_else(|| {
+            let mut w = World::new(&self.game);
+            w.set_save_present(self.last_save.is_some());
+            w
+        });
+        self.reset();
     }
 
     /// The in-game save the last `Event::Saved { ok: true }` asked the shell to persist (Gen3
@@ -242,6 +265,28 @@ mod tests {
             cp.header.world_hash,
             "CONTINUE restores the save"
         );
+    }
+
+    /// `Event::ReloadLastSave`: the last save the session knows comes back, else a new game.
+    #[test]
+    fn reload_last_save_restores_the_last_save_or_starts_over() {
+        let mut s = Session::new(content::Emerald::for_shells());
+        for _ in 0..60 {
+            s.step(Buttons::NONE);
+        }
+        let new_game = World::new(s.game()).hash();
+        s.reload_last_save();
+        assert_eq!(s.world().hash(), new_game, "no save: a new game");
+        for _ in 0..60 {
+            s.step(Buttons::NONE);
+        }
+        let cp = s.world().save_snapshot(s.game()).expect("an idle save");
+        s.last_save = Some(cp.clone());
+        for _ in 0..40 {
+            s.step(Buttons::DOWN);
+        }
+        s.reload_last_save();
+        assert_eq!(s.world().hash(), cp.header.world_hash, "the last save");
     }
 
     #[test]

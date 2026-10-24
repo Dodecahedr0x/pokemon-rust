@@ -344,9 +344,9 @@
             x: 3,
             y: 11,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_PP_UP",
-                flag: "FLAG_SIL_ITEM_TOUR_2F_PP_UP",
+            kind: Script(
+                facing: 0,
+                script: Some("TourNebula_2F_EventScript_HiddenPpUp"),
             ),
         ),
         (
