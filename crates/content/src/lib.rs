@@ -559,6 +559,17 @@ macro_rules! game_data_tables {
             $crate::data::map_type(map.0)
         }
 
+        fn map_weather(&self, map: ::engine::data::MapId) -> u8 {
+            $crate::data::map_weather(map.0)
+        }
+
+        fn weather_coords(
+            &self,
+            map: ::engine::data::MapId,
+        ) -> &'static [::engine::data::CoordWeather] {
+            $crate::data::weather_coords(map.0)
+        }
+
         fn trainer_flag_of(
             &self,
             script: ::engine::data::ScriptId,

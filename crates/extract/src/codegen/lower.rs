@@ -208,6 +208,9 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "setfieldeffectargument",
     "copyobjectxytoperm",
     "setmaplayoutindex",
+    "setweather",
+    "doweather",
+    "resetweather",
     "createvobject",
     "turnvobject",
     // ---- Wave C ----

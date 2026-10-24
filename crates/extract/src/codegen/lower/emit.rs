@@ -879,6 +879,15 @@ impl<'a> Low<'a> {
                 };
                 out.push(format!("ctx.set_map_layout({e}).await;{note}"));
             }
+            // The field weather (`engine::weather`).
+            ("setweather", [w]) => {
+                let Some(e) = u16_expr(w, true) else {
+                    return Ok(false);
+                };
+                out.push(format!("ctx.set_weather({e}).await;"));
+            }
+            ("doweather", []) => out.push("ctx.do_weather().await;".into()),
+            ("resetweather", []) => out.push("ctx.reset_weather().await;".into()),
             // Wave F: the rotating tile puzzle (`prelude::puzzle` picks the puzzle's metatiles).
             ("initrotatingtilepuzzle", [t]) => {
                 let Some(t) = u16_expr(t, true) else {

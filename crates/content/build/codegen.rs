@@ -356,6 +356,8 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
     // ---- maps ----
     let mut map_arms = String::new();
     let mut map_type_arms = String::new();
+    let mut weather_arms = String::new();
+    let mut weather_coord_arms = String::new();
     let exported: BTreeSet<u16> = w
         .maps
         .iter()
@@ -551,6 +553,28 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
             continue;
         }
         writeln!(map_arms, "        {id:#X} => Some(&M_{n}),")?;
+        if m.header.weather != 0 {
+            writeln!(weather_arms, "        {id:#X} => {},", m.header.weather)?;
+        }
+        // Weather coord events (Gen3 `coord_weather_event`: no script, the trigger var holds
+        // the `COORD_EVENT_WEATHER_*`).
+        let mut wc = String::new();
+        for c in m.coords.iter().filter(|c| c.script.is_none()) {
+            let Some(v) = c.var.as_deref().and_then(|v| v.strip_prefix("VAR_0x")) else {
+                continue;
+            };
+            let weather = u16::from_str_radix(v, 16)
+                .with_context(|| format!("map {n}: weather coord {v}"))?;
+            write!(
+                wc,
+                "CoordWeather {{ x: {}, y: {}, elevation: {}, weather: {weather} }},",
+                c.x, c.y, c.elevation
+            )?;
+        }
+        if !wc.is_empty() {
+            writeln!(o, "pub static MW_{n}: &[CoordWeather] = &[{wc}];")?;
+            writeln!(weather_coord_arms, "        {id:#X} => MW_{n},")?;
+        }
         let ty = classify::map_type(m.header.map_type, n);
         if ty != "Outdoor" {
             writeln!(
@@ -575,6 +599,14 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
     writeln!(
         o,
         "/// The battle background's map type of map `id` (`MAP_*`; see `classify::map_type`).\npub fn map_type(id: u16) -> MapType {{\n    match id {{\n{map_type_arms}        _ => MapType::Outdoor,\n    }}\n}}"
+    )?;
+    writeln!(
+        o,
+        "/// The map header's weather of map `id` (Gen3 `gMapHeader.weather`, `WEATHER_*`).\npub fn map_weather(id: u16) -> u8 {{\n    match id {{\n{weather_arms}        _ => 0,\n    }}\n}}"
+    )?;
+    writeln!(
+        o,
+        "/// The weather coord events of map `id` (Gen3 `coord_weather_event`).\npub fn weather_coords(id: u16) -> &'static [CoordWeather] {{\n    match id {{\n{weather_coord_arms}        _ => &[],\n    }}\n}}"
     )?;
     // Dive and emerge connections (Gen3 `CONNECTION_DIVE` / `_EMERGE`, read by `SetDiveWarp`).
     let mut dive_arms = String::new();
