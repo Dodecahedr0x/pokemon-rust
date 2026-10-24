@@ -755,9 +755,9 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
         id if id == SPECIAL_UpdateTrainerFanClubGameClear => {
             // `field_specials.c`: on the first Hall of Fame, the fan club's first fans
             // (`SetPlayerGotFirstFans` bit 7, `SetInitialFansOfPlayer` members 1, 3 and 6 at
-            // bits 8, 10 and 13 of `VAR_FANCLUB_FAN_COUNTER`), its members shown and
-            // `VAR_LILYCOVE_FAN_CLUB_STATE` 1. Degraded: `VAR_FANCLUB_LOSE_FAN_TIMER` keeps 0
-            // (the engine keeps no play time hours).
+            // bits 8, 10 and 13 of the fan counter var), its members shown and the fan
+            // club's state var 1 (`story::FAN_CLUB`). Degraded: the lose-a-fan timer var keeps
+            // 0 (the engine keeps no play time hours).
             let Some((bits, state, flags)) = story::FAN_CLUB else {
                 return not_in_game(ctx, id).await;
             };
@@ -773,9 +773,9 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
         }
         id if id == SPECIAL_SetLilycoveLadyGfx => {
             // `lilycove_lady.c`: the lady `InitLilycoveLady` chose at the new game, from the
-            // player's trainer id (`(id % 6) >> 1`: quiz, favor, contest), dressed in
-            // `VAR_OBJ_GFX_ID_0`; the contest lady's mon in `VAR_OBJ_GFX_ID_1`, `VAR_RESULT`
-            // TRUE. Degraded: the contest category (`Random()` at the new game, not kept) is
+            // player's trainer id (`(id % 6) >> 1`: quiz, favor, contest), dressed in the
+            // first object gfx var; the contest lady's mon in the second (`story::
+            // LILYCOVE_LADY_GFX`), `VAR_RESULT` TRUE. Degraded: the contest category (`Random()` at the new game, not kept) is
             // always COOL's Zigzagoon.
             let Some((v0, v1, ladies, mon)) = story::LILYCOVE_LADY_GFX else {
                 return not_in_game(ctx, id).await;

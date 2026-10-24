@@ -268,6 +268,30 @@ fn ref_step<G: GameData>(
     if !g.in_bounds(n) {
         return None;
     }
+    // A water current carries the surfer on (see `Terrain::new`).
+    let mut slid = 0;
+    while let Behavior::Water(Water::Current(cd)) = g.behavior(n) {
+        let (cx, cy) = cd.delta();
+        let m = (n.0 + cx, n.1 + cy);
+        if !g.in_bounds(m) {
+            return None;
+        }
+        let b = g.behavior(m);
+        let open = block_collision(g.block(m)) == 0
+            && b != Behavior::Blocked
+            && !(b.enters_warp() && has_warp(g.map, m));
+        if !open || Behavior::walled(g.behavior(n), b, cd) {
+            return None;
+        }
+        n = m;
+        slid += 1;
+        if slid > g.map.width as usize * g.map.height as usize {
+            return None;
+        }
+        if !matches!(b, Behavior::Water(_)) {
+            break;
+        }
+    }
     let (ec, en) = (block_elevation(g.block(c)), block_elevation(g.block(n)));
     let water = |c| matches!(g.behavior(c), Behavior::Water(_));
     let off_the_water = en == 3 && water(c) && !water(n);
