@@ -5705,6 +5705,62 @@ The "two floors" of an antenna may be one 9 × 9 map with both rooms, or a secon
 - **G-48, the Tower hall by Dive.** Intended. There is no code marker; the plan's question is closed.
 - **G-01, the Ch9 → Ch10 difficulty.** Intended. The Ch10 constructed start party stays, as the comment in `silice_spine/ch10.rs` now says.
 
+#### Silice engine fallbacks made real as built (weather, skies, hidden items, Strength, multi and wild doubles)
+
+Six of the remaining Silice fallbacks were engine features. Each is now a game-agnostic engine feature: hashed, snapshotted where it is state, and TDD'd on synthetic data. Silice wires it.
+
+- **Field weather** (`engine::weather`, Gen3 `field_weather.c`).
+  - The engine has Gen3's saved, current and next weather (`TranslateWeatherNum`, and the Route 119/123 cycles advanced by the daily reset). `ResumePausedWeather` runs on warps and on returns from a battle. `DoCurrentWeather` runs on connection crossings and weather coord events.
+  - The colour maps include the drought's. The thunderstorm's lightning keeps Gen3's `Random()` order. The abnormal weather alternates.
+  - A battle starts with the field's weather (`ABILITYEFFECT_SWITCH_IN_WEATHER`).
+  - Emerald's `setweather`, `doweather` and `resetweather` are real requests now, no longer `Ignore`. Its maps carry their header weather.
+  - Visuals are degraded but faithful: particles and blends per weather (`Look`).
+  - Game weather kinds start at `GAME_FIRST` (`GameData::weather_look`). Silice's `WEATHER_PETALS` (0x40, pink petals, no battle weather) is one of them.
+  - The weather is hashed and snapshotted only while it differs from the map's settled weather, and checkpoint schema 7 appends the sky. Emerald's hashes stay as they were wherever no weather is set.
+- **Palette overrides and overlays** (`engine::sky`).
+  - `Request::SetPalette` can blend, invert or grey the colours. It can pulse (strobes) and can be kept across map loads. The frame's palettes are recoloured from a shadow. `Request::ShowOverlay` draws `GameData::overlay`.
+  - Silice (`silice::sky`) uses this for NUIT, SKY_ALERT_RED, STROBES, AUBE, ELYSIUM_GOLD (kept across loads), NUIT_VRAIE, DETRUITE, CREPUSCULE, NEGATIF, and the sky's crack (four stages, the port's own 8×8 strokes).
+  - The maps' palettes come from their on-transition scripts, by the story. Six edit scripts set map weathers: the Breach, the Tower's ruins 1F/3F/4F, the petals on Route S6 and in the Manga-Square gym.
+- **Hidden items** (`BgKind::HiddenItem`, Gen3 `BG_EVENT_HIDDEN_ITEM`).
+  - An A press from any facing runs `GameData::hidden_item_script`, with `VAR_0x8004` set to the flag and `VAR_0x8005` to the item. A taken item, whose flag is set, runs nothing.
+  - Silice's `EventScript_HiddenItemScript` is Gen3's: found one, put it in the pocket, set the flag; the bag-full branch is Gen3's too.
+  - 56 hidden items in 40 maps became real bg events through `NN_hidden_items.ron` edit scripts. The studio's map format already had `Bg(HiddenItem(item, flag))`.
+  - Two hidden items stay scripted, because they are conditional in the source: `ViberCity_EventScript_HiddenPpUp` and `ReverseCity_Gym_EventScript_HiddenAlakazite`. They run the same script.
+- **Strength** (the Champ Magnétique, `FLAG_SIL_MODULE_FORCE`).
+  - Engine hooks: `GameData::pushable_objects` (the game's pushable graphics), `push_allowed(map, local_id, from, to)` (a game's rule on top of Gen3's) and `pushed_script(map)` (bookkeeping after each push, with `VAR_0x8004` set to the object and `0x8005`/`0x8006` to its cell).
+  - Silice's `silice::push` holds twelve puzzles. Pressing A on an object with the module puts Strength in use (Gen3's `FLAG_SYS_USE_STRENGTH`, cleared on every load). The player then pushes by walking into the object.
+  - `scripts::field::Mallette_Pushed` records the object's cell and runs the map's completion: the Tour du Scribe's niches and slabs, and the Citadelle's golems.
+  - The spine gained `Step::Push`.
+- **Multi battles with a game's own partner** (`Request::BattleMulti { partner }`).
+  - `None` is Emerald's Steven (`GameData::partner`, hashed as before).
+  - `Some(trainer)` takes that trainer's `gTrainers` party, up to three mons, with its AI. The player's mons past the first three wait on a bench (`Stash::bench`) and come back after the battle.
+  - Silice's `battle_multi` sets both foes' beaten flags. It is used for:
+    - Ch5 Grotte Est, beside Praugect;
+    - Ch6 Route S6, beside `ADRIEN_1`;
+    - Ch8 Évalon Sc07, beside the partner chosen by `VAR_SIL_EVALON_PARTENAIRE`: `ADRIEN_2`, `GWADA_3` or `MATHIEU_3`. The overdose is Gogo's own trainer rule, which applies as trainer A's rule.
+- **Wild double battles** (`Request::BattleWildDouble { mons, partner, rules }`, which Emerald lacks).
+  - Both wild mons slide in together. Gen3's `sText_TwoWildPkmnAppeared` is not extracted, so the one-mon line is used and reported as degraded.
+  - A wild mon's move targets `GetBattlerAtPosition(Random() & 2)`. A partner in a wild battle uses its own trainer's AI flags. The BALL is refused in a wild double.
+  - The Ch12 Horde (`Nebula_PG_Sc10`) is one wild double, Tyranitar and Crobat at 72, beside Thomas (`REVENGE_9`).
+- **Spine.** `no_engine_fallbacks()` asserts that none of these fallbacks is reported. Two chapters needed new tuning, because the multi battle splits its exp between the player's two battlers:
+  - Ch5 trains the lead to 51 in the East Cave before Skycker (50 loses), and its frame limit is now 900k.
+  - Ch6's lead goes to 61 before Tak (60/64 loses).
+
+**Questions for the author.**
+1. The palettes' colours and amounts are the port's (the source names them, not their colours): NUIT, SKY_ALERT_RED, STROBES, AUBE, ELYSIUM_GOLD, NUIT_VRAIE, DETRUITE, CREPUSCULE.
+2. `Sc08_Lose`'s gold is read as not kept across loads.
+3. `FOG_LIGHT` is mapped to Gen3's `FOG_HORIZONTAL`.
+4. The Labo's strobes are always on in the Labo.
+5. `CIEL_VRAI`'s day/night cycle is not built (one tint per story range).
+6. The petals have no battle weather.
+7. `WEATHER_PETALS` is the game weather 0x40 (named `WEATHER_0x40` in the check's exceptions).
+8. The Strength field move stays off the party menu (its `field_move_gate` is `Never`; the module's A press puts it in use). With a flag gate, the party menu would list it, and the engine reports that menu entry as Unsupported.
+9. Ch2's metatile obstacles (the server block, the Usine's crates) keep the source's own `strength` fallback: they are metatiles, not objects.
+10. Two hidden items stay scripted (see above).
+11. The Ch4 crate and barrel loot are signs with their own texts, not hidden items.
+12. The fallback lines of the multi and wild doubles are no longer said: `Owlys_Grotte_Est_Sc01_Repli`, `Route_S06_Sc02_T5b`, `Evalon_Sc07_Repli_T1` and `Nebula_PG_Sc10_T4`. Their heals between battles are gone too.
+13. Wild doubles refuse the BALL.
+
 ## 4. Contradictions and errors in `contenu-jeu` that block conversion
 
 1. **Encounter schema.** `donnees/rencontres.ron` keys maps by `"MAP_*"` with one header each. The extract's v5 `EncountersFile` keys by map name with a `Vec` of headers (`content/extracted/battle/encounters.ron`). The conventions call it an "extension de encounters.ron", but it cannot be loaded as is.
@@ -5743,6 +5799,7 @@ The "two floors" of an antenna may be one 9 × 9 map with both rooms, or a secon
 6. **Duplicate text ids (SIL1 Task A, provisional):** `Tour_Sbire1_Intro` and `Tour_Sbire2_Intro` are defined in both ch02 and ch09, with different bodies. The ch09 ones are renamed `..._Ch09` (`text/fr.ron`, `text/speakers.ron`). Should we keep these names, pick others, or merge the texts? The rename is reversible: undo it, and the loader rejects the duplicate again.
 7. **Ch9 → Ch10 elevator (contradiction between chapters, found in the Ch9 maps review):** Ch9's `Tour_Hall_Sc02` sets `VAR_SIL_STORY` 99 and warps straight to `MAP_TOUR_NEBULA_1F` (10, 14), while Ch10 routes the first climb through the crystal cabin's first-climb scene, which sets 100. Proposed fix: the hall script warps to `TourNebulaAscenseur` (3, 6), and the cabin scene takes the player on to 1F. The maps need no change either way (the hall has no elevator warp; the warp is in the script).
 8. **The field and UI wave's authored strings and rulings** ("Silice field and UI mechanics as built", §3.4): the Mallette's menu texts and module prompts (not in the source), `NEGATIF` as a white flash, the default flash and shake lengths, the groomer short of money, the unused `Gym_Sc01_Repli_Q` and `_HATIF` samurai, the PORYGON's OT id, the Ch7 emitters' full design (a map edit and a battle-start confusion), whether Reverse-City's residents walk backwards after Reverse falls, and whether the field modules belong in the party menu.
+9. **The engine fallbacks wave** ("Silice engine fallbacks made real as built"): the palettes' colours, `FOG_LIGHT`, the petals' battle weather, the Strength field move kept off the party menu, Ch2's metatile Strength obstacles, the multi and wild doubles' unsaid fallback lines, and the BALL in wild doubles.
 
 ### Critical files for implementation
 - /Users/dode/Documents/pokemon/pokemon-rust/crates/content/build/main.rs
