@@ -1479,6 +1479,12 @@ pub trait GameData {
         let _ = m;
         FieldMoveGate::Never
     }
+    /// The party menu's label for field move `m` when its gate is not a party move (a
+    /// [`FieldMoveGate::Flag`]: no move to name); `None` prints nothing.
+    fn field_move_label(&self, m: FieldMove) -> Option<&'static [u8]> {
+        let _ = m;
+        None
+    }
     fn item_use(&self, id: ItemId) -> ItemUse {
         let _ = id;
         ItemUse::None

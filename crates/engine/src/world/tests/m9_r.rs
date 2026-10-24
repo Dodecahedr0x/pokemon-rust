@@ -12,6 +12,8 @@ use crate::video::Cmd;
 const VAR_INPUT_MAP: VarId = VarId(0x4050);
 const VAR_IDLE: VarId = VarId(0x4051);
 const LINK_STONE: ItemId = ItemId(400);
+const MODULE_FLAG: FlagId = FlagId(0x0F00);
+const MODULE_LABEL: &[u8] = &[0xBB, 0xBC, 0xFF];
 const TRADE_ITEM: ItemId = ItemId(401);
 const SPECIES: SpeciesId = crate::battle::test_data::WATER;
 const EVOLVED: SpeciesId = crate::battle::test_data::NORMAL;
@@ -79,6 +81,15 @@ impl GameData for RGame {
         } else {
             ItemUse::None
         }
+    }
+    fn field_move_gate(&self, m: crate::data::FieldMove) -> crate::data::FieldMoveGate {
+        match m {
+            crate::data::FieldMove::Fly => crate::data::FieldMoveGate::Flag(MODULE_FLAG),
+            _ => crate::data::FieldMoveGate::Never,
+        }
+    }
+    fn field_move_label(&self, m: crate::data::FieldMove) -> Option<&'static [u8]> {
+        (m == crate::data::FieldMove::Fly).then_some(MODULE_LABEL)
     }
     fn evolutions(&self, species: SpeciesId) -> &'static [Evolution] {
         match species {
@@ -435,4 +446,15 @@ fn the_new_requests_hash_and_hash_differently() {
             assert_ne!(all[i], all[j], "{i} {j}");
         }
     }
+}
+
+#[test]
+fn a_flag_gated_field_move_is_listed_on_every_mon_with_the_games_label() {
+    use crate::data::FieldMove;
+    use crate::ui::party::{Action, action_label, field_moves};
+    let mon = crate::battle::test_data::mon(SPECIES, 10, [20; 6], &[]);
+    assert!(field_moves(&RGame, &mon, |_| false).is_empty());
+    let listed = field_moves(&RGame, &mon, |f| f == MODULE_FLAG);
+    assert_eq!(listed, vec![FieldMove::Fly]);
+    assert_eq!(action_label(&RGame, Action::FieldMove(FieldMove::Fly)), MODULE_LABEL);
 }

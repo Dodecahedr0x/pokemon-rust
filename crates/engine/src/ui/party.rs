@@ -1220,7 +1220,7 @@ fn taught_hint(mode: PartyMode) -> UiText {
     }
 }
 
-fn action_label<G: GameData>(game: &G, a: Action) -> &'static [u8] {
+pub(crate) fn action_label<G: GameData>(game: &G, a: Action) -> &'static [u8] {
     match a {
         Action::Summary => game.ui_text(UiText::PartySummary),
         Action::Switch => game.ui_text(UiText::PartySwitch),
@@ -1232,7 +1232,7 @@ fn action_label<G: GameData>(game: &G, a: Action) -> &'static [u8] {
         // Gen3 prints the move's name (`gMoveNames[sFieldMoves[i]]`).
         Action::FieldMove(fm) => match game.field_move_gate(fm) {
             FieldMoveGate::PartyMove { move_id, .. } => move_name(game, move_id),
-            _ => &[EOS],
+            _ => game.field_move_label(fm).unwrap_or(&[EOS]),
         },
     }
 }
