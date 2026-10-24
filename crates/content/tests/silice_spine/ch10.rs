@@ -33,7 +33,7 @@
 //! ([`Step::Mend`]: Revives and potions, Chapter 9's marts).
 //!
 //! **The fallbacks the path relies on**: Strength is an A press on the barrel; the hidden items
-//! are signs (not taken here); Kimiko's send-out lines and her "émotion" are not played. The
+//! are not taken here; Kimiko's send-out lines and her "émotion" are not played. The
 //! Mega lines, ARTHUR_1's Full Restores, the Cœur's ward on 1F and Revenge's prism are the
 //! battles' own rules (`silice::rules`).
 

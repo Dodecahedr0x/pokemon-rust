@@ -191,27 +191,27 @@
             x: 32,
             y: 71,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("RouteS09_Underwater_EventScript_HiddenBigPearl"),
+            kind: HiddenItem(
+                item: "ITEM_BIG_PEARL",
+                flag: "FLAG_SIL_ITEM_S09_UW_1",
             ),
         ),
         (
             x: 19,
             y: 10,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("RouteS09_Underwater_EventScript_HiddenStarPiece"),
+            kind: HiddenItem(
+                item: "ITEM_STAR_PIECE",
+                flag: "FLAG_SIL_ITEM_S09_UW_2",
             ),
         ),
         (
             x: 26,
             y: 15,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("RouteS09_Underwater_EventScript_HiddenHeartScale"),
+            kind: HiddenItem(
+                item: "ITEM_HEART_SCALE",
+                flag: "FLAG_SIL_ITEM_S09_UW_3",
             ),
         ),
     ],

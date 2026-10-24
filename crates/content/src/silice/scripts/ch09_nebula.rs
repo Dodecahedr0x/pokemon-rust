@@ -301,19 +301,6 @@ pub async fn Nebula_EventScript_ItemManectite(ctx: Ctx) {
     ctx.release().await;
 }
 
-/// The plastic flower bed (20, 38).
-pub async fn Nebula_EventScript_HiddenPpUp(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`): a sign here instead
-    // (`06_ch9_scripts.ron`).
-    hidden_item(&ctx, FLAG_SIL_ITEM_NEBULA_CACHE_1, ITEM_PP_UP).await;
-}
-
-/// Behind the broken drone on the quai (10, 44).
-pub async fn Nebula_EventScript_HiddenRevive(ctx: Ctx) {
-    // fallback: hidden items, as `Nebula_EventScript_HiddenPpUp`.
-    hidden_item(&ctx, FLAG_SIL_ITEM_NEBULA_CACHE_2, ITEM_REVIVE).await;
-}
-
 // ---- the Centre ----
 
 /// The last Centre before the Tower: entering it sets the respawn (`HEAL_LOCATION_SIL_NEBULA`,

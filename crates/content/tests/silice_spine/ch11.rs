@@ -207,7 +207,7 @@ pub fn check_end(r: &Run) {
     assert!(r.w.flag(FLAG_SIL_HIDE_HOUSE_EPILOGUE));
     assert!(!r.reloaded);
     assert_eq!(r.w.events_dropped(), 0);
-    r.no_sky_fallbacks();
+    r.no_engine_fallbacks();
     for name in [
         "play_music",
         "battle_lines",

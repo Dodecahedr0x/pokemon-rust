@@ -380,9 +380,9 @@
             x: 34,
             y: 25,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("Owlys_EventScript_HiddenBlackGlasses"),
+            kind: HiddenItem(
+                item: "ITEM_BLACK_GLASSES",
+                flag: "FLAG_SIL_ITEM_OWLYS_LUNETTES_NOIRES",
             ),
         ),
     ],

@@ -334,9 +334,8 @@ async fn butin(ctx: &Ctx, flag: FlagId, item: u16, qty: u16) {
         msgbox(ctx, Port_Ressac_Cale_Vide, MsgBox::Sign).await;
         return;
     }
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`): a sign on the barrel
-    // (`06_ch4_scripts.ron`), which also gives the source's quantity and texts.
-    fallback(ctx, "hidden item").await;
+    // A sign on the barrel (`06_ch4_scripts.ron`), not a Gen3 hidden item: the source gives
+    // the barrel its texts and a quantity.
     ctx.lock().await;
     say(ctx, Port_Ressac_Cale_Butin).await;
     gift(ctx, flag, item, qty, Obtain::Message).await;

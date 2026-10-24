@@ -532,7 +532,7 @@ pub fn steps() -> Vec<Step> {
 /// What the end of Chapter 6 asserts beyond its checkpoints.
 pub fn check_end(r: &Run) {
     assert_eq!(r.w.events_dropped(), 0);
-    r.no_sky_fallbacks();
+    r.no_engine_fallbacks();
     for f in FALLBACKS {
         assert!(r.degraded.contains(f), "fallback {f} not reported");
     }

@@ -165,9 +165,3 @@ pub async fn Owlys_GrotteEst_EventScript_ItemCorde(ctx: Ctx) {
     find_item(&ctx, ITEM_ESCAPE_ROPE, 1).await;
 }
 
-/// The Ultra Ball hidden in an overturned cart (37, 21).
-pub async fn Owlys_GrotteEst_EventScript_HiddenUltraBall(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of
-    // "SIL1 Task F as built"): the map has a sign here instead.
-    hidden_item(&ctx, FLAG_SIL_ITEM_OWLYS_GROTTE_HYPER_BALL, ITEM_ULTRA_BALL).await;
-}

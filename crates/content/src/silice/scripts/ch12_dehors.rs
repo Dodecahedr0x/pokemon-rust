@@ -304,12 +304,6 @@ pub async fn NoMansLand_EventScript_ItemLatiosite(ctx: Ctx) {
     find_item(&ctx, ITEM_SIL_LATIOSITE, 1).await;
 }
 
-/// The PP Max under the cut motorway (34, 46), hidden.
-pub async fn NoMansLand_EventScript_HiddenPpMax(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`): a sign here instead.
-    hidden_item(&ctx, FLAG_SIL_ITEM_PG_NML_PPMAX, ITEM_PP_MAX).await;
-}
-
 /// Suicune on the Oasis's shore (`PG_Legendaire`, level 78; shown by `Sommet_Apex_PG_Sc19`).
 pub async fn NoMansLand_EventScript_Suicune(ctx: Ctx) {
     legendaire(
@@ -476,17 +470,6 @@ pub async fn NoMansLand_Cratere_EventScript_Rocher(_ctx: Ctx) {}
 /// The cracked rock (10, 15) over the Aerodactylite (the Scanner de Faille).
 pub async fn NoMansLand_Cratere_EventScript_RocherFissure(ctx: Ctx) {
     rock_smash(&ctx).await;
-}
-
-/// The Aerodactylite in the cracked rock (10, 15), hidden.
-pub async fn NoMansLand_Cratere_EventScript_HiddenAerodactylite(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`): a sign here instead.
-    hidden_item(
-        &ctx,
-        FLAG_SIL_ITEM_PG_CRATERE_AERODACTYLITE,
-        ITEM_SIL_AERODACTYLITE,
-    )
-    .await;
 }
 
 /// The Houndoominite on an ash ledge.

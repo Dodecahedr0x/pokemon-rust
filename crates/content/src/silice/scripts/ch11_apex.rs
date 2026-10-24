@@ -513,12 +513,3 @@ pub async fn SommetApex_EventScript_Maintenance(ctx: Ctx) {
     msgbox(&ctx, Sommet_Apex_Sign_Maintenance, MsgBox::Sign).await;
 }
 
-/// The hidden PP Max (3, 4), behind the west amp: a sign while the engine ignores hidden items.
-pub async fn SommetApex_EventScript_HiddenPpMax(ctx: Ctx) {
-    hidden_item(&ctx, FLAG_SIL_ITEM_APEX_HIDDEN_PP_MAX, ITEM_PP_MAX).await;
-}
-
-/// The hidden Max Elixir (17, 14), at the east dish's foot.
-pub async fn SommetApex_EventScript_HiddenElixir(ctx: Ctx) {
-    hidden_item(&ctx, FLAG_SIL_ITEM_APEX_HIDDEN_ELIXIR, ITEM_MAX_ELIXIR).await;
-}

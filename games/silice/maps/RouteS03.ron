@@ -338,18 +338,18 @@
             x: 5,
             y: 22,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("RouteS03_EventScript_HiddenEther"),
+            kind: HiddenItem(
+                item: "ITEM_ETHER",
+                flag: "FLAG_SIL_ITEM_S03_ETHER",
             ),
         ),
         (
             x: 8,
             y: 15,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("RouteS03_EventScript_HiddenNugget"),
+            kind: HiddenItem(
+                item: "ITEM_NUGGET",
+                flag: "FLAG_SIL_ITEM_S03_NUGGET",
             ),
         ),
     ],

@@ -117,6 +117,11 @@ impl GameData for Game {
         mallette::field_move_script(m)
     }
 
+    /// Gen3's hidden items (`scripts::field::EventScript_HiddenItemScript`).
+    fn hidden_item_script(&self) -> Option<ScriptId> {
+        Some(data::script_ids::EventScript_HiddenItemScript)
+    }
+
     fn waterfall_refused_script(&self) -> Option<ScriptId> {
         Some(data::script_ids::Mallette_CannotUseWaterfall)
     }

@@ -292,14 +292,6 @@ pub async fn BricoBourg_EventScript_Ronces(ctx: Ctx) {
     .await;
 }
 
-/// The hidden Potion behind the fountain (10, 8), once (`FLAG_SIL_ITEM_BRICO_POTION`).
-pub async fn BricoBourg_EventScript_HiddenPotion(ctx: Ctx) {
-    // fallback: hidden items (the engine has ignored `BgKind::HiddenItem` since M3, and no
-    // milestone owns it yet): the map has a sign here instead, and this script gives the item
-    // with Gen3's obtain messages, once, behind the item's flag.
-    hidden_item(&ctx, FLAG_SIL_ITEM_BRICO_POTION, ITEM_POTION).await;
-}
-
 // ---- ambient NPCs ----
 
 /// The old man by the fountain: his night line, about the explosion, at `VAR_SIL_STORY` 1 and 2

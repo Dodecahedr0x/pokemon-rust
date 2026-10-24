@@ -516,18 +516,18 @@
             x: 1,
             y: 18,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("MangaSquare_Bibliotheque_EventScript_HiddenMoonStone"),
+            kind: HiddenItem(
+                item: "ITEM_MOON_STONE",
+                flag: "FLAG_SIL_ITEM_BIBLIO_MOON_STONE",
             ),
         ),
         (
             x: 24,
             y: 18,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("MangaSquare_Bibliotheque_EventScript_HiddenSunStone"),
+            kind: HiddenItem(
+                item: "ITEM_SUN_STONE",
+                flag: "FLAG_SIL_ITEM_BIBLIO_SUN_STONE",
             ),
         ),
     ],

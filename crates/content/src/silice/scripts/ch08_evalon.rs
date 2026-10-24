@@ -621,9 +621,3 @@ pub async fn Evalon_EventScript_ItemPpUp(ctx: Ctx) {
     find_item(&ctx, ITEM_PP_UP, 1).await;
 }
 
-/// The Revive at the belfry's foot (31, 15).
-pub async fn Evalon_EventScript_HiddenRevive(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of
-    // "SIL1 Task F as built"): the map has a sign here instead (`06_ch8_scripts.ron`).
-    hidden_item(&ctx, FLAG_SIL_ITEM_EVALON_CACHE_1, ITEM_REVIVE).await;
-}

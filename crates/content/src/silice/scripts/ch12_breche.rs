@@ -362,12 +362,6 @@ pub async fn Breche_EventScript_ItemMaxElixir(ctx: Ctx) {
     find_item(&ctx, ITEM_MAX_ELIXIR, 1).await;
 }
 
-/// The Rare Candy against the west wall (4, 28), hidden.
-pub async fn Breche_EventScript_HiddenRareCandy(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`): a sign here instead.
-    hidden_item(&ctx, FLAG_SIL_ITEM_PG_BRECHE_3, ITEM_RARE_CANDY).await;
-}
-
 /// Articuno on the glass overhang (`PG_Legendaire`, level 75; shown by `PG_Lib_Thomas`).
 pub async fn Breche_EventScript_Artikodin(ctx: Ctx) {
     legendaire(
@@ -541,12 +535,6 @@ fn fut_free(c: (i16, i16)) -> bool {
 /// A barrel: the Champ Magnétique (`FLAG_SIL_MODULE_FORCE`), as Chapter 3's server blocks.
 pub async fn TourNebula_1F_Ruine_EventScript_Fut(ctx: Ctx) {
     push_object(&ctx, FUTS, fut_free).await;
-}
-
-/// The Rum in an intact barrel (12, 9), hidden (§7).
-pub async fn TourNebula_1F_Ruine_EventScript_HiddenRhum(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`): a sign here instead.
-    hidden_item(&ctx, FLAG_SIL_ITEM_PG_RUINE1_RHUM, ITEM_SIL_RHUM_PIRATE).await;
 }
 
 /// Entei by the still (`PG_Legendaire`, level 75; shown by `Nebula_PG_Sc03c`).

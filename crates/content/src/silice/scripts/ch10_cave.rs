@@ -216,11 +216,6 @@ pub async fn TourNebula_1F_EventScript_ItemFullRestore(ctx: Ctx) {
     find_item(&ctx, ITEM_FULL_RESTORE, 1).await;
 }
 
-/// The hidden Max Elixir (21, 9): a sign while the engine ignores hidden items.
-pub async fn TourNebula_1F_EventScript_HiddenMaxElixir(ctx: Ctx) {
-    hidden_item(&ctx, FLAG_SIL_ITEM_TOUR_1F_MAX_ELIXIR, ITEM_MAX_ELIXIR).await;
-}
-
 /// The two iron-bound barrels on the pontoons' north ends, each pushed north off its pontoon
 /// (one is enough). Temp vars `VAR_TEMP_3` / `VAR_TEMP_5`.
 const FUTS: &[Pushable] = &[

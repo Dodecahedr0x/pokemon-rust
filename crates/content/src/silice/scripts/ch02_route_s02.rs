@@ -310,25 +310,6 @@ pub async fn RouteS02_EventScript_ItemGreatBall(ctx: Ctx) {
     find_item(&ctx, ITEM_GREAT_BALL, 2).await;
 }
 
-/// The hidden Ether (36, 12), once (`FLAG_SIL_ITEM_ROUTE_S02_ETHER`).
-pub async fn RouteS02_EventScript_HiddenEther(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of
-    // "SIL1 Task F as built"): the map has a sign here instead.
-    hidden_item(&ctx, FLAG_SIL_ITEM_ROUTE_S02_ETHER, ITEM_ETHER).await;
-}
-
-/// The Thunder Stone hidden in the cable bush (52, 12), once
-/// (`FLAG_SIL_ITEM_ROUTE_S02_THUNDER_STONE`).
-pub async fn RouteS02_EventScript_HiddenThunderStone(ctx: Ctx) {
-    // fallback: hidden items (as above).
-    hidden_item(
-        &ctx,
-        FLAG_SIL_ITEM_ROUTE_S02_THUNDER_STONE,
-        ITEM_THUNDER_STONE,
-    )
-    .await;
-}
-
 // ---- signs ----
 
 pub async fn RouteS02_EventScript_SignEntree(ctx: Ctx) {

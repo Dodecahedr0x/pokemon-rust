@@ -407,30 +407,6 @@ pub async fn ReverseCity_EventScript_ItemPoudreSilice(ctx: Ctx) {
     }
 }
 
-/// Bin 2 in the west alley (2, 22).
-pub async fn ReverseCity_EventScript_HiddenPpUp(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of
-    // "SIL1 Task F as built"): the map has a sign here instead.
-    hidden_item(&ctx, FLAG_SIL_ITEM_REVERSE_PP_UP, ITEM_PP_UP).await;
-}
-
-/// Bin 4 on the quays (24, 25).
-pub async fn ReverseCity_EventScript_HiddenHpUp(ctx: Ctx) {
-    // fallback: hidden items (as above).
-    hidden_item(&ctx, FLAG_SIL_ITEM_REVERSE_HP_UP, ITEM_HP_UP).await;
-}
-
-/// Under the east pontoon (26, 30).
-pub async fn ReverseCity_EventScript_HiddenPoudreSilice(ctx: Ctx) {
-    // fallback: hidden items (as above).
-    hidden_item(
-        &ctx,
-        FLAG_SIL_ITEM_REVERSE_POUDRE_SILICE_2,
-        ITEM_SIL_POUDRE_SILICE,
-    )
-    .await;
-}
-
 // ---- the Centre ----
 
 /// The only room "the right way round": the respawn (the new `HEAL_LOCATION_SIL_REVERSE_CITY`,

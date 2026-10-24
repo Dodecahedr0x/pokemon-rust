@@ -237,13 +237,6 @@ pub async fn MangaSquare_EventScript_Controleur(ctx: Ctx) {
     msgbox(&ctx, Manga_Square_Npc_Controleur, MsgBox::Npc).await;
 }
 
-/// The Revive behind the dragon statue (22, 13).
-pub async fn MangaSquare_EventScript_HiddenRevive(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the SIL1 Task F
-    // fallback): a sign on the cell (`06_ch6_scripts.ron`) runs `hidden_item`.
-    hidden_item(&ctx, FLAG_SIL_ITEM_MANGA_SQUARE_REVIVE, ITEM_REVIVE).await;
-}
-
 // ---- the Pokémon Center, the Konbini, the Toiletteur ----
 
 /// The respawn at Manga-Square's Center on entering it, as Ch1–Ch3's Centers.

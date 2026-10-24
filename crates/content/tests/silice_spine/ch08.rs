@@ -23,8 +23,7 @@
 //! **The fallbacks the path relies on** (`ch08_*.rs`): the Champ Magnétique is an A press on a
 //! bookcase, a crate or a golem; the dark gallery and the crypt are lit, their coords only test
 //! the module; the skull slabs are coord traps; the multichoices are yes/no (the honest answer,
-//! Mathieu as partner, the right riddle); the Multi battle is two single battles with a heal;
-//! the hidden items are signs.
+//! Mathieu as partner, the right riddle); the Multi battle is two single battles with a heal.
 //!
 //! **The party** ([`PARTY`]): Chapter 7's end as `sil8_ch7` leaves it (KADABRA 62 leading, with
 //! Chapter 6's Shock Wave, `givemon`'s moves; TYPHLOSION 66; LAIRON 35, MAREEP 14, PORYGON 25,
@@ -870,6 +869,7 @@ pub fn steps() -> Vec<Step> {
 /// What the end of Chapter 8 asserts beyond its checkpoints: the story, the badge, module and
 /// log, the bag, no dropped event, and every Chapter 8 fallback the path meets reported.
 pub fn check_end(r: &Run) {
+    r.no_engine_fallbacks();
     assert_eq!(r.w.map(), TOWN);
     assert_eq!(r.w.var(VAR_SIL_STORY), 86);
     assert!(r.has_text(Evalon_Sc10_T1));
@@ -883,7 +883,6 @@ pub fn check_end(r: &Run) {
         "play_se",
         "strength",
         "dark_map",
-        "hidden item",
         "read_item",
         "multichoice",
         "play_music",

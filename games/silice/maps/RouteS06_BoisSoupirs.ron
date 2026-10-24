@@ -163,9 +163,9 @@
             x: 6,
             y: 8,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("RouteS06_BoisSoupirs_EventScript_HiddenMiracleSeed"),
+            kind: HiddenItem(
+                item: "ITEM_MIRACLE_SEED",
+                flag: "FLAG_SIL_ITEM_BOIS_SOUPIRS_MIRACLE_SEED",
             ),
         ),
     ],

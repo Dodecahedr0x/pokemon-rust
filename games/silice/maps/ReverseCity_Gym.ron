@@ -263,9 +263,9 @@
             x: 2,
             y: 25,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("ReverseCity_Gym_EventScript_HiddenLumBerry"),
+            kind: HiddenItem(
+                item: "ITEM_LUM_BERRY",
+                flag: "FLAG_SIL_ITEM_GYM07_LUM_BERRY",
             ),
         ),
         (

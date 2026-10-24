@@ -222,13 +222,6 @@ pub async fn RouteS09_EventScript_ItemConteneurs(ctx: Ctx) {
     find_item(&ctx, ITEM_MAX_REPEL, 1).await;
 }
 
-/// The Full Restore at the last tree's foot (13, 5).
-pub async fn RouteS09_EventScript_HiddenFullRestore(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of
-    // "SIL1 Task F as built"): the map has a sign here instead (`06_ch9_scripts.ron`).
-    hidden_item(&ctx, FLAG_SIL_ITEM_S09_CACHE_1, ITEM_FULL_RESTORE).await;
-}
-
 // ---- the Station de Pompage ----
 
 /// The breaker's cabinet (2, 2), in the glass office: Chapter 4's push, along the office's back
@@ -421,20 +414,3 @@ pub async fn RouteS09_Underwater_EventScript_ItemMaxRevive(ctx: Ctx) {
     find_item(&ctx, ITEM_MAX_REVIVE, 1).await;
 }
 
-/// The Salle des Filtres' sand (32, 71).
-pub async fn RouteS09_Underwater_EventScript_HiddenBigPearl(ctx: Ctx) {
-    // fallback: hidden items, as `RouteS09_EventScript_HiddenFullRestore`.
-    hidden_item(&ctx, FLAG_SIL_ITEM_S09_UW_1, ITEM_BIG_PEARL).await;
-}
-
-/// The P1 grotto (19, 10).
-pub async fn RouteS09_Underwater_EventScript_HiddenStarPiece(ctx: Ctx) {
-    // fallback: hidden items, as `RouteS09_EventScript_HiddenFullRestore`.
-    hidden_item(&ctx, FLAG_SIL_ITEM_S09_UW_2, ITEM_STAR_PIECE).await;
-}
-
-/// The P1 grotto (26, 15).
-pub async fn RouteS09_Underwater_EventScript_HiddenHeartScale(ctx: Ctx) {
-    // fallback: hidden items, as `RouteS09_EventScript_HiddenFullRestore`.
-    hidden_item(&ctx, FLAG_SIL_ITEM_S09_UW_3, ITEM_HEART_SCALE).await;
-}

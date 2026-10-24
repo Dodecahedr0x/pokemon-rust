@@ -261,9 +261,3 @@ pub async fn RouteS08_EventScript_ItemRareCandy(ctx: Ctx) {
     find_item(&ctx, ITEM_RARE_CANDY, 1).await;
 }
 
-/// The Hyper Potion Gwada forgot in the braises circle (33, 6).
-pub async fn RouteS08_EventScript_HiddenHyperPotion(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of
-    // "SIL1 Task F as built"): the map has a sign here instead (`06_ch8_scripts.ron`).
-    hidden_item(&ctx, FLAG_SIL_ITEM_S08_CACHE_1, ITEM_HYPER_POTION).await;
-}

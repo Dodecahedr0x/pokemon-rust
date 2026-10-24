@@ -307,6 +307,21 @@ impl GameData for Spy {
     fn rotating_gates(&self, map: MapId) -> &'static [engine::data::RotatingGate] {
         Game.rotating_gates(map)
     }
+    fn map_weather(&self, map: MapId) -> u8 {
+        Game.map_weather(map)
+    }
+    fn weather_coords(&self, map: MapId) -> &'static [engine::data::CoordWeather] {
+        Game.weather_coords(map)
+    }
+    fn weather_look(&self, id: u8) -> Option<&'static engine::weather::Look> {
+        Game.weather_look(id)
+    }
+    fn overlay(&self, id: u8) -> Option<&'static engine::sky::Overlay> {
+        Game.overlay(id)
+    }
+    fn hidden_item_script(&self) -> Option<ScriptId> {
+        Game.hidden_item_script()
+    }
 }
 
 // ---- the runner ----
@@ -939,9 +954,9 @@ impl Run {
         self.g.texts.borrow().iter().filter(|x| **x == t).count()
     }
 
-    /// Asserts that no sky fallback was reported: the weathers, palettes, tints, strobes and the
-    /// sky's crack are real (`silice::sky`, the weather wave).
-    pub fn no_sky_fallbacks(&self) {
+    /// Asserts that none of the engine-feature fallbacks were reported: the weathers, palettes,
+    /// tints, strobes and the sky's crack are real (`silice::sky`), and so are hidden items.
+    pub fn no_engine_fallbacks(&self) {
         for name in [
             "set_time_tint",
             "set_sky_alert",
@@ -954,6 +969,7 @@ impl Run {
             "set_weather",
             "set_palette_set",
             "set_time_of_day",
+            "hidden item",
         ] {
             assert!(!self.degraded.contains(name), "{name} is still a fallback");
         }

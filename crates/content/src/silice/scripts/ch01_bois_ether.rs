@@ -341,22 +341,6 @@ pub async fn BoisEther_EventScript_ItemXDefend(ctx: Ctx) {
     find_item(&ctx, ITEM_X_DEFEND, 1).await;
 }
 
-/// The hidden Super Potion in the market's high-tech pot (4, 14), once
-/// (`FLAG_SIL_ITEM_BOIS_ETHER_SUPER_POTION`).
-pub async fn BoisEther_EventScript_HiddenSuperPotion(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of SIL1
-    // Task F): the map has a sign here instead, and this script gives the item with Gen3's
-    // obtain messages, once, behind the item's flag.
-    hidden_item(&ctx, FLAG_SIL_ITEM_BOIS_ETHER_SUPER_POTION, ITEM_SUPER_POTION).await;
-}
-
-/// The hidden Evoluroc under a root of the secret grove (4, 7), behind the brambles, once
-/// (`FLAG_SIL_ITEM_BOIS_ETHER_EVOLUROC`).
-pub async fn BoisEther_EventScript_HiddenEvoluroc(ctx: Ctx) {
-    // fallback: hidden items (as the Super Potion's).
-    hidden_item(&ctx, FLAG_SIL_ITEM_BOIS_ETHER_EVOLUROC, ITEM_SIL_EVOLUROC).await;
-}
-
 // ---- ambient NPCs (§2; after the alert, `VAR_SIL_STORY` ≥ 16, their second lines) ----
 
 pub async fn BoisEther_EventScript_Jardiniere(ctx: Ctx) {

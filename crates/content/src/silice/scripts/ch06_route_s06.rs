@@ -346,13 +346,6 @@ pub async fn RouteS06_EventScript_ItemDragonScale(ctx: Ctx) {
     find_item(&ctx, ITEM_DRAGON_SCALE, 1).await;
 }
 
-/// The Lax Incense behind the third burner (17, 24).
-pub async fn RouteS06_EventScript_HiddenEncens(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the SIL1 Task F
-    // fallback): a sign on the cell (`06_ch6_scripts.ron`) runs `hidden_item`.
-    hidden_item(&ctx, FLAG_SIL_ITEM_ROUTE_S06_ENCENS, ITEM_LAX_INCENSE).await;
-}
-
 // ---- the Bois des Soupirs ----
 
 /// Bois_Soupirs_Sc01, the Pierre aux Vers: the old verse before the chapter's end
@@ -390,13 +383,3 @@ pub async fn RouteS06_BoisSoupirs_EventScript_ItemHeartScale(ctx: Ctx) {
     find_item(&ctx, ITEM_HEART_SCALE, 1).await;
 }
 
-/// The Miracle Seed at the foot of the biggest cherry tree (6, 8).
-pub async fn RouteS06_BoisSoupirs_EventScript_HiddenMiracleSeed(ctx: Ctx) {
-    // fallback: hidden items (as above).
-    hidden_item(
-        &ctx,
-        FLAG_SIL_ITEM_BOIS_SOUPIRS_MIRACLE_SEED,
-        ITEM_MIRACLE_SEED,
-    )
-    .await;
-}

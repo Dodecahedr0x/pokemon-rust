@@ -662,12 +662,11 @@ pub fn steps() -> Vec<Step> {
 pub fn check_end(r: &Run) {
     assert_eq!(r.w.var(VAR_SIL_STORY), 17);
     assert_eq!(r.w.events_dropped(), 0);
-    r.no_sky_fallbacks();
+    r.no_engine_fallbacks();
     for name in [
         "mart",
         "show_sync",
         "battle_two_trainers",
-        "hidden item",
         "play_se",
         "mallette_call",
         "end_call",

@@ -243,12 +243,6 @@ pub async fn TourNebula_4F_EventScript_ItemFullRestore(ctx: Ctx) {
     find_item(&ctx, ITEM_FULL_RESTORE, 1).await;
 }
 
-/// The hidden Max Revive (17, 19), behind its false mirror: a sign while the engine ignores
-/// hidden items.
-pub async fn TourNebula_4F_EventScript_HiddenMaxRevive(ctx: Ctx) {
-    hidden_item(&ctx, FLAG_SIL_ITEM_TOUR_4F_MAX_REVIVE, ITEM_MAX_REVIVE).await;
-}
-
 pub async fn TourNebula_4F_EventScript_Entree(ctx: Ctx) {
     msgbox(&ctx, Tour_4F_Sign_Entree, MsgBox::Sign).await;
 }

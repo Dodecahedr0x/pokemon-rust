@@ -125,17 +125,17 @@ pub async fn gift(ctx: &Ctx, flag: FlagId, item: u16, qty: u16, how: Obtain) -> 
     fit
 }
 
-/// A hidden item as a sign script (the engine does not pick up `BgKind::HiddenItem` yet):
-/// nothing once `flag` is set; else, locked, Gen3 `giveitem` (its "Obtained" and pocket
-/// messages) and `flag` when it fit. A fallback (`Report::Degraded("hidden item")`).
+/// A hidden item behind a story condition (a sign script whose condition holds): what a
+/// `BgKind::HiddenItem` does, Gen3 `GetInteractedBackgroundEventScript` then
+/// `EventScript_HiddenItemScript` (nothing once `flag` is set). The unconditional hidden items
+/// are `BgKind::HiddenItem` bg events.
 pub async fn hidden_item(ctx: &Ctx, flag: FlagId, item: u16) {
     if ctx.flag(flag).await {
         return;
     }
-    fallback(ctx, "hidden item").await;
-    ctx.lock().await;
-    gift(ctx, flag, item, 1, Obtain::Message).await;
-    ctx.release().await;
+    ctx.set_var(VAR_0x8004, flag.0).await;
+    ctx.set_var(VAR_0x8005, item).await;
+    crate::prelude::hidden_item_script(ctx).await;
 }
 
 // ---- module obstacles ----

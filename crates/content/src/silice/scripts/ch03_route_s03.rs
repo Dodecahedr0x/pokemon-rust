@@ -82,20 +82,6 @@ pub async fn RouteS03_EventScript_ItemSuperRepel(ctx: Ctx) {
     find_item(&ctx, ITEM_SUPER_REPEL, 1).await;
 }
 
-/// The hidden Ether behind the trucker (5, 22), once (`FLAG_SIL_ITEM_S03_ETHER`).
-pub async fn RouteS03_EventScript_HiddenEther(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of SIL1
-    // Task F): the map has a sign here (`05_ch3_scripts.ron`), and this script gives the item
-    // with Gen3's obtain messages, once, behind the item's flag.
-    hidden_item(&ctx, FLAG_SIL_ITEM_S03_ETHER, ITEM_ETHER).await;
-}
-
-/// The hidden Nugget by the echo rock (8, 15), once (`FLAG_SIL_ITEM_S03_NUGGET`).
-pub async fn RouteS03_EventScript_HiddenNugget(ctx: Ctx) {
-    // fallback: hidden items (as the Ether's).
-    hidden_item(&ctx, FLAG_SIL_ITEM_S03_NUGGET, ITEM_NUGGET).await;
-}
-
 // ---- Route S3: signs and ambient NPCs (§2.1) ----
 
 pub async fn RouteS03_EventScript_Panneau1(ctx: Ctx) {

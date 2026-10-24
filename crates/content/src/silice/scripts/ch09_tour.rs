@@ -235,9 +235,3 @@ pub async fn Nebula_TourHall_EventScript_Accueil(ctx: Ctx) {
     msgbox(&ctx, Nebula_Hall_Accueil, MsgBox::Sign).await;
 }
 
-/// The Hyper Potion the hostess forgot behind the desk (10, 13), read from (10, 12).
-pub async fn Nebula_TourHall_EventScript_HiddenHyperPotion(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`): a sign here instead
-    // (`06_ch9_scripts.ron`).
-    hidden_item(&ctx, FLAG_SIL_ITEM_TOUR_HALL_ACCUEIL, ITEM_HYPER_POTION).await;
-}

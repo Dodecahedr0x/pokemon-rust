@@ -19,7 +19,6 @@ const METATILE_MER: u16 = 368;
 const CARGO_X: core::ops::RangeInclusive<i16> = 4..=11;
 const CARGO_Y: core::ops::RangeInclusive<i16> = 22..=26;
 
-
 // ---- the Champ Magnétique fallback (Strength) ----
 
 /// One push, per direction.
@@ -677,18 +676,6 @@ pub async fn PortRessac_EventScript_Pecheur(ctx: Ctx) {
 
 pub async fn PortRessac_EventScript_SuperBall(ctx: Ctx) {
     find_item(&ctx, ITEM_GREAT_BALL, 1).await;
-}
-
-/// The Water Stone behind the blue container (4, 15).
-pub async fn PortRessac_EventScript_HiddenPierreEau(ctx: Ctx) {
-    // fallback: hidden items (as Route S4's Ether).
-    hidden_item(&ctx, FLAG_SIL_ITEM_PORT_PIERRE_EAU, ITEM_WATER_STONE).await;
-}
-
-/// The Pearl in the sand near the old sailor (16, 17).
-pub async fn PortRessac_EventScript_HiddenPerle(ctx: Ctx) {
-    // fallback: hidden items (as Route S4's Ether).
-    hidden_item(&ctx, FLAG_SIL_ITEM_PORT_PERLE, ITEM_PEARL).await;
 }
 
 // ---- signs ----

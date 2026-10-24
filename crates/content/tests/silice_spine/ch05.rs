@@ -645,6 +645,7 @@ pub fn steps() -> Vec<Step> {
 /// the bag, no dropped event, and every Chapter 5 fallback the main path meets reported (the
 /// mart's is the islet's: [`ilot_steps`]).
 pub fn check_end(r: &Run) {
+    r.no_engine_fallbacks();
     assert_eq!(r.w.map(), ROUTE_S06);
     // Chapter 5 leaves the story at 55 as the player comes up the elevator; Route S6's
     // on-frame entry (Chapter 6's `RouteS06_Sc01`, the signal moves) plays on arrival and sets 60.
@@ -668,13 +669,7 @@ pub fn check_end(r: &Run) {
         assert!(r.count(item) >= n, "item {item}");
     }
     assert_eq!(r.w.events_dropped(), 0);
-    for name in [
-        "battle_multi",
-        "play_fanfare",
-        "show_sync",
-        "moving light",
-        "hidden item",
-    ] {
+    for name in ["battle_multi", "play_fanfare", "show_sync", "moving light"] {
         assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);
     }
 }

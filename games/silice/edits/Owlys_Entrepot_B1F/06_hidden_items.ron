@@ -1,0 +1,10 @@
+// The hidden items wave: the hidden items are Gen3's own again (BgKind::HiddenItem: A in front
+// of one runs the game's EventScript_HiddenItemScript, silice::scripts::field), no longer signs
+// running the `hidden_item` fallback.
+[
+    Replace(index: 0, event: Bg((x: 31, y: 2, elevation: 0, kind: HiddenItem(item: "ITEM_IRON", flag: "FLAG_SIL_ITEM_OWLYS_SILO_FER")))),
+    Replace(index: 1, event: Bg((x: 9, y: 24, elevation: 0, kind: HiddenItem(item: "ITEM_ZINC", flag: "FLAG_SIL_ITEM_OWLYS_SILO_ZINC")))),
+    Replace(index: 2, event: Bg((x: 15, y: 3, elevation: 0, kind: HiddenItem(item: "ITEM_CALCIUM", flag: "FLAG_SIL_ITEM_OWLYS_SILO_CALCIUM")))),
+    Replace(index: 3, event: Bg((x: 15, y: 14, elevation: 0, kind: HiddenItem(item: "ITEM_SIL_PIERRE_LIEN", flag: "FLAG_SIL_ITEM_OWLYS_SILO_PIERRE_LIEN")))),
+    Replace(index: 4, event: Bg((x: 33, y: 27, elevation: 0, kind: HiddenItem(item: "ITEM_SIL_SABLENITE", flag: "FLAG_SIL_ITEM_OWLYS_SILO_SABLENITE")))),
+]

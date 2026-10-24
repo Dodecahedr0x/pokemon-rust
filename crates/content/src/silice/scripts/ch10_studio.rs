@@ -303,11 +303,6 @@ pub async fn TourNebula_2F_EventScript_ItemMaxRevive(ctx: Ctx) {
     find_item(&ctx, ITEM_MAX_REVIVE, 1).await;
 }
 
-/// The hidden PP Up (3, 11): a sign while the engine ignores hidden items.
-pub async fn TourNebula_2F_EventScript_HiddenPpUp(ctx: Ctx) {
-    hidden_item(&ctx, FLAG_SIL_ITEM_TOUR_2F_PP_UP, ITEM_PP_UP).await;
-}
-
 pub async fn TourNebula_2F_EventScript_Entree(ctx: Ctx) {
     msgbox(&ctx, Tour_2F_Sign_Entree, MsgBox::Sign).await;
 }
