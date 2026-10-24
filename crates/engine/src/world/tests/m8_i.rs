@@ -49,9 +49,9 @@ static ARENA: MapData = MapData {
 /// trainer and ends), then a battle.
 async fn trainer_script(ctx: Ctx, obj: u8, flag: FlagId) {
     let r = ctx.request(Request::TrainerApproach { obj }).await;
-    let approached = matches!(r, Response::Unit);
+    let approached = matches!(r, Response::Unit | Response::Bool(true));
     ctx.set_flag(FLAG_APPROACHED, approached).await;
-    if approached {
+    if matches!(r, Response::Bool(true)) {
         let pair = Request::TrainerPair {
             trainer: TRAINER,
             defeat: TextId(0),

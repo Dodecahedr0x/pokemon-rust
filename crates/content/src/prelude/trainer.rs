@@ -201,7 +201,9 @@ pub async fn trainer_battle(ctx: &Ctx, b: TrainerBattle) -> bool {
     let answer = ctx
         .request(Request::TrainerApproach { obj: b.local_id })
         .await;
-    let approached = matches!(answer, Response::Unit);
+    let approached = matches!(answer, Response::Unit | Response::Bool(true));
+    // Wave G: another trainer saw the player too, or this is that trainer's script.
+    let paired = matches!(answer, Response::Bool(true));
     let trainer = TrainerId(b.trainer);
     if !approached {
         match b.kind {
@@ -239,7 +241,7 @@ pub async fn trainer_battle(ctx: &Ctx, b: TrainerBattle) -> bool {
     }
     // `TryPrepareSecondApproachingTrainer`: a second trainer that saw the player walks up and
     // speaks (its own script, up to here), then this battle fights both.
-    if approached {
+    if paired {
         let pair = Request::TrainerPair {
             trainer,
             defeat: b.lose,

@@ -523,6 +523,13 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
         if let Request::Multichoice { .. } = r {
             return menu::resume(self, r);
         }
+        if let Request::TrainerApproach { .. } = r {
+            return if self.done(r) {
+                trainer::resume(self)
+            } else {
+                None
+            };
+        }
         if let Request::Mart { .. }
         | Request::ChoosePartyMon(_)
         | Request::PlayerPc(_)
