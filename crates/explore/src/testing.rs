@@ -214,13 +214,14 @@ macro_rules! forward_game_data {
     (@ $f:tt water_encounters) => { fn water_encounters(&self, map: ::engine::data::MapId, wild_set: u16) -> ::core::option::Option<&'static ::engine::mon::WaterEncounters> { self.$f.water_encounters(map, wild_set) } };
     (@ $f:tt rock_smash_encounters) => { fn rock_smash_encounters(&self, map: ::engine::data::MapId, wild_set: u16) -> ::core::option::Option<&'static ::engine::mon::WaterEncounters> { self.$f.rock_smash_encounters(map, wild_set) } };
     (@ $f:tt pushable_boulder) => { fn pushable_boulder(&self) -> ::core::option::Option<(::engine::data::GfxId, ::engine::data::FlagId)> { self.$f.pushable_boulder() } };
+    (@ $f:tt rotating_gates) => { fn rotating_gates(&self, map: ::engine::data::MapId) -> &'static [::engine::data::RotatingGate] { self.$f.rotating_gates(map) } };
     (@ $f:tt player_surf_sprite) => { fn player_surf_sprite(&self) -> ::core::option::Option<&'static ::engine::data::SpriteData> { self.$f.player_surf_sprite() } };
     (@ $f:tt m8) => {
         $crate::forward_game_data!($f; item multichoice std_string trainer_flag_of emote
                                    trainer_money evolutions hold_effect form_changes map_type m9);
     };
     (@ $f:tt m9) => {
-        $crate::forward_game_data!($f; map_layout trainer_battle_kind start_menu field_move_gate item_use mart_bonus item_description move_description is_hm_move tm_move can_learn_tm ui_gfx window_frame item_icon mon_icon in_game_trade nature_name step_callback hole_warp fall_script step_count_script field_move_script waterfall_refused_script dive_emerge_script dive_warp fly_destination water_encounters rock_smash_encounters pushable_boulder player_surf_sprite);
+        $crate::forward_game_data!($f; map_layout trainer_battle_kind start_menu field_move_gate item_use mart_bonus item_description move_description is_hm_move tm_move can_learn_tm ui_gfx window_frame item_icon mon_icon in_game_trade nature_name step_callback hole_warp fall_script step_count_script field_move_script waterfall_refused_script dive_emerge_script dive_warp fly_destination water_encounters rock_smash_encounters pushable_boulder player_surf_sprite rotating_gates);
     };
 }
 

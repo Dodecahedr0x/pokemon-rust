@@ -17,6 +17,9 @@ const GRASS: u16 = 5;
 const ARROW_DOWN: u16 = 6;
 /// A cell walled on its east side (Gen3 `MB_IMPASSABLE_EAST`).
 const WALL_EAST: u16 = 7;
+const WATER: u16 = 8;
+/// A westward current (Gen3 `MB_WESTWARD_CURRENT`).
+const CURRENT_LEFT: u16 = 9;
 const WALL: u16 = 1 << BLOCK_COLLISION_SHIFT;
 
 /// A synthetic map: metatile `i` has raw behavior `i` (classified below); the rest is the
@@ -40,7 +43,7 @@ fn synth(width: u16, rows: &[&[u16]]) -> Synth {
         tiles: &[],
         palettes: &[],
         metatiles: &[],
-        attributes: &[0, 1, 2, 3, 4, 5, 6, 7],
+        attributes: &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     }));
     Synth(Box::leak(Box::new(MapData {
         name: "Synth",
@@ -92,6 +95,8 @@ impl GameData for Synth {
             GRASS => Behavior::TallGrass,
             ARROW_DOWN => Behavior::ArrowWarp(Dir::Down),
             WALL_EAST => Behavior::Impassable(engine::data::Sides::of(&[Dir::Right])),
+            WATER => Behavior::Water(Water::Ocean),
+            CURRENT_LEFT => Behavior::Water(Water::Current(Dir::Left)),
             _ => Behavior::Normal,
         }
     }
@@ -195,6 +200,46 @@ fn tall_grass_only_when_needed() {
     let g = Grid::new(&game, MapId(0), &[], Vec::new());
     assert_eq!(g.first_dir((0, 0), (2, 0), true), Some(Dir::Down));
     assert_eq!(g.first_dir((0, 0), (2, 0), false), Some(Dir::Right));
+}
+
+#[test]
+fn currents_carry_the_surfer_on_to_still_water_or_ashore() {
+    let (n, w, c) = (NORMAL, WATER, CURRENT_LEFT);
+    let game = synth(6, &[&[n, c, w, c, c, w]]);
+    let g = Grid::new(&game, MapId(0), &[], Vec::new());
+    // Onto (4, 0): carried through (3, 0) to (2, 0), never stopping on a current.
+    assert_eq!(dist(&g, (5, 0), (2, 0)), Some(1));
+    assert_eq!(dist(&g, (5, 0), (4, 0)), None);
+    assert_eq!(dist(&g, (5, 0), (3, 0)), None);
+    // (1, 0)'s current runs ashore onto (0, 0) (Gen3 `COLLISION_STOP_SURFING`).
+    assert_eq!(dist(&g, (5, 0), (0, 0)), Some(2));
+    // A current into a wall holds the surfer: no landing.
+    let game = synth(3, &[&[BLOCKED, c, w]]);
+    let g = Grid::new(&game, MapId(0), &[], Vec::new());
+    assert_eq!(g.first_dir((2, 0), (1, 0), false), None);
+}
+
+#[test]
+fn a_gate_that_cannot_turn_is_walked_around() {
+    let n = NORMAL;
+    let mut rows = vec![vec![n; 8]; 8];
+    // A wall where the T1 gate's arms sweep (`RotatingGate_CanRotate`).
+    rows[4][4] = WALL;
+    let rows: Vec<&[u16]> = rows.iter().map(|r| r.as_slice()).collect();
+    let game = synth(8, &rows);
+    // A `T1` gate (north, east and south arms) pivoting on (5, 5).
+    static GATE: [RotatingGate; 1] = [RotatingGate {
+        x: 5,
+        y: 5,
+        shape: 4,
+        orientation: 0,
+    }];
+    let free = Grid::new(&game, MapId(0), &[], Vec::new());
+    assert_eq!(free.first_dir((5, 5), (5, 3), false), Some(Dir::Up));
+    // North onto (5, 4) pushes the east arm, which cannot turn: around it.
+    let gated = Grid::new(&game, MapId(0), &[], Vec::new()).with_gates(&GATE, 0);
+    let d = gated.first_dir((5, 5), (5, 3), false);
+    assert!(d.is_some() && d != Some(Dir::Up), "{d:?}");
 }
 
 /// The planner's step rule as written before the terrain table (a block classified at every
