@@ -242,11 +242,28 @@ impl<'g, G: GameData> Live<'g, G> {
             Step::Goto { x, y, .. } => self.goto(start, (x, y), &[])?,
             Step::GotoAvoiding { x, y, avoid, .. } => self.goto(start, (x, y), avoid)?,
             Step::Enter { x, y, dir, .. } => {
+                // A warp to another warp of the same map (Aqua Hideout's pads): done once the
+                // player stands on the destination warp, the map unchanged.
+                let warps = &self.game.map(start).warps;
+                let same_map = (warps.iter())
+                    .find(|w| (w.x, w.y) == (x, y) && w.dest_map == start)
+                    .and_then(|w| warps.get(w.dest_warp as usize))
+                    .map(|d| (d.x, d.y));
                 for _ in 0..RETRIES {
-                    if self.map()? != start {
+                    if self.map()? != start
+                        || (same_map.is_some() && Some(self.cell()?) == same_map)
+                    {
                         break;
                     }
                     self.enter((x, y), dir)?;
+                }
+                if let Some(d) = same_map {
+                    let at = self.cell()?;
+                    ensure!(
+                        at == d,
+                        "entered ({x}, {y}) but at {at:?}, not its warp's {d:?}"
+                    );
+                    return Ok(());
                 }
                 let want = (self.game.map(start).warps.iter())
                     .find(|w| (w.x, w.y) == (x, y))

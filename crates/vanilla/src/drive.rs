@@ -628,6 +628,7 @@ impl Vanilla {
             let overrides = self.overrides(game, start);
             let mut occupied = self.occupied(start);
             occupied.extend_from_slice(avoid);
+            let occupied_n = occupied.len();
             let planner = self.planner(game, start, &overrides, occupied);
             // Rotating gates (our engine has none): a walk that pushes them where they turn.
             let gated = self.rotating_gates().and_then(|(g, o)| {
@@ -636,10 +637,16 @@ impl Vanilla {
                     planner.walkable((x - MAP_OFFSET, y - MAP_OFFSET))
                 })
             });
+            let (elevation, layout) = (self.player_elevation(), self.layout_id());
             let dir = gated
                 .or_else(|| planner.first_dir(me.cell, to))
                 .ok_or_else(|| {
-                    anyhow!("walk_to: no path from {:?} to {to:?} on {start:?}", me.cell)
+                    anyhow!(
+                        "walk_to: no path from {:?} to {to:?} on {start:?} (elevation \
+                         {elevation:?}, layout {layout:?}, {} objects in the way)",
+                        me.cell,
+                        occupied_n
+                    )
                 })?;
             // Hold the direction until the player leaves the cell, or the field stops idling;
             // a bump (an object stepped in the way) re-plans after a while.
