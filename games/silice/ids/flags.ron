@@ -2500,6 +2500,48 @@
             name: "FLAG_SIL_RAYQUAZA_CAPTURE",
             num: 1123,
         ),
+        // SIL6 Ch12 optional maps (block 1150-1164): the Antennas' three trainers each (walked in by
+        // PG_Antenne) and Tak before Manga-Square's Rayquaza statue (Sc32a).
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_ALPHA_1",
+            num: 1150,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_ALPHA_2",
+            num: 1151,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_ALPHA_3",
+            num: 1152,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_GAMMA_1",
+            num: 1153,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_GAMMA_2",
+            num: 1154,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_GAMMA_3",
+            num: 1155,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_ETA_1",
+            num: 1156,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_ETA_2",
+            num: 1157,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_ETA_3",
+            num: 1158,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_MANGA_TAK",
+            num: 1159,
+        ),
         // SIL4 Ch7 scripts (script block 1180-1199): the four mirror signs' plaques read (the
         // vault's multichoice fallback, ReverseCity_Coffre_Sc04: the code is known once all four
         // are read).
@@ -2629,6 +2671,118 @@
         (
             name: "FLAG_SIL_HIDE_HOUSE_ELYSIUM_3",
             num: 1277,
+        ),
+        // SIL6 Ch12 scripts: the champions' gems (§4.1 "FLAG_SIL_ITEM_PG_GEM_LOIC … _LOULPIX") and the
+        // daily flags (§8 "FLAG_SIL_DAILY_<CHAMPION>, _ANTENNE_<X>"), cleared by the engine's day change.
+        (
+            name: "FLAG_SIL_ITEM_PG_GEM_YOHAN",
+            num: 1124,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_GEM_TAUBER_HOCSEAT",
+            num: 1125,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_GEM_SAMUEL",
+            num: 1126,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_GEM_SKYCKER",
+            num: 1127,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_GEM_TAK",
+            num: 1128,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_GEM_REVERSE",
+            num: 1129,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_GEM_LOULPIX_DORIS",
+            num: 1130,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_LOIC",
+            num: 1131,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_YOHAN",
+            num: 1132,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_TAUBER_HOCSEAT",
+            num: 1133,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_SAMUEL",
+            num: 1134,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_SKYCKER",
+            num: 1135,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_TAK",
+            num: 1136,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_REVERSE",
+            num: 1137,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_LOULPIX_DORIS",
+            num: 1138,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_ANTENNE_ALPHA",
+            num: 1139,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_ANTENNE_GAMMA",
+            num: 1140,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_ANTENNE_ETA",
+            num: 1141,
+        ),
+        // SIL6 Ch12 scripts (1142-1149, 1165): the eight Code Fragments found (PG_Fragment), and the
+        // Antenna climb under way (set by the receptionist, read by the top room's on-frame script).
+        (
+            name: "FLAG_SIL_FRAGMENT_1",
+            num: 1142,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_2",
+            num: 1143,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_3",
+            num: 1144,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_4",
+            num: 1145,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_5",
+            num: 1146,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_6",
+            num: 1147,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_7",
+            num: 1148,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_8",
+            num: 1149,
+        ),
+        (
+            name: "FLAG_SIL_ANTENNE_MONTEE",
+            num: 1165,
         ),
     ],
 )

@@ -170,8 +170,12 @@ pub async fn BricoBourg_Bar_Sc04(ctx: Ctx) {
 // ---- ambient NPCs ----
 
 /// CROW behind the counter (not in the source): his Bar_Sc01 line at `VAR_SIL_STORY` 0, his
-/// Bar_Sc04 advice after.
+/// Bar_Sc04 advice after; from 121, Chapter 12's `Brico_Bourg_Bar_PG_Sc22` (the Lounge).
 pub async fn BricoBourg_Bar_EventScript_Crow(ctx: Ctx) {
+    if story(&ctx).await >= 121 {
+        super::ch12_extras::crow_comptoir(&ctx).await;
+        return;
+    }
     let text = match story(&ctx).await {
         0 => Bar_Sc01_T2,
         _ => Bar_Sc04_T5,

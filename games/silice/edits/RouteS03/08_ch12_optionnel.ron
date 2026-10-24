@@ -1,0 +1,14 @@
+// Chapter 12 (post-game): the door of Antenna Gamma (MAP_ROUTE_S03_ANTENNE, 12-post-game.md section 4.3) and
+// Raikou at the north dead end (PG_Lib_TH, PG_Legendaire).
+[
+    // The old Cocket relay's door: a second doorway (13, 20) in the south face of the Cocket container wall
+    // (SilRoutesS2S3's 555, MB_ANIMATED_DOOR, as the depot's portal (10, 20)), entered from (13, 21) by
+    // pushing north. Arriving from the antenna walks the player south onto (13, 21).
+    Paint(x: 13, y: 20, metatile: 555, collision: 0, elevation: 3),
+    // Warp 2: the doorway, to the antenna's mats (its warp 0).
+    Warp(x: 13, y: 20, dest_map: "RouteS03_Antenne", dest_warp: 0),
+    // Raikou at the end of the north dead end: the nook (13-14, 1-2) behind the north-east boulder, off the
+    // way to Viber-City. Hidden until PG_Lib_TH (FLAG_SIL_LIBERATION_RAIKOU) clears FLAG_SIL_HIDE_RAIKOU (set
+    // at the start); a capture sets it again. Placeholder sprite (no Raikou in Emerald's object set).
+    Object(x: 14, y: 1, gfx: "OBJ_EVENT_GFX_ZIGZAGOON_1", id: "LOCALID_ROUTE_S03_RAIKOU", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_EventScript_Raikou", flag: "FLAG_SIL_HIDE_RAIKOU"),
+]

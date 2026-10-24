@@ -179,6 +179,21 @@
             script: Some("Evalon_Citadelle_EventScript_CoffreDroite"),
             flag: Some("FLAG_SIL_ITEM_EVALON_ORBE"),
         ),
+        (
+            local_id: 12,
+            id: Some("LOCALID_CITADELLE_REGISTEEL"),
+            gfx: "OBJ_EVENT_GFX_REGISTEEL",
+            x: 7,
+            y: 19,
+            elevation: 3,
+            movement: "MOVEMENT_TYPE_FACE_DOWN",
+            range_x: 0,
+            range_y: 0,
+            trainer_type: "TRAINER_TYPE_NONE",
+            trainer_sight_or_berry_tree: 0,
+            script: Some("Evalon_Citadelle_EventScript_Registeel"),
+            flag: Some("FLAG_SIL_HIDE_REGISTEEL"),
+        ),
     ],
     warps: [
         (

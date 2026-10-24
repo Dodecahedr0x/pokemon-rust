@@ -1,0 +1,9 @@
+// Chapter 12 (post-game): Fragment de Code 8 (PG_Fragment).
+[
+    // "Between two grimoires, on the top floor": the Scriptorium's west reading desks (3, 4) and (3, 6), and
+    // the floor cell between them, (3, 5). A sign running PG_Fragment, on walkable floor. The "BIP" coords two
+    // cells before it, (1, 5) from the west and (4, 3) from the stairs' side (VAR_TEMP_1 0).
+    Sign(x: 3, y: 5, script: "Evalon_TourScribe_3F_PG_Fragment"),
+    Coord(x: 1, y: 5, var: "VAR_TEMP_1", value: 0, script: "Evalon_TourScribe_3F_PG_FragmentBip"),
+    Coord(x: 4, y: 3, var: "VAR_TEMP_1", value: 0, script: "Evalon_TourScribe_3F_PG_FragmentBip"),
+]

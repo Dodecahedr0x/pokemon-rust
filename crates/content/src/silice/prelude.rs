@@ -478,3 +478,75 @@ pub async fn pokecenter_nurse(ctx: &Ctx) {
     say(ctx, gText_WeHopeToSeeYouAgain).await;
     ctx.release().await;
 }
+
+// ---- the post-game (Chapter 12) ----
+
+/// `play_cry(SPECIES, …)`: no cries yet (the texts say them). Reported.
+pub async fn play_cry(ctx: &Ctx) {
+    fallback(ctx, "play_cry").await;
+}
+
+/// The source's `battle_wild_boss(SPECIES, level, aura: AllStats+1)` (§9): a wild battle under
+/// [`crate::silice::rules::BOSS`]: the foe's stats +1 at the start, and no catching.
+pub async fn battle_wild_boss(ctx: &Ctx, species: SpeciesId, level: u8) -> BattleOutcome {
+    ctx.battle_wild_rules(species, level, &crate::silice::rules::BOSS)
+        .await
+}
+
+/// The source's `battle_mirror()` (§9): `trainer` (its name and pic) battles with a healed copy
+/// of the player's party ([`crate::silice::rules::MIRROR`]). Its beaten flag is set as
+/// [`battle_trainer`]'s.
+pub async fn battle_mirror(ctx: &Ctx, trainer: TrainerId, defeat: TextId) -> BattleOutcome {
+    battle_trainer_with(ctx, trainer, defeat, false, &crate::silice::rules::MIRROR).await
+}
+
+/// The source's `give_egg(SPECIES, ivs)` (§9): the engine has no eggs (Milestone 13), so the
+/// source's fallback, `give_mon(SPECIES, 5)`. Reported. Returns `give_mon`'s answer.
+pub async fn give_egg(ctx: &Ctx, species: SpeciesId) -> u16 {
+    fallback(ctx, "give_egg").await;
+    ctx.give_mon(species, 5).await
+}
+
+/// The source's `enable_national_dex()`: Emerald's `special EnableNationalPokedex`.
+pub async fn enable_national_dex(ctx: &Ctx) {
+    special(ctx, SPECIAL_EnableNationalPokedex).await;
+}
+
+/// A rule of the Antennes de Combat (§4.3, `party_respects(RÈGLE)`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PartyRule {
+    /// « SANS OBJETS »: no held item.
+    NoItems,
+    /// « MONO-ACIER »: Steel mons only.
+    MonoSteel,
+    /// « TRIO »: three mons at most.
+    Trio,
+}
+
+/// The source's `party_respects(RÈGLE)` (§9): the party checked against `rule` (held items,
+/// types, size). The rule is checked at the door only: inside the battle the bag stays open
+/// (« ni du Sac » is not enforced: no battle rule for it yet).
+pub async fn party_respects(ctx: &Ctx, rule: PartyRule) -> bool {
+    let size = ctx.party_size().await as u8;
+    match rule {
+        PartyRule::Trio => size <= 3,
+        PartyRule::NoItems => {
+            for slot in 0..size {
+                if ctx.query(Query::PartyHeldItem(slot)).await != 0 {
+                    return false;
+                }
+            }
+            true
+        }
+        PartyRule::MonoSteel => {
+            for slot in 0..size {
+                let s = SpeciesId(ctx.query(Query::PartySpecies(slot)).await);
+                let types = crate::battle::TABLES.species_info(s).types;
+                if !types.contains(&engine::mon::Type::Steel) {
+                    return false;
+                }
+            }
+            true
+        }
+    }
+}

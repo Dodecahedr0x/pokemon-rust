@@ -172,8 +172,24 @@
             dest_map: "RouteS05_Faille",
             dest_warp: 0,
         ),
+        (
+            x: 46,
+            y: 22,
+            elevation: 0,
+            dest_map: "RouteS05_IleDebug",
+            dest_warp: 0,
+        ),
     ],
-    coords: [],
+    coords: [
+        (
+            x: 51,
+            y: 22,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("RouteS05_PG_Sc27"),
+        ),
+    ],
     bgs: [
         (
             x: 3,

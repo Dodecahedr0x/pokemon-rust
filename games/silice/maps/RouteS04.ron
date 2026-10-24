@@ -260,6 +260,22 @@
             value: 40,
             script: Some("RouteS04_Sc02"),
         ),
+        (
+            x: 25,
+            y: 5,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("RouteS04_PG_FragmentBip"),
+        ),
+        (
+            x: 30,
+            y: 5,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("RouteS04_PG_FragmentBip"),
+        ),
     ],
     bgs: [
         (
@@ -359,6 +375,15 @@
             kind: Script(
                 facing: 0,
                 script: Some("RouteS04_EventScript_HiddenEther"),
+            ),
+        ),
+        (
+            x: 28,
+            y: 4,
+            elevation: 0,
+            kind: Script(
+                facing: 0,
+                script: Some("RouteS04_PG_Fragment"),
             ),
         ),
     ],

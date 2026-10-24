@@ -37,6 +37,9 @@ pub(super) fn answer<G: GameData>(h: &Host<'_, G>, q: Query) -> u16 {
             .get(slot as usize)
             .map_or(0, |m| m.friendship.into()),
         Query::PartyHp(slot) => s.party.get(slot as usize).map_or(0, |m| m.hp),
+        Query::PartyHeldItem(slot) => (s.party.get(slot as usize))
+            .and_then(|m| m.held)
+            .map_or(0, |i| i.0),
         Query::PartyPersonalityLow(slot) => s
             .party
             .get(slot as usize)

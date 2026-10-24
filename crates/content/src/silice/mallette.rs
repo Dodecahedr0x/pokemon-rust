@@ -7,7 +7,8 @@
 //!   SAVE, OPTION and EXIT (`data::START_MENU[1..]`, the extract's labels). The bible: "Elle
 //!   remplace le Pokédex, la Carte et les CS".
 //! - **Lists** ([`multichoice`]): the Mallette's menu ([`LIST_MENU`]) and its logs
-//!   ([`LIST_LOGS`]), Silice texts; any other list is Gen3's (`data::multichoice`).
+//!   ([`LIST_LOGS`]), the Tower's post-game elevator ([`LIST_ASCENSEUR`] and its variants),
+//!   Silice texts; any other list is Gen3's (`data::multichoice`).
 //! - **Modules** ([`MODULES`], [`field_move_gate`]): a module replaces an HM, usable "sans
 //!   Pokémon qui connaît la capacité" once its `FLAG_SIL_MODULE_*` is set. The engine drives
 //!   Surf, Waterfall and Dive from the field (`GameData::field_move_script`, the
@@ -51,11 +52,46 @@ static LOGS: [&[u8]; 9] = [
     text(Mallette_Menu_Retour),
 ];
 
+/// The Tower's post-game elevator before 127 (`Tour_Nebula_PG_Ascenseur`): 2F, SOMMET, ANNULER.
+pub const LIST_ASCENSEUR_FERME: u8 = 0xE2;
+/// The Tower's post-game elevator from 127: 1F, 2F, 3F, 4F, SOMMET, ANNULER.
+pub const LIST_ASCENSEUR: u8 = 0xE3;
+/// [`LIST_ASCENSEUR`] with the Space Ticket: 1F, 2F, 3F, 4F, SOMMET, TOIT, ANNULER.
+pub const LIST_ASCENSEUR_TOIT: u8 = 0xE4;
+
+static ASCENSEUR_FERME: [&[u8]; 3] = [
+    text(Tour_Nebula_PG_Ascenseur_2F),
+    text(Tour_Nebula_PG_Ascenseur_Sommet),
+    text(Tour_Nebula_PG_Ascenseur_Annuler),
+];
+
+static ASCENSEUR: [&[u8]; 6] = [
+    text(Tour_Nebula_PG_Ascenseur_1F),
+    text(Tour_Nebula_PG_Ascenseur_2F),
+    text(Tour_Nebula_PG_Ascenseur_3F),
+    text(Tour_Nebula_PG_Ascenseur_4F),
+    text(Tour_Nebula_PG_Ascenseur_Sommet),
+    text(Tour_Nebula_PG_Ascenseur_Annuler),
+];
+
+static ASCENSEUR_TOIT: [&[u8]; 7] = [
+    text(Tour_Nebula_PG_Ascenseur_1F),
+    text(Tour_Nebula_PG_Ascenseur_2F),
+    text(Tour_Nebula_PG_Ascenseur_3F),
+    text(Tour_Nebula_PG_Ascenseur_4F),
+    text(Tour_Nebula_PG_Ascenseur_Sommet),
+    text(Tour_Nebula_PG_Ascenseur_Toit),
+    text(Tour_Nebula_PG_Ascenseur_Annuler),
+];
+
 /// Silice's lists, then Gen3's.
 pub fn multichoice(list: u8) -> Option<&'static [&'static [u8]]> {
     match list {
         LIST_MENU => Some(&MENU),
         LIST_LOGS => Some(&LOGS),
+        LIST_ASCENSEUR_FERME => Some(&ASCENSEUR_FERME),
+        LIST_ASCENSEUR => Some(&ASCENSEUR),
+        LIST_ASCENSEUR_TOIT => Some(&ASCENSEUR_TOIT),
         _ => data::multichoice(list),
     }
 }

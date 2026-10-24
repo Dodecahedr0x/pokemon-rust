@@ -1,0 +1,6 @@
+// Silice Ch12, MAP_SOMMET_APEX_TEMPLE_NUAGES: the Temple of the Clouds (11 x 21; the source gives no size, only
+// the arrival (5, 18); Sommet_Apex_PG_Sc31). A white temple: a landing, a long white stair north, a platform
+// and the altar where Jirachi sleeps. Building + EliteFour (Emerald tilesets by name: the Champion's room's
+// white stairs, steps and dais). The sea of clouds and the starry sky are not map cells: the border is the
+// void (always night here).
+(name: "SommetApex_TempleNuages", width: 11, height: 21, primary: "Building", secondary: "EliteFour", fill: 1, fill_collision: 1, fill_elevation: 0, border: [1025, 1025, 1025, 1025])

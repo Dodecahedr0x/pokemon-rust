@@ -12,7 +12,7 @@
 //! The Chapter 12 duties on this map ("SIL6 Ch12 maps: review", Ch9's row) are here too:
 //! `Nebula_OnLoad` opens the MAINTENANCE door and draws the Breach's crack from 126, and
 //! `Nebula_OnTransition` shows Julien from 120 and Nebula_PG_Sc10's cast at 126 only. The
-//! Ch11–Ch12 scripts themselves are stubs (`ch12_stubs.rs`).
+//! Ch12 scripts themselves are in `ch12_reveil.rs` and `ch12_breche.rs`.
 
 use crate::silice::prelude::*;
 

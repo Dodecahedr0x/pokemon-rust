@@ -303,7 +303,9 @@ pub async fn GrisEchec_Gym_Sc10(ctx: Ctx) {
 /// [`GrisEchec_Gym_Sc10`], talked to (`talked`) or from a square next to the King.
 async fn yohan(ctx: Ctx, talked: bool) {
     if ctx.flag(FLAG_SIL_BADGE_02).await {
-        if talked {
+        if talked && super::ch12_revanches::ouvertes(&ctx).await {
+            super::ch12_revanches::revanche(&ctx, &super::ch12_revanches::YOHAN).await;
+        } else if talked {
             msgbox(&ctx, Gym2_Sc10_Defeat, MsgBox::Sign).await;
         }
         return;

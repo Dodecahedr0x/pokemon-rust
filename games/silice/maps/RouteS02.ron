@@ -240,7 +240,15 @@
             flag: Some("FLAG_SIL_ITEM_ROUTE_S02_GREAT_BALL"),
         ),
     ],
-    warps: [],
+    warps: [
+        (
+            x: 18,
+            y: 3,
+            elevation: 0,
+            dest_map: "RouteS02_Antenne",
+            dest_warp: 0,
+        ),
+    ],
     coords: [
         (
             x: 1,

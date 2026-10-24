@@ -100,6 +100,10 @@ pub async fn ViberCity_Gym_EventScript_ConsoleC(ctx: Ctx) {
 /// each one's line.
 pub async fn ViberCity_Gym_Sc02(ctx: Ctx) {
     let s = story(&ctx).await;
+    if s >= 121 {
+        super::ch12_revanches::revanche_tauber_hocseat(&ctx).await;
+        return;
+    }
     if s >= 35 {
         let text = if ctx.var(VAR_LAST_TALKED).await == u16::from(LOCALID_NOCTURNE_HOCSEAT) {
             Nocturne_Hocseat_T1

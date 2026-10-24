@@ -1,0 +1,7 @@
+// Behaviour warnings and reach findings accepted on purpose (validate and lint-reach honour these).
+[
+    AllowCollision(cells: [(1, 11)], reason: "warp 2 is only the landing of the top room's mats: plain floor that enters nothing"),
+    AllowReach(subject: "warp 2", reason: "the landing of the top room's mats (1, 11) is reached by them only: a one-way way down into the ground floor"),
+    AllowReach(subject: "warp 3", reason: "the top room is reached only by PG_Antenne's warp to (4, 6) (the receptionist's challenge)"),
+    AllowReach(subject: "warp 4", reason: "the top room is reached only by PG_Antenne's warp to (4, 6) (the receptionist's challenge)"),
+]

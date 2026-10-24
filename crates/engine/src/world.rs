@@ -89,6 +89,8 @@ pub const LOG_LEN: usize = 16;
 const IMMEDIATE_STEPS: u32 = 64;
 /// [`Event`]s kept per frame; further ones are dropped and counted ([`World::events_dropped`]).
 pub const EVENTS_MAX: usize = 32;
+/// The deterministic clock's day: 24 hours at 60 frames a second ([`World::days`]).
+pub const FRAMES_PER_DAY: u32 = 60 * 60 * 60 * 24;
 
 /// Something that happened this frame, for tools (the explorer, the sweep, parity lanes). Not
 /// hashed, not snapshotted.
@@ -279,11 +281,17 @@ pub(crate) struct State {
     /// Task S: Gen3 `gSaveFileStatus` / `gDifferentSaveFile` and the Hall of Fame's pending
     /// save (`world/save.rs`; hashed only while a save is pending).
     pub(crate) save: save::SaveStatus,
+    /// The clock's day ([`World::days`]), copied at each step's start for the map loads'
+    /// daily reset ([`State::update_per_day`]); derived, not state.
+    pub(crate) today: u16,
 }
 
 /// All mutable game state. Deterministic: the same state and input give the same next state.
 pub struct World {
     frame: u32,
+    /// The hardware clock's day (an RTC read by the shell), or `None`: the deterministic
+    /// clock, [`FRAMES_PER_DAY`] frames a day. A host input: neither hashed nor snapshotted.
+    rtc_days: Option<u16>,
     runner: Runner,
     s: State,
     /// The first frame's uploads, built by `new` and taken by `initial_frame` (not state).
@@ -344,7 +352,8 @@ impl State {
         self.templates.edit(local, f);
     }
 
-    /// Gen3 `ClearTempFieldEventData`.
+    /// Gen3 `ClearTempFieldEventData`, then `DoTimeBasedEvents`'s daily reset (both run on
+    /// every map load, before the map's `on_transition`).
     fn clear_temp(&mut self, ids: &SpecialIds) {
         self.vars.clear_temp();
         for &f in ids.flags_cleared_on_map_change {
@@ -352,6 +361,21 @@ impl State {
         }
         // The input map is the map's own: its scripts set it again (`SetInputMap`).
         self.set_var_opt(ids.var_input_map, 0);
+        self.update_per_day(ids);
+    }
+
+    /// Gen3 `UpdatePerDay` (`clock.c`): once the clock's day has passed the day kept in
+    /// `SpecialIds::var_days`, the daily flags are cleared (`ClearDailyFlags`) and the day is
+    /// kept. A clock set back changes nothing (Gen3's `*days <= localTime->days`).
+    fn update_per_day(&mut self, ids: &SpecialIds) {
+        let Some(v) = ids.var_days else { return };
+        let last = self.vars.var(v);
+        if last < self.today {
+            for &f in ids.daily_flags {
+                self.vars.set_flag(f, false);
+            }
+            self.vars.set_var(v, self.today);
+        }
     }
 
     /// The field's d-pad mapping (`SpecialIds::var_input_map`).
@@ -456,7 +480,9 @@ impl World {
                 events_dropped: 0,
                 last_script: None,
                 save: save::SaveStatus::new_game(),
+                today: 0,
             },
+            rtc_days: None,
             boot: None,
         };
         let mut f = Frame::default();
@@ -469,6 +495,21 @@ impl World {
         draw_field(game, &mut w.s, &mut f);
         w.boot = Some(f);
         w
+    }
+
+    /// The clock's day: the hardware clock's ([`World::set_rtc_days`]) when the shell has one,
+    /// else the deterministic clock's, `frame / FRAMES_PER_DAY` (the Silice post-game's daily
+    /// flags, `SpecialIds::daily_flags`).
+    pub fn days(&self) -> u16 {
+        self.rtc_days
+            .unwrap_or((self.frame / FRAMES_PER_DAY).min(u16::MAX as u32) as u16)
+    }
+
+    /// The hardware clock's day (Gen3 `gLocalTime.days`), read by the shell from the cartridge
+    /// RTC; `None` goes back to the deterministic clock. Taken at the next step; the daily
+    /// reset runs on the next map load.
+    pub fn set_rtc_days(&mut self, days: Option<u16>) {
+        self.rtc_days = days;
     }
 
     /// Frame 0: every upload of the start map, objects and registers. Shells apply it before
@@ -486,6 +527,7 @@ impl World {
             self.s.events.clear();
         }
         self.frame = self.frame.wrapping_add(1);
+        self.s.today = self.days();
         self.s.input.update_mode(keys, self.s.options.button_mode);
         match core::mem::replace(&mut self.s.mode, Mode::Field) {
             Mode::Field => self.step_field(game, &mut f),

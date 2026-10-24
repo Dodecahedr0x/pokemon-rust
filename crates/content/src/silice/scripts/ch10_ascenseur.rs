@@ -36,8 +36,10 @@ pub async fn TourNebulaAscenseur_Sc00(ctx: Ctx) {
         105 => TourNebulaAscenseur_Sc03(ctx).await,
         // ≤ 106: before Revenge; 107–108: back from the hall after him (R-6).
         106..=108 => warp(&ctx, MAP_TOUR_NEBULA_4F, LANDING_4F.0, LANDING_4F.1).await,
-        // 109+: boarded at 4F (`TourNebula_4F_Sc06`), or back after a loss in Chapter 11.
-        _ => TourNebulaAscenseur_Sc04(ctx).await,
+        // 109–118: boarded at 4F (`TourNebula_4F_Sc06`), or back after a loss in Chapter 11.
+        ..=118 => TourNebulaAscenseur_Sc04(ctx).await,
+        // 119+: Chapter 12's hub (`Tour_Nebula_PG_Ascenseur`); cancelled, back to the hall.
+        _ => super::ch12_breche::tour_pg_ascenseur(&ctx, true).await,
     }
 }
 
@@ -132,7 +134,7 @@ pub async fn TourNebulaAscenseur_EventScript_Panneau(ctx: Ctx) {
 /// The hall's elevator door (Chapter 9's `Nebula_TourHall`, sign (12, 1)): from story 99 (Ch9's
 /// hand-off) to the Zenith (117) it takes the player to the cabin, whose `Sc00` picks the floor.
 /// Before 99 the door does not open; at 118 the ending holds the player, and from 119 Chapter
-/// 12's elevator takes over.
+/// 12's elevator hub takes over (`ch12_breche.rs`), as it does for every cabin arrival.
 ///
 /// Contradiction (the plan's "SIL5 Ch10–Ch11 maps: review", author question 1): Ch9's
 /// `Tour_Hall_Sc02` warps straight to 1F; Ch10's `Tour_Ascenseur_Sc00a` plays the first climb.
@@ -140,6 +142,11 @@ pub async fn TourNebulaAscenseur_EventScript_Panneau(ctx: Ctx) {
 /// 99 and sends a player already at 100 to 1F.
 pub async fn Nebula_TourHall_EventScript_Ascenseur(ctx: Ctx) {
     let s = story(&ctx).await;
+    if s >= 119 {
+        // Chapter 12's hub (`Tour_Nebula_PG_Ascenseur`).
+        super::ch12_breche::tour_pg_ascenseur(&ctx, false).await;
+        return;
+    }
     if !(99..=117).contains(&s) {
         return;
     }

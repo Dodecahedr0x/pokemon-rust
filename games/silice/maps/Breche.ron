@@ -217,9 +217,9 @@
             x: 4,
             y: 28,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_RARE_CANDY",
-                flag: "FLAG_SIL_ITEM_PG_BRECHE_3",
+            kind: Script(
+                facing: 0,
+                script: Some("Breche_EventScript_HiddenRareCandy"),
             ),
         ),
     ],

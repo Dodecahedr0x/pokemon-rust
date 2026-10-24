@@ -1,0 +1,24 @@
+// Header, warps, objects, bg events.
+[
+    Header((music: "MUS_B_TOWER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warps 0-1: the ground floor's mats, to RouteS03's antenna door (its warp 2).
+    Warp(x: 4, y: 17, dest_map: "RouteS03", dest_warp: 2),
+    Warp(x: 5, y: 17, dest_map: "RouteS03", dest_warp: 2),
+    // Warp 2: a landing on the ground floor (1, 11), plain floor: where the top room's mats lead.
+    // Warps 3-4: the top room's mats (4-5, 8), the way down after the three battles (to warp 2).
+    // The way up is PG_Antenne's own warp(MAP_ROUTE_S03_ANTENNE, 4, 6): the platform's (4, 6), the source's cell.
+    Warp(x: 1, y: 11, dest_map: "RouteS03_Antenne", dest_warp: 3),
+    Warp(x: 4, y: 8, dest_map: "RouteS03_Antenne", dest_warp: 2),
+    Warp(x: 5, y: 8, dest_map: "RouteS03_Antenne", dest_warp: 2),
+    // 1: the receptionist behind the counter (PG_Antenne: the rule, the challenge), talked to across the
+    // counter from (4, 13).
+    Object(x: 4, y: 11, gfx: "OBJ_EVENT_GFX_LINK_RECEPTIONIST", id: "LOCALID_S03_ANTENNE_RECEPTIONNISTE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_Antenne_PG_Receptionniste"),
+    // 2-4: the three trainers, FERNAND (TRAINER_SIL_ANTENNE_GAMMA_1), INES (TRAINER_SIL_ANTENNE_GAMMA_2), GASTON (TRAINER_SIL_ANTENNE_GAMMA_3),
+    // waiting in the north door (4, 3), each hidden by its own flag (set at the start). PG_Antenne shows each in turn and walks it down 2 to (4, 5), before the
+    // player on (4, 6). No script and no sight: the scene starts the battles.
+    Object(x: 4, y: 3, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_S03_ANTENNE_FERNAND", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_ANTENNE_GAMMA_1"),
+    Object(x: 4, y: 3, gfx: "OBJ_EVENT_GFX_WOMAN_2", id: "LOCALID_S03_ANTENNE_INES", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_ANTENNE_GAMMA_2"),
+    Object(x: 4, y: 3, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_S03_ANTENNE_GASTON", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_ANTENNE_GAMMA_3"),
+    // The ground floor's heal PC (section 4.3), read from (7, 12).
+    Sign(x: 7, y: 11, script: "RouteS03_Antenne_PG_Soin"),
+]

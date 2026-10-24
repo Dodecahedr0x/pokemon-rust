@@ -1,0 +1,13 @@
+// Chapter 12 (post-game): the way into the Stele Cave (MAP_ROUTE_S08_GROTTE_STELE) behind the great waterfall.
+[
+    // The cave mouth (34, 28) is cut into the cliff right beside the foot of waterfall 3 (x 30-33, y 25-29,
+    // the 'vraie montee' to palier 3), over a one-cell ledge (34, 29) on the lake's north shore. The player
+    // surfs on the lake (palier 2) to (34, 30), gets off onto the ledge and walks north into the mouth.
+    // General's cave mouth 167 (MB_NON_ANIMATED_DOOR); the ledge is ash ground 633 (elevation 3, so Surf
+    // can land on it). Arriving from the cave walks the player south onto the ledge.
+    Paint(x: 34, y: 28, metatile: 167, collision: 0, elevation: 3),
+    Paint(x: 34, y: 29, metatile: 633, collision: 0, elevation: 3),
+    // Warp 2: the mouth, to the cave's mat (its warp 0).
+    Warp(x: 34, y: 28, dest_map: "RouteS08_GrotteStele", dest_warp: 0),
+    AllowReach(subject: "warp 2", reason: "the Stele Cave's mouth sits on palier 2's lake, reached up waterfall 1 or down waterfall 3 with Surf and Waterfall, which the lint does not model (as the palier 2 items)"),
+]

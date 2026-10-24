@@ -322,6 +322,8 @@ pub struct Run {
     pub degraded: BTreeSet<&'static str>,
     /// The index the next choice takes ([`Step::Choose`]; the starter screen's ball).
     choice: u8,
+    /// The entry the next script multichoice takes ([`Step::Menu`]).
+    menu: Cell<Option<u8>>,
     /// How many of the next yes/no boxes answer yes even when their cursor starts on No
     /// ([`Step::Yes`]), and whether UP was pressed on the open one.
     yes_next: Cell<u8>,
@@ -359,6 +361,7 @@ impl Run {
             battles: Vec::new(),
             degraded: BTreeSet::new(),
             choice: 0,
+            menu: Cell::new(None),
             yes_next: Cell::new(0),
             yes_up: Cell::new(false),
             reloaded: false,
@@ -380,6 +383,8 @@ impl Run {
                 Step::Interact(d) => self.interact(d),
                 Step::Walk(d) => self.step_toward(d),
                 Step::Choose(i) => self.choice = i,
+                Step::Menu(i) => self.menu.set(Some(i)),
+                Step::Days(d) => self.w.set_rtc_days(Some(d)),
                 Step::Yes(n) => self.yes_next.set(n),
                 Step::Train { a, b, level, heal } => self.train(a, b, level, heal),
                 Step::Settle => self.settle(),
@@ -517,6 +522,23 @@ impl Run {
             self.yes_up.set(false);
             self.yes_next.set(self.yes_next.get() - 1);
             return Buttons::A;
+        }
+        // [`Step::Menu`]: the cursor onto the entry, then A.
+        if let Some(want) = self.menu.get()
+            && let Some(m) = self.w.text().multichoice()
+        {
+            // Still drawing: an A now would take the first entry.
+            if !m.is_drawn() {
+                return Buttons::NONE;
+            }
+            return match m.cursor().cmp(&want) {
+                core::cmp::Ordering::Less => Buttons::DOWN,
+                core::cmp::Ordering::Greater => Buttons::UP,
+                core::cmp::Ordering::Equal => {
+                    self.menu.set(None);
+                    Buttons::A
+                }
+            };
         }
         if let Some(st) = self.w.starter() {
             return match st.selection().cmp(&self.choice) {

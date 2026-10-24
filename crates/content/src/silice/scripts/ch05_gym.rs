@@ -387,6 +387,10 @@ pub async fn Owlys_Gym_Sc01(ctx: Ctx) {
 
 /// Skycker, his face shown, after the badge.
 pub async fn Owlys_Gym_EventScript_Skycker(ctx: Ctx) {
+    if super::ch12_revanches::ouvertes(&ctx).await {
+        super::ch12_revanches::revanche(&ctx, &super::ch12_revanches::SKYCKER).await;
+        return;
+    }
     msgbox(&ctx, Owlys_Gym_Skycker_Apres, MsgBox::Npc).await;
 }
 

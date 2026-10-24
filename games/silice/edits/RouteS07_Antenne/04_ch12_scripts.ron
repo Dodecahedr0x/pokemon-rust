@@ -1,0 +1,6 @@
+// SIL6 Ch12 scripts: the top room's climb (PG_Antenne). The receptionist warps the player to (4, 6)
+// (a map load ends a script); this on-frame script runs the three battles there when
+// FLAG_SIL_ANTENNE_MONTEE is set.
+[
+    ScriptsSet(on_frame: [(var: "VAR_TEMP_1", value: 0, script: "RouteS07_Antenne_PG_Sommet")]),
+]

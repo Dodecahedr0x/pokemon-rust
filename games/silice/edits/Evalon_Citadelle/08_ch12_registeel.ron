@@ -1,0 +1,8 @@
+// Chapter 12 (post-game): Registeel in the Crypte (PG_Lib_Evalon, PG_Legendaire).
+[
+    // "The crypt under the throne room": the Citadelle (under the 2F throne room) has its Crypte in Salle 3
+    // (rows 18-26). Registeel waits in its north-east bay, off the runes' path (column 4, then 5), at (7, 19),
+    // talked to from (6, 19) or (7, 20). Hidden until PG_Lib_Evalon (FLAG_SIL_LIBERATION_EVALON) clears
+    // FLAG_SIL_HIDE_REGISTEEL (set at the start); a capture sets it again.
+    Object(x: 7, y: 19, gfx: "OBJ_EVENT_GFX_REGISTEEL", id: "LOCALID_CITADELLE_REGISTEEL", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Citadelle_EventScript_Registeel", flag: "FLAG_SIL_HIDE_REGISTEEL"),
+]

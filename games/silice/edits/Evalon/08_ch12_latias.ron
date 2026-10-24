@@ -1,0 +1,6 @@
+// Chapter 12 (post-game): Latias at the fountain (PG_Lib_Evalon, PG_Legendaire).
+[
+    // Latias beside the square's fountain (18-20, 39-41), east of it (21, 39). Hidden until PG_Lib_Evalon
+    // (FLAG_SIL_LIBERATION_EVALON) clears FLAG_SIL_HIDE_LATIAS (set at the start); a capture sets it again.
+    Object(x: 21, y: 39, gfx: "OBJ_EVENT_GFX_LATIAS", id: "LOCALID_EVALON_LATIAS", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Evalon_EventScript_Latias", flag: "FLAG_SIL_HIDE_LATIAS"),
+]

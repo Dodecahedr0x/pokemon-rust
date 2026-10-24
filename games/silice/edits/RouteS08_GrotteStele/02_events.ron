@@ -1,0 +1,9 @@
+// Header, warps, objects.
+[
+    Header((music: "MUS_SEALED_CHAMBER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_UNDERGROUND", allow_cycling: false, allow_escaping: true, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the mat, back to Route S8's warp 2 (the cave mouth behind the great waterfall, (34, 28)).
+    Warp(x: 4, y: 11, dest_map: "RouteS08", dest_warp: 2),
+    // 1: the ancient stele at the back (Route_S08_PG_Sc28: read it; the "Dominant" comes out of the falls).
+    // Always there: no hide flag. A statue placeholder sprite; read from (4, 4).
+    Object(x: 4, y: 3, gfx: "OBJ_EVENT_GFX_TRICK_HOUSE_STATUE", id: "LOCALID_GROTTE_STELE_STELE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS08_GrotteStele_PG_Sc28"),
+]

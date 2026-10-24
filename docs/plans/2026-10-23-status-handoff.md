@@ -83,10 +83,8 @@ On the user's request the running agents were stopped and their branches merged 
   - Extend the Silice spine export past Ch0 by sharing `content/tests/silice_spine` with `explore`.
 - A local branch `speed/explore-planner-reference` (`940b711`, an older planner perf commit) is still around. The planner's `Terrain` cache was ported by hand. That is why the agent's `git cherry-pick 9153cd9` was denied and never run. Delete the branch if nothing else is wanted from it.
 - **Silice content still to write:**
-  - **Scripts:** Ch9 (Route S9, Nébula), Ch10–Ch11 (the Tower, the Apex, the Zenith) and Ch12 (the post-game). The maps exist; Ch12 has only stubs (`ch12_stubs.rs`).
-  - **The five optional Ch12 maps:** Bar Lounge, IleDebug, GrotteStele, the three Antennes, TempleNuages.
-  - **Ch12's post-game systems:** the fragments and the legendaries, whose hide flags are cleared once by their unlock (see "The legendaries' clear points").
-  - **Free flag blocks** (`ids/flags.ron`, valid range 0x20..=0x4FF): 1061–1079, 1084–1099, 1124–1179, 1189–1199, 1208–1249 and 1261–1279.
+  - **Ch12 (the post-game) is written** (SIL6, "SIL6 Ch12 scripts as built" in the plan): every Ch12 script, the optional maps (Lounge, Debug Island, Stele cave, three Antennas, Cloud Temple), the fragments and legendaries, the rematches, the daily flags on the engine's clock, and the `sil13_ch12` spine. Open: G-44, G-45, G-48–G-51 and T-11 in `silice-author-questions.md`.
+  - **Free flag blocks** (`ids/flags.ron`, valid range 0x20..=0x4FF): 1061–1079, 1084–1099, 1160–1164, 1166–1179, 1189–1199, 1208–1249 and 1261–1279. SIL6 used 1124–1141 (gems, dailies), 1142–1149 (fragments), 1150–1159 (antenna trainers, Tak) and 1165 (`FLAG_SIL_ANTENNE_MONTEE`).
 - **Party continuity across the Silice spines** (Ch1–Ch8):
   - The chained parties disagree: Ch4 → Ch5 loses the KADABRA, the MAREEP line is never trained, and a WAILORD appears without Surf.
   - The cause is that the spine can only train its lead: there is no party menu or PC until M9 Wave 2.

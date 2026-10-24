@@ -34,16 +34,33 @@ mod game_tests;
 #[cfg(test)]
 mod tests;
 
-use crate::consts::{
-    SIL_FLAGS_CLEARED_ON_MAP_CHANGE, SIL_HEAL_LOCATIONS, SIL_RESPAWN, SIL_RUNNING_FLAG,
-    VAR_SIL_IDLE_FRAMES, VAR_SIL_INPUT_MAP,
-};
+use crate::consts::*;
 use crate::{NEW_GAME_SCRIPT, data};
 use engine::battle::{BattleRules, FieldRule, TrainerLine};
 use engine::data::{
     FieldMove, FieldMoveGate, FormChange, GameData, ItemId, MapId, ScriptId, SpecialIds, TrainerId,
 };
 use engine::script::{Ctx, Script};
+
+/// Ch12's « une fois par jour » flags (§8 `FLAG_SIL_DAILY_*`): cleared by the engine on the
+/// first map load of each new day (`SpecialIds::daily_flags`).
+pub const SIL_DAILY_FLAGS: &[engine::data::FlagId] = &[
+    FLAG_SIL_DAILY_JULIEN,
+    FLAG_SIL_DAILY_POUSSIN,
+    FLAG_SIL_DAILY_TOURNOI,
+    FLAG_SIL_DAILY_CROW,
+    FLAG_SIL_DAILY_LOIC,
+    FLAG_SIL_DAILY_YOHAN,
+    FLAG_SIL_DAILY_TAUBER_HOCSEAT,
+    FLAG_SIL_DAILY_SAMUEL,
+    FLAG_SIL_DAILY_SKYCKER,
+    FLAG_SIL_DAILY_TAK,
+    FLAG_SIL_DAILY_REVERSE,
+    FLAG_SIL_DAILY_LOULPIX_DORIS,
+    FLAG_SIL_DAILY_ANTENNE_ALPHA,
+    FLAG_SIL_DAILY_ANTENNE_GAMMA,
+    FLAG_SIL_DAILY_ANTENNE_ETA,
+];
 
 /// Silice's content root.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -69,6 +86,9 @@ impl GameData for Game {
             // Reverse-City's inverted controls and its emitters' idle timer (Ch7).
             var_input_map: Some(VAR_SIL_INPUT_MAP),
             var_idle_frames: Some(VAR_SIL_IDLE_FRAMES),
+            // Ch12's daily flags (§9 « Drapeaux quotidiens »): Gen3's `VAR_DAYS` keeps the day.
+            var_days: Some(VAR_DAYS),
+            daily_flags: SIL_DAILY_FLAGS,
             ..crate::gen3_special_ids()
         }
     }

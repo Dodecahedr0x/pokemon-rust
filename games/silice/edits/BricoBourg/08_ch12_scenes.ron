@@ -1,0 +1,11 @@
+// Chapter 12 (post-game): Brico-Bourg's scenes, the frame at 119 and Maman's coords at 130.
+[
+    // The frame list is replaced whole: Ch0's (VAR_SIL_STORY 3, BricoBourg_Sc02) is kept and Ch12's
+    // (VAR_SIL_STORY 119, BricoBourg_PG_Sc01) added.
+    ScriptsSet(on_frame: [(var: "VAR_SIL_STORY", value: 3, script: "BricoBourg_Sc02"), (var: "VAR_SIL_STORY", value: 119, script: "BricoBourg_PG_Sc01")]),
+    // BricoBourg_PG_Sc20: the three grass cells round the house door's front cell (5, 15), at VAR_SIL_STORY
+    // 130. (5, 16) is also where Ch0's Gwada (local 8) stands; he is hidden by then.
+    Coord(x: 4, y: 15, var: "VAR_SIL_STORY", value: 130, script: "BricoBourg_PG_Sc20"),
+    Coord(x: 6, y: 15, var: "VAR_SIL_STORY", value: 130, script: "BricoBourg_PG_Sc20"),
+    Coord(x: 5, y: 16, var: "VAR_SIL_STORY", value: 130, script: "BricoBourg_PG_Sc20"),
+]

@@ -270,6 +270,9 @@ pub(crate) fn gen3_special_ids() -> engine::data::SpecialIds {
         berry_trees: 0,
         var_input_map: None,
         var_idle_frames: None,
+        // Emerald's daily flags wait for the RTC milestone (M10): no daily reset yet.
+        var_days: None,
+        daily_flags: &[],
     }
 }
 

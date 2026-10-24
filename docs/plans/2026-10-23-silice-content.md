@@ -5552,6 +5552,145 @@ The "two floors" of an antenna may be one 9 × 9 map with both rooms, or a secon
 | `PKR_GAME=silice cargo test -p content` | all passed (158), `sil5_ch4` included now that master re-tuned it; clippy `-D warnings` clean |
 | `cargo test -p content -p xtask -p studio` | 447 passed, 0 failed, 8 ignored |
 
+#### SIL6 Ch12 scripts as built (the post-game)
+
+**What was built.**
+- **Engine (game-agnostic, `b86c75ce`):**
+  - A clock. `World::days()` is `frame / FRAMES_PER_DAY` (24 h at 60 fps, deterministic). Once the shell calls `World::set_rtc_days(Some(d))`, it is the RTC's day instead. The RTC is a host input: it is neither hashed nor snapshotted.
+  - Daily flags (Gen3 `UpdatePerDay`), through `SpecialIds::var_days` and `daily_flags`. On each map load, before `on_transition`, the engine compares the clock's day with the day kept in `var_days`. If the clock is later, it clears the list and keeps the new day. Setting the clock back changes nothing.
+  - `BattleRules::no_catch` for wild bosses, and `Query::PartyHeldItem` for the antennas' rule check.
+  - Tests: `world/tests/sil6_clock.rs`.
+- **Silice hooks (`c50559ba`):**
+  - `SIL_DAILY_FLAGS` (15 flags) on `VAR_DAYS`.
+  - `rules::AURA`, the boss aura: every stat +1 at the start.
+  - `rules::BOSS` (the aura, and no catching) and `rules::MIRROR` (the Clone, via `clone_player`).
+  - Prelude helpers: `battle_wild_boss`, `battle_mirror`, `give_egg`, `enable_national_dex`, `PartyRule` and `party_respects`, and `hidden_item`.
+- **Scripts.** Every Ch12 name the maps carry is defined. `ch12_stubs.rs` and the maps agent's `ch12_map_stubs.rs` are gone.
+  - **`ch12_reveil.rs`, Acts I and II.** It also owns the shared helpers `legendaire`, `battle_lost`, `vestige_fin` and `pg_mail_silas`.
+    - Sc01, the awakening (119 → 120): the National Dex, Maman and the mail.
+    - Sc02, the Council (120 → 121).
+    - Julien:
+      - Sc03 and Sc03b: a daily rematch, with the Salamencite the first time.
+      - Sc03c frees Entei, Regirock and Groudon.
+    - Sc04, Thomas at the Lighthouse.
+    - The three Vestiges: Kimiko (Sc05), Arthur (Sc06) and Silas (Sc07).
+    - Sc08, Silas's mail at the Studio PC (125 → 126).
+    - Sc21, the Library tournament, once a day:
+      - Mathieu, Gwada and Adrien `_9` in a row, with no heal between them.
+      - A Golden Feather for each win, and the Altarianite the first time.
+    - Sc30: eight fragments give the Space Ticket.
+  - **`ch12_breche.rs`, Act III's Tower:**
+    - The elevator hub, `tour_pg_ascenseur`, runs from the cabin and from the three ruins' south doors. Its floors depend on the story:
+      - before 127: 2F and SOMMET;
+      - from 127: 1F, 2F, 3F, 4F and SOMMET;
+      - with the Space Ticket: TOIT as well.
+    - Sc10: Nébula splits and the Horde attacks (126 → 127).
+    - Sc10b, Thomas's camp:
+      - a heal and the Heracronite;
+      - from 130, his liberation, which frees Articuno.
+    - Gwada's 2F scenes:
+      - Sc11: Filter v1.
+      - Sc15: Filter v2 (128), and Moltres and Latios.
+      - Sc18: the samples (129).
+    - The ruins: gas sheets 01–08, the barrels, the three components (Sc12–Sc14), the trainers and the items.
+  - **`ch12_dehors.rs`, outside: the No Man's Land, the Centrale, the Ice Vault, the Crater and the Relay:**
+    - Sc16: the first steps outside.
+    - Sc16b: Poussin at the Relay gives the Orbe Bleu and TM18, and frees Lugia and Kyogre.
+    - Sc17: the three soil samples.
+    - The five trainers.
+    - The beam, the Vault door (Regice), the trapdoor and the Crater.
+    - The Centrale's switches, pressed A → B → C, free Zapdos.
+    - At the Apex:
+      - Sc16c: Poussin, once a day.
+      - Sc19, the Beacon: sync 0 and story 130. It frees Suicune, Mew and Ho-Oh as the clear-point table says.
+      - Sc32: Rayquaza.
+  - **`ch12_options.rs`, Benou's lab and the Zone 404:**
+    - Sc23:
+      - Benou `_9`, and two Link Stones.
+      - Installing the Debug Key also clears `FLAG_SIL_HIDE_DEOXYS`.
+      - From 130 the door opens.
+    - Sc24: the logs.
+    - The Zone 404: signs, four trainers and items.
+    - Sc26: `battle_mirror` against the Clone of the player's starter, then Mewtwo appears.
+    - Sc26b: Mewtwo at level 85. Catching it gives the X and Y stones.
+  - **`ch12_extras.rs`, the optional maps and the post-game's loose ends:**
+    - Crow's Lounge:
+      - From 121, `ch00_bar`'s Crow opens the bookcase (`BricoBourg_Bar_OnLoad` repaints (12, 1) walkable).
+      - Crow has a daily rematch (`CROW_9`), with the Shell Bell the first time.
+    - Sc27, the Debug Island:
+      - Once the Debug Key is installed, Route S5's coord warps the player there.
+      - Deoxys is level 80.
+      - The Starf Berry is a sign.
+    - Sc28, the Stele cave: `battle_wild_boss` against the starter's final form at level 80, then the tutor.
+    - The three Antennas (`Antenne`): ALPHA, GAMMA and ETA.
+    - Jirachi at the Cloud Temple, at level 70.
+    - The eight Code Fragments: a bip when the player steps on one, then the sign.
+    - The freed legendaries: Celebi 70, Raikou 75, Lugia 78, Kyogre 80, Registeel 75 and Latias 78.
+    - Tak at Manga-Square (`MangaSquare_PG_Tak`).
+  - **`ch12_revanches.rs`, the eight gym leaders' rematches (`PG_Revanche`):**
+    - From 121, once a day, with a Mega Stone for the first win.
+    - Tauber & Hocseat's first win frees Raikou, and their team becomes `_10`.
+    - Loulpix & Doris's first win frees Registeel and Latias.
+    - From 130, once his gem is won, Loïc tells of Celebi.
+    - Each gym's leader script (ch01–ch08) calls its rematch. Reverse is in his gym from 123.
+- **Ids:**
+  - Appended (`ids.golden`): `FLAG_SIL_FRAGMENT_1..8` (1142–1149) and `FLAG_SIL_ANTENNE_MONTEE` (1165).
+  - The maps agent added 1150–1159.
+  - The champions' gem flags and daily flags come from `fe5e47d9`.
+- **Map edits** (studio edit scripts only):
+  - `RouteS0{2,3,7}_Antenne/04_ch12_scripts.ron`: the top room's on-frame `<Map>_PG_Sommet`.
+  - `RouteS05_IleDebug/03_ch12_scripts.ron`: the Starf Berry as a sign.
+  - Hidden-item signs on the Breach, the No Man's Land, the Crater and the 1F ruin.
+- **Check exceptions:** the 10 `placement-map` exceptions for the post-game gifts are removed, because the scripts now place those gifts.
+- **Spine** (`tests/silice_spine/ch12.rs`, `tests/sil13_ch12.rs`):
+  - 21 segments. Each starts from Ch11's canonical end (`end_of_chapter_11`, story 119), raised to its own story value.
+  - The segments:
+    - Act I: the awakening, the Council, Julien and his daily rematch on a new day (`Step::Days`, then a map load), and the Lighthouse.
+    - Act II: Kimiko, Arthur, Silas and his mail.
+    - Act III: the Horde, the Tower and the Filter, the outside, the Centrale, the Beacon and the last ceiling.
+    - The options: Benou, the Clone and Mewtwo, Crow's Lounge, a gym rematch, the Stele, an Antenna and a Code Fragment.
+  - New driver steps:
+    - `Step::Menu(i)`: the next multichoice takes entry `i`. The driver waits until the menu is drawn, because an earlier A takes entry 0.
+    - `Step::Days(d)`.
+  - The party is Ch11's six at level 100, with a SWAMPERT in place of the DUGTRIO.
+  - Julien's segment has its own six: KYOGRE, ALAKAZAM, TYPHLOSION, AMPHAROS, RAYQUAZA and SWAMPERT. His team ends on Primal Groudon, and the spine's battle policy never switches. Desolate Land voids Water moves, and the sun fires Solar Beam at once.
+
+**Fallbacks.** Each is reported through `fallback()`.
+- `MOVE_SIL_CODE_AQUA` (G-45) uses the source's Gen3 tutor fallback, which depends on the starter: Meganium gets Ancient Power, Typhlosion Crush Claw, and Feraligatr Crunch.
+  - It goes through Gen3's tutor screen (`choose_party_mon(PartyMode::MoveTutor)`), so the player picks the mon, and any mon can learn it.
+  - This is the least invasive choice. New move data would contradict D-00 and D-02b.
+- `give_egg` (Silas's mail) gives `give_mon(PORYGON, 5)`, the source's own fallback; eggs need M13.
+- `battle_wild_double` (the Horde) becomes two wild battles in a row, with Thomas healing between them.
+- Palettes, weather, music, the time of day and the Relay's light are reported but not drawn.
+- Hidden items are signs (Ch0's rule).
+
+**Deviations.** Each is marked in code.
+- Sc21 is fought in place in the Library. The source's Dojo has no map, and a warp ends a script.
+- The Antennas run their three battles from the top room's on-frame script, after the receptionist's warp, because a warp ends the script.
+- The Antennas' rule is checked at the door only. The "ni du Sac" (no bag) rule is not enforced, because no battle rule exists for it yet.
+- The spine knocks out the legendaries it battles instead of catching them, because the driver never throws a ball. Their objects stay shown, as the clear-point contract says.
+
+**Questions for the author.** These are also in `silice-author-questions.md`, as G-48 to G-51 and T-11.
+1. Is it intended that the Tower hall has no door from Nébula after Ch9? The post-game reaches it only by Dive, as Ch9 does.
+2. Code-Aqua: is the starter's Gen3 tutor move, taught to any mon the player picks, acceptable, or should the move be written?
+3. Reverse stands in his gym from 123 while Thomas is also at the Breach. Is that right?
+4. Are these two deviations acceptable: Sc21 in the Library, and the Antennas' battles in an on-frame script?
+5. These texts were never written in the source. For now they are silent, reused or invented:
+   - No text: Benou's door sign, painting and door; the Zone 404's slabs; the Braille wall; the Apex's socle; and the Crater's boulder.
+   - Only turn to face the player, no line: Gwada outside Sc30, and Adrien before 122.
+   - Absent: the Sc19 actors, and Arthur's Port-Ressac NPC.
+   - The elevator labels (1F, 2F, 3F, 4F, SOMMET, TOIT, ANNULER) were written from the source's list.
+   - Each defeat line is the source's after-battle line.
+   - The fragment's bip is `SE_PIN`.
+6. Carried over from the earlier passes:
+   - Mathieu does not walk in Sc02, and he repeats `Sc02_T1`.
+   - Kimiko turns Up, and Silas walks 3 cells.
+   - Julien says nothing at 120.
+   - The workbench carries Silas's line.
+   - Thomas is hidden after Sc10.
+   - The citizens are silent.
+   - Gwada's reminders reuse lines.
+
 ## 4. Contradictions and errors in `contenu-jeu` that block conversion
 
 1. **Encounter schema.** `donnees/rencontres.ron` keys maps by `"MAP_*"` with one header each. The extract's v5 `EncountersFile` keys by map name with a `Vec` of headers (`content/extracted/battle/encounters.ron`). The conventions call it an "extension de encounters.ron", but it cannot be loaded as is.

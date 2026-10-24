@@ -30,6 +30,8 @@ pub async fn MangaSquare_OnTransition(ctx: Ctx) {
         .await;
     ctx.set_flag(FLAG_SIL_HIDE_MANGA_SQUARE_LIVREUR, s < 64)
         .await;
+    // Chapter 12: Tak before the lit statue from 130 (`Manga_Square_PG_Sc32a`).
+    ctx.set_flag(FLAG_SIL_HIDE_MANGA_TAK, s < 130).await;
     // fallback: the dawn tint (§2, the Secteur Zêta's sky set to dawn; a palette tint, M12):
     // the map is drawn with its own palettes.
     fallback(&ctx, "dawn_tint").await;

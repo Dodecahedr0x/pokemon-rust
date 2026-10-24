@@ -1,0 +1,11 @@
+// Chapter 12 (post-game): Fragment de Code 7 (PG_Fragment).
+[
+    // "On the ground floor, behind the stairs": the lighthouse is one map; its ground floor is rows 11-18 and
+    // its stairs are the ramp up x 12 (rows 9-17) behind the rubble wall (10-11, 11-16). The fragment is in
+    // the rubble right behind the ramp, (11, 15) (solid), read from the ramp (12, 15). A sign running
+    // PG_Fragment. The "BIP" coords two cells before it on the ramp, (12, 17) from below and (12, 13) from
+    // above (VAR_TEMP_1 0).
+    Sign(x: 11, y: 15, script: "ReverseCity_Phare_PG_Fragment"),
+    Coord(x: 12, y: 17, var: "VAR_TEMP_1", value: 0, script: "ReverseCity_Phare_PG_FragmentBip"),
+    Coord(x: 12, y: 13, var: "VAR_TEMP_1", value: 0, script: "ReverseCity_Phare_PG_FragmentBip"),
+]

@@ -1,0 +1,13 @@
+// Chapter 12 (post-game): the blinking sea tile to the Debug Island (Route_S05_PG_Sc27, MAP_ROUTE_S05_ILE_DEBUG).
+[
+    // The blinking tile: open sea (51, 22), four cells east of the wreck's sandbank, reached by Surf. VAR_TEMP_1
+    // 0 fires on every step onto it; RouteS05_PG_Sc27 checks FLAG_SIL_CLE_DEBUG_INSTALLEE and warps by
+    // coordinates to the island's mat (4, 8). The cell stays plain water (no tile animates it: the
+    // tilesets are Emerald's).
+    Coord(x: 51, y: 22, var: "VAR_TEMP_1", value: 0, script: "RouteS05_PG_Sc27"),
+    // Warp 3: a landing on the sandbank (46, 22), plain sand: the island's mat comes back here (on land,
+    // so the player is not left standing on water without Surf). Nothing enters it.
+    Warp(x: 46, y: 22, dest_map: "RouteS05_IleDebug", dest_warp: 0),
+    AllowCollision(cells: [(46, 22)], reason: "warp 3 is only the Debug Island's way back, a landing on the sandbank: plain sand that enters nothing"),
+    AllowReach(subject: "warp 3", reason: "the landing is on the wreck's sandbank, reached by Surf like the wreck's own door (warp 0); arriving from the island puts the player on it"),
+]

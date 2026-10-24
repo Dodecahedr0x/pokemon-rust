@@ -99,8 +99,10 @@ pub async fn BricoBourg_PlayerHouse_2F_EventScript_Lit(ctx: Ctx) {
     ctx.release_all().await;
 }
 
-/// The PC.
+/// The PC. Chapter 12: it opens on Silas's mail first, once, before its usual line
+/// (`Brico_Bourg_PG_Sc09`, `ch12_reveil.rs`).
 pub async fn BricoBourg_PlayerHouse_2F_EventScript_Pc(ctx: Ctx) {
+    super::ch12_reveil::pg_mail_silas(&ctx).await;
     msgbox(&ctx, Player_House_Pc, MsgBox::Sign).await;
 }
 

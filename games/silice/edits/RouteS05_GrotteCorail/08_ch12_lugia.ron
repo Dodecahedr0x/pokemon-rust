@@ -1,0 +1,7 @@
+// Chapter 12 (post-game): Lugia in the back pool (PG_Lib_Poussin, PG_Legendaire).
+[
+    // Lugia in the inner basin, off the east shallows (18, 6), talked to from (19, 6). Hidden until
+    // No_Mans_Land_PG_Sc16b (FLAG_SIL_RELAIS_ETEINT) clears FLAG_SIL_HIDE_LUGIA (set at the start); a capture
+    // sets it again.
+    Object(x: 18, y: 6, gfx: "OBJ_EVENT_GFX_LUGIA", id: "LOCALID_GROTTE_CORAIL_LUGIA", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS05_GrotteCorail_EventScript_Lugia", flag: "FLAG_SIL_HIDE_LUGIA"),
+]

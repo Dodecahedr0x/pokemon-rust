@@ -1,0 +1,8 @@
+// Chapter 12 (post-game): Tak before the Rayquaza statue (Manga_Square_PG_Sc32a).
+[
+    // Tak (the source's obj 12; Manga-Square's 12 is taken, so the next free id) before the Wishing Dragon
+    // statue (21-23, 14-16), at its south-west foot (21, 17), facing it; the plaque (22, 16) stays readable
+    // from (22, 17). Hidden by FLAG_SIL_HIDE_MANGA_TAK (set at the start) until his scene's condition
+    // (VAR_SIL_STORY >= 130) shows him. Placeholder sprite.
+    Object(x: 21, y: 17, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_MANGA_SQUARE_TAK", movement: "MOVEMENT_TYPE_FACE_UP", script: "MangaSquare_PG_Tak", flag: "FLAG_SIL_HIDE_MANGA_TAK"),
+]

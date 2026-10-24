@@ -55,7 +55,9 @@ pub async fn TourNebula_2F_OnLoad(ctx: Ctx) {
 
 /// Nothing for Chapter 10 (the drone keeps its hide flag). Chapter 12 adds Gwada here at 127–129
 /// (the plan's "SIL6 Ch12 maps as built").
-pub async fn TourNebula_2F_OnTransition(_ctx: Ctx) {}
+pub async fn TourNebula_2F_OnTransition(ctx: Ctx) {
+    super::ch12_breche::tour_2f_gwada_here(&ctx).await;
+}
 
 const DRONE_IN: &[Step] = &[walk(Dir::Down), Step::FacePlayer];
 const DRONE_OUT: &[Step] = &[walk(Dir::Up), face(Dir::Down)];

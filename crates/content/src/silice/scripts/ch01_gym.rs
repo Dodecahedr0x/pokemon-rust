@@ -47,10 +47,12 @@ pub async fn BoisEther_Gym_OnLoad(ctx: Ctx) {
     }
 }
 
-/// Loïc is in his private greenhouse once beaten.
+/// Loïc is in his private greenhouse once beaten, back on his dais from 121 (Chapter 12's
+/// rematches).
 pub async fn BoisEther_Gym_OnTransition(ctx: Ctx) {
     let badge = ctx.flag(FLAG_SIL_BADGE_01).await;
-    ctx.set_flag(FLAG_SIL_HIDE_GYM1_LOIC, badge).await;
+    let rematch = super::ch12_revanches::ouvertes(&ctx).await;
+    ctx.set_flag(FLAG_SIL_HIDE_GYM1_LOIC, badge && !rematch).await;
 }
 
 // ---- the hall ----
@@ -342,6 +344,9 @@ const LOIC_OUT_WEST: &[Step] = &[
 /// 14. A loss whites out (the script ends there).
 pub async fn BoisEther_Gym_Sc10(ctx: Ctx) {
     if ctx.flag(FLAG_SIL_BADGE_01).await {
+        if super::ch12_revanches::ouvertes(&ctx).await {
+            super::ch12_revanches::revanche_loic(&ctx).await;
+        }
         return;
     }
     ctx.lock().await;

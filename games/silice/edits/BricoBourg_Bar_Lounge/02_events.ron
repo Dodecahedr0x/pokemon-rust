@@ -1,0 +1,10 @@
+// Header, warps, objects.
+[
+    Header((music: "MUS_SLATEPORT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the stairs up, to the Shaker's bookcase (BricoBourg_Bar's warp 2). Arriving on them walks the
+    // player south onto (1, 2).
+    Warp(x: 1, y: 1, dest_map: "BricoBourg_Bar", dest_warp: 2),
+    // 1: Crow behind his counter (Brico_Bourg_Bar_PG_Sc22's Lounge half: the daily rematch, the Shell Bell).
+    // Always there: no hide flag. Talked to across the counter from (9, 5).
+    Object(x: 9, y: 3, gfx: "OBJ_EVENT_GFX_GENTLEMAN", id: "LOCALID_LOUNGE_CROW", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "BricoBourg_Bar_Lounge_PG_Crow"),
+]

@@ -1,0 +1,4 @@
+// Silice Ch12, MAP_ROUTE_S05_ILE_DEBUG: the Debug Island off Route S5 (9 x 9, the source's size), a black-and-green
+// checkerboard islet like a missing texture (Route_S05_PG_Sc27). Building + CableClub (Emerald tilesets by name):
+// the void black 513 and the green floor 554, alternated cell by cell. Border: the void.
+(name: "RouteS05_IleDebug", width: 9, height: 9, primary: "Building", secondary: "CableClub", fill: 554, border: [1025, 1025, 1025, 1025])

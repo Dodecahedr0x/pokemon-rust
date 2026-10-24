@@ -134,6 +134,21 @@
             script: Some("RouteS01_EventScript_ItemPotion"),
             flag: Some("FLAG_SIL_ITEM_ROUTE_S01_POTION"),
         ),
+        (
+            local_id: 9,
+            id: Some("LOCALID_ROUTE_S01_CELEBI"),
+            gfx: "OBJ_EVENT_GFX_TREECKO_DOLL",
+            x: 12,
+            y: 35,
+            elevation: 3,
+            movement: "MOVEMENT_TYPE_FACE_DOWN",
+            range_x: 0,
+            range_y: 0,
+            trainer_type: "TRAINER_TYPE_NONE",
+            trainer_sight_or_berry_tree: 0,
+            script: Some("RouteS01_EventScript_Celebi"),
+            flag: Some("FLAG_SIL_HIDE_CELEBI"),
+        ),
     ],
     warps: [],
     coords: [
@@ -217,6 +232,22 @@
             value: 6,
             script: Some("RouteS01_Sc02"),
         ),
+        (
+            x: 9,
+            y: 35,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("RouteS01_PG_FragmentBip"),
+        ),
+        (
+            x: 11,
+            y: 37,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("RouteS01_PG_FragmentBip"),
+        ),
     ],
     bgs: [
         (
@@ -262,6 +293,15 @@
             kind: Script(
                 facing: 0,
                 script: Some("RouteS01_EventScript_HiddenAntidote"),
+            ),
+        ),
+        (
+            x: 11,
+            y: 35,
+            elevation: 0,
+            kind: Script(
+                facing: 0,
+                script: Some("RouteS01_PG_Fragment"),
             ),
         ),
     ],

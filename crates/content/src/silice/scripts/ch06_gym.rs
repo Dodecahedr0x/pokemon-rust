@@ -198,6 +198,10 @@ pub async fn MangaSquare_Gym_Sc02(ctx: Ctx) {
 /// and LOG_06. Sets 66. Afterwards, his reaction to the log.
 pub async fn MangaSquare_Gym_Sc03(ctx: Ctx) {
     let s = story(&ctx).await;
+    if s >= 121 {
+        super::ch12_revanches::revanche(&ctx, &super::ch12_revanches::TAK).await;
+        return;
+    }
     if s != 65 {
         if s > 65 {
             msgbox(&ctx, Gym_Sc03_T11, MsgBox::Npc).await;

@@ -273,10 +273,13 @@ pub enum Request {
     /// Gen3 `special HealPlayerParty`.
     HealParty,
     /// A wild battle; answers `Value(BattleOutcome as u16)` once the field is back.
+    /// `rules` (Silice; Gen3 never sets them): per-battle rules ([`crate::battle::rules`]),
+    /// for example a boss's stat aura and [`crate::battle::BattleRules::no_catch`].
     BattleWild {
         species: SpeciesId,
         level: u8,
         first_battle: bool,
+        rules: Option<&'static crate::battle::BattleRules>,
     },
     /// A trainer battle; `defeat` is shown when the player wins. Answers
     /// `Value(BattleOutcome as u16)` once the field is back. A battle that whites out never
@@ -615,6 +618,9 @@ pub enum Query {
     /// The berry tree id of the current map's object `local_id` (Gen3
     /// `GetObjectEventBerryTreeId`: its template's `trainerRange_berryTreeId`), 0 for none.
     ObjectBerryTree(u8),
+    /// The item held by party slot `slot` (Gen3 `MON_DATA_HELD_ITEM`), 0 for none or an empty
+    /// slot.
+    PartyHeldItem(u8),
 }
 
 impl Query {
@@ -638,6 +644,7 @@ impl Query {
             Query::PartyPersonalityLow(slot) => (9, slot as u16, 0),
             Query::Metatile { x, y } => (10, x as u16, y as u16),
             Query::ObjectBerryTree(local_id) => (11, local_id as u16, 0),
+            Query::PartyHeldItem(slot) => (12, slot as u16, 0),
         }
     }
 }
@@ -713,7 +720,15 @@ impl Request {
                 species,
                 level,
                 first_battle,
-            } => (39, species.0, level as u16, first_battle as u16, 0),
+                rules,
+            } => (
+                39,
+                species.0,
+                level as u16,
+                first_battle as u16,
+                // 0 without rules: Gen3's battles hash as before.
+                rules.map_or(0, |r| r.digest() as u16 | 1),
+            ),
             Request::BattleTrainer {
                 trainer, defeat, ..
             } => (40, trainer.0, defeat.0, 0, 0),
@@ -1354,6 +1369,26 @@ impl Ctx {
                 species,
                 level,
                 first_battle,
+                rules: None,
+            },
+            outcome,
+        )
+    }
+
+    /// A wild battle under Silice's per-battle `rules` ([`crate::battle::rules`]): a boss's
+    /// aura (a field rule), no catching ([`crate::battle::BattleRules::no_catch`]).
+    pub fn battle_wild_rules(
+        &self,
+        species: SpeciesId,
+        level: u8,
+        rules: &'static crate::battle::BattleRules,
+    ) -> Req<BattleOutcome> {
+        self.req(
+            Request::BattleWild {
+                species,
+                level,
+                first_battle: false,
+                rules: Some(rules),
             },
             outcome,
         )

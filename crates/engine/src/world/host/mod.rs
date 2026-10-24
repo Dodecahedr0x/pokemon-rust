@@ -402,13 +402,15 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 species,
                 level,
                 first_battle,
+                rules,
             } => {
                 // Gen3 `CreateScriptedWildMon` / the first battle's `CreateMon`.
                 let mon = s.create_mon(game, species, level);
                 let mut opponents = Party::default();
                 let _ = opponents.push(mon);
                 let kind = BattleKind::Wild { first_battle };
-                s.start_battle(game, kind, opponents, Origin::Script, self.f);
+                let rules = rules.copied().unwrap_or_default();
+                s.start_battle_with(game, kind, opponents, None, rules, Origin::Script, self.f);
                 None
             }
             Request::BattleTrainer {
