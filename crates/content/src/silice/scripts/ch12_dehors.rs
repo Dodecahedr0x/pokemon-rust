@@ -586,9 +586,9 @@ pub async fn SommetApex_PG_Sc19(ctx: Ctx) {
     say(&ctx, Sommet_Apex_PG_Sc19_T2).await;
     say(&ctx, Sommet_Apex_PG_Sc19_T3).await;
     fade_white(&ctx, true).await;
-    // fallback: the original palette back, no weather, MUS_SIL_AUBE_VRAIE (§9).
-    fallback(&ctx, "set_palette_set").await;
-    fallback(&ctx, "set_weather").await;
+    // set_palette_set(ORIGINALE), set_weather(NONE); fallback: MUS_SIL_AUBE_VRAIE (§9).
+    clear_palette(&ctx, 0).await;
+    set_weather(&ctx, engine::weather::NONE).await;
     fallback(&ctx, "play_music").await;
     fade_white(&ctx, false).await;
     say(&ctx, Sommet_Apex_PG_Sc19_T4).await;

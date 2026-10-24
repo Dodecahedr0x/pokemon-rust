@@ -70,6 +70,8 @@ pub async fn Nebula_OnTransition(ctx: Ctx) {
     ] {
         ctx.set_flag(f, s != 126).await;
     }
+    // Chapter 12's destroyed sky (127–129).
+    super::ch12_breche::destroyed_sky(&ctx).await;
 }
 
 /// Nothing: the map has no Dive connection, so its two dive spots (the Bassin (50–52, 10–13)

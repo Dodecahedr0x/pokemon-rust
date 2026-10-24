@@ -26,7 +26,11 @@
 //! **Buildings:** [`pokecenter_nurse`] (Gen3's nurse), [`mart`] (a fallback until M9's shop).
 //!
 //! **Screen effects:** [`screen_shake`], [`screen_flash`] (with [`WHITE`], [`YELLOW`],
-//! [`BLACK`], [`NEGATIF`]), [`fade_white`], [`show_text_on_black`], [`camera_pan`].
+//! [`BLACK`]), [`negatif`], [`fade_white`], [`show_text_on_black`], [`camera_pan`].
+//!
+//! **Skies** (`silice::sky`): [`set_palette`] / [`clear_palette`] with the source's palettes
+//! ([`NUIT`], [`SKY_ALERT_RED`], [`ELYSIUM_GOLD`], [`DETRUITE`]…), [`set_weather`] (Gen3's
+//! weathers and [`WEATHER_PETALS`]), the sky's crack ([`SKY_CRACK`], `Ctx::show_overlay`).
 //!
 //! **Fallbacks:** [`fallback`] reports `Report::Degraded(name)` and returns, so the scene goes
 //! on: [`play_se`] (nothing),
@@ -334,9 +338,12 @@ pub const WHITE: u16 = 0x7FFF;
 pub const YELLOW: u16 = 0x03FF;
 /// `screen_flash(PIXELS_NOIRS)`.
 pub const BLACK: u16 = 0x0000;
-/// `screen_flash(NEGATIF)`: no inverted palette (`Request::ScreenFlash` fills one colour); a
-/// white flash stands in. Author question: keep it, or ask for a palette inversion.
-pub const NEGATIF: u16 = WHITE;
+// Palettes, weathers and the sky's crack (`silice::sky`).
+pub use crate::silice::sky::{
+    AUBE, CREPUSCULE, DETRUITE, ELYSIUM_GOLD, NEGATIF, NUIT, NUIT_VRAIE, PALETTE_FRAMES, Palette,
+    SKY_ALERT_RED, SKY_CRACK, SKY_CRACK_FRAMES, STROBES, WEATHER_PETALS, clear_palette, negatif,
+    set_palette, set_weather,
+};
 
 /// How long a flash stays on screen when the source gives no duration (16 frames).
 pub const FLASH_FRAMES: u16 = 16;

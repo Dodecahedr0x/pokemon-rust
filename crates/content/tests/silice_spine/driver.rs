@@ -939,6 +939,26 @@ impl Run {
         self.g.texts.borrow().iter().filter(|x| **x == t).count()
     }
 
+    /// Asserts that no sky fallback was reported: the weathers, palettes, tints, strobes and the
+    /// sky's crack are real (`silice::sky`, the weather wave).
+    pub fn no_sky_fallbacks(&self) {
+        for name in [
+            "set_time_tint",
+            "set_sky_alert",
+            "clear_sky_alert",
+            "strobes",
+            "dawn_tint",
+            "weather",
+            "palette",
+            "sky_crack",
+            "set_weather",
+            "set_palette_set",
+            "set_time_of_day",
+        ] {
+            assert!(!self.degraded.contains(name), "{name} is still a fallback");
+        }
+    }
+
     /// Asserts that `want` were printed in this order (other texts may come between).
     pub fn printed_in_order(&self, want: &[TextId]) {
         let texts = self.g.texts.borrow();

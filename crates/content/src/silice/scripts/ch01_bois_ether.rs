@@ -60,9 +60,9 @@ pub async fn BoisEther_OnTransition(ctx: Ctx) {
         ctx.set_flag(f, true).await;
     }
     if ctx.flag(FLAG_SIL_BOIS_ETHER_RED_SKY).await {
-        // fallback: set_sky_alert(RED) and MUS_ENCOUNTER_MAGMA (`Request::SetTint`, SIL2 Wave 0
-        // in the M9 plan; audio, M12): no tint, the map's own music.
-        fallback(&ctx, "set_sky_alert").await;
+        // set_sky_alert(RED) on every load while the alert lasts; fallback: MUS_ENCOUNTER_MAGMA
+        // (audio, M12): the map's own music.
+        set_palette(&ctx, SKY_ALERT_RED, 0, false).await;
     }
 }
 
@@ -220,10 +220,8 @@ pub async fn BoisEther_Sc06(ctx: Ctx) {
     }
     ctx.lock_all().await;
     move_wait(&ctx, PLAYER, FACE_DOWN).await;
-    // fallback: set_sky_alert(RED) (`Request::SetTint`, SIL2 Wave 0 in the M9 plan; the source's
-    // own fallback, WEATHER_DROUGHT, has no script request either): no tint; the flag is set, T1
-    // describes the sky.
-    fallback(&ctx, "set_sky_alert").await;
+    // set_sky_alert(RED): the sky turns red; the flag keeps it on the next loads.
+    set_palette(&ctx, SKY_ALERT_RED, PALETTE_FRAMES, false).await;
     ctx.set_flag(FLAG_SIL_BOIS_ETHER_RED_SKY, true).await;
     say(&ctx, Bois_Ether_Sc06_T1).await;
     show(&ctx, LOCALID_BOIS_ETHER_GOGO, FLAG_SIL_HIDE_BOIS_ETHER_GOGO).await;
@@ -316,9 +314,8 @@ pub async fn BoisEther_Sc07(ctx: Ctx) {
         GARDE_UP
     };
     move_wait(&ctx, LOCALID_BOIS_ETHER_GARDE, aside).await;
-    // fallback: clear_sky_alert() (`Request::SetTint`, as Sc06): nothing to clear on screen; the
-    // alert's flag ends (§8: cleared at 17).
-    fallback(&ctx, "clear_sky_alert").await;
+    // clear_sky_alert(): the map's own palette back; the alert's flag ends (§8: cleared at 17).
+    clear_palette(&ctx, PALETTE_FRAMES).await;
     ctx.set_flag(FLAG_SIL_BOIS_ETHER_RED_SKY, false).await;
     set_story(&ctx, 17).await;
     ctx.release_all().await;

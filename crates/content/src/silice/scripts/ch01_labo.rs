@@ -8,13 +8,12 @@ use crate::silice::prelude::*;
 /// The maps whose scripts this file owns: strict (every script they name must exist).
 pub const MAPS: &[&str] = &["BricoBourg_Labo"];
 
-/// The Chimiste is gone once beaten. The strobes are a fallback.
+/// The Chimiste is gone once beaten. The strobes flash on every visit (§2: a night club; the
+/// source does not stop them once he is gone).
 pub async fn BricoBourg_Labo_OnTransition(ctx: Ctx) {
     let state = ctx.var(VAR_SIL_BRICO_LABO_STATE).await;
     ctx.set_flag(FLAG_SIL_HIDE_LABO_CHIMISTE, state == 2).await;
-    // fallback: the strobes (palette flashing, `Request::ScreenFlash`/`SetTint` of the M9 plan;
-    // the source's own fallback is animated metatiles, which the Lab tileset lacks): none.
-    fallback(&ctx, "strobes").await;
+    set_palette(&ctx, STROBES, 0, false).await;
 }
 
 /// Brico_Labo_Sc01, the night club: one step in from the mat (6–7, 10), the first time

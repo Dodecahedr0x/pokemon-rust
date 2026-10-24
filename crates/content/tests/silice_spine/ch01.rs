@@ -487,6 +487,12 @@ pub fn steps() -> Vec<Step> {
         goto(VILLAGE, 17, 6),
         Step::Check("sc06", |r| {
             assert_eq!(r.w.var(VAR_SIL_STORY), 16);
+            let red = content::silice::sky::SKY_ALERT_RED;
+            assert_eq!(
+                r.w.palette().map(|p| (p.color, p.current)),
+                Some((red.color, red.amount)),
+                "the red sky"
+            );
             assert!(r.beaten(TRAINER_SIL_GOGO_1));
             assert!(r.beaten(TRAINER_SIL_ROMAIN_1));
             for f in [
@@ -544,6 +550,7 @@ pub fn steps() -> Vec<Step> {
         Step::Check("sc07", |r| {
             assert_eq!(r.w.var(VAR_SIL_STORY), 17);
             assert!(!r.w.flag(FLAG_SIL_BOIS_ETHER_RED_SKY));
+            assert_eq!(r.w.palette(), None, "the red sky is gone");
             r.printed_in_order(&[Bois_Ether_Sc07_T1, Bois_Ether_Sc07_T2, Bois_Ether_Sc07_T3]);
         }),
         Step::Walk(Right),
@@ -591,6 +598,11 @@ pub fn steps() -> Vec<Step> {
         goto(LABO, 6, 10),
         Step::Check("labo_sc01", |r| {
             assert_eq!(r.w.var(VAR_SIL_BRICO_LABO_STATE), 1);
+            assert_eq!(
+                r.w.palette().map(|p| p.pulse),
+                Some(content::silice::sky::STROBES.pulse),
+                "the strobes"
+            );
             assert!(r.has_text(Brico_Labo_Sc01_T1));
         }),
         goto_avoiding(LABO, 9, 10, LABO_SIGHT),
@@ -650,13 +662,11 @@ pub fn steps() -> Vec<Step> {
 pub fn check_end(r: &Run) {
     assert_eq!(r.w.var(VAR_SIL_STORY), 17);
     assert_eq!(r.w.events_dropped(), 0);
+    r.no_sky_fallbacks();
     for name in [
         "mart",
         "show_sync",
-        "set_sky_alert",
-        "clear_sky_alert",
         "battle_two_trainers",
-        "strobes",
         "hidden item",
         "play_se",
         "mallette_call",

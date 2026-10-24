@@ -207,13 +207,11 @@ pub fn check_end(r: &Run) {
     assert!(r.w.flag(FLAG_SIL_HIDE_HOUSE_EPILOGUE));
     assert!(!r.reloaded);
     assert_eq!(r.w.events_dropped(), 0);
+    r.no_sky_fallbacks();
     for name in [
         "play_music",
         "battle_lines",
-        "weather",
-        "palette",
         "cabin_background",
-        "sky_crack",
         "credits_montage",
     ] {
         assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);

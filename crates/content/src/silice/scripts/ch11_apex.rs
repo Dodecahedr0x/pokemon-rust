@@ -37,8 +37,20 @@ pub async fn SommetApex_OnLoad(_ctx: Ctx) {}
 /// The hide flags by story: Poussin gone from 112 (his `Sc04` sets it too), Julien hidden
 /// outside his `Sc05`. Chapter 12's altar (`FLAG_SIL_HIDE_APEX_SOCLE`) shows from 120 (the plan's
 /// "SIL6 Ch12 maps": the Apex's post-game socle).
+///
+/// The sky (§9 `set_weather`, `set_palette`): the header's shade, the fog after Poussin (112),
+/// Elysium's drought and gold while `FLAG_SIL_ELYSIUM_ACTIF`, no weather under the true sky
+/// (`FLAG_SIL_CIEL_VRAI`, from the Zenith's rupture).
 pub async fn SommetApex_OnTransition(ctx: Ctx) {
     let s = story(&ctx).await;
+    if ctx.flag(FLAG_SIL_ELYSIUM_ACTIF).await {
+        ctx.set_weather(u16::from(engine::weather::DROUGHT)).await;
+        set_palette(&ctx, ELYSIUM_GOLD, 0, false).await;
+    } else if ctx.flag(FLAG_SIL_CIEL_VRAI).await {
+        ctx.set_weather(u16::from(engine::weather::NONE)).await;
+    } else if s >= 112 {
+        ctx.set_weather(u16::from(engine::weather::FOG_HORIZONTAL)).await;
+    }
     if s >= 112 {
         ctx.set_flag(FLAG_SIL_HIDE_APEX_POUSSIN, true).await;
     }
@@ -130,9 +142,9 @@ const POUSSIN_LEAVES: &[Step] = &[
 /// walks up one cell to it (not three) and back; then east along the stage's row 6 (seven cells,
 /// the ring's east edge) rather than ten, and vanishes towards the service elevator.
 async fn SommetApex_Sc04(ctx: &Ctx) {
-    // fallback: WEATHER_FOG_HORIZONTAL (set_weather) and MUS_SIL_APEX_BRUME: the map's weather and
-    // music stay.
-    fallback(ctx, "weather").await;
+    // The rain of the battle gives way to a thick fog; fallback: MUS_SIL_APEX_BRUME (play_music).
+    set_weather(ctx, engine::weather::FOG_HORIZONTAL).await;
+    fallback(ctx, "play_music").await;
     say(ctx, Sommet_Apex_Sc04_T1).await;
     say(ctx, Sommet_Apex_Sc04_T2).await;
     move_wait(ctx, LOCALID_APEX_POUSSIN, POUSSIN_PUZZLED).await;
@@ -259,8 +271,8 @@ pub async fn SommetApex_Sc05(ctx: Ctx) {
     ctx.set_var(VAR_SIL_SYNC, 100).await;
     show_sync(&ctx, 100).await;
     msgbox(&ctx, Sommet_Apex_Sc05_T10, MsgBox::Default).await;
-    // fallback: the gold palette (set_palette ELYSIUM_GOLD): the texts say it.
-    fallback(&ctx, "palette").await;
+    // set_palette(MAP_SOMMET_APEX, ELYSIUM_GOLD): the screens turn gold.
+    set_palette(&ctx, ELYSIUM_GOLD, PALETTE_FRAMES, false).await;
     say(&ctx, Sommet_Apex_Sc05_T11).await;
     ctx.turn(LOCALID_APEX_JULIEN, Dir::Down).await;
     say(&ctx, Sommet_Apex_Sc05_T12).await;
@@ -277,7 +289,8 @@ pub async fn SommetApex_Sc05(ctx: Ctx) {
     };
     move_wait(&ctx, LOCALID_APEX_JULIEN, closer).await;
     say(&ctx, Sommet_Apex_Sc05_T19).await;
-    // fallback: WEATHER_DROUGHT (set_weather): the narration says the sky turns orange.
+    // set_weather(WEATHER_DROUGHT): the sky turns orange, the heat.
+    set_weather(&ctx, engine::weather::DROUGHT).await;
     say(&ctx, Sommet_Apex_Sc05_T20).await;
     play_se(&ctx, "SE_ELEVATOR").await;
     say(&ctx, Sommet_Apex_Sc05_T21).await;

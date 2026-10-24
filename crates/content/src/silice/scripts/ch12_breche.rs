@@ -150,6 +150,37 @@ pub(super) async fn gaz(ctx: &Ctx, obj: u8, v2: bool) {
 
 // ---- Nébula: the sky splits (Sc10) ----
 
+/// `set_palette_set(DETRUITE)` and `set_weather(FOG_LIGHT)` from `Nebula_PG_Sc10` (127) to
+/// `Sommet_Apex_PG_Sc19` (130), on every load of Nébula, the Tower's ruins and the Breach
+/// (`FOG_LIGHT` is Gen3's horizontal fog). Their on-transition scripts call it.
+pub(crate) async fn destroyed_sky(ctx: &Ctx) {
+    if (127..130).contains(&story(ctx).await) {
+        ctx.set_weather(u16::from(engine::weather::FOG_HORIZONTAL))
+            .await;
+        set_palette(ctx, DETRUITE, 0, false).await;
+    }
+}
+
+/// The Breach's sky ([`destroyed_sky`]).
+pub async fn Breche_OnTransition(ctx: Ctx) {
+    destroyed_sky(&ctx).await;
+}
+
+/// The Tower's 1F ruins' sky ([`destroyed_sky`]).
+pub async fn TourNebula_1F_Ruine_OnTransition(ctx: Ctx) {
+    destroyed_sky(&ctx).await;
+}
+
+/// The Tower's 3F ruins' sky ([`destroyed_sky`]).
+pub async fn TourNebula_3F_Ruine_OnTransition(ctx: Ctx) {
+    destroyed_sky(&ctx).await;
+}
+
+/// The Tower's 4F ruins' sky ([`destroyed_sky`]).
+pub async fn TourNebula_4F_Ruine_OnTransition(ctx: Ctx) {
+    destroyed_sky(&ctx).await;
+}
+
 const MATHIEU_COMES: &[Step] = &[walk(Dir::Down), walk(Dir::Down), walk(Dir::Down), Step::FacePlayer];
 const THOMAS_COMES: &[Step] = &[
     walk(Dir::Left),
@@ -162,14 +193,15 @@ const THOMAS_COMES: &[Step] = &[
 /// `Nebula_PG_Sc10`, the sky splits (on-frame at 126): Mathieu, the roar, Thomas, the Horde (the
 /// source's fallback: Tyranitar then Crobat at 72, Thomas heals between them), 127.
 ///
-/// Fallbacks: the "destroyed" palette, the fog and the alarm music (§9); `battle_wild_double`
+/// The "destroyed" palette and the fog (§9, `FOG_LIGHT`: Gen3's horizontal fog) from here to
+/// 129 ([`destroyed_sky`]). Fallbacks: the alarm music (§9); `battle_wild_double`
 /// with Thomas as the partner (no multi battle against two wild Pokémon): two wild battles in a
 /// row. The crack itself is `Nebula_OnLoad`'s (from 126). Thomas leaves for the Breach's camp at
 /// the end (hidden; the source leaves him standing, with no script on him).
 pub async fn Nebula_PG_Sc10(ctx: Ctx) {
     ctx.lock_all().await;
-    fallback(&ctx, "set_palette_set").await;
-    fallback(&ctx, "set_weather").await;
+    set_palette(&ctx, DETRUITE, PALETTE_FRAMES, false).await;
+    set_weather(&ctx, engine::weather::FOG_HORIZONTAL).await;
     fallback(&ctx, "play_music").await;
     move_wait(&ctx, LOCALID_NEBULA_PG_MATHIEU, MATHIEU_COMES).await;
     say(&ctx, Nebula_PG_Sc10_T1).await;

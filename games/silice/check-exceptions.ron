@@ -750,6 +750,12 @@
         ),
         (
             rule: "sil-prefix",
+            subject: "WEATHER_0x40",
+            reason: "the source's WEATHER_PETALS as Silice's game weather kind 0x40 (engine::weather::GAME_FIRST, silice::sky::WEATHER_PETALS): map headers name a weather by Gen3 name or number, and Silice has no weather id file",
+            ruling_needed: false,
+        ),
+        (
+            rule: "sil-prefix",
             subject: "WEATHER_PETALS",
             reason: "no such Gen3 weather; a new weather must be WEATHER_SIL_* and needs engine work, or use a Gen3 weather",
             ruling_needed: true,

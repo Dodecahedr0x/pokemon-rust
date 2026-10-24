@@ -28,6 +28,7 @@ pub mod mallette;
 pub mod new_game;
 pub mod prelude;
 pub mod rules;
+pub mod sky;
 
 #[cfg(test)]
 mod game_tests;
@@ -91,6 +92,16 @@ impl GameData for Game {
             daily_flags: SIL_DAILY_FLAGS,
             ..crate::gen3_special_ids()
         }
+    }
+
+    /// Chapter 6's petals (`sky::WEATHER_PETALS`).
+    fn weather_look(&self, id: u8) -> Option<&'static engine::weather::Look> {
+        sky::weather_look(id)
+    }
+
+    /// The Zenith's sky crack (`sky::SKY_CRACK`).
+    fn overlay(&self, id: u8) -> Option<&'static engine::sky::Overlay> {
+        sky::overlay(id)
     }
 
     /// The Mallette's modules ([`mallette::field_move_gate`]).

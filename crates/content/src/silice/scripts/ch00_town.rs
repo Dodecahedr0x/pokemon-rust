@@ -23,8 +23,8 @@ pub async fn BricoBourg_OnLoad(ctx: Ctx) {
 
 /// Object visibility by story step (§8 "Visibilité"): the day NPCs (LINGE, GAMIN, BRICOLEUSE)
 /// from `VAR_SIL_STORY` 3, the friends in front of the house at 3 and 4, the sbire only inside
-/// Brico_Bourg_Sc01. The old man and the fisherman stay. At night (≤ 2) the source darkens the
-/// palette.
+/// Brico_Bourg_Sc01. The old man and the fisherman stay. At night (≤ 2) the palette is the
+/// night's ([`NUIT`]).
 pub async fn BricoBourg_OnTransition(ctx: Ctx) {
     let s = story(&ctx).await;
     for f in [
@@ -43,10 +43,8 @@ pub async fn BricoBourg_OnTransition(ctx: Ctx) {
     }
     ctx.set_flag(FLAG_SIL_HIDE_BRICO_SBIRE, true).await;
     if s <= 2 {
-        // fallback: set_time_tint(NUIT) (`Request::SetTint`, SIL2 Wave 0 in the M9 plan): no
-        // tint, and no flag-selected night map either (the maps leave it out); the village
-        // keeps its day palette.
-        fallback(&ctx, "set_time_tint").await;
+        // set_time_tint(NUIT): the night palette, on every load of the village.
+        set_palette(&ctx, NUIT, 0, false).await;
     }
 }
 

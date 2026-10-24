@@ -113,8 +113,8 @@ pub async fn ReverseCity_Sc01(ctx: Ctx) {
     }
     ctx.lock_all().await;
     say(&ctx, Reverse_City_Sc01_T1).await;
-    // NEGATIF: a white flash (no palette inversion; see the prelude's `NEGATIF`).
-    screen_flash(&ctx, NEGATIF).await;
+    // NEGATIF: the colours inverted for a flash's length.
+    negatif(&ctx, FLASH_FRAMES).await;
     say(&ctx, Reverse_City_Sc01_T2).await;
     set_input_inverted(&ctx, true).await;
     say(&ctx, Reverse_City_Sc01_T3).await;
