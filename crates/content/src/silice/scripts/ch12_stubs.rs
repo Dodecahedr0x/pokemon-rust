@@ -138,3 +138,32 @@ pub async fn TourNebula_2F_PG_Gwada(_ctx: Ctx) {
 pub async fn TourNebula_2F_PG_PC(_ctx: Ctx) {
     // fallback: Ch12 post-game scripts not written yet.
 }
+
+// ---- SommetApex (claimed by ch11_apex.rs) ----
+// Ch11's `SommetApex_OnTransition` already clears `FLAG_SIL_HIDE_APEX_SOCLE` from 120.
+
+/// Ch12 `Sommet_Apex_PG_Sc16c`, Poussin's daily rematch on his stage (hidden until then).
+pub async fn SommetApex_PG_Sc16c(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12 `Sommet_Apex_PG_Sc19`, the Purity Beacon: row 16 at `VAR_SIL_STORY` 129.
+pub async fn SommetApex_PG_Sc19(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet: the step does nothing.
+}
+
+/// Ch12 `Sommet_Apex_PG_Sc32`, Rayquaza: the socle's four neighbours (`VAR_TEMP_1` 0, so it
+/// fires on every step; the scene checks `VAR_SIL_STORY >= 130` and the capture flag).
+pub async fn SommetApex_PG_Sc32(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet: the step does nothing.
+}
+
+/// Ch12: the empty socle (hidden until 120).
+pub async fn SommetApex_EventScript_Socle(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12: Rayquaza on the stage (hidden outside `SommetApex_PG_Sc32`).
+pub async fn SommetApex_EventScript_Rayquaza(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}

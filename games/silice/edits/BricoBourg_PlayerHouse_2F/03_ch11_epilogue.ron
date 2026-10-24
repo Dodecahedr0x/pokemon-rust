@@ -1,0 +1,5 @@
+// SIL Ch11 scripts on Chapter 0's house: Brico_Bourg_Sc14's first half (three days later) on
+// VAR_SIL_FIN_SCENE 14, set by Nebula_Sc13 with the warp to the bed's side.
+[
+    ScriptsSet(on_frame: [(var: "VAR_SIL_FIN_SCENE", value: 14, script: "BricoBourg_PlayerHouse_2F_Sc14")]),
+]

@@ -1148,3 +1148,9 @@ flags FLAG_SIL_EVALON_PP_MAX 1188
 # tombstones.
 vars VAR_SIL_CASINO_STATE 16437
 vars VAR_SIL_PORT_RESSAC_STATE 16439
+# SIL Ch10-11 scripts: the endings' scene var (Elysium and the epilogue's on-frame scenes) and one hide
+# flag per object for the player's house epilogue (Julien) and the Elysium table (Adrien, Gwada).
+flags FLAG_SIL_HIDE_HOUSE_EPILOGUE_2 1275
+flags FLAG_SIL_HIDE_HOUSE_ELYSIUM_2 1276
+flags FLAG_SIL_HIDE_HOUSE_ELYSIUM_3 1277
+vars VAR_SIL_FIN_SCENE 16460

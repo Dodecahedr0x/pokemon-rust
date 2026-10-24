@@ -96,5 +96,9 @@
             name: "VAR_SIL_PORT_RESSAC_STATE",
             num: 16439,
         ),
+        (
+            name: "VAR_SIL_FIN_SCENE",
+            num: 16460,
+        ),
     ],
 )

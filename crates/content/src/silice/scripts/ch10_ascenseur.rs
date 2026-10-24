@@ -130,8 +130,9 @@ pub async fn TourNebulaAscenseur_EventScript_Panneau(ctx: Ctx) {
 }
 
 /// The hall's elevator door (Chapter 9's `Nebula_TourHall`, sign (12, 1)): from story 99 (Ch9's
-/// hand-off) to the end of Chapter 11 it takes the player to the cabin, whose `Sc00` picks the
-/// floor. Before 99 the door does not open; from 119 Chapter 12's elevator takes over.
+/// hand-off) to the Zenith (117) it takes the player to the cabin, whose `Sc00` picks the floor.
+/// Before 99 the door does not open; at 118 the ending holds the player, and from 119 Chapter
+/// 12's elevator takes over.
 ///
 /// Contradiction (the plan's "SIL5 Ch10–Ch11 maps: review", author question 1): Ch9's
 /// `Tour_Hall_Sc02` warps straight to 1F; Ch10's `Tour_Ascenseur_Sc00a` plays the first climb.
@@ -139,7 +140,7 @@ pub async fn TourNebulaAscenseur_EventScript_Panneau(ctx: Ctx) {
 /// 99 and sends a player already at 100 to 1F.
 pub async fn Nebula_TourHall_EventScript_Ascenseur(ctx: Ctx) {
     let s = story(&ctx).await;
-    if !(99..=118).contains(&s) {
+    if !(99..=117).contains(&s) {
         return;
     }
     ctx.lock_all().await;

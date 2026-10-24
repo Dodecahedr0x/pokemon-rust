@@ -1540,5 +1540,11 @@
             reason: "a post-game gift, not a ball: the Jungkite placed on TourNebula_2F is given by Gwada's Ch12 scene (12-post-game, Sc18), not by the Ch10 scripts that now claim TourNebula_2F (SIL Ch10-11 scripts)",
             ruling_needed: false,
         ),
+        (
+            rule: "placement-map",
+            subject: "FLAG_SIL_ITEM_PG_SWAMPERTITE",
+            reason: "a post-game reward, not a ball: the Laggronite placed on SommetApex is given by Poussin's first rematch won (Ch12 Sommet_Apex_PG_Sc16c), not by the Ch11 scripts that now claim SommetApex (SIL Ch10-11 scripts)",
+            ruling_needed: false,
+        ),
     ],
 )
