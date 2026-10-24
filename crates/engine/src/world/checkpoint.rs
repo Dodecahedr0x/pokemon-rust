@@ -129,7 +129,13 @@ impl World {
             map_layout: s.field.layout(),
             sky: (!s.weather.is_default() || s.palette.is_some()).then_some(
                 crate::checkpoint::SkySnap {
-                    weather: s.weather,
+                    // Without the fields a restore derives (the map's default) or that are
+                    // display only (the particles' phase), which the encoding skips.
+                    weather: crate::weather::Weather {
+                        map_default: 0,
+                        t: 0,
+                        ..s.weather
+                    },
                     palette: s.palette,
                 },
             ),

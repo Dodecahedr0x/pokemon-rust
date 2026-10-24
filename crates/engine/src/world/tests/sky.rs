@@ -223,6 +223,9 @@ fn crossings_are_gradual_warps_instant_and_unsettled_weather_is_state() {
     step(&g, &mut w, Buttons::NONE, 20);
     let cp = w.checkpoint(&g).unwrap();
     assert!(cp.world.sky.is_some());
+    // The derived fields (the map's default, the particles' phase) are not in the snapshot.
+    let back = crate::checkpoint::decode(&crate::checkpoint::encode(&cp)).unwrap();
+    assert_eq!(back, cp, "encode/decode keeps the checkpoint");
     let mut r = World::restore(&g, &cp).unwrap();
     assert_eq!(r.hash(), w.hash());
     // The colour map in 60 frames, the rain's loading (`init_frames`) in 115.
