@@ -364,7 +364,6 @@ pub fn check_end(r: &Run) {
         "show_sync",
         "battle_lines",
         "kimiko_emotion",
-        "play_se",
     ] {
         assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);
     }

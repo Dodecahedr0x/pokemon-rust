@@ -193,8 +193,7 @@ pub async fn PortRessac_Gym_Sc02(ctx: Ctx) {
         return;
     }
     say(&ctx, Port_Ressac_Gym_Sc02_T1).await;
-    // fallback: play_fanfare(MUS_OBTAIN_BADGE) (audio, M12): nothing.
-    fallback(&ctx, "play_fanfare").await;
+    play_fanfare(&ctx, "MUS_OBTAIN_BADGE").await;
     say(&ctx, Port_Ressac_Gym_Sc02_Badge).await;
     ctx.set_flag(FLAG_SIL_BADGE_04, true).await;
     say(&ctx, Port_Ressac_Gym_Sc02_T2).await;

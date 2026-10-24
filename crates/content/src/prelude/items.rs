@@ -10,12 +10,11 @@
 //! (`bufferitemnameplural` prints the singular; reported for the Poké Balls and berries that
 //! have a plural), and `BufferTMHMMoveName` (a found TM reads as an item; reported).
 //!
-//! Visible difference: `waitfanfare` becomes `waitmessage`. Gen3 holds the "Obtained the …" /
-//! "… found one …" message until the fanfare ends (`sFanfares`: 160 frames for an item, 220 for
-//! a TM/HM, counted from `playfanfare`, before the message prints); here the next message
-//! follows as soon as the first is printed, so these scenes run shorter than Gen3's. Padding with
-//! `delay` would need the message's print time, which the script does not see; it waits for a
-//! sound model.
+//! The fanfares are Gen3's (Milestone 12): `EventScript_BufferPocketNameAndTryFanfare` plays
+//! `MUS_OBTAIN_ITEM` (`MUS_OBTAIN_TMHM` for the TM/HM pocket) when the item fits, and the
+//! "Obtained the …" / "… found one …" message holds until the fanfare ends (`waitfanfare`,
+//! `sFanfares`: 160 frames for an item, 220 for a TM/HM). After `waitfanfare` the message is
+//! also waited on, which Gen3's fanfare always outlasts (a build without sound has no fanfare).
 //!
 //! Scratch vars: the std scripts' working copies (`VAR_0x8007` = the add or space result,
 //! `Std_FindItem`'s `VAR_0x8004`/`VAR_0x8005` = item and amount, `VAR_0x8008` = is a TM/HM) and
@@ -118,6 +117,25 @@ async fn buffer_pocket(ctx: &Ctx, item: u16) {
     }
 }
 
+/// Gen3 `MUS_OBTAIN_ITEM`, `MUS_OBTAIN_TMHM` (`include/constants/songs.h`).
+pub const MUS_OBTAIN_ITEM: u16 = 370;
+pub const MUS_OBTAIN_TMHM: u16 = 372;
+
+/// `EventScript_BufferPocketNameAndTryFanfare`'s fanfare, for an item that fits.
+async fn obtain_fanfare(ctx: &Ctx, item: u16) {
+    match item_pocket(item) {
+        Some(Pocket::TmHm) => ctx.play_fanfare(MUS_OBTAIN_TMHM).await,
+        Some(_) => ctx.play_fanfare(MUS_OBTAIN_ITEM).await,
+        None => {}
+    }
+}
+
+/// `waitfanfare`, then the message (see the module docs).
+async fn wait_fanfare(ctx: &Ctx) {
+    ctx.wait_fanfare().await;
+    ctx.wait_message().await;
+}
+
 /// Prints the `gText_*` text `name`; whether the build has it (else reported).
 async fn std_message(ctx: &Ctx, name: &'static str) -> bool {
     match text_named(name) {
@@ -148,8 +166,9 @@ pub async fn give_item(ctx: &Ctx, item: u16, qty: u16) -> bool {
     buffer_item_plural(ctx, 1, item, qty).await;
     buffer_pocket(ctx, item).await;
     if added {
+        obtain_fanfare(ctx, item).await;
         if std_message(ctx, "gText_ObtainedTheItem").await {
-            ctx.wait_message().await; // waitfanfare
+            wait_fanfare(ctx).await;
         }
         std_msgbox(ctx, "gText_PutItemInPocket").await;
     }
@@ -164,10 +183,12 @@ pub async fn give_item(ctx: &Ctx, item: u16, qty: u16) -> bool {
 pub async fn find_item(ctx: &Ctx, item: u16, qty: u16) -> bool {
     ctx.lock().await;
     ctx.face_player().await;
+    ctx.wait_se().await;
     let space = check_item_space(ctx, item, qty).await;
     buffer_item_plural(ctx, 1, item, qty).await;
     buffer_pocket(ctx, item).await;
     if space {
+        obtain_fanfare(ctx, item).await;
         let obj = ctx.var(VAR_LAST_TALKED).await;
         ctx.remove_object(obj as u8).await;
         add_item(ctx, item, qty).await;
@@ -175,7 +196,7 @@ pub async fn find_item(ctx: &Ctx, item: u16, qty: u16) -> bool {
             ctx.report(Report::Degraded("BufferTMHMMoveName")).await;
         }
         if std_message(ctx, "gText_PlayerFoundOneItem").await {
-            ctx.wait_message().await; // waitfanfare, waitmessage
+            wait_fanfare(ctx).await; // waitfanfare, waitmessage
         }
         buffer_item_plural(ctx, 1, item, qty).await;
         ctx.set_var(VAR_RESULT, 0).await; // pyramid_getlocation
@@ -196,17 +217,19 @@ pub async fn find_item(ctx: &Ctx, item: u16, qty: u16) -> bool {
 /// with the flag clear. Returns whether it fit.
 pub async fn hidden_item_script(ctx: &Ctx) -> bool {
     ctx.lock_all().await;
+    ctx.wait_se().await;
     let flag = ctx.var(VAR_0x8004).await;
     let item = ctx.var(VAR_0x8005).await;
     let added = add_item(ctx, item, 1).await;
     buffer_item_plural(ctx, 1, item, 1).await;
     buffer_pocket(ctx, item).await;
     if added {
+        obtain_fanfare(ctx, item).await;
         if item_pocket(item) == Some(Pocket::TmHm) {
             ctx.report(Report::Degraded("BufferTMHMMoveName")).await;
         }
         if std_message(ctx, "gText_PlayerFoundOneItem").await {
-            ctx.wait_message().await; // waitmessage, waitfanfare
+            wait_fanfare(ctx).await; // waitmessage, waitfanfare
         }
         buffer_item_plural(ctx, 1, item, 1).await;
         std_msgbox(ctx, "gText_PutItemInPocket").await;

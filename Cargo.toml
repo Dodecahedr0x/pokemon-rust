@@ -43,6 +43,10 @@ opt-level = 2
 [profile.dev.package.extract]
 opt-level = 2
 
+# The content build's dry runs of every song and cry (Milestone 12, `content/build/sound.rs`).
+[profile.dev.package.sound]
+opt-level = 2
+
 [profile.dev.package.studio]
 opt-level = 2
 

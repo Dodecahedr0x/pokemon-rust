@@ -216,8 +216,7 @@ pub async fn ReverseCity_Gym_Sc02(ctx: Ctx) {
     move_wait(&ctx, LOCALID_GYM07_BENOU, BENOU_PIXELS).await;
     say(&ctx, Gym07_Sc02_T2).await;
     hide(&ctx, LOCALID_GYM07_PIXELS_NOIRS).await;
-    // fallback: play_fanfare(MUS_OBTAIN_BADGE) (audio, M12): the badge line alone.
-    fallback(&ctx, "play_fanfare").await;
+    play_fanfare(&ctx, "MUS_OBTAIN_BADGE").await;
     say(&ctx, Gym07_Sc02_T3).await;
     ctx.set_flag(FLAG_SIL_BADGE_07, true).await;
     ctx.set_flag(FLAG_SIL_BADGE_07_CORROMPU, true).await;
@@ -227,8 +226,7 @@ pub async fn ReverseCity_Gym_Sc02(ctx: Ctx) {
     ctx.delay(60).await;
     ctx.fade(Fade::FromBlack).await;
     ctx.set_flag(FLAG_SIL_MODULE_CASCADE, true).await;
-    // fallback: play_fanfare(MUS_OBTAIN_TMHM) (audio, M12): the module line alone.
-    fallback(&ctx, "play_fanfare").await;
+    play_fanfare(&ctx, "MUS_OBTAIN_TMHM").await;
     say(&ctx, Gym07_Sc02_T5).await;
     ctx.set_var(VAR_SIL_SYNC, 70).await;
     // fallback: show_sync (the sync gauge): nothing drawn; T6 gives the value.

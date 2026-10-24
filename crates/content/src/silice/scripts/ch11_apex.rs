@@ -66,8 +66,7 @@ const UP_2: &[Step] = &[walk(Dir::Up), walk(Dir::Up)];
 /// two steps north, the narration, 110.
 pub async fn SommetApex_Sc01(ctx: Ctx) {
     ctx.lock_all().await;
-    // fallback: MUS_SIL_APEX_SOLO (play_music): the map's music plays.
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_SIL_APEX_SOLO").await;
     move_wait(&ctx, PLAYER, UP_2).await;
     say(&ctx, Sommet_Apex_Sc01_T1).await;
     set_story(&ctx, 110).await;

@@ -82,9 +82,7 @@ pub async fn RouteS09_Sc01(ctx: Ctx) {
         return;
     }
     ctx.lock_all().await;
-    // fallback: play_music(MUS_ABNORMAL_WEATHER) (no music change in a script yet; the map's
-    // own music plays).
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_ABNORMAL_WEATHER").await;
     // `screen_flash()`: the source's white flash.
     screen_flash(&ctx, WHITE).await;
     say(&ctx, Route_S09_Sc01_T1).await;

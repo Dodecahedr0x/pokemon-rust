@@ -719,17 +719,14 @@ pub fn check_end(r: &Run) {
     }
     assert_eq!(r.w.events_dropped(), 0);
     for name in [
-        "play_se",
         "show_hologram",
         "hide_hologram",
-        "play_music",
         "battle_two_trainers",
         "idle_timer",
         "dark_map",
         "black_light",
         "multichoice",
         "ice",
-        "play_fanfare",
         "show_sync",
         "mart",
     ] {

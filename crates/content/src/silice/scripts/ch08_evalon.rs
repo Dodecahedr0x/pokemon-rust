@@ -379,8 +379,7 @@ pub async fn Evalon_Sc07(ctx: Ctx) {
     // fallback: play_sfx(SE_CLOCHE_BRONZE) x3 (§9, a new sound): the decomp's Heal Bell chime
     // once (no sound yet either way); T1 says "DONG! DONG! DONG!".
     play_se(&ctx, "SE_M_HEAL_BELL").await;
-    // fallback: play_music(MUS_ENCOUNTER_INTENSE) (audio, M12): the map's music goes on.
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_ENCOUNTER_INTENSE").await;
     say(&ctx, Evalon_Sc07_T1).await;
     // The source's `Walk(Down) x2` would take Perceval (aside at (27, 12)) into the gate's
     // wall: he turns to the player instead.
@@ -420,8 +419,7 @@ pub async fn Evalon_Sc07(ctx: Ctx) {
         ctx.move_obj(obj, SBIRE_STAMP).await;
     }
     ctx.wait_move(LOCALID_EVALON_SBIRE_3).await;
-    // fallback: play_music(MUS_VS_AQUA_MAGMA_LEADER) (audio, M12).
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_VS_AQUA_MAGMA_LEADER").await;
     // battle_multi(GOGO_4, ROMAIN_4, partner = PARTNER_BY_VAR(VAR_SIL_EVALON_PARTENAIRE),
     // field = SURDOSE): the overdose is Gogo's own rule (`silice::rules::OVERDOSE`, trainer A's
     // in a multi battle). A white-out replays the scene.
@@ -456,8 +454,7 @@ pub async fn Evalon_Sc07(ctx: Ctx) {
     ctx.set_flag(FLAG_SIL_EVALON_INVASION, true).await;
     add_renom(&ctx, 1).await;
     set_story(&ctx, 84).await;
-    // fallback: play_music(MUS_FALLARBOR) (audio, M12).
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_FALLARBOR").await;
     ctx.release_all().await;
 }
 

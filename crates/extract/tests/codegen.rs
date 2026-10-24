@@ -637,7 +637,7 @@ mod lowering {
                 "M_Root",
                 Some(RootKind::Object(1)),
                 vec![
-                    i("playse", vec![c("SE_PIN")]),
+                    i("drawbox", vec![]),
                     i("checkpcitem", vec![c("ITEM_POTION"), Half(1)]),
                     i("checkcoins", vec![v("VAR_0x8005")]),
                     i("pokemart", vec![Raw(0x1234)]),
@@ -662,7 +662,7 @@ mod lowering {
         assert_eq!(
             fn_src(&out.modules["M"], "M_Root"),
             "pub async fn M_Root(ctx: Ctx) -> Flow {\n    \
-             // playse SE_PIN\n    \
+             // drawbox\n    \
              ctx.set_var(VAR_RESULT, 0).await; // checkpcitem (default)\n    \
              ctx.set_var(VAR_0x8005, 0).await; // checkcoins (default)\n    \
              ctx.report(Report::Unsupported(\"pokemart\")).await; // 0x1234\n    \
@@ -1118,6 +1118,19 @@ mod lowering {
             ),
             i("waitstate", vec![]),
             i("delay", vec![Half(30)]),
+            // Milestone 12: sound.
+            i("playse", vec![Half(21)]),
+            i("waitse", vec![]),
+            i("playfanfare", vec![Half(370)]),
+            i("waitfanfare", vec![]),
+            i("playbgm", vec![Half(461), Byte(1)]),
+            i("savebgm", vec![Half(0)]),
+            i("fadedefaultbgm", vec![]),
+            i("fadenewbgm", vec![Half(405)]),
+            i("fadeoutbgm", vec![Byte(0)]),
+            i("fadeinbgm", vec![Byte(2)]),
+            i("playmoncry", vec![c("SPECIES_TORCHIC"), Half(2)]),
+            i("waitmoncry", vec![]),
             i("setflag", vec![f("FLAG_SYS_POKEMON_GET")]),
             i("clearflag", vec![f("FLAG_0x500")]),
             i("checkflag", vec![Half(0x20)]),
@@ -1406,6 +1419,18 @@ mod lowering {
             "ctx.turn_virtual_object(3, Dir::Up).await;",
             "if let Some((s, l)) = wild { outcome = ctx.battle_wild(s, l, false).await as u16; }",
             "return Flow::Continue;",
+            "ctx.play_se(21).await;",
+            "ctx.wait_se().await;",
+            "ctx.play_fanfare(370).await;",
+            "ctx.wait_fanfare().await;",
+            "ctx.play_bgm(461, true).await;",
+            "ctx.save_bgm(0).await;",
+            "ctx.fade_default_bgm().await;",
+            "ctx.fade_new_bgm(405).await;",
+            "ctx.fade_out_bgm(0).await;",
+            "ctx.fade_in_bgm(2).await;",
+            "ctx.play_cry(SPECIES_TORCHIC.0, 2).await;",
+            "ctx.wait_cry().await;",
         ] {
             assert!(src.contains(needle), "missing {needle:?} in:\n{src}");
         }

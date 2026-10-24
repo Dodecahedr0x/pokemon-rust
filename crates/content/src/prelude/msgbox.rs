@@ -41,10 +41,20 @@ pub async fn msgbox(ctx: &Ctx, text: TextId, kind: MsgBox) {
             ctx.say(text).await;
             ctx.release().await;
         }
-        // GetPoints plays a fanfare (no sound yet); Pokenav is a Match Call window in Gen3.
-        MsgBox::GetPoints | MsgBox::Pokenav => {
+        // `Std_MsgboxGetPoints`: the Battle Points fanfare (Gen3 `MUS_OBTAIN_B_POINTS`).
+        MsgBox::GetPoints => {
+            ctx.message(text).await;
+            ctx.play_fanfare(MUS_OBTAIN_B_POINTS).await;
+            ctx.wait_fanfare().await;
+            ctx.wait_message().await;
+        }
+        // Pokenav is a Match Call window in Gen3.
+        MsgBox::Pokenav => {
             ctx.message(text).await;
             ctx.wait_message().await;
         }
     }
 }
+
+/// Gen3 `MUS_OBTAIN_B_POINTS` (`include/constants/songs.h`).
+pub const MUS_OBTAIN_B_POINTS: u16 = 459;

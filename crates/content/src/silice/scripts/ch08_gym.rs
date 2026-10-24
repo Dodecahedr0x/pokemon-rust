@@ -349,16 +349,15 @@ pub async fn Evalon_Sc09(ctx: Ctx) {
     }
     say(&ctx, Evalon_Sc09_T1).await;
     say(&ctx, Evalon_Sc09_T2).await;
-    // fallback: play_music(MUS_VS_GYM_LEADER) (audio, M12).
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_VS_GYM_LEADER").await;
     // Mawile Mega Evolves (the Mawilite, D-02).
     if lost(battle_trainer(&ctx, TRAINER_SIL_LOULPIX_DORIS, Evalon_LoulpixDoris_Defaite).await) {
         return;
     }
     say(&ctx, Evalon_Sc09_T3).await;
     say(&ctx, Evalon_Sc09_T4).await;
-    // fallback: give_badge(8)'s fanfare (audio, M12): the flag and the badge line.
-    fallback(&ctx, "play_fanfare").await;
+    // give_badge(8)'s fanfare.
+    play_fanfare(&ctx, "MUS_OBTAIN_BADGE").await;
     ctx.set_flag(FLAG_SIL_BADGE_08, true).await;
     say(&ctx, Evalon_Sc09_T5).await;
     say(&ctx, Evalon_Sc09_T6).await;

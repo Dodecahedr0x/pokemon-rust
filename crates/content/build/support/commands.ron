@@ -10,7 +10,7 @@
 //   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
 // Only Unsupported commands report.
 //
-// Counts: 120 Native, 41 Ignore, 13 Default, 53 Unsupported.
+// Counts: 132 Native, 29 Ignore, 13 Default, 53 Unsupported.
 //
 // Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
 {
@@ -61,16 +61,16 @@
     "initclock": Ignore,                            // sets the RTC; there is no clock until M10, time stays the M8 default
     "dotimebasedevents": Ignore,                    // time-based events need the RTC (M10)
     "gettime": Unsupported,                         // leaves VAR_0x8000..VAR_0x8002 (hours, minutes, seconds) stale: no RTC
-    "playse": Ignore,                               // audio (no sound until M12)
-    "waitse": Ignore,                               // audio (no sound until M12)
-    "playfanfare": Ignore,                          // audio (no sound until M12)
-    "waitfanfare": Ignore,                          // audio (no sound until M12)
-    "playbgm": Ignore,                              // audio (no sound until M12)
-    "savebgm": Ignore,                              // audio (no sound until M12)
-    "fadedefaultbgm": Ignore,                       // audio (no sound until M12)
-    "fadenewbgm": Ignore,                           // audio (no sound until M12)
-    "fadeoutbgm": Ignore,                           // audio (no sound until M12)
-    "fadeinbgm": Ignore,                            // audio (no sound until M12)
+    "playse": Native,
+    "waitse": Native,
+    "playfanfare": Native,
+    "waitfanfare": Native,
+    "playbgm": Native,
+    "savebgm": Native,
+    "fadedefaultbgm": Native,
+    "fadenewbgm": Native,
+    "fadeoutbgm": Native,
+    "fadeinbgm": Native,
     "warp": Native,
     "warpsilent": Native,
     "warpdoor": Native,
@@ -175,7 +175,7 @@
     "waitfieldeffect": Native,
     "setrespawn": Native,
     "checkplayergender": Native,
-    "playmoncry": Ignore,                           // audio (no sound until M12)
+    "playmoncry": Native,
     "setmetatile": Native,
     "resetweather": Native,
     "setweather": Native,
@@ -211,7 +211,7 @@
     "updatecoinsbox": Ignore,                       // cosmetic window (coins are not kept)
     "incrementgamestat": Ignore,                    // game stats are not kept (no trainer card)
     "setescapewarp": Native,
-    "waitmoncry": Ignore,                           // audio (no sound until M12)
+    "waitmoncry": Native,
     "bufferboxname": Unsupported,
     "textcolor": Ignore,                            // ScrCmd_nop1 in Emerald
     "loadhelp": Ignore,                             // ScrCmd_nop1 in Emerald

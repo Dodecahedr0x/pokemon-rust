@@ -13,6 +13,8 @@ engine.workspace = true
 
 [build-dependencies]
 extract.workspace = true
+# Milestone 12: the dry runs that time the songs and cries (`build/sound.rs`).
+sound.workspace = true
 anyhow.workspace = true
 # The Silice script registry (`build/silice/registry.rs`) parses `src/silice/scripts/*.rs`
 # (already in the graph through serde and Dioxus).
@@ -20,6 +22,8 @@ syn = { version = "2", features = ["full"] }
 
 [dev-dependencies]
 extract.workspace = true
+# `tests/m12_audio.rs` plays the sound blob through the software synth.
+sound.workspace = true
 anyhow.workspace = true
 # `tests/sil1_w0_contracts.rs` includes the Silice build modules.
 syn = { version = "2", features = ["full"] }

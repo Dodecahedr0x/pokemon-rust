@@ -705,7 +705,7 @@ pub fn check_end(r: &Run) {
         assert!(r.count(item) >= n, "item {item}");
     }
     assert_eq!(r.w.events_dropped(), 0);
-    for name in ["play_fanfare", "show_sync", "moving light"] {
+    for name in ["show_sync", "moving light"] {
         assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);
     }
     assert!(!r.degraded.contains("battle_multi"));

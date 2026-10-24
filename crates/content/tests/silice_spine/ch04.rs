@@ -558,13 +558,7 @@ pub fn check_end(r: &Run) {
 }
 
 /// The fallbacks the chapter's path reports.
-const FALLBACKS: &[&str] = &[
-    "dark_map",
-    "play_fanfare",
-    "play_se",
-    "mallette_call",
-    "show_sync",
-];
+const FALLBACKS: &[&str] = &["dark_map", "mallette_call", "show_sync"];
 
 /// The party's species and levels (for the log).
 pub fn party(r: &Run) -> Vec<(u16, u8)> {

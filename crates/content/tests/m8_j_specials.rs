@@ -1583,7 +1583,12 @@ fn msgbox_kinds_follow_std_msgbox() {
         ),
         (
             MsgBox::GetPoints,
-            vec![Request::Message(t), Request::WaitMessage],
+            vec![
+                Request::Message(t),
+                Request::PlayFanfare(content::prelude::MUS_OBTAIN_B_POINTS),
+                Request::WaitFanfare,
+                Request::WaitMessage,
+            ],
         ),
     ];
     for (kind, want) in cases {

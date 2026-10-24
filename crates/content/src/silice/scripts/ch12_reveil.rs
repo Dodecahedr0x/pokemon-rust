@@ -53,8 +53,7 @@ const LOOK_UP: &[Step] = &[face(Dir::Up), Step::Delay(40)];
 /// gone, Poussin is not back on his stage yet), 120.
 pub async fn BricoBourg_PG_Sc01(ctx: Ctx) {
     ctx.lock_all().await;
-    // fallback: MUS_SIL_BRICO_ACOUSTIQUE (play_music): the map's music plays.
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_SIL_BRICO_ACOUSTIQUE").await;
     move_wait(&ctx, PLAYER, LOOK_UP).await;
     say(&ctx, Brico_Bourg_PG_Sc01_T1).await;
     ctx.delay(30).await;
@@ -556,8 +555,7 @@ pub async fn BricoBourg_PG_Sc20(ctx: Ctx) {
     if ctx.var(VAR_SIL_PARDONS).await == 3 {
         say(&ctx, Brico_Bourg_PG_Sc20_T2).await;
     }
-    // fallback: MUS_SIL_FIN (play_music).
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_SIL_FIN").await;
     // The two last lines on black (the source's fade(Out) then its messages).
     ctx.text_on_black(true).await;
     say(&ctx, Brico_Bourg_PG_Sc20_T3).await;

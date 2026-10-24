@@ -86,14 +86,13 @@ pub async fn MangaSquare_Sc02(ctx: Ctx) {
     say(&ctx, Manga_Square_Sc02_T4).await;
     mallette_work(&ctx).await;
     ctx.set_flag(FLAG_SIL_MODULE_ECLATE_ROC, true).await;
-    // fallback: play_fanfare(MUS_OBTAIN_TMHM) (audio, M12): nothing.
-    fallback(&ctx, "play_fanfare").await;
+    play_fanfare(&ctx, "MUS_OBTAIN_TMHM").await;
     say(&ctx, Manga_Square_Sc02_T5).await;
     say(&ctx, Manga_Square_Sc02_T6).await;
     say(&ctx, Manga_Square_Sc02_T6b).await;
     mallette_work(&ctx).await;
     ctx.set_flag(FLAG_SIL_MODULE_MEGA, true).await;
-    fallback(&ctx, "play_fanfare").await;
+    play_fanfare(&ctx, "MUS_OBTAIN_TMHM").await;
     say(&ctx, Manga_Square_Sc02_T6c).await;
     say(&ctx, Manga_Square_Sc02_T6d).await;
     move_wait(&ctx, LOCALID_MANGA_SQUARE_CONTROLEUR, FACE_PLAYER).await;

@@ -194,14 +194,14 @@ const THOMAS_COMES: &[Step] = &[
 /// source's fallback: Tyranitar then Crobat at 72, Thomas heals between them), 127.
 ///
 /// The "destroyed" palette and the fog (§9, `FOG_LIGHT`: Gen3's horizontal fog) from here to
-/// 129 ([`destroyed_sky`]). Fallbacks: the alarm music (§9). The Horde is a wild double
+/// 129 ([`destroyed_sky`]). The alarm music (§9, `MUS_SIL_ALERTE_BRECHE`). The Horde is a wild double
 /// beside Thomas (`TRAINER_SIL_REVENGE_9`; the fallback's line `T4` is not said). The crack itself is `Nebula_OnLoad`'s (from 126). Thomas leaves for the Breach's camp at
 /// the end (hidden; the source leaves him standing, with no script on him).
 pub async fn Nebula_PG_Sc10(ctx: Ctx) {
     ctx.lock_all().await;
     set_palette(&ctx, DETRUITE, PALETTE_FRAMES, false).await;
     set_weather(&ctx, engine::weather::FOG_HORIZONTAL).await;
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_SIL_ALERTE_BRECHE").await;
     move_wait(&ctx, LOCALID_NEBULA_PG_MATHIEU, MATHIEU_COMES).await;
     say(&ctx, Nebula_PG_Sc10_T1).await;
     play_cry(&ctx).await;
