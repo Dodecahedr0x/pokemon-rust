@@ -130,8 +130,24 @@
     ],
     coords: [
         (
-            x: 8,
+            x: 7,
             y: 2,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 118,
+            script: Some("BricoBourg_PlayerHouse_1F_Sc14"),
+        ),
+        (
+            x: 9,
+            y: 2,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 118,
+            script: Some("BricoBourg_PlayerHouse_1F_Sc14"),
+        ),
+        (
+            x: 8,
+            y: 3,
             elevation: 3,
             var: Some("VAR_SIL_STORY"),
             value: 118,

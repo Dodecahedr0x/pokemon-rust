@@ -255,7 +255,7 @@ pub async fn BricoBourg_PlayerHouse_2F_Sc14(ctx: Ctx) {
 const MAMAN_TO_KITCHEN: &[Step] = &[walk(Dir::Right), walk(Dir::Right), face(Dir::Up)];
 const GWADA_STEPS_UP: &[Step] = &[walk(Dir::Up)];
 
-/// `Brico_Bourg_Sc14`'s second half (the 1F's coord at the stairs' foot (8, 2), story 118, once
+/// `Brico_Bourg_Sc14`'s second half (the 1F's coords off the stairs' foot (8, 2), story 118, once
 /// the 2F's half has shown Gwada and Julien): Maman, the cracked Mallette given back
 /// (`FLAG_SIL_MALLETTE_FELEE`), the white line on the Dome, the meeting at Nébula (119).
 pub async fn BricoBourg_PlayerHouse_1F_Sc14(ctx: Ctx) {
