@@ -284,6 +284,30 @@
             value: 0,
             script: Some("BricoBourg_EventScript_BlockNorth"),
         ),
+        (
+            x: 4,
+            y: 15,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 130,
+            script: Some("BricoBourg_PG_Sc20"),
+        ),
+        (
+            x: 6,
+            y: 15,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 130,
+            script: Some("BricoBourg_PG_Sc20"),
+        ),
+        (
+            x: 5,
+            y: 16,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 130,
+            script: Some("BricoBourg_PG_Sc20"),
+        ),
     ],
     bgs: [
         (
@@ -350,6 +374,11 @@
                 var: "VAR_SIL_STORY",
                 value: 3,
                 script: "BricoBourg_Sc02",
+            ),
+            (
+                var: "VAR_SIL_STORY",
+                value: 119,
+                script: "BricoBourg_PG_Sc01",
             ),
         ],
         on_warp_into: [],

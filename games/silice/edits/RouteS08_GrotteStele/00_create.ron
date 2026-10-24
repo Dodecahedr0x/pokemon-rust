@@ -1,0 +1,4 @@
+// Silice Ch12, MAP_ROUTE_S08_GROTTE_STELE: the Stele Cave behind Route S8's great waterfall (9 x 13, the
+// source's size; Route_S08_PG_Sc28). General + Cave (Emerald tilesets by name): Seafloor Cavern's walls, as
+// the Coral Cave. Border: rock.
+(name: "RouteS08_GrotteStele", width: 9, height: 13, primary: "General", secondary: "Cave", fill: 753, fill_collision: 1, fill_elevation: 0, border: [753, 753, 753, 753])

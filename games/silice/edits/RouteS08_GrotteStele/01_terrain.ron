@@ -1,0 +1,22 @@
+// Cells. One cave hall (2-6, 2-11) from the mat (4, 11) north to the stele at the back (4, 3, an object);
+// two boulders. Legend (char: metatile/collision/elevation, what):
+//   # 753/1/0 rock   7 747/1/0, 9 748/1/0 wall corners   ^ 761/1/0 back wall   [ 773/1/0, ] 772/1/0 side walls
+//   _ 912/1/0 wall foot   . 513/0/3 cave floor   o 514/1/3 boulder
+//   x 572/0/3 the exit (south arrow warp)   F G H 600 601 602/1/0 its frame
+[
+    Ascii(x: 0, y: 0, rows: [
+        "#########",
+        "#7^^^^^9#",
+        "#[.....]#",
+        "#[.....]#",
+        "#[.....]#",
+        "#[o....]#",
+        "#[.....]#",
+        "#[.....]#",
+        "#[....o]#",
+        "#[.....]#",
+        "#[.....]#",
+        "#_..x.._#",
+        "##_FGH_##",
+    ], legend: {'#': (metatile: 753, collision: 1, elevation: 0), '7': (metatile: 747, collision: 1, elevation: 0), '9': (metatile: 748, collision: 1, elevation: 0), '^': (metatile: 761, collision: 1, elevation: 0), '[': (metatile: 773, collision: 1, elevation: 0), ']': (metatile: 772, collision: 1, elevation: 0), '_': (metatile: 912, collision: 1, elevation: 0), '.': (metatile: 513, collision: 0, elevation: 3), 'o': (metatile: 514, collision: 1, elevation: 3), 'x': (metatile: 572, collision: 0, elevation: 3), 'F': (metatile: 600, collision: 1, elevation: 0), 'G': (metatile: 601, collision: 1, elevation: 0), 'H': (metatile: 602, collision: 1, elevation: 0)}),
+]

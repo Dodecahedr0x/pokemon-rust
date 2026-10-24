@@ -1,0 +1,6 @@
+// Silice Ch12, MAP_ROUTE_S07_ANTENNE: Antenna Eta (rule "Trio"), an old Cocket relay on Route S7 (the Pont de la Logique Brisee), one
+// of the three Antennes de Combat (12-post-game.md section 4.3). One map holds both floors (9 x 18): the
+// top room (rows 0-8, the source's 9 x 9 floor, so PG_Antenne's warp(…, 4, 6) lands where it says) above the
+// ground floor (rows 9-17). Building + TrainerHill (Emerald tilesets by name): Trainer Hill's lobby for the
+// ground floor, its roof for the top room. Border: the void.
+(name: "RouteS07_Antenne", width: 9, height: 18, primary: "Building", secondary: "TrainerHill", fill: 520, fill_collision: 1, fill_elevation: 0, border: [1544, 1544, 1544, 1544])

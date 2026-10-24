@@ -1,0 +1,11 @@
+// Chapter 12 (post-game): Fragment de Code 4 (PG_Fragment).
+[
+    // "Under the switched-off DJ booth, on the square": no booth is drawn on the Place Stroboscope; its only
+    // structure is the giant neon console (19-21, 11-12, Viber_City_Sc02's sign on (20, 12)), so the fragment
+    // is under its south-west cell (19, 12) (solid), read from (19, 13) or (18, 12). A sign running
+    // PG_Fragment. The "BIP" coords two cells before it, (19, 15) on the road from the south and (16, 12)
+    // from the west (VAR_TEMP_1 0; Ch3's black-out arms VAR_TEMP_1 1 only while it lasts).
+    Sign(x: 19, y: 12, script: "ViberCity_PG_Fragment"),
+    Coord(x: 19, y: 15, var: "VAR_TEMP_1", value: 0, script: "ViberCity_PG_FragmentBip"),
+    Coord(x: 16, y: 12, var: "VAR_TEMP_1", value: 0, script: "ViberCity_PG_FragmentBip"),
+]

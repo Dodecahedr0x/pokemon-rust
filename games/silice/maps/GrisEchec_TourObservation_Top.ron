@@ -39,7 +39,24 @@
             dest_warp: 2,
         ),
     ],
-    coords: [],
+    coords: [
+        (
+            x: 7,
+            y: 2,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("GrisEchec_TourObservation_Top_PG_FragmentBip"),
+        ),
+        (
+            x: 9,
+            y: 4,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("GrisEchec_TourObservation_Top_PG_FragmentBip"),
+        ),
+    ],
     bgs: [
         (
             x: 6,
@@ -57,6 +74,15 @@
             kind: Script(
                 facing: 0,
                 script: Some("GrisEchec_TourObservation_Top_EventScript_Console"),
+            ),
+        ),
+        (
+            x: 9,
+            y: 2,
+            elevation: 0,
+            kind: Script(
+                facing: 0,
+                script: Some("GrisEchec_TourObservation_Top_PG_Fragment"),
             ),
         ),
     ],

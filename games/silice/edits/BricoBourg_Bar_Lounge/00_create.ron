@@ -1,0 +1,4 @@
+// Silice Ch12, MAP_BRICO_BOURG_BAR_LOUNGE: Crow's Lounge under Le Shaker (11 x 9, the source's size), behind
+// the bar's sliding bookcase (Brico_Bourg_Bar_PG_Sc22). Building + Shop, the bar's own pair (Emerald
+// tilesets by name): amber carpet, bottle shelves, the counter, the purple banquettes. Border: the black block.
+(name: "BricoBourg_Bar_Lounge", width: 11, height: 9, primary: "Building", secondary: "Shop", fill: 616, border: [1025, 1025, 1025, 1025])

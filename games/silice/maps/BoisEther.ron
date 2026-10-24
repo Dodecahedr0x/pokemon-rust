@@ -662,6 +662,22 @@
             value: 16,
             script: Some("BoisEther_Sc07"),
         ),
+        (
+            x: 2,
+            y: 12,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("BoisEther_PG_FragmentBip"),
+        ),
+        (
+            x: 2,
+            y: 16,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("BoisEther_PG_FragmentBip"),
+        ),
     ],
     bgs: [
         (
@@ -734,6 +750,15 @@
             kind: Script(
                 facing: 0,
                 script: Some("BoisEther_EventScript_HiddenEvoluroc"),
+            ),
+        ),
+        (
+            x: 2,
+            y: 14,
+            elevation: 0,
+            kind: Script(
+                facing: 0,
+                script: Some("BoisEther_PG_Fragment"),
             ),
         ),
     ],

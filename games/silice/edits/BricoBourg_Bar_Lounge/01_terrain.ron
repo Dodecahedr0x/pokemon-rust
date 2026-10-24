@@ -1,0 +1,24 @@
+// Cells. The stairs up to the Shaker top-left (1, 1); the glowing bottle shelves on the back wall (5-8, 0-1);
+// the L counter on the right, (7, 2-3) and (7-10, 4), with Crow's corner behind it (8-10, 2-3); the round
+// table in the centre (5, 5); an armchair and two banquettes; a plant.
+// Legend (char: metatile/collision/elevation, what):
+//   a 528/1 wall top, west corner   b 530/1 wall top   c 533/1 wall top, east corner
+//   d 536/1 wall, west corner       e 538/1 wall       f 541/1 wall, east corner
+//   S 592/0 the stairs up (MB_NON_ANIMATED_DOOR, warp 0)
+//   P Q R T 552 553 560 561/1 bottle shelves
+//   k 680/1 counter (the L's short side)   l 672/1 counter end   m 673/1 counter
+//   t 714/1 the round table   h 704/1, j 712/1 armchair   u 696/1, v 697/1 banquette
+//   p 604/1, q 612/1 plant      . 616/0 carpet
+[
+    Ascii(x: 0, y: 0, rows: [
+        "abbbbPQPQbc",
+        "dSeeeRTRTef",
+        ".......k...",
+        ".......k...",
+        ".......lmmm",
+        ".h...t.....",
+        ".j.........",
+        "p..uv.uv...",
+        "q..........",
+    ], legend: {'a': (metatile: 528, collision: 1), 'b': (metatile: 530, collision: 1), 'c': (metatile: 533, collision: 1), 'd': (metatile: 536, collision: 1), 'e': (metatile: 538, collision: 1), 'f': (metatile: 541, collision: 1), 'S': (metatile: 592, collision: 0), 'P': (metatile: 552, collision: 1), 'Q': (metatile: 553, collision: 1), 'R': (metatile: 560, collision: 1), 'T': (metatile: 561, collision: 1), 'k': (metatile: 680, collision: 1), 'l': (metatile: 672, collision: 1), 'm': (metatile: 673, collision: 1), 't': (metatile: 714, collision: 1), 'h': (metatile: 704, collision: 1), 'j': (metatile: 712, collision: 1), 'u': (metatile: 696, collision: 1), 'v': (metatile: 697, collision: 1), 'p': (metatile: 604, collision: 1), 'q': (metatile: 612, collision: 1), '.': (metatile: 616, collision: 0)}),
+]

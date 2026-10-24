@@ -1,0 +1,13 @@
+// Header, warps, objects.
+[
+    Header((music: "MUS_SEALED_CHAMBER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // The way in is the cabin's TOIT button (FLAG_SIL_TICKET_ESPACE), a warp by coordinates to (5, 18).
+    // Warps 0-1: the mats (4-5, 20), back to the Tower's crystal cabin, TourNebulaAscenseur's warp 5 (3, 6),
+    // where TourNebulaAscenseur_Sc00 takes over as on every arrival.
+    Warp(x: 4, y: 20, dest_map: "TourNebulaAscenseur", dest_warp: 5),
+    Warp(x: 5, y: 20, dest_map: "TourNebulaAscenseur", dest_warp: 5),
+    // 1: Jirachi asleep on the altar (Sommet_Apex_PG_Sc31), talked to from the altar's front (5, 3). Hidden
+    // until FLAG_SIL_HIDE_JIRACHI (set at the start) is cleared; a capture sets it again. Placeholder sprite
+    // (no Jirachi in Emerald's object set).
+    Object(x: 5, y: 2, gfx: "OBJ_EVENT_GFX_PICHU_DOLL", id: "LOCALID_TEMPLE_NUAGES_JIRACHI", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "SommetApex_TempleNuages_PG_Sc31", flag: "FLAG_SIL_HIDE_JIRACHI"),
+]

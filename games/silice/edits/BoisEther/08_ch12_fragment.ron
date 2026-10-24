@@ -1,0 +1,10 @@
+// Chapter 12 (post-game): Fragment de Code 2 (PG_Fragment).
+[
+    // "In the empty planter behind the Herboriste": the greenhouse (3-7, 10-12) backs onto the hedge, so the
+    // planter is the west one of the two on its south side, (2, 14) (solid), read from (2, 13) or (2, 15).
+    // A sign running PG_Fragment. The "BIP" coords two cells before it on its approaches, (2, 12) from the
+    // north and (2, 16) from the south (VAR_TEMP_1 0: every step; the script checks the flags).
+    Sign(x: 2, y: 14, script: "BoisEther_PG_Fragment"),
+    Coord(x: 2, y: 12, var: "VAR_TEMP_1", value: 0, script: "BoisEther_PG_FragmentBip"),
+    Coord(x: 2, y: 16, var: "VAR_TEMP_1", value: 0, script: "BoisEther_PG_FragmentBip"),
+]

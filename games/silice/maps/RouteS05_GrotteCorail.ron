@@ -59,6 +59,21 @@
             script: Some("RouteS05_GrotteCorail_EventScript_ItemDansePluie"),
             flag: Some("FLAG_SIL_ITEM_ROUTE_S05_GROTTE_DANSE_PLUIE"),
         ),
+        (
+            local_id: 4,
+            id: Some("LOCALID_GROTTE_CORAIL_LUGIA"),
+            gfx: "OBJ_EVENT_GFX_LUGIA",
+            x: 18,
+            y: 6,
+            elevation: 3,
+            movement: "MOVEMENT_TYPE_FACE_DOWN",
+            range_x: 0,
+            range_y: 0,
+            trainer_type: "TRAINER_TYPE_NONE",
+            trainer_sight_or_berry_tree: 0,
+            script: Some("RouteS05_GrotteCorail_EventScript_Lugia"),
+            flag: Some("FLAG_SIL_HIDE_LUGIA"),
+        ),
     ],
     warps: [
         (

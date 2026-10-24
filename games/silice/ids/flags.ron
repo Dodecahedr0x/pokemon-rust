@@ -2500,6 +2500,48 @@
             name: "FLAG_SIL_RAYQUAZA_CAPTURE",
             num: 1123,
         ),
+        // SIL6 Ch12 optional maps (block 1150-1164): the Antennas' three trainers each (walked in by
+        // PG_Antenne) and Tak before Manga-Square's Rayquaza statue (Sc32a).
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_ALPHA_1",
+            num: 1150,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_ALPHA_2",
+            num: 1151,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_ALPHA_3",
+            num: 1152,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_GAMMA_1",
+            num: 1153,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_GAMMA_2",
+            num: 1154,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_GAMMA_3",
+            num: 1155,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_ETA_1",
+            num: 1156,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_ETA_2",
+            num: 1157,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ANTENNE_ETA_3",
+            num: 1158,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_MANGA_TAK",
+            num: 1159,
+        ),
         // SIL4 Ch7 scripts (script block 1180-1199): the four mirror signs' plaques read (the
         // vault's multichoice fallback, ReverseCity_Coffre_Sc04: the code is known once all four
         // are read).

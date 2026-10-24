@@ -374,6 +374,21 @@
             script: Some("Evalon_EventScript_ItemPpUp"),
             flag: Some("FLAG_SIL_ITEM_EVALON_ETANG"),
         ),
+        (
+            local_id: 27,
+            id: Some("LOCALID_EVALON_LATIAS"),
+            gfx: "OBJ_EVENT_GFX_LATIAS",
+            x: 21,
+            y: 39,
+            elevation: 3,
+            movement: "MOVEMENT_TYPE_FACE_LEFT",
+            range_x: 0,
+            range_y: 0,
+            trainer_type: "TRAINER_TYPE_NONE",
+            trainer_sight_or_berry_tree: 0,
+            script: Some("Evalon_EventScript_Latias"),
+            flag: Some("FLAG_SIL_HIDE_LATIAS"),
+        ),
     ],
     warps: [
         (
