@@ -432,7 +432,7 @@ fn the_hall_of_fame_shows_the_record_then_the_credits_then_saves_in_the_room() {
     tap(&mut w, Buttons::A, 2);
     assert_eq!(hof_stage(&w), Some(Stage::Credits));
     // START skips the credits' pages (they would last `CREDITS_FRAMES`).
-    assert!(CREDITS_FRAMES > 8_000);
+    const { assert!(CREDITS_FRAMES > 8_000) };
     tap(&mut w, Buttons::START, 2);
     assert_eq!(hof_stage(&w), Some(Stage::TheEnd));
     tap(&mut w, Buttons::B, 2);
