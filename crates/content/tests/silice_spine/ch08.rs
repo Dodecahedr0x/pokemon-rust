@@ -99,6 +99,18 @@ pub const PARTY: &[(SpeciesId, u8)] = &[
 /// (`FLAG_SIL_MODULE_CASCADE`) and its log, the sync at 70, the story at 76
 /// (Reverse_City_Sc07); the party ([`PARTY`]), a few potions, the respawn at Reverse-City.
 async fn end_of_chapter_7(ctx: Ctx) {
+    chapter_7_state(&ctx).await;
+    // The start state cannot set moves (`givemon`'s extras are not applied yet): the bag holds
+    // Chapter 6's TM34 again, and the spine teaches it first (the lead's Shock Wave).
+    ctx.item_add(ItemId(ITEM_TM34), 1).await;
+    for &(species, level) in PARTY {
+        ctx.give_mon(species, level).await;
+    }
+}
+
+/// [`end_of_chapter_7`] without the party and its TM: the flags, vars, bag, money and respawn
+/// (Chapter 9's start builds on it, `ch09::start`).
+pub async fn chapter_7_state(ctx: &Ctx) {
     for f in [
         // Chapter 0.
         FLAG_SIL_INTRO_DONE,
@@ -148,12 +160,6 @@ async fn end_of_chapter_7(ctx: Ctx) {
     ctx.item_add(ItemId(ITEM_HYPER_POTION), 3).await;
     ctx.money_add(20000).await;
     ctx.set_respawn(HEAL_LOCATION_SIL_REVERSE_CITY).await;
-    // The start state cannot set moves (`givemon`'s extras are not applied yet): the bag holds
-    // Chapter 6's TM34 again, and the spine teaches it first (the lead's Shock Wave).
-    ctx.item_add(ItemId(ITEM_TM34), 1).await;
-    for &(species, level) in PARTY {
-        ctx.give_mon(species, level).await;
-    }
 }
 
 /// Palier 1's steps, from [`route_start`]: Route_S08_Sc01 (80), the sign, the hiker, Mathieu's

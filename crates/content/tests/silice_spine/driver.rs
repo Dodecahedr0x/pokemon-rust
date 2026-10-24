@@ -448,6 +448,7 @@ impl Run {
         w.script_running()
             || w.in_battle()
             || w.transition_active()
+            || w.field_move_active()
             || w.starter().is_some()
             || !w.field_active()
             || w.text().is_open()
@@ -488,6 +489,14 @@ impl Run {
                 core::cmp::Ordering::Greater => Buttons::LEFT,
                 core::cmp::Ordering::Equal => Buttons::A,
             };
+        }
+        // A shop (the mart screen): leave without buying (B on BUY/SELL/QUIT); the spine's
+        // money and bag stay as the chapter's own gifts leave them.
+        if matches!(
+            self.w.screens().and_then(|s| s.top()).map(|(_, st)| st),
+            Some(engine::ui::ScreenState::Mart(_))
+        ) {
+            return Buttons::B;
         }
         let Some((_, battle, scene)) = self.w.battle() else {
             return Buttons::A;
@@ -990,6 +999,8 @@ struct Grid<'a> {
     overrides: Vec<((i16, i16), u16)>,
     occupied: BTreeSet<(i16, i16)>,
     avoid: &'a [(i16, i16)],
+    /// The player surfs: a move from the water onto land is planned (the engine dismounts).
+    surfing: bool,
 }
 
 impl<'a> Grid<'a> {
@@ -1009,6 +1020,7 @@ impl<'a> Grid<'a> {
             overrides,
             occupied,
             avoid,
+            surfing: w.objects().surfing(),
         }
     }
 
@@ -1112,7 +1124,14 @@ impl<'a> Grid<'a> {
         }
         let en = self.elevation(n);
         let onto = Some(n) != target || self.walkable(n, false);
-        if onto && e != 0 && en != 0 && en != 15 && en != e {
+        // Surfing, the water's elevation 1 meets the land's 3 at the shore: the engine dismounts
+        // onto land (Gen3 `CanStopSurfing`); the plan goes on, on foot. Land onto water is never
+        // planned: Surf is an A press on the water ([`Step::Interact`]).
+        let dismount = self.surfing
+            && e == 1
+            && matches!(self.behavior(c), Behavior::Water(_))
+            && !matches!(self.behavior(n), Behavior::Water(_));
+        if onto && e != 0 && en != 0 && en != 15 && en != e && !dismount {
             return None;
         }
         let e2 = if en == 15 || self.elevation(c) == 15 {
