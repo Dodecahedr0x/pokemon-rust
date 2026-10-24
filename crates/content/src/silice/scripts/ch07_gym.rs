@@ -29,7 +29,10 @@ const SALLE_3: (i16, i16) = (6, 10);
 pub async fn ReverseCity_Gym_OnTransition(ctx: Ctx) {
     let battu = ctx.flag(FLAG_SIL_REVERSE_BATTU).await;
     set_input_inverted(&ctx, !battu).await;
-    ctx.set_flag(FLAG_SIL_HIDE_GYM07_REVERSE, battu).await;
+    // Chapter 12: Reverse back in his gym for his rematches from 123 (after his reflection at the
+    // lighthouse, `Reverse_City_PG_Sc04`, at 122).
+    let rematch = story(&ctx).await >= 123;
+    ctx.set_flag(FLAG_SIL_HIDE_GYM07_REVERSE, battu && !rematch).await;
     ctx.set_flag(FLAG_SIL_HIDE_GYM07_BENOU, true).await;
     let pixels = story(&ctx).await == 74;
     ctx.set_flag(FLAG_SIL_HIDE_GYM07_PIXELS, !pixels).await;
@@ -139,6 +142,10 @@ pub async fn ReverseCity_Gym_EventScript_Nomis(ctx: Ctx) {
 /// his flight; the black pixels (`FLAG_SIL_HIDE_GYM07_PIXELS` cleared); `FLAG_SIL_REVERSE_BATTU`
 /// (the controls and the vault's lock fall with him). Sets 74, then Gym_Sc02 follows at once.
 pub async fn ReverseCity_Gym_Sc01(ctx: Ctx) {
+    if story(&ctx).await >= 123 {
+        super::ch12_revanches::revanche(&ctx, &super::ch12_revanches::REVERSE).await;
+        return;
+    }
     if story(&ctx).await != 73 {
         return;
     }

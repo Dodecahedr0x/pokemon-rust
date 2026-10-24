@@ -319,6 +319,10 @@ pub async fn Evalon_Citadelle_EventScript_Elise(ctx: Ctx) {
 /// `LOG_08`, the friends gone (`FLAG_SIL_HIDE_EVALON_AMIS` and the Taverne's). Sets 85. Before
 /// 84 the challenge waits; after, the defeat line.
 pub async fn Evalon_Sc09(ctx: Ctx) {
+    if super::ch12_revanches::ouvertes(&ctx).await {
+        super::ch12_revanches::revanche_loulpix_doris(&ctx).await;
+        return;
+    }
     ctx.lock().await;
     ctx.face_player().await;
     let s = story(&ctx).await;

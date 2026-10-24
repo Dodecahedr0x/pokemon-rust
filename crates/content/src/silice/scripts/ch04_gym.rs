@@ -123,6 +123,10 @@ async fn shot(ctx: &Ctx, text: TextId, pause: u16, drink: bool) -> bool {
 /// Berry. Then the battle (Sc02). With the badge, his thanks (`Sc02_T3b`; no line of its own).
 pub async fn PortRessac_Gym_Sc01(ctx: Ctx) {
     if ctx.flag(FLAG_SIL_BADGE_04).await {
+        if super::ch12_revanches::ouvertes(&ctx).await {
+            super::ch12_revanches::revanche(&ctx, &super::ch12_revanches::SAMUEL).await;
+            return;
+        }
         msgbox(&ctx, Port_Ressac_Gym_Sc02_T3b, MsgBox::Npc).await;
         return;
     }
