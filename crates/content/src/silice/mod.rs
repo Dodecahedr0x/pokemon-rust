@@ -32,7 +32,8 @@ use crate::consts::{
     SIL_FLAGS_CLEARED_ON_MAP_CHANGE, SIL_HEAL_LOCATIONS, SIL_RESPAWN, SIL_RUNNING_FLAG,
 };
 use crate::{NEW_GAME_SCRIPT, data};
-use engine::data::{GameData, MapId, ScriptId, SpecialIds};
+use crate::consts::{FLAG_SIL_MODULE_CASCADE, FLAG_SIL_MODULE_PLONGEE, FLAG_SIL_MODULE_SURF};
+use engine::data::{FieldMove, FieldMoveGate, GameData, MapId, ScriptId, SpecialIds};
 use engine::script::{Ctx, Script};
 
 /// Silice's content root.
@@ -74,4 +75,94 @@ impl GameData for Game {
             .get(usize::from(id).checked_sub(1)?)
             .copied()
     }
+
+    /// The Mallette's water modules (SIL4 Ch9): usable while the module's flag is set, whatever
+    /// the party knows. Surf is the Hydro-Propulseur (Ch4), Waterfall the Turbine à Flux (Ch7),
+    /// Dive the Sonde de Pression (Ch8). The other field abilities stay scripts (Cut, Strength,
+    /// Flash and Rock Smash are their obstacles' own scripts; no fly map yet).
+    fn field_move_gate(&self, m: FieldMove) -> FieldMoveGate {
+        match m {
+            FieldMove::Surf => FieldMoveGate::Flag(FLAG_SIL_MODULE_SURF),
+            FieldMove::Waterfall => FieldMoveGate::Flag(FLAG_SIL_MODULE_CASCADE),
+            FieldMove::Dive => FieldMoveGate::Flag(FLAG_SIL_MODULE_PLONGEE),
+            _ => FieldMoveGate::Never,
+        }
+    }
+
+    /// `scripts/field_moves.rs`'s `EventScript_Use*`.
+    fn field_move_script(&self, m: FieldMove) -> Option<ScriptId> {
+        match m {
+            FieldMove::Surf => data::SCRIPT_USE_SURF,
+            FieldMove::Waterfall => data::SCRIPT_USE_WATERFALL,
+            FieldMove::Dive => data::SCRIPT_USE_DIVE,
+            _ => None,
+        }
+    }
+
+    fn waterfall_refused_script(&self) -> Option<ScriptId> {
+        data::SCRIPT_CANNOT_USE_WATERFALL
+    }
+
+    fn dive_emerge_script(&self) -> Option<ScriptId> {
+        data::SCRIPT_USE_DIVE_UNDERWATER
+    }
+
+    /// The map's dive or emerge connection, keeping the cell, unless that cell is outside the
+    /// connected map (Route S9's conduit runs on south of the lake: its exit's arrow warps
+    /// would surface the player off Route S9; Gen3 would warp there); else [`DIVE_WARPS`].
+    fn dive_warp(
+        &self,
+        map: MapId,
+        emerge: bool,
+        (x, y): (i16, i16),
+    ) -> Option<(MapId, Option<(i16, i16)>)> {
+        if let Some(to) = data::dive_connection(map.0, emerge) {
+            let m = self.map(to);
+            let inside = (0..i32::from(m.width)).contains(&i32::from(x))
+                && (0..i32::from(m.height)).contains(&i32::from(y));
+            return inside.then_some((to, None));
+        }
+        let &(.., to, tx, ty) = DIVE_WARPS.iter().find(|w| {
+            let (from, up, (x0, y0), (x1, y1)) = (w.0, w.1, w.2, w.3);
+            from == map && up == emerge && (x0..=x1).contains(&x) && (y0..=y1).contains(&y)
+        })?;
+        Some((to, Some((tx, ty))))
+    }
 }
+
+/// The fixed dive warps (Gen3 `setdivewarp` in a map's `on_dive_warp` script, for a map without
+/// a dive connection): (map, emerge, the cells' corners, inclusive, destination map and cell).
+/// The maps' `on_dive_warp` scripts (`Nebula_OnDiveWarp`, `Nebula_TourHall_B1F_OnDiveWarp`)
+/// point here; the engine asks [`GameData::dive_warp`] with the player's cell.
+pub const DIVE_WARPS: &[(MapId, bool, (i16, i16), (i16, i16), MapId, i16, i16)] = &[
+    // Ch9: the Bassin de Captage dives under the Tower, into B1F's cuve.
+    (
+        crate::consts::MAP_NEBULA,
+        false,
+        (50, 10),
+        (52, 13),
+        crate::consts::MAP_NEBULA_TOUR_HALL_B1F,
+        6,
+        10,
+    ),
+    // Ch9: the quai's deep water dives back into the conduit's exit (the way back to Route S9).
+    (
+        crate::consts::MAP_NEBULA,
+        false,
+        (29, 54),
+        (30, 55),
+        crate::consts::MAP_ROUTE_S09_UNDERWATER,
+        39,
+        72,
+    ),
+    // Ch9: B1F's cuve dives back to the Bassin (the way back to the town).
+    (
+        crate::consts::MAP_NEBULA_TOUR_HALL_B1F,
+        false,
+        (5, 9),
+        (7, 11),
+        crate::consts::MAP_NEBULA,
+        51,
+        11,
+    ),
+];

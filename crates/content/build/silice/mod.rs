@@ -48,6 +48,16 @@ use std::path::Path;
 /// prelude prints by label. `text/fr.ron`'s join them.
 pub const STD_TEXT_PREFIX: &str = "gText_";
 
+/// The Gen3 field-move questions (`field_move_scripts.inc`) Silice's module scripts print
+/// (`src/silice/scripts/field_moves.rs`), kept with the shared texts: their labels have no
+/// `gText_` prefix.
+pub const FIELD_MOVE_TEXTS: &[&str] = &[
+    "Text_WantToDive",
+    "Text_WantToSurface",
+    "Text_WantToWaterfall",
+    "Text_CantWaterfall",
+];
+
 /// The Silice world: the base assets of the extracted dir `extracted`, the games dir `games`
 /// and the scripts of `scripts` (`src/silice/scripts`). An unknown script of a claimed map (or
 /// of any map when `strict`, [`registry::strict`]) fails once, after every map, listing them
@@ -89,9 +99,11 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
     consts.extend(game::consts(&game, &ids)?);
 
     // Texts: the Gen3 shared texts the prelude prints by decomp label (`text_named`: obtain
-    // item, bag full…), then Silice's; the Emerald map texts go.
+    // item, bag full…) and the field-move questions ([`FIELD_MOVE_TEXTS`]), then Silice's; the
+    // Emerald map texts go.
     let enc = text::Encoder::new(w.lang, text::glyph_codes());
-    w.texts.retain(|k, _| k.starts_with(STD_TEXT_PREFIX));
+    w.texts
+        .retain(|k, _| k.starts_with(STD_TEXT_PREFIX) || FIELD_MOVE_TEXTS.contains(&k.as_str()));
     let texts = text::load(games, &enc, &exc, &mut report).context("text/fr.ron")?;
     let text_count = texts.len();
     for (k, v) in texts {
