@@ -17,7 +17,7 @@ use engine::data::GameData;
 use explore::branch::Action;
 use explore::model::{FindingDraft, FindingKind, Macro};
 use explore::oracle::{History, ParityLog, parity_message, tolerance};
-use explore::semantic::{Delta, Semantic, Tolerance, diff};
+use explore::semantic::{Delta, Semantic, Tolerance, diff, map_name};
 use explore::sim::Live as OurLive;
 use explore::spine::{Exec, SpineRun, Step};
 use std::collections::{BTreeMap, BTreeSet};
@@ -559,11 +559,29 @@ pub fn branch<G: GameData + Clone + 'static>(
         }
         Action::Macro(_) => {}
     }
+    // Our map before and after every macro played: an `Enter` or `Cross` vanilla's settle already
+    // made (a frame script ours runs as its own macro) is skipped there.
+    let our_map = |o: &OurLive<'_, '_, G>| o.last_end().map(|c| c.world.field.map);
+    let mut maps: Vec<(Option<engine::data::MapId>, Option<engine::data::MapId>)> = Vec::new();
     if ours_error.is_none() {
         for m in b.macros {
-            if let Err(e) = ours.step_with(m, &mut explore::policy::Policy::new()) {
+            let before = our_map(&ours);
+            let played = ours.step_with(m, &mut explore::policy::Policy::new());
+            maps.push((before, our_map(&ours)));
+            if let Err(e) = played {
                 ours_error = Some(format!("{m:?}: {e:?}"));
                 break;
+            }
+            if live.v.trace
+                && let Some(w) = (ours.last_end()).and_then(|s| World::restore(game, &s).ok())
+            {
+                let s = Semantic::from_world(&w, game);
+                println!(
+                    "  ours macro {:?}: on {} at {:?}",
+                    m.kind,
+                    map_name(s.map),
+                    s.cell
+                );
             }
         }
     } else {
@@ -601,11 +619,32 @@ pub fn branch<G: GameData + Clone + 'static>(
         }
     }
     if vanilla_error.is_none() {
-        for m in chained {
+        for (i, m) in chained.iter().enumerate() {
+            let on = live.v.current_map().ok();
+            if matches!(
+                m.kind,
+                explore::MacroKind::Enter { .. } | explore::MacroKind::Cross { .. }
+            ) && let Some(&(before, after)) = maps.get(i)
+                && on != before
+                && on == after
+            {
+                if live.v.trace {
+                    println!("  macro {:?}: vanilla already there", m.kind);
+                }
+                continue;
+            }
             if let Err(e) = live.play_macro(m) {
                 vanilla_error = Some(format!("{m:?}: {e:#}"));
                 let _ = live.v.settle(crate::live::MACRO_FRAMES);
                 break;
+            }
+            if live.v.trace {
+                let map = live.v.current_map().ok().map(map_name);
+                let at = live.v.player_object().map(|o| o.cell);
+                println!(
+                    "  [{}] macro {:?}: on {map:?} at {at:?}",
+                    live.v.frames, m.kind
+                );
             }
         }
     }

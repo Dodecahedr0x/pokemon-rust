@@ -839,7 +839,11 @@ impl<'g, G: GameData> Live<'g, G> {
         let approach = (self.v)
             .planner(self.game, map, &overrides, Vec::new())
             .enter_approach(at, dir);
-        if self.v.walk_to(self.game, approach, MACRO_FRAMES)? != Walk::Reached {
+        if self.v.walk_to(self.game, approach, MACRO_FRAMES)? != Walk::Reached
+            // A trigger on the approach whose scene moved the player off it (Scott pushing the
+            // player away from Slateport's Battle Tent): the enter ends there, as ours.
+            || self.cell()? != approach
+        {
             return self.v.settle(MACRO_FRAMES);
         }
         self.v.push(dir, MACRO_FRAMES)
