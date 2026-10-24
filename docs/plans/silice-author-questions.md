@@ -11,6 +11,8 @@ Sources:
 
 The code builds and plays with the provisional choice that each item gives. To answer, give the item's id and the chosen option. Items already answered or superseded are listed at the end, so they are not asked again.
 
+**Author rulings (2026-10-24):** G-01: the difficulty jump is fine (keep the Ch10–11 rosters; the player trains up). G-48: the Tower hall is only reachable with Dive after Ch9 (intended). G-49: Reverse is not in his gym while Thomas is at the Breach. G-50: there must be a Dojo map; the Sc21 tournament happens there. Audio: needed; use the extracted Emerald music and sound effects for now, the author will provide MIDI tracks later.
+
 Ids: **G** = gameplay or blocking, **T** = text the agents invented or borrowed, **C** = cosmetic or naming, **X** = check-exception groups.
 
 ---
