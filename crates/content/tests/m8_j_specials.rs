@@ -644,7 +644,10 @@ fn native_specials_issue_their_requests_in_order() {
         let (map, x, y) =
             content::battle::heal_location(HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F)
                 .unwrap();
-        assert_eq!(map, MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F);
+        // (The stub world has no heal locations: its fallback is its own start.)
+        if !content::STUB {
+            assert_eq!(map, MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F);
+        }
         assert_eq!(
             h.log,
             [
