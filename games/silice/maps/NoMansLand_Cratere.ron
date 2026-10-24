@@ -105,9 +105,9 @@
             x: 10,
             y: 15,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_SIL_AERODACTYLITE",
-                flag: "FLAG_SIL_ITEM_PG_CRATERE_AERODACTYLITE",
+            kind: Script(
+                facing: 0,
+                script: Some("NoMansLand_Cratere_EventScript_HiddenAerodactylite"),
             ),
         ),
     ],

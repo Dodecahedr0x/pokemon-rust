@@ -449,9 +449,9 @@
             x: 34,
             y: 46,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_PP_MAX",
-                flag: "FLAG_SIL_ITEM_PG_NML_PPMAX",
+            kind: Script(
+                facing: 0,
+                script: Some("NoMansLand_EventScript_HiddenPpMax"),
             ),
         ),
     ],

@@ -25,6 +25,10 @@ pub async fn Owlys_GrotteEst_OnTransition(ctx: Ctx) {
         .await;
     ctx.set_flag(FLAG_SIL_HIDE_OWLYS_GROTTE_EST_PLUME, true)
         .await;
+    // Chapter 12: Silas at the Point Zéro from 123 until his Vestige is done (`Owlys_PG_Sc07`,
+    // `ch12_reveil.rs`).
+    let silas = story(&ctx).await >= 123 && !ctx.flag(FLAG_SIL_VESTIGE_SILAS).await;
+    ctx.set_flag(FLAG_SIL_HIDE_SILAS_GROTTE, !silas).await;
 }
 
 /// Mathieu steps up and turns to the gallery.

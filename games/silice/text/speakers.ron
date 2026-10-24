@@ -716,9 +716,49 @@
             note: Some("VAR_SIL_STORY < 68"),
         ),
         (
+            id: "Breche_PG_Bastien_Defeat",
+            chapter: "12-post-game",
+            speaker: Some("GARDE BASTIEN"),
+        ),
+        (
+            id: "Breche_PG_Bastien_Intro",
+            chapter: "12-post-game",
+            speaker: Some("GARDE BASTIEN"),
+        ),
+        (
+            id: "Breche_PG_Davy_Defeat",
+            chapter: "12-post-game",
+            speaker: Some("EX-COCKET DAVY"),
+        ),
+        (
+            id: "Breche_PG_Davy_Intro",
+            chapter: "12-post-game",
+            speaker: Some("EX-COCKET DAVY"),
+        ),
+        (
             id: "Breche_PG_Lib_T1",
             chapter: "12-post-game",
             speaker: Some("THOMAS"),
+        ),
+        (
+            id: "Breche_PG_Nora_Defeat",
+            chapter: "12-post-game",
+            speaker: Some("EX-COCKET NORA"),
+        ),
+        (
+            id: "Breche_PG_Nora_Intro",
+            chapter: "12-post-game",
+            speaker: Some("EX-COCKET NORA"),
+        ),
+        (
+            id: "Breche_PG_Olga_Defeat",
+            chapter: "12-post-game",
+            speaker: Some("CHERCHEUSE OLGA"),
+        ),
+        (
+            id: "Breche_PG_Olga_Intro",
+            chapter: "12-post-game",
+            speaker: Some("CHERCHEUSE OLGA"),
         ),
         (
             id: "Breche_PG_Sc10b_T1",
@@ -4496,12 +4536,62 @@
             speaker: Some("PASSANT"),
         ),
         (
+            id: "No_Mans_Land_PG_Aicha_Defeat",
+            chapter: "12-post-game",
+            speaker: Some("TOP DRESSEUSE AÏCHA"),
+        ),
+        (
+            id: "No_Mans_Land_PG_Aicha_Intro",
+            chapter: "12-post-game",
+            speaker: Some("TOP DRESSEUSE AÏCHA"),
+        ),
+        (
             id: "No_Mans_Land_PG_Drone",
             chapter: "12-post-game",
         ),
         (
+            id: "No_Mans_Land_PG_Elias_Defeat",
+            chapter: "12-post-game",
+            speaker: Some("CHERCHEUR ÉLIAS"),
+        ),
+        (
+            id: "No_Mans_Land_PG_Elias_Intro",
+            chapter: "12-post-game",
+            speaker: Some("CHERCHEUR ÉLIAS"),
+        ),
+        (
+            id: "No_Mans_Land_PG_Kevin_Defeat",
+            chapter: "12-post-game",
+            speaker: Some("EX-COCKET KEVIN"),
+        ),
+        (
+            id: "No_Mans_Land_PG_Kevin_Intro",
+            chapter: "12-post-game",
+            speaker: Some("EX-COCKET KEVIN"),
+        ),
+        (
+            id: "No_Mans_Land_PG_Marcel_Defeat",
+            chapter: "12-post-game",
+            speaker: Some("RANDONNEUR MARCEL"),
+        ),
+        (
+            id: "No_Mans_Land_PG_Marcel_Intro",
+            chapter: "12-post-game",
+            speaker: Some("RANDONNEUR MARCEL"),
+        ),
+        (
             id: "No_Mans_Land_PG_Origami",
             chapter: "12-post-game",
+        ),
+        (
+            id: "No_Mans_Land_PG_Salome_Defeat",
+            chapter: "12-post-game",
+            speaker: Some("GARDE SALOMÉ"),
+        ),
+        (
+            id: "No_Mans_Land_PG_Salome_Intro",
+            chapter: "12-post-game",
+            speaker: Some("GARDE SALOMÉ"),
         ),
         (
             id: "No_Mans_Land_PG_Sc16_T1",
@@ -9070,6 +9160,16 @@
             speaker: Some("GARDE COCKET NADIA"),
         ),
         (
+            id: "Tour_Nebula_1F_Ruine_PG_Gus_Defeat",
+            chapter: "12-post-game",
+            speaker: Some("EX-COCKET GUS"),
+        ),
+        (
+            id: "Tour_Nebula_1F_Ruine_PG_Gus_Intro",
+            chapter: "12-post-game",
+            speaker: Some("EX-COCKET GUS"),
+        ),
+        (
             id: "Tour_Nebula_1F_Ruine_PG_Sc12_T1",
             chapter: "12-post-game",
             speaker: Some("MATHIAS"),
@@ -9147,6 +9247,16 @@
             speaker: Some("GWADA"),
         ),
         (
+            id: "Tour_Nebula_3F_Ruine_PG_Ludo_Defeat",
+            chapter: "12-post-game",
+            speaker: Some("EX-COCKET LUDO"),
+        ),
+        (
+            id: "Tour_Nebula_3F_Ruine_PG_Ludo_Intro",
+            chapter: "12-post-game",
+            speaker: Some("EX-COCKET LUDO"),
+        ),
+        (
             id: "Tour_Nebula_3F_Ruine_PG_Sc13_T1",
             chapter: "12-post-game",
         ),
@@ -9163,6 +9273,16 @@
             chapter: "12-post-game",
         ),
         (
+            id: "Tour_Nebula_4F_Ruine_PG_Mira_Defeat",
+            chapter: "12-post-game",
+            speaker: Some("EX-COCKET MIRA"),
+        ),
+        (
+            id: "Tour_Nebula_4F_Ruine_PG_Mira_Intro",
+            chapter: "12-post-game",
+            speaker: Some("EX-COCKET MIRA"),
+        ),
+        (
             id: "Tour_Nebula_4F_Ruine_PG_Sc14_T1",
             chapter: "12-post-game",
         ),
@@ -9171,7 +9291,35 @@
             chapter: "12-post-game",
         ),
         (
+            id: "Tour_Nebula_PG_Ascenseur_1F",
+            chapter: "12-post-game",
+        ),
+        (
+            id: "Tour_Nebula_PG_Ascenseur_2F",
+            chapter: "12-post-game",
+        ),
+        (
+            id: "Tour_Nebula_PG_Ascenseur_3F",
+            chapter: "12-post-game",
+        ),
+        (
+            id: "Tour_Nebula_PG_Ascenseur_4F",
+            chapter: "12-post-game",
+        ),
+        (
+            id: "Tour_Nebula_PG_Ascenseur_Annuler",
+            chapter: "12-post-game",
+        ),
+        (
+            id: "Tour_Nebula_PG_Ascenseur_Sommet",
+            chapter: "12-post-game",
+        ),
+        (
             id: "Tour_Nebula_PG_Ascenseur_T1",
+            chapter: "12-post-game",
+        ),
+        (
+            id: "Tour_Nebula_PG_Ascenseur_Toit",
             chapter: "12-post-game",
         ),
         (
