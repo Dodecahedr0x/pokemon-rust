@@ -37,7 +37,6 @@ use crate::data::{BLOCK_COLLISION_SHIFT, BLOCK_METATILE_MASK, GameData, PLAYER};
 use crate::mon::Party;
 use crate::script::{Request, Response, ScriptHost};
 use crate::starter::StarterChoice;
-use crate::trainer::create_trainer_party;
 use crate::video::Frame;
 use alloc::boxed::Box;
 
@@ -386,16 +385,16 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             Request::BattleTrainer {
                 trainer, defeat, ..
             } => {
-                let opponents = game
-                    .trainer(trainer)
-                    .map(|t| create_trainer_party(game.battle(), t, &mut s.rng))
-                    .filter(|p| p.first_usable().is_some());
-                let Some(opponents) = opponents else {
+                // Wave G: a second trainer saw the player too (`BATTLE_TYPE_TWO_OPPONENTS`).
+                let second = s.pair.b.map(|(b, d, _)| (b, d));
+                let Some((opponents, double)) =
+                    super::battle::trainer_party(game, &mut s.rng, trainer, second)
+                else {
                     s.log("battle against an unknown or empty trainer answered Won");
                     return Some(Response::Value(BattleOutcome::Won as u16));
                 };
                 let kind = BattleKind::Trainer { trainer, defeat };
-                s.start_battle(game, kind, opponents, Origin::Script, self.f);
+                s.start_battle_with(game, kind, opponents, double, Origin::Script, self.f);
                 None
             }
             Request::Message(_)
@@ -416,6 +415,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             Request::Multichoice { .. } => menu::begin(self, r),
             Request::SetWarp { .. } => warps::begin(self, r),
             Request::TrainerApproach { .. } => trainer::begin(self, r),
+            Request::TrainerPair { .. } => trainer::pair(self, r),
             // ---- Milestone 9 ----
             Request::Mart { .. }
             | Request::ChoosePartyMon(_)

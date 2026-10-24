@@ -44,3 +44,26 @@ pub(super) fn done<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> bool {
         ApproachStep::Done => true,
     }
 }
+
+/// `TrainerPair` (Wave G, Gen3 `TryPrepareSecondApproachingTrainer`): the second trainer's
+/// script starts its approach (`Value(script)`), or that script notes trainer B
+/// (`Bool(true)`), or there is no second trainer (`Unit`).
+pub(super) fn pair<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Response> {
+    let Request::TrainerPair { trainer, defeat } = *r else {
+        return UNIT;
+    };
+    let s = &mut *h.s;
+    if let Some(script) = s.pair.second_running.take() {
+        s.pair.b = Some((trainer, defeat, script));
+        return Some(Response::Bool(true));
+    }
+    let Some((obj, script, distance)) = s.pair.next.take() else {
+        return UNIT;
+    };
+    // Gen3 `gSelectedObjectEvent` / `gSpecialVar_LastTalked`: the second trainer.
+    let map = s.field.map();
+    s.selected = Some((obj, map));
+    s.objects.sight_pending(obj, distance);
+    s.pair.second_running = Some(script);
+    Some(Response::Value(script.0))
+}

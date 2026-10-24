@@ -598,7 +598,8 @@ pub(crate) fn party_range(double: Option<&Double>, side: Side, len: u8) -> core:
         Some(d) => d.second.is_some(),
         None => false,
     };
-    let half = MULTI_PARTY_SIZE.min(len);
+    let split = double.map_or(0, |d| d.split[side.s()]);
+    let half = if split != 0 { split } else { MULTI_PARTY_SIZE }.min(len);
     match (halves, side.i() < 2) {
         (false, _) => 0..len,
         (true, true) => 0..half,
@@ -1232,6 +1233,9 @@ impl Battle {
                 h.write_u16(d.second.map_or(0xFFFF, |(t, _)| t.0));
                 h.write_u16(d.second.map_or(0xFFFF, |(_, x)| x.0));
                 h.write_u16(d.partner.map_or(0xFFFF, |t| t.0));
+                if d.split != [0; 2] {
+                    h.write(&[0xD5, d.split[0], d.split[1]]);
+                }
             }
         }
         if let Some(p) = &self.caught_without_room {
@@ -2136,7 +2140,7 @@ impl Battle {
     ) {
         let player = &self.parties[0];
         let end = if self.has_partner() {
-            MULTI_PARTY_SIZE
+            self.party_range(Side::Player).end
         } else {
             PARTY_SIZE as u8
         };

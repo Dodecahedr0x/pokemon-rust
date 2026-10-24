@@ -88,15 +88,19 @@ const fn continues(k: u8) -> bool {
 }
 
 /// The Gen3 `BATTLE_TYPE_*` flags a battle of `trainerbattle` kind `k` has as the engine runs
-/// it: (exact, simplified). The double kinds run as singles (`Degraded("double battle")`), the
-/// two-trainer kinds load no second trainer (`Degraded("double sight")`), and the facility
-/// kinds run no battle.
+/// it: (exact, simplified). The double kinds are double battles (Wave G); the set-trainer and
+/// facility kinds run no battle.
 pub const fn battle_types_of_kind(k: u8) -> (&'static [&'static str], &'static [&'static str]) {
     const TRAINER: &[&str] = &["BATTLE_TYPE_IS_MASTER", "BATTLE_TYPE_TRAINER"];
+    const TRAINER_DOUBLE: &[&str] = &[
+        "BATTLE_TYPE_IS_MASTER",
+        "BATTLE_TYPE_TRAINER",
+        "BATTLE_TYPE_DOUBLE",
+    ];
     match k {
         kind::PYRAMID | kind::HILL => (&[], &[]),
-        kind::SET_TRAINER_A | kind::SET_TRAINER_B => (TRAINER, &["BATTLE_TYPE_TWO_OPPONENTS"]),
-        k if is_double(k) || k == kind::REMATCH_DOUBLE => (TRAINER, &["BATTLE_TYPE_DOUBLE"]),
+        kind::SET_TRAINER_A | kind::SET_TRAINER_B => (&[], &[]),
+        k if is_double(k) || k == kind::REMATCH_DOUBLE => (TRAINER_DOUBLE, &[]),
         _ => (TRAINER, &[]),
     }
 }
@@ -109,22 +113,35 @@ pub const WILD_BATTLE_TYPES: (&[&str], &[&str]) = (
     &["BATTLE_TYPE_WALLY_TUTORIAL"],
 );
 
+/// The flags of the battles neither a `trainerbattle` kind nor a wild battle starts (Wave G):
+/// (exact, simplified). Two trainers seeing the player at once fight together
+/// (`BATTLE_TYPE_TWO_OPPONENTS`, trainer sight); Steven's multi battle
+/// (`SPECIAL_DoSpecialTrainerBattle`, `SPECIAL_BATTLE_STEVEN`) adds the in-game partner.
+pub const OTHER_BATTLE_TYPES: (&[&str], &[&str]) = (
+    &[
+        "BATTLE_TYPE_TWO_OPPONENTS",
+        "BATTLE_TYPE_MULTI",
+        "BATTLE_TYPE_INGAME_PARTNER",
+    ],
+    &[],
+);
+
 /// Every Gen3 `BATTLE_TYPE_*` flag the engine's battles model as Gen3 does (the parity ledger,
-/// `cargo xtask ledger`): [`battle_types_of_kind`] over every kind and [`WILD_BATTLE_TYPES`]
-/// (`battle_type_tables_agree_with_the_kinds`). The other flags (link, the facilities, the
-/// legendaries, roamers, Safari, the in-game partner, …) are missing.
+/// `cargo xtask ledger`): [`battle_types_of_kind`] over every kind, [`WILD_BATTLE_TYPES`] and
+/// [`OTHER_BATTLE_TYPES`] (`battle_type_tables_agree_with_the_kinds`). The other flags (link,
+/// the facilities, the legendaries, roamers, Safari, …) are missing.
 pub const BATTLE_TYPES_HANDLED: &[&str] = &[
+    "BATTLE_TYPE_DOUBLE",
     "BATTLE_TYPE_FIRST_BATTLE",
+    "BATTLE_TYPE_INGAME_PARTNER",
     "BATTLE_TYPE_IS_MASTER",
+    "BATTLE_TYPE_MULTI",
     "BATTLE_TYPE_TRAINER",
+    "BATTLE_TYPE_TWO_OPPONENTS",
 ];
 
 /// The `BATTLE_TYPE_*` flags the engine runs in a simplified way (see [`BATTLE_TYPES_HANDLED`]).
-pub const BATTLE_TYPES_DEGRADED: &[&str] = &[
-    "BATTLE_TYPE_DOUBLE",
-    "BATTLE_TYPE_TWO_OPPONENTS",
-    "BATTLE_TYPE_WALLY_TUTORIAL",
-];
+pub const BATTLE_TYPES_DEGRADED: &[&str] = &["BATTLE_TYPE_WALLY_TUTORIAL"];
 
 /// `trainerbattle`: runs the type's `data/scripts/trainer_battle.inc` path and returns whether
 /// the calling script goes on with the code after the `trainerbattle` (Gen3
@@ -147,10 +164,8 @@ pub const BATTLE_TYPES_DEGRADED: &[&str] = &[
 /// - 4 `DOUBLE`, 6 `CONTINUE_SCRIPT_DOUBLE`, 8 `CONTINUE_SCRIPT_DOUBLE_NO_MUSIC`:
 ///   `EventScript_TryDoDoubleTrainerBattle`. As 0–2, but with fewer than two usable mons
 ///   (`HasEnoughMonsForDoubleBattle`) `EventScript_NotEnoughMonsForDoubleBattle`: the
-///   `not_enough` text, `waitbuttonpress`, `release; end` (false). With two or more the battle
-///   runs as a single battle against the same party (no double battles before Milestone 11),
-///   which the engine reports as `Degraded("double battle")` when it creates the battle
-///   (decision Q3; every trainer battle, scripted or by sight).
+///   `not_enough` text, `waitbuttonpress`, `release; end` (false). With two or more it is a
+///   double battle (the trainer data's `doubleBattle`, Wave G).
 /// - 5 `REMATCH`, 7 `REMATCH_DOUBLE`: `EventScript_TryDo(Double)RematchBattle`. Unless
 ///   `IsTrainerReadyForRematch` (never: no Match Call yet), `gotopostbattlescript` (true).
 /// - 10 `SET_TRAINER_A`, 11 `SET_TRAINER_B`: only load operands and return a NULL script: the
@@ -160,9 +175,10 @@ pub const BATTLE_TYPES_DEGRADED: &[&str] = &[
 /// After the battle the trainer flag is set unless the player lost or drew
 /// (`CB2_EndTrainerBattle`: those white out). `gotobeatenscript` then jumps to `event_script`
 /// for the continue-script kinds (the calling script ends where it ends), else
-/// `EventScript_TryGetTrainerScript`: `releaseall; end` (false). The music, the reveal movement
-/// of disguised trainers and Gen3's second approaching trainer are not modelled (the engine
-/// reports the second trainer `Degraded("double sight")`; it sees the player again later).
+/// `EventScript_TryGetTrainerScript`: `releaseall; end` (false). The music and the reveal
+/// movement of disguised trainers are not modelled. A second trainer that saw the player
+/// (`Request::TrainerPair`, Gen3 `TryPrepareSecondApproachingTrainer`) runs its own script up
+/// to its intro, then the first one's battle fights both (`BATTLE_TYPE_TWO_OPPONENTS`).
 pub async fn trainer_battle(ctx: &Ctx, b: TrainerBattle) -> bool {
     match b.kind {
         kind::PYRAMID | kind::HILL => {
@@ -221,6 +237,20 @@ pub async fn trainer_battle(ctx: &Ctx, b: TrainerBattle) -> bool {
         ctx.wait_message().await;
         ctx.wait_button().await;
     }
+    // `TryPrepareSecondApproachingTrainer`: a second trainer that saw the player walks up and
+    // speaks (its own script, up to here), then this battle fights both.
+    if approached {
+        let pair = Request::TrainerPair {
+            trainer,
+            defeat: b.lose,
+        };
+        match ctx.request(pair).await {
+            Response::Value(second) => crate::data::script(second, ctx.clone()).await,
+            // This is the second trainer's script: back to the first one's.
+            Response::Bool(true) => return false,
+            _ => {}
+        }
+    }
     battle(ctx, trainer, b.lose).await;
     // `gotobeatenscript`.
     if continues(b.kind) {
@@ -257,6 +287,8 @@ mod tests {
     fn battle_type_tables_agree_with_the_kinds() {
         let mut exact: BTreeSet<&str> = WILD_BATTLE_TYPES.0.iter().copied().collect();
         let mut simplified: BTreeSet<&str> = WILD_BATTLE_TYPES.1.iter().copied().collect();
+        exact.extend(OTHER_BATTLE_TYPES.0);
+        simplified.extend(OTHER_BATTLE_TYPES.1);
         for (k, _) in kind::ALL {
             let (e, s) = battle_types_of_kind(k);
             exact.extend(e);

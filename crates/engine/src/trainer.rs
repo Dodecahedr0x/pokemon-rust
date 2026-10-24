@@ -16,6 +16,17 @@ const MAX_IV: u32 = 31;
 /// - OT id `random32()` until the mon is not shiny (`OT_ID_RANDOM_NO_SHINY`)
 /// - the level-up moveset, replaced by the custom one when given (base PP)
 pub fn create_trainer_party(t: &BattleTables, trainer: &TrainerData, rng: &mut Rng) -> Party {
+    create_trainer_party_up_to(t, trainer, rng, PARTY_SIZE)
+}
+
+/// [`create_trainer_party`] with at most `max` mons (`BATTLE_TYPE_TWO_OPPONENTS` caps each
+/// trainer's party at `PARTY_SIZE / 2`).
+pub fn create_trainer_party_up_to(
+    t: &BattleTables,
+    trainer: &TrainerData,
+    rng: &mut Rng,
+    max: usize,
+) -> Party {
     let base: u32 = if trainer.double {
         0x80
     } else if trainer.female {
@@ -25,7 +36,7 @@ pub fn create_trainer_party(t: &BattleTables, trainer: &TrainerData, rng: &mut R
     };
     let mut name_hash: u32 = 0;
     let mut party = Party::default();
-    for mon in trainer.party.iter().take(PARTY_SIZE) {
+    for mon in trainer.party.iter().take(max.min(PARTY_SIZE)) {
         name_hash = name_hash
             .wrapping_add(byte_sum(trainer.name))
             .wrapping_add(byte_sum(t.species_info(mon.species).name));

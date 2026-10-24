@@ -597,7 +597,47 @@ fn after_win(game: &impl GameData, s: &mut State, battle: &Battle) {
         }
         s.money = s.money.saturating_add(money).min(max);
     }
+    // Wave G: `SetBattledTrainersFlags` also sets trainer B's flag (content sets A's).
+    if let Some((_, _, script)) = s.pair.b.take()
+        && let Some(flag) = game.trainer_flag_of(script)
+    {
+        s.vars.set_flag(flag, true);
+    }
     super::evolve::after_win(game, s, battle);
+}
+
+/// The opponents of a trainer battle (Gen3 `CreateNPCTrainerParty`): trainer A's party, or,
+/// with trainer B (`BATTLE_TYPE_TWO_OPPONENTS`, Wave G), at most three of A's
+/// (`gEnemyParty[0..]`) then at most three of B's (`gEnemyParty[3..]`), with the battle's
+/// [`crate::battle::Double`]. `None` when A is unknown or has no mon that can fight.
+pub(super) fn trainer_party(
+    game: &impl GameData,
+    rng: &mut crate::rng::Rng,
+    trainer: crate::data::TrainerId,
+    second: Option<(crate::data::TrainerId, crate::data::TextId)>,
+) -> Option<(Party, Option<crate::battle::Double>)> {
+    use crate::battle::MULTI_PARTY_SIZE;
+    use crate::trainer::{create_trainer_party, create_trainer_party_up_to};
+    let t = game.battle();
+    let a = game.trainer(trainer)?;
+    let Some((b, b_defeat)) = second else {
+        let p = create_trainer_party(t, a, rng);
+        return p.first_usable().is_some().then_some((p, None));
+    };
+    let half = MULTI_PARTY_SIZE as usize;
+    let mut p = create_trainer_party_up_to(t, a, rng, half);
+    let split = p.len() as u8;
+    if let Some(bt) = game.trainer(b) {
+        for m in create_trainer_party_up_to(t, bt, rng, half).iter() {
+            let _ = p.push(*m);
+        }
+    }
+    let double = crate::battle::Double {
+        second: Some((b, b_defeat)),
+        partner: None,
+        split: [0, split],
+    };
+    p.first_usable().is_some().then_some((p, Some(double)))
 }
 
 /// Re-uploads the field after a battle or the starter screen owned the screen (black frame):

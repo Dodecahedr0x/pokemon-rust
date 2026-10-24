@@ -152,6 +152,11 @@ pub struct Double {
     /// this trainer). Its mons are the player party's slots 3..6 (`FillPartnerParty`) and its
     /// AI chooses `PlayerRight`'s actions; the player's are slots 0..3.
     pub partner: Option<TrainerId>,
+    /// Where the second half starts in each halved party (`[player, opponents]`): the
+    /// player's own mons or trainer A's count, at most [`MULTI_PARTY_SIZE`] (0:
+    /// [`MULTI_PARTY_SIZE`], or the party's size when smaller). Gen3 leaves the empty slots
+    /// of a three-mon half empty.
+    pub split: [u8; 2],
 }
 
 /// `MULTI_PARTY_SIZE`: the mons of each trainer in a multi or two-trainer battle.

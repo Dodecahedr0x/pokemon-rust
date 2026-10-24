@@ -348,6 +348,15 @@ pub enum Request {
     TrainerApproach {
         obj: u8,
     },
+    /// Wave G: Gen3 `TryPrepareSecondApproachingTrainer`, after a sighted trainer's intro, with
+    /// that trainer and its defeat text. Answers `Value(script)` when a second trainer also
+    /// saw the player: that script runs next (its approach and intro, then this request
+    /// again); `Bool(true)` to the second script's own request (trainer B is noted, its script
+    /// ends, and trainer A's battle fights both, `BATTLE_TYPE_TWO_OPPONENTS`); else `Unit`.
+    TrainerPair {
+        trainer: TrainerId,
+        defeat: TextId,
+    },
     // ---- Milestone 9: screens (`world/host/screens.rs`, Task K) ----
     /// Gen3 `pokemart`: the shop with these items; answers `Unit` once it closes.
     Mart {
@@ -712,6 +721,8 @@ impl Request {
             // The report's text is not hashed (as a log line).
             Request::Report(r) => (53, matches!(r, Report::Degraded(_)) as u16, 0, 0, 0),
             Request::TrainerApproach { obj } => (54, obj as u16, 0, 0, 0),
+            // Wave G doubles: tags 215 and up.
+            Request::TrainerPair { trainer, defeat } => (215, trainer.0, defeat.0, 0, 0),
             Request::CurrentMap => (55, 0, 0, 0, 0),
             // ---- Milestone 9 ----
             Request::Mart { items } => {

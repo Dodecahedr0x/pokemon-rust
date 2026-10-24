@@ -259,6 +259,7 @@ impl World {
                 rotating_tiles: None,
                 field_move: None,
                 stash: super::host::Stash::default(),
+                pair: super::sight::Pair::default(),
                 events: Vec::with_capacity(super::EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,

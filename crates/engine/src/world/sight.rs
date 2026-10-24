@@ -18,9 +18,11 @@
 //! - a double trainer is skipped when the player has fewer than two usable mons
 //!   (`trainer_see.c:216`, decision Q3);
 //! - with one trainer found and fewer than two usable mons the scan stops; with two usable mons
-//!   it looks for a second trainer. Gen3 then starts a two-trainer battle; here the first (in
-//!   template order) battles and the second is reported `Degraded("double sight")`: it sees the
-//!   player again after the battle.
+//!   it looks for a second trainer, and two trainers start a two-trainer battle
+//!   (`BATTLE_TYPE_TWO_OPPONENTS`): the first one's script runs (approach, intro), then
+//!   `TrainerPair` runs the second one's (approach, intro; Gen3
+//!   `TryPrepareSecondApproachingTrainer`), and the first one's battle fights both. A win sets
+//!   both trainers' flags (`SetBattledTrainersFlags`).
 //!
 //! Differences from Gen3:
 //! - the path test is the collision bits, walls (`IsMetatileDirectionallyImpassable`, against
@@ -36,10 +38,10 @@
 //! once per load); else one pass over the templates comparing a byte, then geometry for the
 //! trainers only (object slots looked up once per trainer); the flag lookup comes last.
 
-use super::{Event, State, World};
-use crate::data::{Dir, GameData, ObjectEvent, ScriptId};
+use super::{State, World};
+use crate::data::{Dir, GameData, ObjectEvent, ScriptId, TextId, TrainerId};
+use crate::hash::Fnv64;
 use crate::objects::{Collision, Terrain};
-use crate::script::Report;
 
 /// Gen3 `TRAINER_TYPE_NORMAL` (the `ObjectEvent::trainer_type` encoding).
 pub const TRAINER_TYPE_NORMAL: u8 = 1;
@@ -58,8 +60,39 @@ pub(super) struct Sighting {
     pub script: ScriptId,
     /// Cells from the trainer to the player (Gen3 `approachDistance`, at least 1).
     pub distance: u8,
-    /// A second trainer also saw the player (Gen3's two-trainer battle, not modelled).
-    pub second: bool,
+    /// A second trainer also saw the player (Gen3 `gApproachingTrainers[1]`): its object,
+    /// script and distance.
+    pub second: Option<(u8, ScriptId, u8)>,
+}
+
+/// A two-trainer sighting while its scripts run (see the module docs).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub(crate) struct Pair {
+    /// The second trainer (object, script, distance), until `TrainerPair` starts its script.
+    pub next: Option<(u8, ScriptId, u8)>,
+    /// The second trainer's script runs (its approach and intro).
+    pub second_running: Option<ScriptId>,
+    /// Trainer B, its defeat text and its script (for its flag), once its script asked.
+    pub b: Option<(TrainerId, TextId, ScriptId)>,
+}
+
+impl Pair {
+    pub fn hash(&self, h: &mut Fnv64) {
+        if *self == Pair::default() {
+            return;
+        }
+        h.write(&[0xD6]);
+        let (o, sc, d) = self.next.unwrap_or((0xFF, ScriptId(0xFFFF), 0xFF));
+        h.write(&[o, d]);
+        h.write_u16(sc.0);
+        h.write_u16(self.second_running.map_or(0xFFFF, |s| s.0));
+        let (t, x, sc) = self
+            .b
+            .unwrap_or((TrainerId(0xFFFF), TextId(0xFFFF), ScriptId(0xFFFF)));
+        h.write_u16(t.0);
+        h.write_u16(x.0);
+        h.write_u16(sc.0);
+    }
 }
 
 /// Gen3 `GetMonsStateToDoubles_2 == PLAYER_HAS_TWO_USABLE_MONS`: two mons with HP (no eggs yet).
@@ -114,7 +147,7 @@ pub(super) fn scan(
                     obj: t.local_id,
                     script,
                     distance,
-                    second: false,
+                    second: None,
                 });
                 // One trainer and no double battle possible, or a double trainer: stop.
                 if !two || double(script) {
@@ -122,7 +155,7 @@ pub(super) fn scan(
                 }
             }
             Some(f) => {
-                f.second = true;
+                f.second = Some((t.local_id, script, distance));
                 break;
             }
         }
@@ -186,16 +219,15 @@ impl World {
     /// trainer's script, which starts as if the player had talked to the trainer; its
     /// `trainer_battle` issues `TrainerApproach`.
     pub(super) fn start_sighting(&mut self, game: &impl GameData, sighting: Sighting) {
-        if sighting.second {
-            self.s.log("double sight");
-            self.s
-                .event(Event::Report(Report::Degraded("double sight")));
-        }
         self.s
             .objects
             .sight_pending(sighting.obj, sighting.distance);
         let facing = self.s.objects.player().facing;
         let map = self.s.field.map();
         self.start_script(game, sighting.script, Some((sighting.obj, facing, map)));
+        self.s.pair = Pair {
+            next: sighting.second,
+            ..Pair::default()
+        };
     }
 }
