@@ -529,3 +529,62 @@ fn a_rock_smash_encounter_starts_a_field_wild_battle() {
     g.mash(20_000, |w| !w.in_battle() && !w.script_running());
     assert!(g.w.flag(FLAG_DONE));
 }
+
+#[test]
+fn a_no_whiteout_battle_answers_lost_and_the_script_goes_on() {
+    // Silice's Samuel (R-7): `battle_trainer_no_whiteout` answers `Lost`, no whiteout runs.
+    let mut g = G::new();
+    let t = GGame.battle();
+    let mut mon = Pokemon::new(
+        t,
+        NORMAL,
+        2,
+        Ivs::Fixed(0),
+        0,
+        0,
+        &mut crate::rng::Rng::new(1),
+    );
+    mon.hp = 1;
+    g.w.s.party.push(mon).unwrap();
+    start(&mut g.w, |ctx| {
+        Box::pin(async move {
+            let o = ctx.battle_trainer_no_whiteout(TRAINER, TextId(0)).await;
+            ctx.set_flag(FLAG_DONE, o == BattleOutcome::Lost).await;
+        })
+    });
+    g.mash(20_000, |w| !w.script_running());
+    assert!(g.w.flag(FLAG_DONE), "answered Lost");
+    assert!(!g.w.flag(FLAG_WHITEOUT_RAN));
+    assert!(!g.events.contains(&Event::ScriptStarted(WHITEOUT_SCRIPT)));
+}
+
+#[test]
+fn a_clone_battle_fights_a_healed_copy_of_the_party_with_the_rules_background() {
+    static RULES: crate::battle::BattleRules = crate::battle::BattleRules {
+        inverse: false,
+        field: None,
+        background: Some(crate::battle::Environment::Cave),
+        foe_back: true,
+        clone_player: true,
+        intro: None,
+    };
+    let mut g = G::new();
+    start(&mut g.w, |ctx| {
+        Box::pin(async move {
+            ctx.give_mon(WATER, 30).await;
+            ctx.give_mon(FIRE, 20).await;
+            ctx.battle_trainer_rules(TRAINER, TextId(0), false, &RULES)
+                .await;
+        })
+    });
+    g.mash(20_000, |w| w.in_battle());
+    let (_, b, _) = g.w.battle().unwrap();
+    let foes: Vec<_> = b
+        .party(crate::battle::Side::Opponent)
+        .iter()
+        .map(|m| (m.species, m.level))
+        .collect();
+    assert_eq!(foes, [(WATER, 30), (FIRE, 20)]);
+    assert_eq!(b.setup().environment, crate::battle::Environment::Cave);
+    assert!(b.setup().rules.foe_back);
+}

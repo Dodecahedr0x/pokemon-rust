@@ -123,6 +123,25 @@ pub(crate) fn before_move(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Cancele
         },
         c => c,
     };
+    // Silice's field rules (`What::SoundFails`): the attack string, then the rule's text or
+    // "But it failed!".
+    let c = match c {
+        Canceler::Use if uu.info.flags.has(crate::mon::MoveFlags::SOUND) => {
+            match b.rule_sound_fails(uu.attacker) {
+                Some(e) => {
+                    b.attack_string(env, uu);
+                    match e.text {
+                        Some(t) => b.rule_say(env, t, e.var, uu.attacker),
+                        None => b.fail(env, uu),
+                    }
+                    b.no_effect = true;
+                    Canceler::Done(*uu, None)
+                }
+                None => c,
+            }
+        }
+        c => c,
+    };
     // Magic Coat, then Snatch (`Cmd_attackcanceler`, after `ABILITYEFFECT_MOVES_BLOCK`).
     if let Canceler::Use = c
         && let Some((back, hit)) = mech::bounce(b, env, uu).or_else(|| mech::steal(b, env, uu))

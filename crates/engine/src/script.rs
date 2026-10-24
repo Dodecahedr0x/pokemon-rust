@@ -287,6 +287,9 @@ pub enum Request {
         trainer: TrainerId,
         defeat: TextId,
         no_whiteout: bool,
+        /// Silice's per-battle rules ([`crate::battle::rules`]); `None` for every Gen3
+        /// battle.
+        rules: Option<&'static crate::battle::BattleRules>,
     },
     /// Gen3 `special ChooseStarter`: answers `Value(index 0..3)`.
     ChooseStarter([SpeciesId; 3]),
@@ -877,8 +880,16 @@ impl Request {
                 h.write(&extra.digest().to_le_bytes());
             }
             Request::BattleTrainer {
-                no_whiteout: true, ..
-            } => h.write(&[0xA8]),
+                no_whiteout, rules, ..
+            } if no_whiteout || rules.is_some() => {
+                if no_whiteout {
+                    h.write(&[0xA8]);
+                }
+                if let Some(r) = rules {
+                    h.write(&[0xB7]);
+                    h.write(&r.digest().to_le_bytes());
+                }
+            }
             Request::SetTint { amount, .. } => h.write(&[amount]),
             _ => {}
         }
@@ -1315,6 +1326,7 @@ impl Ctx {
                 trainer,
                 defeat,
                 no_whiteout: false,
+                rules: None,
             },
             outcome,
         )
@@ -1466,6 +1478,27 @@ impl Ctx {
                 trainer,
                 defeat,
                 no_whiteout: true,
+                rules: None,
+            },
+            outcome,
+        )
+    }
+
+    /// A trainer battle with Silice's per-battle `rules` ([`crate::battle::rules`]);
+    /// `no_whiteout` as [`Ctx::battle_trainer_no_whiteout`].
+    pub fn battle_trainer_rules(
+        &self,
+        trainer: TrainerId,
+        defeat: TextId,
+        no_whiteout: bool,
+        rules: &'static crate::battle::BattleRules,
+    ) -> Req<BattleOutcome> {
+        self.req(
+            Request::BattleTrainer {
+                trainer,
+                defeat,
+                no_whiteout,
+                rules: Some(rules),
             },
             outcome,
         )

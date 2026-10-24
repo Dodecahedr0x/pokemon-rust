@@ -283,18 +283,21 @@ impl State {
         origin: Origin,
         f: &mut Frame,
     ) {
-        self.start_battle_with(game, kind, opponents, None, origin, f);
+        self.start_battle_with(game, kind, opponents, None, Default::default(), origin, f);
     }
 
     /// [`World::start_battle`] with the double battle's setup (two trainers, the in-game
     /// partner). A trainer whose data says double (`trainerbattle_double`, the twins) battles
-    /// in doubles without one.
+    /// in doubles without one. `rules`: Silice's per-battle rules (`battle::rules`; its
+    /// background replaces the cell's).
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn start_battle_with(
         &mut self,
         game: &impl GameData,
         kind: BattleKind,
         opponents: Party,
         double: Option<crate::battle::Double>,
+        rules: crate::battle::BattleRules,
         origin: Origin,
         f: &mut Frame,
     ) {
@@ -309,8 +312,9 @@ impl State {
         let setup = BattleSetup {
             kind,
             opponents,
-            environment: self.environment(game),
+            environment: rules.background.unwrap_or_else(|| self.environment(game)),
             double,
+            rules,
         };
         let transition = BattleTransition::new(&kind);
         // The run (about 4 KiB) is built in its heap allocation: `Box::new` of a literal copies

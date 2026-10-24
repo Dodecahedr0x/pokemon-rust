@@ -437,8 +437,15 @@ impl Battle {
             d.stages[Stat::Evasion as usize]
         };
         let acc = a.stages[Stat::Accuracy as usize];
+        // Silice's field rules (`What::Accuracy` on the target).
+        let (num, den) = self.rule_ratio(u.target, |w| match w {
+            crate::battle::rules::What::Accuracy { num, den } => Some((num, den)),
+            _ => None,
+        });
+        let move_acc = effects::move_accuracy(self, u);
+        let move_acc = (move_acc as u32 * num / den).min(u8::MAX as u32) as u8;
         calc::accuracy_hits_x(
-            effects::move_accuracy(self, u),
+            move_acc,
             acc,
             eva,
             a.ability,
@@ -523,7 +530,7 @@ impl Battle {
             return true;
         }
         let d = self.battler(u.target);
-        let r = calc::type_effect(
+        let r = calc::type_effect_in(
             env.t.type_chart,
             env.t.foresight_split,
             d.foresight,
@@ -531,6 +538,7 @@ impl Battle {
             d.types,
             u.power,
             1,
+            self.setup.rules.inverse,
         );
         r.eff == Effectiveness::NoEffect
     }
@@ -620,7 +628,7 @@ impl Battle {
             if a.has_type(u.ty) {
                 damage = calc::stab(damage);
             }
-            let r = calc::type_effect(
+            let r = calc::type_effect_in(
                 env.t.type_chart,
                 env.t.foresight_split,
                 self.battler(u.target).foresight,
@@ -628,6 +636,7 @@ impl Battle {
                 d.types,
                 u.power,
                 damage,
+                self.setup.rules.inverse,
             );
             damage = r.damage;
             eff = r.eff;
@@ -637,6 +646,14 @@ impl Battle {
             // Filter (Gen7): super-effective damage x3/4.
             if eff == Effectiveness::Super && d.ability == Ability::Filter {
                 damage = damage * 3 / 4;
+            }
+            // Silice's field rules (`What::DamageTaken` on the target).
+            let (num, den) = self.rule_ratio(u.target, |w| match w {
+                crate::battle::rules::What::DamageTaken { num, den } => Some((num, den)),
+                _ => None,
+            });
+            if num != den && damage > 0 {
+                damage = ((damage as i64 * num as i64 / den as i64) as i32).max(1);
             }
             if eff == Effectiveness::NoEffect {
                 // `gProtectStructs.targetNotAffected` (`WasUnableToUseMove`).
@@ -760,6 +777,8 @@ impl Battle {
             env.out.push(BattleEvent::Msg(u.msg_long(id, u.target)));
         }
         self.hung_on(env, u, &r);
+        // Silice's field rules (`What::DrainDealt` on the attacker).
+        self.rule_drain(env, u.attacker, r.hp_dealt);
         r
     }
 

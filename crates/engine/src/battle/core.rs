@@ -57,6 +57,7 @@
 mod forms;
 mod items;
 mod moves;
+pub(crate) mod rules;
 #[cfg(test)]
 pub(crate) mod tests;
 #[cfg(test)]
@@ -384,6 +385,17 @@ pub(crate) struct BattleExt {
     pub weather: Weather,
     /// `gBattleStruct->moneyMultiplier` 2: a player battler entered holding an Amulet Coin.
     pub double_prize: bool,
+    /// The field rule (`GameData::battle_rule` of `setup.rules.field`; hashed through the
+    /// setup).
+    pub rule: Option<&'static crate::battle::FieldRule>,
+    /// The trainer's mid-battle lines (`GameData::trainer_lines`; hashed through the trainer).
+    pub lines: &'static [crate::battle::TrainerLine],
+    /// Lines said (a bit each).
+    pub said: u16,
+    /// The field rule's `When::LastIn` ran for the side.
+    pub last_in: [bool; 2],
+    /// The trainer's items left (`gBattleResources->battleHistory->trainerItems`).
+    pub items: [Option<(ItemId, crate::data::ItemUse)>; rules::MAX_TRAINER_ITEMS],
 }
 
 impl BattleExt {
@@ -411,6 +423,18 @@ impl BattleExt {
         if self.double_prize {
             h.write(&[0xDB]);
         }
+        // Silice's rules: only when set.
+        if self.said != 0 || self.last_in != [false; 2] {
+            h.write(&[0xB8]);
+            h.write_u16(self.said);
+            h.write(&[self.last_in[0] as u8, self.last_in[1] as u8]);
+        }
+        if self.items != [None; rules::MAX_TRAINER_ITEMS] {
+            h.write(&[0xB9]);
+            for v in rules::items_code(&self.items) {
+                h.write_u16(v);
+            }
+        }
     }
 }
 
@@ -427,6 +451,8 @@ pub(crate) enum Action {
     Run,
     /// `B_ACTION_USE_ITEM` with a Poké Ball (Task E2).
     Ball,
+    /// `B_ACTION_USE_ITEM` by a trainer (Silice): its item at this index.
+    Item(u8),
 }
 
 /// The move slot of a move action.
@@ -445,6 +471,7 @@ impl Action {
             Action::Switch(s) => [2, s],
             Action::Run => [3, 0],
             Action::Ball => [4, 0],
+            Action::Item(k) => [5, k],
         }
     }
 }
@@ -786,6 +813,7 @@ impl Battle {
             x,
             fx: FieldFx::default(),
         };
+        rules::setup(&mut b, game);
         b.find_forms(game, Side::Player, |_| false);
         b.find_forms(game, Side::Opponent, |_| false);
         for side in b.sides() {
@@ -887,7 +915,10 @@ impl Battle {
             b.x.item = None;
             b.x.hold = None;
         }
-        if b.ability == Ability::SpeedBoost || super::effects::reads_first_turn(t, &b) {
+        if b.ability == Ability::SpeedBoost
+            || super::effects::reads_first_turn(t, &b)
+            || (!side.is_player() && self.items_read_first_turn())
+        {
             b.x.first_turn = 2;
         }
         b
@@ -1250,6 +1281,10 @@ impl Battle {
             h.write(&[0xAC]);
             self.fx.hash(h);
         }
+        if self.setup.rules != crate::battle::BattleRules::default() {
+            h.write(&[0xB7]);
+            self.setup.rules.hash(h);
+        }
     }
 
     /// The prize money of a trainer battle (Gen3 `getmoneyreward`), paid on a win; `None` in a
@@ -1357,10 +1392,14 @@ impl Battle {
                 for &side in &order {
                     super::effects::items_on_switch_in(self, env, side);
                 }
+                self.rules_start(env);
                 self.steps.push_front(Step::NewTurn);
             }
             Step::NewTurn => self.new_turn(env),
-            Step::Act(side) => self.act(env, side),
+            Step::Act(side) => {
+                self.act(env, side);
+                self.line_low_hp(env);
+            }
             Step::Fainted => self.fainted(env),
             Step::Replace(side) => self.replace(env, side),
             Step::GainExp {
@@ -1390,6 +1429,7 @@ impl Battle {
                     b.flinched = false;
                 }
                 super::effects::end_turn(self, env);
+                self.rules_turn_end(env);
                 // TurnValuesCleanUp(FALSE): this turn's gProtectStructs, `isFirstTurn`.
                 for b in &mut self.battlers {
                     b.v.unable = false;
@@ -1419,6 +1459,7 @@ impl Battle {
         for b in &mut self.battlers {
             b.x.first_turn = b.x.first_turn.saturating_sub(1);
         }
+        self.rules_turn_start(env);
         self.random_turn = env.rng.random();
         self.actions = [None; 4];
         for side in self.sides() {
@@ -1471,6 +1512,10 @@ impl Battle {
             // OpponentHandleChooseAction → AI_TrySwitchOrUseItem, before the move choice
             // (and before the all-moves-unusable check of B_ACTION_USE_MOVE).
             return Action::Switch(i);
+        }
+        // AI_TrySwitchOrUseItem → ShouldUseItem (Silice: trainer items).
+        if let Some(k) = self.ai_item(side) {
+            return Action::Item(k);
         }
         let mega = self.is_trainer() && !side.is_player();
         if super::effects::all_moves_unusable(self, env.t, side) {
@@ -1684,7 +1729,9 @@ impl Battle {
         }
         // Only the player's side (battlers 0 / 2) runs first. The opponent's B_ACTION_RUN (a
         // fleeing wild mon) is ordered by `GetWhoStrikesFirst` like a move of priority 0.
-        let first_class = |a: Option<Action>| matches!(a, Some(Action::Switch(_) | Action::Ball));
+        let first_class = |a: Option<Action>| {
+            matches!(a, Some(Action::Switch(_) | Action::Ball | Action::Item(_)))
+        };
         let mut order: Vec<Side> = sides
             .iter()
             .copied()
@@ -1774,7 +1821,13 @@ impl Battle {
             Ability::Chlorophyll => weather.sun(),
             _ => false,
         };
-        calc::effective_speed_x(&b.fighter(), if doubled { 2 } else { 1 })
+        let speed = calc::effective_speed_x(&b.fighter(), if doubled { 2 } else { 1 });
+        // Silice's field rules (`What::Speed`).
+        let (num, den) = self.rule_ratio(s, |w| match w {
+            crate::battle::rules::What::Speed { num, den } => Some((num, den)),
+            _ => None,
+        });
+        (speed as u64 * num as u64 / den as u64).min(u32::MAX as u64) as u32
     }
 
     fn act(&mut self, env: &mut Env, side: Side) {
@@ -1805,6 +1858,7 @@ impl Battle {
                 self.battler_mut(side).v.fury_cutter = 0;
                 super::effects::ball(self, env)
             }
+            Action::Item(k) => self.use_trainer_item(env, side, k),
         }
     }
 
@@ -1863,6 +1917,8 @@ impl Battle {
     /// STRINGID_SWITCHINMON); at the intro a trainer slides out as it throws the ball.
     fn send_out_events(&mut self, env: &mut Env, side: Side, intro: bool) {
         let party = self.battler(side).mon.party;
+        // Silice's trainer lines (before the send-out).
+        self.line_send_out(env, side, party);
         // B_BUFF1 = PREPARE_MON_NICK_BUFFER (sText_GoPkmn2, sText_Trainer1SentOutPkmn2): the
         // party slot, so the text names it even when expanded after later events.
         let buffs = [Buff::MonNick { side, party }, Buff::None, Buff::None];
@@ -1933,6 +1989,10 @@ impl Battle {
             None => self.send_out_events(env, side, false),
         }
         super::effects::spikes(self, env, side);
+        // Silice's field rules: the side's last mon.
+        if self.battler(side).mon.hp > 0 {
+            self.last_in(env, side);
+        }
         // Primal Reversion on entry (Gen6), then the switch-in abilities.
         self.primal_reversion(env, side);
         super::effects::on_switch_in(self, env, side);
