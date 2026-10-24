@@ -105,6 +105,9 @@ pub mod layout {
     pub const EWRAM: std::ops::Range<u32> = 0x0200_0000..0x0204_0000;
     // gBattleTypeFlags
     pub const BATTLE_TYPE_TRAINER: u32 = 1 << 3;
+    pub const BATTLE_TYPE_DOUBLE: u32 = 1 << 0;
+    /// `PARTY_MENU_TYPE_IN_BATTLE` (`include/constants/party_menu.h`).
+    pub const PARTY_MENU_TYPE_IN_BATTLE: u8 = 1;
     pub const BATTLE_TYPE_FIRST_BATTLE: u32 = 1 << 4;
     // gBattleOutcome
     pub const B_OUTCOME_LOST: u8 = 2;

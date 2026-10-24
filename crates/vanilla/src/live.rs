@@ -305,8 +305,23 @@ impl<'g, G: GameData> Live<'g, G> {
             }
             Step::Walk(dir) => self.v.walk_dir(dir, MACRO_FRAMES)?,
             Step::Path { dirs, .. } => {
+                // KNOWN ENGINE GAP (double sight): two trainers seeing the player at once fight
+                // one double battle on Gen3; our engine (no double battles) fights two singles,
+                // the second sighting taking the press of the path's next key, which the spine
+                // adds (Mossdeep's gym). Vanilla skips that key after each double battle.
+                let mut skip = 0;
                 for &dir in dirs {
+                    if skip > 0 {
+                        skip -= 1;
+                        continue;
+                    }
+                    let battles = self.v.battles.len();
                     self.v.walk_dir(dir, MACRO_FRAMES)?;
+                    use crate::state::layout::{BATTLE_TYPE_DOUBLE, BATTLE_TYPE_TRAINER};
+                    let double = BATTLE_TYPE_DOUBLE | BATTLE_TYPE_TRAINER;
+                    skip += (self.v.battles[battles..].iter())
+                        .filter(|&&f| f & double == double)
+                        .count();
                 }
             }
             Step::Exit { dir, to } => {

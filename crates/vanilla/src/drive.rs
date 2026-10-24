@@ -377,7 +377,23 @@ impl Vanilla {
         {
             // A fainted lead's replacement (or a script's choice): the first mon that can
             // fight. A on a fainted one only prints "no will to fight" and asks again.
-            let mut want = (self.party().iter()).position(|m| m.hp > 0).unwrap_or(0) as u8;
+            // In battle (`PARTY_MENU_TYPE_IN_BATTLE`), not one already out: in a double
+            // battle the partner is alive and "already in battle" (`gBattlerPartyIndexes` of
+            // the player's battlers 0 and 2).
+            let out: Vec<u8> = if self.emu.read_u8(s.party_menu + PM_MENU_TYPE) & 0xF
+                == PARTY_MENU_TYPE_IN_BATTLE
+            {
+                let n = self.emu.read_u8(s.battlers_count).min(4) as u32;
+                (0..n)
+                    .step_by(2)
+                    .map(|b| self.emu.read_u16(s.battler_party_indexes + 2 * b) as u8)
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            let mut want = (self.party().iter().enumerate())
+                .position(|(i, m)| m.hp > 0 && !out.contains(&(i as u8)))
+                .unwrap_or(0) as u8;
             if self.emu.read_u8(s.party_menu + PM_MENU_TYPE) & 0xF == PARTY_MENU_TYPE_CHOOSE_HALF {
                 // The choose-half menu (Steven's multi battle, `ChooseHalfPartyForBattle`):
                 // ENTER the mons that can fight in party order (up to 3: `max`, then the

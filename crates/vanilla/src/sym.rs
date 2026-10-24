@@ -173,6 +173,7 @@ symbols! {
     cb2_credits = "CB2_Credits" @ 0x081754dc,
     /// The choose-half party menu (`PARTY_MENU_TYPE_CHOOSE_HALF`) and its order.
     selected_order_from_party = "gSelectedOrderFromParty" @ 0x0203cef8,
+    battler_party_indexes = "gBattlerPartyIndexes" @ 0x0202406e,
     // Rotating gates (`rotating_gate.c`): the puzzle and its ROM tables.
     rotating_gate_puzzle_config = "sRotatingGate_PuzzleConfig" @ 0x0203a044,
     rotating_gate_puzzle_count = "sRotatingGate_PuzzleCount" @ 0x0203a048,
