@@ -100,8 +100,34 @@
             value: 122,
             script: Some("ReverseCity_Phare_PG_Sc04"),
         ),
+        (
+            x: 12,
+            y: 17,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("ReverseCity_Phare_PG_FragmentBip"),
+        ),
+        (
+            x: 12,
+            y: 13,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("ReverseCity_Phare_PG_FragmentBip"),
+        ),
     ],
-    bgs: [],
+    bgs: [
+        (
+            x: 11,
+            y: 15,
+            elevation: 0,
+            kind: Script(
+                facing: 0,
+                script: Some("ReverseCity_Phare_PG_Fragment"),
+            ),
+        ),
+    ],
     connections: [],
     scripts: (
         on_load: None,

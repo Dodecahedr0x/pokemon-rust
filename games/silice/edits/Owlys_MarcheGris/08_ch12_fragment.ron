@@ -1,0 +1,9 @@
+// Chapter 12 (post-game): Fragment de Code 6 (PG_Fragment).
+[
+    // "Under the empty stall at the back on the left": the west end of the back stalls' crates (6-8, 4),
+    // (6, 4) (solid), read from (6, 5), (5, 4) or (6, 3). A sign running PG_Fragment. The "BIP" coords two
+    // cells before it, (6, 6) from the south and (4, 4) from the west (VAR_TEMP_1 0).
+    Sign(x: 6, y: 4, script: "Owlys_MarcheGris_PG_Fragment"),
+    Coord(x: 6, y: 6, var: "VAR_TEMP_1", value: 0, script: "Owlys_MarcheGris_PG_FragmentBip"),
+    Coord(x: 4, y: 4, var: "VAR_TEMP_1", value: 0, script: "Owlys_MarcheGris_PG_FragmentBip"),
+]

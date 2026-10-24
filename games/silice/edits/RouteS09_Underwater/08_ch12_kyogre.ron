@@ -1,0 +1,8 @@
+// Chapter 12 (post-game): Kyogre in the Conduite's deep pit (PG_Lib_Poussin, PG_Legendaire).
+[
+    // "The Conduite, the pit at the far end, by Dive": the Salle des Filtres' west corridor (32-33, 69-71) is
+    // shut by the grille at its foot (row 72), a dead end at the conduit's far end. Kyogre waits at its
+    // bottom (32, 71), talked to from (32, 70) or (33, 71). Hidden until No_Mans_Land_PG_Sc16b
+    // (FLAG_SIL_RELAIS_ETEINT) clears FLAG_SIL_HIDE_KYOGRE (set at the start); a capture sets it again.
+    Object(x: 32, y: 71, gfx: "OBJ_EVENT_GFX_KYOGRE_FRONT", id: "LOCALID_ROUTE_S09_UW_KYOGRE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS09_Underwater_EventScript_Kyogre", flag: "FLAG_SIL_HIDE_KYOGRE"),
+]

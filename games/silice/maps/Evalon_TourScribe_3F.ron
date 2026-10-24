@@ -23,7 +23,24 @@
             dest_warp: 1,
         ),
     ],
-    coords: [],
+    coords: [
+        (
+            x: 1,
+            y: 5,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("Evalon_TourScribe_3F_PG_FragmentBip"),
+        ),
+        (
+            x: 4,
+            y: 3,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("Evalon_TourScribe_3F_PG_FragmentBip"),
+        ),
+    ],
     bgs: [
         (
             x: 5,
@@ -32,6 +49,15 @@
             kind: Script(
                 facing: 0,
                 script: Some("Evalon_TourScribe_3F_EventScript_Chronique"),
+            ),
+        ),
+        (
+            x: 3,
+            y: 5,
+            elevation: 0,
+            kind: Script(
+                facing: 0,
+                script: Some("Evalon_TourScribe_3F_PG_Fragment"),
             ),
         ),
     ],

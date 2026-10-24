@@ -1,0 +1,10 @@
+// Chapter 12 (post-game): Fragment de Code 3 (PG_Fragment).
+[
+    // "On square h8 of the great chessboard at the top": no chessboard is drawn in the Tower (neither the hall
+    // nor this glass room), so the fragment lies where h8 would be on this floor seen from the stairs, its
+    // north-east corner (9, 2) (walkable floor), read from (8, 2) or (9, 3). A sign running PG_Fragment. The
+    // "BIP" coords two cells before it, (7, 2) from the west and (9, 4) from the south (VAR_TEMP_1 0).
+    Sign(x: 9, y: 2, script: "GrisEchec_TourObservation_Top_PG_Fragment"),
+    Coord(x: 7, y: 2, var: "VAR_TEMP_1", value: 0, script: "GrisEchec_TourObservation_Top_PG_FragmentBip"),
+    Coord(x: 9, y: 4, var: "VAR_TEMP_1", value: 0, script: "GrisEchec_TourObservation_Top_PG_FragmentBip"),
+]

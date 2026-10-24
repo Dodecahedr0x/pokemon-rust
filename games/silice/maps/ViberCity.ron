@@ -418,6 +418,22 @@
             value: 35,
             script: Some("ViberCity_Sc06"),
         ),
+        (
+            x: 19,
+            y: 15,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("ViberCity_PG_FragmentBip"),
+        ),
+        (
+            x: 16,
+            y: 12,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("ViberCity_PG_FragmentBip"),
+        ),
     ],
     bgs: [
         (
@@ -481,6 +497,15 @@
             kind: Script(
                 facing: 0,
                 script: Some("ViberCity_EventScript_HiddenPpUp"),
+            ),
+        ),
+        (
+            x: 19,
+            y: 12,
+            elevation: 0,
+            kind: Script(
+                facing: 0,
+                script: Some("ViberCity_PG_Fragment"),
             ),
         ),
     ],

@@ -29,6 +29,21 @@
             script: Some("RouteS09_Underwater_EventScript_ItemMaxRevive"),
             flag: Some("FLAG_SIL_ITEM_S09_UW_4"),
         ),
+        (
+            local_id: 2,
+            id: Some("LOCALID_ROUTE_S09_UW_KYOGRE"),
+            gfx: "OBJ_EVENT_GFX_KYOGRE_FRONT",
+            x: 32,
+            y: 71,
+            elevation: 3,
+            movement: "MOVEMENT_TYPE_FACE_DOWN",
+            range_x: 0,
+            range_y: 0,
+            trainer_type: "TRAINER_TYPE_NONE",
+            trainer_sight_or_berry_tree: 0,
+            script: Some("RouteS09_Underwater_EventScript_Kyogre"),
+            flag: Some("FLAG_SIL_HIDE_KYOGRE"),
+        ),
     ],
     warps: [
         (

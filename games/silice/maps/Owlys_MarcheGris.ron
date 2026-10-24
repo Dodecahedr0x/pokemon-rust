@@ -76,8 +76,35 @@
             dest_warp: 3,
         ),
     ],
-    coords: [],
-    bgs: [],
+    coords: [
+        (
+            x: 6,
+            y: 6,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("Owlys_MarcheGris_PG_FragmentBip"),
+        ),
+        (
+            x: 4,
+            y: 4,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("Owlys_MarcheGris_PG_FragmentBip"),
+        ),
+    ],
+    bgs: [
+        (
+            x: 6,
+            y: 4,
+            elevation: 0,
+            kind: Script(
+                facing: 0,
+                script: Some("Owlys_MarcheGris_PG_Fragment"),
+            ),
+        ),
+    ],
     connections: [],
     scripts: (
         on_load: None,
