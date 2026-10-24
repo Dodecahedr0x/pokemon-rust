@@ -577,6 +577,18 @@ pub fn branch<G: GameData + Clone + 'static>(
     );
     // ---- vanilla ----
     live.v.emu.load_state(&state)?;
+    // The driver's own state belongs to the run that ended (the spine's last step left it at
+    // the Hall of Fame, where `settle` returns at once): the origin's state starts afresh.
+    live.v.hall_of_fame = false;
+    live.v.bumped = None;
+    live.v.buying = None;
+    live.ahead = false;
+    live.note = None;
+    anyhow::ensure!(
+        !live.v.at_hall_of_fame(),
+        "vanilla is at the Hall of Fame at origin {} (GameClear's screens): nothing to play",
+        b.origin
+    );
     live.opts = origin.opts;
     let from = live.v.frames;
     let battles = live.v.battles.len();
