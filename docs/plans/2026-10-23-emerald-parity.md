@@ -789,3 +789,15 @@ The bypasses `fly-mauville`, `fly-slateport`, `fly-lilycove`, `water-door-in`, `
 - **Lanes** (`cargo xtask gates`, `parity`):
   - **fmt, clippy, clippy-ui, test, test-stub, parity:** pass. Route hash 48 lines (gate 65); loop 159 lines (gate 217).
   - **test-silice:** only the known six fail (`sil4_ch3` to `sil9_ch8`).
+
+### Wave G — the oracle's engine gaps (as built, branch `worktree-agent-a45012e7c6da813f5`)
+
+- **Rotating gates** (`rotating_gate.c`): `GameData::rotating_gates` (Fortree gym, Trick House room 6), orientations in the temp vars' bytes (`RotatingGate_InitPuzzle`), `engine::gates::step` turns the pushed gate or blocks the step (unfixed `RotatingGate_CanRotate`: only collision 1 stops an arm). The planner searches over (cell, elevation, orientations). Our spine now fights Darius as vanilla does (`FLAG_0x823`).
+- **`Request::CurrentMap`** answers the map being entered during `on_transition` (`gSaveBlock1Ptr->location`); `RotatingGate_InitPuzzle` read the old map before.
+- **Currents end Surf ashore** (`COLLISION_STOP_SURFING` in `DoForcedMovement`); the planner rides currents. Seafloor Cavern Room 7 is one `goto` the long way round (rows 23, 12, 8, 6).
+- **Easy Chat**: a minimal `ui::easy_chat` (phrase, buttons, quit and confirm prompts, no keyboard); the explorer policy and the vanilla driver (`CB2_EasyChatScreen`) leave it.
+- **Lilycove**: `SetLilycoveLadyGfx` (lady by trainer id), `UpdateTrainerFanClubGameClear`, `ShouldHideFanClubInterviewer` TRUE.
+- **Oracle noise**: `FLAG_MIRAGE_TOWER_VISIBLE` and the layout without the tower (`Random() & 1`).
+- **Not engine gaps**: the wild movesets (`GiveBoxMonInitialMoveset` was right; the Tentacool differs by catch level, RNG); the contest lady's `object 5` (our trainer id picks another lady); trainer flags 0x6B4 ANGELICA, 0x7FA LEONEL, 0x696 ROBERT_1, 0x68F HUGH, 0x71C MITCHELL (path or sight timing; 0x71C, Victory Road B1F, remains); the Rollout tutor (Mauville, off the spine: branch-only).
+- **Oracle after**: 66 findings on the whole spine vs Wave G's 73. The first half ran to Seafloor Cavern Room 8, where vanilla's `Walk` lost a step to a wild battle (4 failed steps); the tail ran from position 963 on the earlier vanilla states. The Hall of Fame cluster (1380, vanilla a step early) is unchanged.
+- **Spine**: 3,143,931 frames (was 3,166,366); badge1 unchanged (104,523). Magma Hideout 4F wild battles run.
