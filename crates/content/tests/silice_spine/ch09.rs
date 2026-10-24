@@ -451,7 +451,10 @@ pub fn steps() -> Vec<Step> {
         // Kroll's five (51–53) after B1F's and the hall's four battles: back to the Centre the
         // way the player came (B1F's pool dives back up into the Bassin), then in again.
         goto(HALL, 20, 14),
-        Step::Enter { dir: Down, map: B1F },
+        Step::Enter {
+            dir: Down,
+            map: B1F,
+        },
         goto(B1F, 10, 11),
         Step::Interact(Left),
         goto(B1F, 7, 10),

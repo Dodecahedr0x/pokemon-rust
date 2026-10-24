@@ -28,11 +28,11 @@ mod game_tests;
 #[cfg(test)]
 mod tests;
 
+use crate::consts::{FLAG_SIL_MODULE_CASCADE, FLAG_SIL_MODULE_PLONGEE, FLAG_SIL_MODULE_SURF};
 use crate::consts::{
     SIL_FLAGS_CLEARED_ON_MAP_CHANGE, SIL_HEAL_LOCATIONS, SIL_RESPAWN, SIL_RUNNING_FLAG,
 };
 use crate::{NEW_GAME_SCRIPT, data};
-use crate::consts::{FLAG_SIL_MODULE_CASCADE, FLAG_SIL_MODULE_PLONGEE, FLAG_SIL_MODULE_SURF};
 use engine::data::{FieldMove, FieldMoveGate, GameData, MapId, ScriptId, SpecialIds};
 use engine::script::{Ctx, Script};
 
