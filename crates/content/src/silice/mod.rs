@@ -40,8 +40,7 @@ use crate::consts::{
 use crate::{NEW_GAME_SCRIPT, data};
 use engine::battle::{BattleRules, FieldRule, TrainerLine};
 use engine::data::{
-    FieldMove, FieldMoveGate, FormChange, GameData, ItemId, MapId, ScriptId, SpecialIds,
-    TrainerId,
+    FieldMove, FieldMoveGate, FormChange, GameData, ItemId, MapId, ScriptId, SpecialIds, TrainerId,
 };
 use engine::script::{Ctx, Script};
 
