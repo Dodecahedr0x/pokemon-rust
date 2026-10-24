@@ -54,6 +54,9 @@ pub mod boot {
     pub const CORRUPT: u32 = 4;
     /// Flash init failed: no chip answered, or agb could not format it.
     pub const NO_MEDIA: u32 = 5;
+    /// Milestone 9 Task S: the slot holds an in-game save: the main menu (CONTINUE, NEW GAME,
+    /// OPTION) runs first (`World::main_menu`).
+    pub const MAIN_MENU: u32 = 6;
 }
 
 /// Result of the last flash write (`DebugRegion::save_status`).

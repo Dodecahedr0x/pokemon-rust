@@ -369,6 +369,10 @@ pub enum Request {
     PlayerPc(PcMode),
     /// `special SaveGame` (Gen3 `SaveGame`: the dialog, then whether it saved): answers `Bool`.
     SaveDialog,
+    /// `special GameClear`'s Hall of Fame record and credits (Gen3 `CB2_DoHallOfFameScreen`,
+    /// Task S): answers `Unit` once they end; the game is saved on the first capturable
+    /// frame after it (`world/save.rs`).
+    HallOfFame,
     /// The evolution scene (Silice `play_evolution`): answers `Bool` (evolved).
     Evolve {
         slot: u8,
@@ -753,6 +757,8 @@ impl Request {
             }
             Request::PlayerPc(m) => (58, m as u16, 0, 0, 0),
             Request::SaveDialog => (59, 0, 0, 0, 0),
+            // Task S: tag 200, clear of the others.
+            Request::HallOfFame => (200, 0, 0, 0, 0),
             Request::Evolve {
                 slot,
                 into,
@@ -1449,6 +1455,12 @@ impl Ctx {
     /// The save dialog: whether the game was saved.
     pub fn save_dialog(&self) -> Req<bool> {
         self.req(Request::SaveDialog, Response::bool)
+    }
+
+    /// The Hall of Fame record and the credits (`special GameClear`); the game saves once the
+    /// field is idle again.
+    pub fn hall_of_fame(&self) -> Req<()> {
+        self.req(Request::HallOfFame, unit)
     }
 
     /// The evolution scene: whether the mon evolved.

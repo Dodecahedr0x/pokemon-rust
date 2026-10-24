@@ -95,6 +95,41 @@ pub fn write_sav(sav: &[u8], cp: &Checkpoint) -> Result<Vec<u8>, String> {
     Ok(flash.0.take())
 }
 
+/// Marks a slot written by the in-game save in `SaveMeta::badges`' high bit (Milestone 9 Task
+/// S; the GBA shell's `save_logic::IN_GAME_SAVE`, equal by `emu/tests/save_logic.rs`): such a
+/// slot boots into the main menu, any other is restored at once.
+pub const IN_GAME_SAVE: u8 = 0x80;
+
+/// The slot metadata of an in-game save of `cp` (the badges for the CONTINUE window, marked).
+pub fn in_game_meta(cp: &Checkpoint, ids: &engine::data::SpecialIds) -> SaveMeta {
+    let m = cp.save_meta(ids);
+    SaveMeta {
+        badges: m.badges | IN_GAME_SAVE,
+        ..m
+    }
+}
+
+/// `sav` after the ROM booted on it and saved `cp` in game (`special SaveGame`, the start
+/// menu's SAVE): [`write_sav`] with [`in_game_meta`]. The window build writes it to
+/// `saves/<flavor>/game.sav`.
+pub fn write_in_game_sav(
+    sav: &[u8],
+    cp: &Checkpoint,
+    ids: &engine::data::SpecialIds,
+) -> Result<Vec<u8>, String> {
+    let (mut slots, flash) = open(sav)?;
+    slots
+        .write(0, cp, &in_game_meta(cp, ids))
+        .map_err(|e| format!("flash write: {e:?}"))?;
+    drop(slots);
+    Ok(flash.0.take())
+}
+
+/// An erased (blank) flash image.
+pub fn blank_sav() -> Vec<u8> {
+    vec![0xFF; FLASH_SIZE]
+}
+
 /// Slot 0's metadata and checkpoint.
 pub fn decode_sav(sav: &[u8]) -> Result<(SaveMeta, Checkpoint), String> {
     let (mut slots, _) = open(sav)?;

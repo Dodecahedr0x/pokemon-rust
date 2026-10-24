@@ -121,7 +121,7 @@ impl Terrain {
                 let c = cell(i);
                 Dir::ALL.map(|d| {
                     // As the planner's step rules (module docs), objects and grass aside.
-                    if behavior[i] == Behavior::ArrowWarp(d) {
+                    if behavior[i].arrow_warp() == Some(d) {
                         return NO_STEP;
                     }
                     let (dx, dy) = d.delta();

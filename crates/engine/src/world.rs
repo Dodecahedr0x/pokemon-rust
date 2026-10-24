@@ -35,6 +35,7 @@ mod maps;
 mod mode;
 mod puzzle;
 mod save;
+pub use save::MainMenuChoice;
 mod screens;
 mod sight;
 mod templates;
@@ -271,6 +272,9 @@ pub(crate) struct State {
     pub(crate) events_dropped: u32,
     /// The last script started.
     pub(crate) last_script: Option<ScriptId>,
+    /// Task S: Gen3 `gSaveFileStatus` / `gDifferentSaveFile` and the Hall of Fame's pending
+    /// save (`world/save.rs`; hashed only while a save is pending).
+    pub(crate) save: save::SaveStatus,
 }
 
 /// All mutable game state. Deterministic: the same state and input give the same next state.
@@ -438,6 +442,7 @@ impl World {
                 events: Vec::with_capacity(EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,
+                save: save::SaveStatus::new_game(),
             },
             boot: None,
         };
@@ -477,6 +482,8 @@ impl World {
         }
         // Screen effects post-process the whole frame, last (Task R).
         crate::fx::apply(&mut self.s.fx, &mut f);
+        // Task S: the Hall of Fame's save, on the first capturable frame after it.
+        save::after_step(self, game);
         f
     }
 
@@ -492,7 +499,7 @@ impl World {
             player_updated = self.control(game, f);
         }
         // Gen3 runs the field-move task after the script context and the field input.
-        self.s.field_move_tick();
+        self.s.field_move_tick(game);
         let s = &mut self.s;
         let ground = Ground {
             game,
@@ -593,6 +600,13 @@ impl World {
             // Gen3 `GetPlayerPosition` / `GetInFrontOfPlayerPosition`: `PlayerGetElevation`.
             let ((x, y), facing, elevation) = (p.pos(), p.facing, p.position_elevation());
             let pushing = s.input.dpad() == Some(facing);
+            // Gen3 `TrySetupDiveEmergeScript` (B underwater), before the step checks.
+            if s.input.is_pressed(Buttons::B)
+                && let Some(id) = s.dive_emerge_prompt(game)
+            {
+                self.start_script(game, id, None);
+                return false;
+            }
             let here = s.field.block(game, x, y);
             if pushing
                 && let Some(w) = warp_on_push(
@@ -642,8 +656,11 @@ impl World {
                         _ => None,
                     }
                 });
-                // Gen3 `GetInteractedWaterScript` after the bg events (Wave C): Surf.
-                let script = script.or_else(|| s.surf_prompt(game).map(|id| (id, None)));
+                // Gen3 `GetInteractedWaterScript` after the bg events (Wave C): Surf, then
+                // Waterfall.
+                let script = script
+                    .or_else(|| s.surf_prompt(game).map(|id| (id, None)))
+                    .or_else(|| s.waterfall_prompt(game).map(|id| (id, None)));
                 if let Some((id, talked)) = script {
                     self.start_script(game, id, talked);
                     return false;
@@ -651,6 +668,13 @@ impl World {
             }
             if pushing && let Some(w) = door_warp(map, fx, fy, fe, front, facing) {
                 self.start_warp(game, map, w, true);
+                return false;
+            }
+            // Gen3 `TrySetupDiveDownScript` (A on diveable water), after the door warp.
+            if self.s.input.is_pressed(Buttons::A)
+                && let Some(id) = self.s.dive_down_prompt(game)
+            {
+                self.start_script(game, id, None);
                 return false;
             }
             // Gen3 `ProcessPlayerFieldInput`: START (`ShowStartMenu`), then SELECT
@@ -890,8 +914,8 @@ impl World {
         }
     }
 
-    /// A save of the current world, as the in-game save writes it (Task S; Wave 0 answers
-    /// `Err(SaveError::Unsupported)`).
+    /// A save of the current world, as the in-game save writes it (Task S, `world/save.rs`):
+    /// the world as CONTINUE brings it back.
     pub fn save_snapshot(&self, game: &impl GameData) -> Result<Checkpoint, SaveError> {
         save::save_now(self, game)
     }
@@ -1012,6 +1036,8 @@ impl World {
         }
         // Wave F: the party's backup, while a script holds one.
         s.stash.hash(&mut h);
+        // Task S: the Hall of Fame's pending save.
+        s.save.hash(&mut h);
         // Wave G: a two-trainer sighting, while its scripts run.
         s.pair.hash(&mut h);
         h.finish()

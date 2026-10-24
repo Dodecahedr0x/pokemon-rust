@@ -244,6 +244,49 @@ fn field_moves_are_listed_after_summary() {
     assert!(w.log().lines().any(|l| l.contains("field move")));
 }
 
+/// FLY (Gen3 `SetUpFieldMove_Fly` → `CB2_OpenFlyMap`): the picker lists the visited
+/// destinations only, B goes back to the party menu, A flies: every screen closes and the
+/// player lands on the destination's cell.
+#[test]
+fn fly_picks_a_visited_destination_and_warps_there() {
+    use super::m9_k::{FLAG_VISITED_ROUTE, FLAG_VISITED_TOWN, FLY_MOVE};
+    let mut w = field_party(&[(NORMAL, &[FLY_MOVE])], PartyMode::Field);
+    w.s.vars.set_flag(FLAG_VISITED_ROUTE, true);
+    let _ = FLAG_VISITED_TOWN;
+    keys(&mut w, &[Buttons::A]);
+    assert_eq!(
+        party(&w).actions(),
+        &[
+            Action::Summary,
+            Action::FieldMove(FieldMove::Fly),
+            Action::Item,
+            Action::Cancel
+        ]
+    );
+    keys(&mut w, &[Buttons::DOWN, Buttons::A]);
+    settle(&mut w);
+    let fly = |w: &World| matches!(top(w), ScreenState::FlyMap(_));
+    assert!(fly(&w));
+    // B: back to the party menu, its slots.
+    keys(&mut w, &[Buttons::B]);
+    settle(&mut w);
+    assert_eq!(party(&w).prompt(), Prompt::Slot { cursor: 0 });
+    keys(&mut w, &[Buttons::A, Buttons::DOWN, Buttons::A]);
+    settle(&mut w);
+    assert!(fly(&w));
+    // One visited destination: DOWN wraps onto it again; A flies to the route.
+    keys(&mut w, &[Buttons::DOWN, Buttons::A]);
+    until_closed(&mut w);
+    for _ in 0..200 {
+        if w.map() == ROUTE && !w.s.transition.is_active() {
+            break;
+        }
+        ui_run(&mut w, Buttons::NONE, 1);
+    }
+    assert_eq!(w.map(), ROUTE);
+    assert_eq!(w.objects().player().pos(), (2, 4));
+}
+
 /// SUMMARY: the info page, LEFT/RIGHT pages, DOWN the next mon, B back with the cursor there.
 #[test]
 fn the_summary_pages_and_returns_to_the_mon_shown() {

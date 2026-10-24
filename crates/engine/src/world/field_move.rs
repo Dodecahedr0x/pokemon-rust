@@ -26,7 +26,7 @@
 //! `waitstate` waits for the effect ([`State::field_move_busy`]).
 
 use super::State;
-use crate::data::{Dir, FieldMove, FieldMoveGate, GameData, MapType, PLAYER};
+use crate::data::{Dir, FieldMove, FieldMoveGate, GameData, MapId, MapType, PLAYER};
 use crate::hash::Fnv64;
 use crate::objects::Collision;
 
@@ -76,17 +76,25 @@ impl State {
     }
 
     /// Starts the effect of field move `m` (`dofieldeffect FLDEFF_USE_*`, Gen3 `FldEff_Use*`).
-    /// Only Surf, Cut, Rock Smash and Strength have one; the others are ignored.
+    /// Surf, Cut, Rock Smash, Strength, Waterfall and Dive have one; the others are ignored.
     pub(crate) fn start_field_move(&mut self, game: &impl GameData, m: FieldMove) {
         if !matches!(
             m,
-            FieldMove::Surf | FieldMove::Cut | FieldMove::RockSmash | FieldMove::Strength
+            FieldMove::Surf
+                | FieldMove::Cut
+                | FieldMove::RockSmash
+                | FieldMove::Strength
+                | FieldMove::Waterfall
+                | FieldMove::Dive
         ) {
             return;
         }
         let map_type = game.map_type(self.field.map());
-        // Gen3 `Task_DoFieldMove_Init` skips the pose underwater.
-        let pose = if map_type == MapType::Underwater {
+        // Gen3 `Task_DoFieldMove_Init` skips the pose underwater; Waterfall's and Dive's tasks
+        // show the mon without one (`FLDEFF_FIELD_MOVE_SHOW_MON_INIT` straight away).
+        let pose = if map_type == MapType::Underwater
+            || matches!(m, FieldMove::Waterfall | FieldMove::Dive)
+        {
             0
         } else {
             POSE_FRAMES
@@ -107,7 +115,7 @@ impl State {
 
     /// One frame of the running effect (after the script and player control, before the
     /// objects move: Gen3 runs tasks after `ScriptContext_RunScript`).
-    pub(crate) fn field_move_tick(&mut self) {
+    pub(crate) fn field_move_tick(&mut self, game: &impl GameData) {
         let Some(mut run) = self.field_move else {
             return;
         };
@@ -122,32 +130,143 @@ impl State {
             return;
         }
         let shown = run.t > 1 + run.show;
-        if run.kind != FieldMove::Surf {
-            if shown {
-                // `Task_DoFieldMove_RunFunc`: `ScriptContext_Enable`.
-                self.field_move = None;
-            } else {
-                self.field_move = Some(run);
-            }
-            return;
-        }
         if !shown {
             self.field_move = Some(run);
             return;
         }
-        if !run.jumped {
-            // `SurfFieldEffect_JumpOnSurfBlob`.
-            self.objects.jump_player(run.dir);
-            run.jumped = true;
-            self.field_move = Some(run);
-            return;
+        match run.kind {
+            FieldMove::Surf => {
+                if !run.jumped {
+                    // `SurfFieldEffect_JumpOnSurfBlob`.
+                    self.objects.jump_player(run.dir);
+                    run.jumped = true;
+                    self.field_move = Some(run);
+                } else if self.objects.is_settled(PLAYER) {
+                    // `SurfFieldEffect_End`.
+                    self.objects.unfreeze_all();
+                    self.field_move = None;
+                } else {
+                    self.field_move = Some(run);
+                }
+            }
+            FieldMove::Waterfall => {
+                // `WaterfallFieldEffect_RideUp`: a slow walk north per cell, then
+                // `_ContinueRideOrEnd` rides again while the player stands on a waterfall.
+                if !run.jumped {
+                    self.objects.walk_player_slow(Dir::Up);
+                    run.jumped = true;
+                    self.field_move = Some(run);
+                } else if !self.objects.is_settled(PLAYER) {
+                    self.field_move = Some(run);
+                } else if self.on_waterfall(game) {
+                    self.objects.walk_player_slow(Dir::Up);
+                    self.field_move = Some(run);
+                } else {
+                    self.field_move = None;
+                }
+            }
+            FieldMove::Dive => {
+                // `DiveFieldEffect_TryWarp`: `TryDoDiveWarp`, then the effect ends.
+                self.field_move = None;
+                self.try_dive_warp(game);
+            }
+            // `Task_DoFieldMove_RunFunc`: `ScriptContext_Enable`.
+            _ => self.field_move = None,
         }
-        if self.objects.is_settled(PLAYER) {
-            // `SurfFieldEffect_End`.
-            self.objects.unfreeze_all();
-            self.field_move = None;
+    }
+
+    /// Whether the player stands on a waterfall (Gen3 `currentMetatileBehavior`).
+    fn on_waterfall(&self, game: &impl GameData) -> bool {
+        let (x, y) = self.objects.player().pos();
+        let ground = self.ground(game);
+        crate::objects::Terrain::behavior(&ground, x, y)
+            == crate::data::Behavior::Water(crate::data::Water::Waterfall)
+    }
+
+    /// Gen3 `TrySetDiveWarp`'s destination from the player's cell: up (`emerge`) on an
+    /// underwater map off the no-surfacing cells, else down from diveable water. Returns the
+    /// map and cell, `None` without one.
+    fn dive_destination(&self, game: &impl GameData) -> Option<(bool, MapId, i16, i16)> {
+        let map = self.field.map();
+        let (x, y) = self.objects.player().pos();
+        let ground = self.ground(game);
+        let here = crate::objects::Terrain::behavior(&ground, x, y);
+        let water = match here {
+            crate::data::Behavior::Water(w) => Some(w),
+            _ => None,
+        };
+        let emerge = game.map_type(map) == MapType::Underwater
+            && !water.is_some_and(|w| w.unable_to_emerge());
+        if !emerge && !water.is_some_and(|w| w.diveable()) {
+            return None;
+        }
+        let (to, cell) = game.dive_warp(map, emerge)?;
+        let (tx, ty) = cell.unwrap_or((x, y));
+        Some((emerge, to, tx, ty))
+    }
+
+    /// Gen3 `TryDoDiveWarp` (`DoDiveWarp`): the warp transition to the dive destination.
+    fn try_dive_warp(&mut self, game: &impl GameData) {
+        if let Some((_, map, x, y)) = self.dive_destination(game)
+            && game.has_map(map)
+        {
+            self.transition.start(game, map, None, x, y);
+            self.objects.freeze_all();
+        }
+    }
+
+    /// The badge flag of field move `m`'s gate, if it has one (`None`: no badge needed).
+    fn field_move_badge(&self, game: &impl GameData, m: FieldMove) -> bool {
+        match game.field_move_gate(m) {
+            FieldMoveGate::Never => false,
+            FieldMoveGate::Flag(f) => self.vars.flag(f),
+            FieldMoveGate::PartyMove { badge, .. } => badge.is_none_or(|f| self.vars.flag(f)),
+        }
+    }
+
+    /// Gen3 `GetInteractedWaterScript`'s Waterfall case: the player faces a waterfall cell;
+    /// with the badge (`FLAG_BADGE08_GET`) and surfing north (`IsPlayerSurfingNorth`),
+    /// `EventScript_UseWaterfall` (which checks the party), else
+    /// `EventScript_CannotUseWaterfall`.
+    pub(crate) fn waterfall_prompt(&self, game: &impl GameData) -> Option<crate::data::ScriptId> {
+        let p = self.objects.player();
+        let (dx, dy) = p.facing.delta();
+        let ground = self.ground(game);
+        let front = crate::objects::Terrain::behavior(&ground, p.x + dx, p.y + dy);
+        if front != crate::data::Behavior::Water(crate::data::Water::Waterfall) {
+            return None;
+        }
+        if self.field_move_badge(game, FieldMove::Waterfall)
+            && self.objects.surfing()
+            && p.facing == Dir::Up
+        {
+            game.field_move_script(FieldMove::Waterfall)
         } else {
-            self.field_move = Some(run);
+            game.waterfall_refused_script()
+        }
+    }
+
+    /// Gen3 `TrySetupDiveDownScript`: A on diveable water with a dive warp and the badge
+    /// (`FLAG_BADGE07_GET`) runs `EventScript_UseDive` (which checks the party).
+    pub(crate) fn dive_down_prompt(&self, game: &impl GameData) -> Option<crate::data::ScriptId> {
+        if !self.field_move_badge(game, FieldMove::Dive) {
+            return None;
+        }
+        match self.dive_destination(game)? {
+            (false, ..) => game.field_move_script(FieldMove::Dive),
+            _ => None,
+        }
+    }
+
+    /// Gen3 `TrySetupDiveEmergeScript`: B underwater where Dive surfaces, with the badge, runs
+    /// `EventScript_UseDiveUnderwater`.
+    pub(crate) fn dive_emerge_prompt(&self, game: &impl GameData) -> Option<crate::data::ScriptId> {
+        if !self.field_move_badge(game, FieldMove::Dive) {
+            return None;
+        }
+        match self.dive_destination(game)? {
+            (true, ..) => game.dive_emerge_script(),
+            _ => None,
         }
     }
 

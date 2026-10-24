@@ -374,6 +374,13 @@ pub enum Water {
     Current(Dir),
     /// `MB_UNUSED_6F`: surfable, nothing else.
     Unused6F,
+    /// `MB_WATER_DOOR`: surfable, and a non-animated door (Gen3 `MetatileBehavior_IsNonAnimDoor`):
+    /// surfing onto it takes its warp; arriving on one faces south and steps out
+    /// (`Task_ExitNonAnimDoor`). No encounters.
+    Door,
+    /// `MB_WATER_SOUTH_ARROW_WARP`: surfable, and a south arrow warp
+    /// (`MetatileBehavior_IsSouthArrowWarp`): pushing south on it takes its warp. No encounters.
+    SouthArrowWarp,
 }
 
 impl Water {
@@ -417,8 +424,24 @@ impl Water {
             Water::Seaweed => 7,
             Water::SeaweedNoSurfacing => 8,
             Water::Unused6F => 9,
+            Water::Door => 10,
+            Water::SouthArrowWarp => 11,
             Water::Current(d) => 16 + d as u8,
         }
+    }
+
+    /// Gen3 `MetatileBehavior_IsDiveable`: Dive goes down from it.
+    pub const fn diveable(self) -> bool {
+        matches!(
+            self,
+            Water::InteriorDeep | Water::Deep | Water::SootopolisDeep
+        )
+    }
+
+    /// Gen3 `MetatileBehavior_IsUnableToEmerge` (without the `BUGFIX` water door): Dive does
+    /// not surface from it.
+    pub const fn unable_to_emerge(self) -> bool {
+        matches!(self, Water::NoSurfacing | Water::SeaweedNoSurfacing)
     }
 
     /// Gen3 `MetatileBehavior_IsDeepOrOceanWater` (the water battle background).
@@ -494,8 +517,19 @@ impl Behavior {
                 | Behavior::NonAnimDoor(_)
                 | Behavior::Ladder
                 | Behavior::Escalator(_)
+                | Behavior::Water(Water::Door)
                 | Behavior::PopOutWarp(_)
         )
+    }
+
+    /// The direction an arrow warp is taken by pushing (Gen3 `IsArrowWarpMetatileBehavior`):
+    /// [`Behavior::ArrowWarp`], and the surfable south arrow warp.
+    pub const fn arrow_warp(self) -> Option<Dir> {
+        match self {
+            Behavior::ArrowWarp(d) => Some(d),
+            Behavior::Water(Water::SouthArrowWarp) => Some(Dir::Down),
+            _ => None,
+        }
     }
 
     /// Gen3 `MetatileBehavior_IsForcedMovementTile` (the behaviors classified here): on such a
@@ -1536,6 +1570,36 @@ pub trait GameData {
         None
     }
 
+    /// Gen3 `EventScript_CannotUseWaterfall`: run on an A press facing a waterfall when
+    /// Waterfall is not usable there (no badge, or not surfing north).
+    fn waterfall_refused_script(&self) -> Option<ScriptId> {
+        None
+    }
+
+    /// Gen3 `EventScript_UseDiveUnderwater`: run on a B press underwater where Dive can surface
+    /// (`TrySetupDiveEmergeScript`). [`GameData::field_move_script`]`(Dive)` is the way down
+    /// (`EventScript_UseDive`, an A press on diveable water).
+    fn dive_emerge_script(&self) -> Option<ScriptId> {
+        None
+    }
+
+    /// Where Dive leads from `map` (Gen3 `SetDiveWarp`): `emerge` up from an underwater map,
+    /// else down. The map's dive or emerge connection keeps the player's cell (`None`
+    /// coordinates); else the fixed dive warp its `on_resume` script sets (`setdivewarp`, here
+    /// answered per map as [`GameData::hole_warp`]). `None`: no dive warp.
+    fn dive_warp(&self, map: MapId, emerge: bool) -> Option<(MapId, Option<(i16, i16)>)> {
+        let _ = (map, emerge);
+        None
+    }
+
+    /// Fly destination `i` of the fly map (Gen3 `CB2_OpenFlyMap`'s town and city sections,
+    /// region-map order), `None` past the last. The picker lists those whose `visited` flag is
+    /// set (Gen3 `GetMapsecType`'s `FLAG_VISITED_*`).
+    fn fly_destination(&self, i: u8) -> Option<FlyDestination> {
+        let _ = i;
+        None
+    }
+
     /// The water table of header `wild_set` of `map` (Gen3 `waterMonsInfo`, 5 slots), as
     /// [`GameData::wild_encounters`] for land.
     fn water_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static mon::WaterEncounters> {
@@ -1564,6 +1628,19 @@ pub trait GameData {
     fn player_surf_sprite(&self) -> Option<&'static SpriteData> {
         None
     }
+}
+
+/// One place Fly lands ([`GameData::fly_destination`]).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct FlyDestination {
+    /// Gen3-encoded, 0xFF-terminated (the region map section's name).
+    pub name: &'static [u8],
+    /// Listed once set (`FLAG_VISITED_*`).
+    pub visited: FlagId,
+    /// Where Fly lands: map and cell (Gen3 `SetWarpDestinationToHealLocation`).
+    pub map: MapId,
+    pub x: i16,
+    pub y: i16,
 }
 
 /// Gen3 `MAP_TYPE_*`, as far as the battle background tells them apart

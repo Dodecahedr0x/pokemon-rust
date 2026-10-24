@@ -576,6 +576,29 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         o,
         "/// The battle background's map type of map `id` (`MAP_*`; see `classify::map_type`).\npub fn map_type(id: u16) -> MapType {{\n    match id {{\n{map_type_arms}        _ => MapType::Outdoor,\n    }}\n}}"
     )?;
+    // Dive and emerge connections (Gen3 `CONNECTION_DIVE` / `_EMERGE`, read by `SetDiveWarp`).
+    let mut dive_arms = String::new();
+    for m in &w.maps {
+        let id = u16::from(m.group) << 8 | u16::from(m.num);
+        for c in &m.connections {
+            let emerge = match c.dir {
+                ConnectionDir::Dive => false,
+                ConnectionDir::Emerge => true,
+                _ => continue,
+            };
+            let to = map_id(&c.map_id)?;
+            if c.map.is_some() && exported.contains(&to) {
+                writeln!(
+                    dive_arms,
+                    "        ({id:#X}, {emerge}) => Some(MapId({to:#X})),"
+                )?;
+            }
+        }
+    }
+    writeln!(
+        o,
+        "/// The map map `id`'s dive (`emerge` false) or emerge connection leads to (Gen3 `CONNECTION_DIVE`, `CONNECTION_EMERGE`).\npub fn dive_connection(id: u16, emerge: bool) -> Option<MapId> {{\n    match (id, emerge) {{\n{dive_arms}        _ => None,\n    }}\n}}"
+    )?;
     writeln!(o, "pub const MAP_COUNT: usize = {};", w.maps.len())?;
     write!(o, "pub static MAP_IDS: [MapId; {}] = [", w.maps.len())?;
     for m in &w.maps {
@@ -723,6 +746,26 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         "/// `EventScript_UseSurf` (`GetInteractedWaterScript`), when the scripts have it (Wave C).\npub const SCRIPT_USE_SURF: Option<ScriptId> = {};",
         surf.map_or("None".into(), |i| format!("Some(ScriptId({i}))"))
     )?;
+    // Waterfall's and Dive's (`GetInteractedWaterScript`, `TrySetupDive*Script`; Wave F).
+    for (konst, name) in [
+        ("SCRIPT_USE_WATERFALL", "EventScript_UseWaterfall"),
+        (
+            "SCRIPT_CANNOT_USE_WATERFALL",
+            "EventScript_CannotUseWaterfall",
+        ),
+        ("SCRIPT_USE_DIVE", "EventScript_UseDive"),
+        (
+            "SCRIPT_USE_DIVE_UNDERWATER",
+            "EventScript_UseDiveUnderwater",
+        ),
+    ] {
+        let at = s.names.iter().position(|n| n == name);
+        writeln!(
+            o,
+            "/// `{name}`, when the scripts have it (Wave F).\npub const {konst}: Option<ScriptId> = {};",
+            at.map_or("None".into(), |i| format!("Some(ScriptId({i}))"))
+        )?;
+    }
     // Gen3 `sHMMoves` / `gTMHMMoves[50..58]`: HM01..HM08's moves (decomp names).
     let hms = [
         "MOVE_CUT",

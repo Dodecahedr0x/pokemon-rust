@@ -263,6 +263,7 @@ impl World {
                 events: Vec::with_capacity(super::EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,
+                save: super::save::SaveStatus::continued(),
             },
             boot: None,
         };

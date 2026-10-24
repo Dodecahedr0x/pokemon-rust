@@ -127,15 +127,32 @@ impl Transition {
     ///   fade-in, then jump one cell `d`.
     /// - anything else (`Warp` included): face down, no exit walk.
     ///
+    /// - the water door (`MB_WATER_DOOR`, a non-animated door): as `NonAnimDoor(Down)`.
+    ///
     /// Without this call the arrival is a plain one (face down, no exit walk).
     pub fn arrive(&mut self, behavior: Behavior, warped_facing: Dir) -> Dir {
+        self.arrive_swapping(behavior, warped_facing, false)
+    }
+
+    /// [`arrive`](Self::arrive) where `swapped` says the player went from surfing to
+    /// underwater or back (a dive): then the facing is kept wherever no door or arrow warp
+    /// decides it (Gen3 `GetAdjustedInitialDirection`'s transition-flags case).
+    pub fn arrive_swapping(
+        &mut self,
+        behavior: Behavior,
+        warped_facing: Dir,
+        swapped: bool,
+    ) -> Dir {
         let (facing, walk, hidden) = match behavior {
             Behavior::Door => (Dir::Down, true, true),
             Behavior::NonAnimDoor(d) => (d, true, true),
+            Behavior::Water(crate::data::Water::Door) => (Dir::Down, true, true),
             Behavior::Escalator(d) => (d, true, false),
             Behavior::Ladder => (warped_facing, false, false),
             Behavior::ArrowWarp(d) => (d.opposite(), false, false),
+            Behavior::Water(crate::data::Water::SouthArrowWarp) => (Dir::Up, false, false),
             Behavior::PopOutWarp(d) => (d, true, true),
+            _ if swapped => (warped_facing, false, false),
             _ => (Dir::Down, false, false),
         };
         self.exit_jump = matches!(behavior, Behavior::PopOutWarp(_));

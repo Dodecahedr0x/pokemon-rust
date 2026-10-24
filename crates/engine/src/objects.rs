@@ -685,6 +685,14 @@ impl Objects {
         o.begin(ActionKind::Jump(1), dir);
     }
 
+    /// The player starts a one-cell `walk_slow` towards `dir` (Gen3 `GetWalkSlowMovementAction`
+    /// as a held movement: Waterfall's ride up). As [`Objects::jump_player`], its end is no step.
+    pub fn walk_player_slow(&mut self, dir: Dir) {
+        let o = &mut self.objs[0];
+        o.action = None;
+        o.begin(ActionKind::Walk(crate::script::Speed::Slow), dir);
+    }
+
     /// The current map.
     pub fn map(&self) -> MapId {
         self.map

@@ -145,6 +145,7 @@ impl World {
                     map: s.field.map(),
                     frame,
                     saved,
+                    save_question: s.save.question(),
                     child,
                     reports: &mut reports,
                 };
@@ -278,8 +279,13 @@ impl World {
                     return;
                 }
             }
+            ScreenOut::Fly(i) => {
+                // The fly map is a full screen: the field reloads under black first.
+                stack.host.phase = Phase::Out;
+                stack.host.pending = Pending::Fly(i);
+            }
             ScreenOut::Save => {
-                let ok = super::save::save_now(self, game).is_ok();
+                let ok = super::save::dialog_save(self, game);
                 stack.saved = Some(ok);
                 self.s.event(Event::Saved { ok });
             }
@@ -311,7 +317,9 @@ impl World {
                     _ => self.begin_restore(stack, f),
                 }
             }
-            Pending::Pop(_) | Pending::Script(_) | Pending::Item(_) => self.begin_restore(stack, f),
+            Pending::Pop(_) | Pending::Script(_) | Pending::Item(_) | Pending::Fly(_) => {
+                self.begin_restore(stack, f)
+            }
             Pending::None => {
                 stack.host.phase = Phase::In;
                 self.show(game, stack, f, ScreenInput::default());
@@ -402,6 +410,17 @@ impl World {
             Pending::Item(item) => {
                 if let Some(id) = crate::item_use::use_on_field(&mut self.s, game, item) {
                     self.start_script(game, id, None);
+                }
+            }
+            // Gen3 `FieldCallback_UseFly` → `FldEff_UseFly` (the bird and the take-off: not
+            // drawn, degraded), then the warp `SetFlyDestination` set
+            // (`SetWarpDestinationToHealLocation`).
+            Pending::Fly(i) => {
+                if let Some(d) = game.fly_destination(i)
+                    && game.has_map(d.map)
+                {
+                    self.s.transition.start(game, d.map, None, d.x, d.y);
+                    self.s.objects.freeze_all();
                 }
             }
             _ => {}

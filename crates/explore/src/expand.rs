@@ -404,6 +404,7 @@ impl<'a, G: GameData> Driver<'a, G> {
                 | MacroKind::Interact
                 | MacroKind::Press { .. }
                 | MacroKind::UseItem { .. }
+                | MacroKind::Fly { .. }
                 | MacroKind::Buy { .. }
         ) {
             return Ok(());
@@ -744,6 +745,10 @@ impl<'a, G: GameData> Driver<'a, G> {
                 self.resolve()?;
                 self.use_item(engine::data::ItemId(item), mon, forget)?;
             }
+            MacroKind::Fly { mon, dest } => {
+                self.resolve()?;
+                self.fly(mon, dest)?;
+            }
             MacroKind::Buy {
                 local_id,
                 item,
@@ -930,6 +935,82 @@ impl<'a, G: GameData> Driver<'a, G> {
             self.tap(keys)?;
         }
         Err(ExpandError::Timeout("use item"))
+    }
+
+    /// [`MacroKind::Fly`]: drives the start menu, the party menu's FLY and the fly map from
+    /// their state, one tap at a time, until the fly warp has landed on the settled field.
+    fn fly(&mut self, mon: u8, dest: u8) -> Result<(), ExpandError> {
+        use engine::ui::ScreenState;
+        use engine::ui::party::{Action, Prompt};
+        let game = self.s.game();
+        let w = self.w();
+        // The fly map lists the visited destinations in order (`ui::fly_map::listed`).
+        let listed: Vec<u8> = (0..=u8::MAX)
+            .map_while(|i| game.fly_destination(i).map(|d| (i, d)))
+            .filter(|(_, d)| w.flag(d.visited))
+            .map(|(i, _)| i)
+            .collect();
+        let want = (listed.iter().position(|&i| i == dest))
+            .ok_or(ExpandError::NoEffect("fly: destination not visited"))? as u8;
+        let party_entry = (game.start_menu().iter())
+            .filter(|e| e.shown_if.is_none_or(|f| w.flag(f)))
+            .position(|e| e.action == engine::data::StartAction::Party)
+            .ok_or(ExpandError::NoEffect("fly: no POKéMON in the start menu"))?
+            as u8;
+        let fly = Action::FieldMove(engine::data::FieldMove::Fly);
+        let mut opened = false;
+        let mut picked = false;
+        for _ in 0..USE_ITEM_FRAMES {
+            let w = self.w();
+            let top = w.screens().and_then(|s| s.top()).map(|(_, st)| st);
+            let keys = match top {
+                None if picked => {
+                    if w.capturable().is_ok() {
+                        return Ok(());
+                    }
+                    Buttons::NONE
+                }
+                None if opened => return Err(ExpandError::NoEffect("fly: the menus closed")),
+                None => {
+                    if w.screens_open() == 0 && w.field_active() {
+                        Buttons::START
+                    } else {
+                        Buttons::NONE
+                    }
+                }
+                Some(ScreenState::StartMenu(m)) => {
+                    opened = true;
+                    match m.cursor() {
+                        Some(c) if c == party_entry => Buttons::A,
+                        Some(_) => Buttons::DOWN,
+                        None => Buttons::NONE,
+                    }
+                }
+                Some(ScreenState::Party(p)) => match p.prompt() {
+                    Prompt::Slot { cursor } if cursor == mon => Buttons::A,
+                    Prompt::Slot { .. } => Buttons::DOWN,
+                    Prompt::Actions { .. } => match p.actions().iter().position(|&a| a == fly) {
+                        Some(i) if Some(i as u8) == p.action_cursor() => Buttons::A,
+                        Some(_) => Buttons::DOWN,
+                        None => return Err(ExpandError::NoEffect("fly: no FLY")),
+                    },
+                    Prompt::Message => Buttons::A,
+                    Prompt::Child => Buttons::NONE,
+                    _ => Buttons::B,
+                },
+                Some(ScreenState::FlyMap(f)) => {
+                    if f.cursor() == want {
+                        picked = true;
+                        Buttons::A
+                    } else {
+                        Buttons::DOWN
+                    }
+                }
+                Some(_) => Buttons::B,
+            };
+            self.tap(keys)?;
+        }
+        Err(ExpandError::Timeout("fly"))
     }
 
     /// Settled, turns in place to `d`: holds `d` until the player faces it (a tap turns
