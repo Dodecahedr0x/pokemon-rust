@@ -240,11 +240,13 @@ fn battle_request_hashes_differ() {
             trainer: TrainerId(1),
             defeat: TextId(5),
             no_whiteout: false,
+            rules: None,
         },
         Request::BattleTrainer {
             trainer: TrainerId(1),
             defeat: TextId(5),
             no_whiteout: true,
+            rules: None,
         },
         Request::ChooseStarter([SpeciesId(1), SpeciesId(5), SpeciesId(0)]),
         Request::SetRespawn(1),

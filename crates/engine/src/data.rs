@@ -1447,6 +1447,29 @@ pub trait GameData {
     fn form_changes(&self) -> &'static [FormChange] {
         &[]
     }
+    /// Field rule `id` of a battle's [`battle::BattleRules::field`] (Silice; see
+    /// [`battle::rules`]).
+    fn battle_rule(&self, id: u8) -> Option<&'static battle::FieldRule> {
+        let _ = id;
+        None
+    }
+    /// The rules of every battle against trainer `id` whose request names none (a trainer
+    /// seen on its route, Silice's deaf room or data injector); `None`: a Gen3 battle.
+    fn trainer_rules(&self, id: TrainerId) -> Option<&'static battle::BattleRules> {
+        let _ = id;
+        None
+    }
+    /// Trainer `id`'s mid-battle lines ([`battle::rules::TrainerLine`]).
+    fn trainer_lines(&self, id: TrainerId) -> &'static [battle::TrainerLine] {
+        let _ = id;
+        &[]
+    }
+    /// Trainer `id`'s items (Gen3 `gTrainers[].items`, at most 4), which its AI uses
+    /// (`AI_TrySwitchOrUseItem`'s `ShouldUseItem`).
+    fn trainer_items(&self, id: TrainerId) -> &'static [ItemId] {
+        let _ = id;
+        &[]
+    }
 
     // ---- Milestone 9 (Wave 0 declares them; Task C answers them from Tasks X1 and X2's
     // extract). Every screen works with the defaults: frames and text only. ----

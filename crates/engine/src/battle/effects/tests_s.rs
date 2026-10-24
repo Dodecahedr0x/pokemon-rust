@@ -62,7 +62,7 @@ const fn mv(effect: MoveEffect, power: u8, ty: Type, accuracy: u8, flags: u8) ->
 
 const CONTACT_KR: u8 = MoveFlags::MAKES_CONTACT | MoveFlags::KINGS_ROCK_AFFECTED;
 
-static MOVES: [MoveInfo; 19] = [
+static MOVES: [MoveInfo; 20] = [
     mv(MoveEffect::Hit, 0, Type::Normal, 0, 0),
     mv(MoveEffect::Hit, 40, Type::Normal, 100, CONTACT_KR),
     mv(
@@ -121,6 +121,7 @@ static MOVES: [MoveInfo; 19] = [
     ),
     mv(MoveEffect::SonicBoom, 1, Type::Normal, 100, 0),
     mv(MoveEffect::Explosion, 20, Type::Normal, 100, 0),
+    mv(MoveEffect::Hit, 40, Type::Normal, 100, MoveFlags::SOUND),
 ];
 
 // ---- species ----
@@ -385,6 +386,7 @@ impl Run {
             opponents: party(foes),
             environment: Environment::Grass,
             double: None,
+            rules: Default::default(),
         };
         let mut b = Battle::new(&SGame, setup, &party(player), &mut rng);
         if ring {
@@ -1420,3 +1422,6 @@ fn shadow_tag_traps_the_foe() {
     r.b.battler_mut(P).ability = Ability::ShadowTagGen4;
     assert!(!super::switch_block(&r.b, P));
 }
+
+#[path = "tests_rules.rs"]
+mod tests_rules;

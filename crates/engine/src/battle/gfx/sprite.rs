@@ -743,9 +743,16 @@ pub struct TrainerSprite {
     off: i16,
     visible: bool,
     anim: TrainerAnim,
+    /// Drawn mirrored (Silice's foe seen from the back, `BattleRules::foe_back`).
+    mirror: bool,
 }
 
 impl TrainerSprite {
+    /// Draws the pic mirrored (the foe seen from the back).
+    pub fn set_mirror(&mut self, mirror: bool) {
+        self.mirror = mirror;
+    }
+
     pub fn new(side: Side) -> Self {
         TrainerSprite {
             side,
@@ -755,6 +762,7 @@ impl TrainerSprite {
             off: 0,
             visible: false,
             anim: TrainerAnim::Idle,
+            mirror: false,
         }
     }
 
@@ -900,6 +908,7 @@ impl TrainerSprite {
                 shape: ObjShape::Square,
                 size: 3,
                 priority: OBJ_PRIORITY_MON,
+                hflip: self.mirror,
                 ..Obj::default()
             });
         }
@@ -907,6 +916,9 @@ impl TrainerSprite {
 
     #[allow(clippy::should_implement_trait)] // the engine-wide `hash(&self, &mut Fnv64)` shape
     pub fn hash(&self, h: &mut Fnv64) {
+        if self.mirror {
+            h.write(&[0xB7]);
+        }
         h.write(&[
             side_tag(self.side),
             self.loaded as u8,

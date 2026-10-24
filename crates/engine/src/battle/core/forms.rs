@@ -110,6 +110,8 @@ impl Battle {
             Buff::Item(f.item),
         ];
         if f.kind == FormKind::Mega {
+            // Silice's trainer line on Mega Evolution.
+            self.line_mega(env, side);
             env.out.push(BattleEvent::Msg(Msg {
                 buffs,
                 wait: LONG,
