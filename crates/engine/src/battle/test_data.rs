@@ -166,6 +166,11 @@ pub const PAY_DAY: MoveId = MoveId(115);
 pub const THIEF: MoveId = MoveId(116);
 /// Swords Dance with its Gen3 `FLAG_SNATCH_AFFECTED`.
 pub const SNATCH_DANCE: MoveId = MoveId(117);
+// Doubles (Task G: `MOVE_TARGET_BOTH`, `MOVE_TARGET_FOES_AND_ALLY`).
+/// A 50-power Normal hit on both foes (Gen3 Surf's target).
+pub const SPREAD_HIT: MoveId = MoveId(118);
+/// Earthquake (Gen3 data, PP 10).
+pub const QUAKE: MoveId = MoveId(119);
 
 // ---- species (SpeciesId = index) ----
 /// Water, Torrent (Mudkip-like).
@@ -310,7 +315,7 @@ const fn e2(
     }
 }
 
-pub static MOVES: [MoveInfo; 118] = [
+pub static MOVES: [MoveInfo; 120] = [
     mv(MoveEffect::Hit, 0, Type::Normal, 0, 0, Selected, 0),
     MoveInfo {
         flags: MoveFlags(MoveFlags::MAKES_CONTACT),
@@ -1035,6 +1040,22 @@ pub static MOVES: [MoveInfo; 118] = [
         0,
         User,
         MoveFlags::SNATCH_AFFECTED,
+    ),
+    wc(
+        MoveEffect::Hit,
+        50,
+        Type::Normal,
+        100,
+        MoveTarget::BothFoes,
+        MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    wc(
+        MoveEffect::Earthquake,
+        100,
+        Type::Ground,
+        100,
+        MoveTarget::FoesAndAlly,
+        MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
     ),
 ];
 

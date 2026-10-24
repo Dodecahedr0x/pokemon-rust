@@ -37,8 +37,10 @@ fn names_of<'a>(p: &'a BattleMon, o: &'a BattleMon) -> Names<'a> {
         player: &[0xFF],
         trainer_class: &[0xFF],
         trainer_name: &[0xFF],
+        trainer2_class: &[0xFF],
+        trainer2_name: &[0xFF],
         wild: true,
-        mons: [p, o],
+        mons: [p, o, p, o],
         parties: [party(&[]), party(&[])],
     }
 }

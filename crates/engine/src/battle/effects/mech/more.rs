@@ -81,7 +81,7 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) {
         MoveEffect::MagicCoat => {
             super::copy::no_pressure(b);
             b.attack_string(env, u);
-            if b.order[1] == a {
+            if b.acts_last(a) {
                 b.fail(env, u);
                 return;
             }
@@ -105,7 +105,7 @@ fn trick(b: &mut Battle, env: &mut Env, u: &MoveUse) {
         return;
     }
     let (am, tm) = (*b.battler(a), *b.battler(t));
-    let knocked = |side: Side, party: u8| b.fx.knocked_off[side as usize] & (1 << party) != 0;
+    let knocked = |side: Side, party: u8| b.fx.knocked_off[side.s()] & (1 << party) != 0;
     let no_swap = |h: Option<HoldEffect>| h == Some(HoldEffect::NoSwap);
     if a == Side::Opponent
         || knocked(a, am.mon.party)
@@ -128,8 +128,8 @@ fn trick(b: &mut Battle, env: &mut Env, u: &MoveUse) {
         let m = b.battler_mut(side);
         m.x.item = item;
         m.x.hold = hold;
-        b.x.holds[side as usize][party as usize] = hold;
-        if let Some(p) = b.parties[side as usize].get_mut(party as usize) {
+        b.x.holds[side.s()][party as usize] = hold;
+        if let Some(p) = b.parties[side.s()].get_mut(party as usize) {
             p.held = item;
         }
     }

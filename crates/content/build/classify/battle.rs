@@ -1071,6 +1071,11 @@ pub const STRS: &[(&str, StrSrc)] = {
             "HmMovesCantBeForgotten",
             Key("STRINGID_HMMOVESCANTBEFORGOTTEN"),
         ),
+        ("TrainerSentOutTwo", Key("sText_Trainer1SentOutTwoPkmn")),
+        ("GoTwoPkmn", Key("sText_GoTwoPkmn")),
+        ("TwoEnemiesDefeated", Key("STRINGID_TWOENEMIESDEFEATED")),
+        ("PkmnReadyToHelp", Key("STRINGID_PKMNREADYTOHELP")),
+        ("PkmnsXTookAttack", Key("STRINGID_PKMNSXTOOKATTACK")),
         // Post-Gen3: no Gen3 string.
         ("MegaReacting", Missing),
         ("MegaEvolved", Missing),

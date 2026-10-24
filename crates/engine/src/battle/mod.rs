@@ -29,18 +29,80 @@ use crate::video::Tile;
 pub use self::core::Battle;
 pub use self::scene::BattleScene;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Side {
-    Player,
-    Opponent,
+/// A battler: its position (Gen3 `B_POSITION_*`; the engine's battler id is its position, as
+/// in every non-link Gen3 battle). Singles have `Player` (0) and `Opponent` (1); doubles add
+/// `PlayerRight` (2) and `OpponentRight` (3). Bit 0 is the side (`GetBattlerSide`), bit 1 the
+/// flank (`BIT_FLANK`). Index battler arrays with [`Side::i`], side arrays with [`Side::s`].
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Side(u8);
+
+#[allow(non_upper_case_globals)]
+impl Side {
+    /// `B_POSITION_PLAYER_LEFT`: the player's battler in singles.
+    pub const Player: Side = Side(0);
+    /// `B_POSITION_OPPONENT_LEFT`: the opponent's battler in singles.
+    pub const Opponent: Side = Side(1);
+    /// `B_POSITION_PLAYER_RIGHT` (doubles).
+    pub const PlayerRight: Side = Side(2);
+    /// `B_POSITION_OPPONENT_RIGHT` (doubles).
+    pub const OpponentRight: Side = Side(3);
+    /// Every position, in battler order.
+    pub const ALL: [Side; 4] = [Side(0), Side(1), Side(2), Side(3)];
+
+    /// The battler at index `i` (`i & 3`).
+    pub const fn at(i: usize) -> Side {
+        Side((i & 3) as u8)
+    }
+
+    /// `BATTLE_OPPOSITE`: the facing battler (the foe in singles).
+    pub const fn other(self) -> Side {
+        Side(self.0 ^ 1)
+    }
+
+    /// `BATTLE_PARTNER`: the ally on the same side (doubles).
+    pub const fn partner(self) -> Side {
+        Side(self.0 ^ 2)
+    }
+
+    /// The side's left battler (`GetBattlerSide` as a position): `Player` or `Opponent`.
+    pub const fn side(self) -> Side {
+        Side(self.0 & 1)
+    }
+
+    /// Whether the battler is on the player's side.
+    pub const fn is_player(self) -> bool {
+        self.0 & 1 == 0
+    }
+
+    /// The battler index (into per-battler arrays).
+    pub const fn i(self) -> usize {
+        self.0 as usize
+    }
+
+    /// The side index (into per-side arrays: 0 player, 1 opponent).
+    pub const fn s(self) -> usize {
+        (self.0 & 1) as usize
+    }
+
+    /// The hashed code (the position).
+    pub const fn code(self) -> u8 {
+        self.0
+    }
+
+    /// Whether the battler is on the right flank (`BIT_FLANK`): `PlayerRight`, `OpponentRight`.
+    pub const fn is_right(self) -> bool {
+        self.0 & 2 != 0
+    }
 }
 
-impl Side {
-    pub const fn other(self) -> Side {
-        match self {
-            Side::Player => Side::Opponent,
-            Side::Opponent => Side::Player,
-        }
+impl ::core::fmt::Debug for Side {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.write_str(match self.0 {
+            0 => "Player",
+            1 => "Opponent",
+            2 => "PlayerRight",
+            _ => "OpponentRight",
+        })
     }
 }
 
@@ -73,7 +135,32 @@ pub struct BattleSetup {
     pub kind: BattleKind,
     pub opponents: Party,
     pub environment: Environment,
+    /// `BATTLE_TYPE_DOUBLE` (trainer battles only): four battlers. `None`: singles.
+    pub double: Option<Double>,
 }
+
+/// A double battle (`BATTLE_TYPE_DOUBLE`): `trainerbattle_double`'s one trainer with both foes
+/// from one party, two trainers (`BATTLE_TYPE_TWO_OPPONENTS`), and the in-game partner's multi
+/// battle (`BATTLE_TYPE_MULTI | BATTLE_TYPE_INGAME_PARTNER`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct Double {
+    /// `BATTLE_TYPE_TWO_OPPONENTS`: trainer B (`gTrainerBattleOpponent_B`) and its defeat text.
+    /// Trainer A's mons are `opponents[..3]` (its battler `Opponent`), B's `opponents[3..]`
+    /// (`OpponentRight`), as `CreateNPCTrainerParty(&gEnemyParty[3], ..)`.
+    pub second: Option<(TrainerId, TextId)>,
+    /// `BATTLE_TYPE_INGAME_PARTNER`: the partner (`gPartnerTrainerId`, named and drawn from
+    /// this trainer). Its mons are the player party's slots 3..6 (`FillPartnerParty`) and its
+    /// AI chooses `PlayerRight`'s actions; the player's are slots 0..3.
+    pub partner: Option<TrainerId>,
+    /// Where the second half starts in each halved party (`[player, opponents]`): the
+    /// player's own mons or trainer A's count, at most [`MULTI_PARTY_SIZE`] (0:
+    /// [`MULTI_PARTY_SIZE`], or the party's size when smaller). Gen3 leaves the empty slots
+    /// of a three-mon half empty.
+    pub split: [u8; 2],
+}
+
+/// `MULTI_PARTY_SIZE`: the mons of each trainer in a multi or two-trainer battle.
+pub const MULTI_PARTY_SIZE: u8 = 3;
 
 /// Gen3 `B_OUTCOME_*` values, so scripts can store them in `VAR_RESULT`.
 #[repr(u8)]
@@ -132,6 +219,16 @@ pub enum Choice {
     LearnMove {
         forget: Option<u8>,
     },
+    /// Doubles: move slot `slot` aimed at `target` (the target cursor,
+    /// `gBattleStruct->moveTarget`). `Move(slot)` in doubles aims at the default target
+    /// ([`Battle::default_target`]).
+    MoveAt {
+        slot: u8,
+        target: Side,
+    },
+    /// Doubles: B in `PlayerRight`'s action menu (`B_ACTION_CANCEL_PARTNER`): the left
+    /// battler's action is asked again.
+    Cancel,
 }
 
 /// What the core waits for.
@@ -198,10 +295,11 @@ pub struct Msg {
     pub mov: Option<MoveId>,
     pub buffs: [Buff; 3],
     pub wait: MsgWait,
-    /// The party slot of each side's battler when the message was emitted (index = `Side as
-    /// usize`). The battler name codes read these, so a message queued before a `SendOut`
-    /// still names the mon that was out (Gen3 expands it before the switch).
-    pub slots: [u8; 2],
+    /// The party slot of each battler when the message was emitted (index = [`Side::i`]; the
+    /// right battlers stay 0 in singles). The battler name codes read these, so a message
+    /// queued before a `SendOut` still names the mon that was out (Gen3 expands it before
+    /// the switch).
+    pub slots: [u8; 4],
 }
 
 /// Battle strings by decomp name (`STRINGID_X` -> `Str::X`, `gText_X` -> `Str::X`), plus the
@@ -804,6 +902,16 @@ pub enum Str {
     FledUsingIts,
     /// `STRINGID_HMMOVESCANTBEFORGOTTEN` (the learn-move pick, on an HM move).
     HmMovesCantBeForgotten,
+    /// `sText_Trainer1SentOutTwoPkmn` (a single trainer's double battle intro).
+    TrainerSentOutTwo,
+    /// `sText_GoTwoPkmn` (the player's two mons at a double battle intro).
+    GoTwoPkmn,
+    /// `STRINGID_TWOENEMIESDEFEATED` (`BattleScript_LocalTwoTrainersDefeated`).
+    TwoEnemiesDefeated,
+    /// `STRINGID_PKMNREADYTOHELP` (Helping Hand).
+    PkmnReadyToHelp,
+    /// `STRINGID_PKMNSXTOOKATTACK` (Lightning Rod drew the move, `BattleScript_TookAttack`).
+    PkmnsXTookAttack,
     /// `gAbilityNames[a]`. The ability codes (`B_ATK_ABILITY`, `B_DEF_ABILITY`,
     /// `B_SCR_ACTIVE_ABILITY`, `B_EFF_ABILITY`, `B_LAST_ABILITY`) expand `Msg::buffs[2]`, which
     /// the core sets to `Buff::Text(Str::AbilityName(..))` for the messages that name one.
@@ -1148,6 +1256,11 @@ impl Str {
             UsingItemStatRose => 219,
             FledUsingIts => 220,
             HmMovesCantBeForgotten => 221,
+            TrainerSentOutTwo => 222,
+            GoTwoPkmn => 223,
+            TwoEnemiesDefeated => 224,
+            PkmnReadyToHelp => 225,
+            PkmnsXTookAttack => 226,
         }
     }
 }
@@ -1174,6 +1287,9 @@ pub enum BattleEvent {
     /// the defeat text, `BattleKind::Trainer::defeat` of `Battle::setup()`, waiting for a
     /// button (`MsgWait::Button`), before the battle ends.
     TrainerDefeated,
+    /// Two trainers: trainer A slides out and trainer B slides in (`BattleScript_LocalTwoTrainersDefeated`),
+    /// then the caller prints B's defeat text ([`Double::second`]) the same way.
+    TrainerDefeated2,
     SendOut {
         side: Side,
         party: u8,
@@ -1253,10 +1369,13 @@ pub struct Names<'a> {
     pub player: &'a [u8],
     pub trainer_class: &'a [u8],
     pub trainer_name: &'a [u8],
+    /// The second opponent trainer (`B_TRAINER2_CLASS`, `B_TRAINER2_NAME`; empty without one).
+    pub trainer2_class: &'a [u8],
+    pub trainer2_name: &'a [u8],
     pub wild: bool,
-    /// The battlers. Index = `Side as usize`.
-    pub mons: [&'a BattleMon; 2],
-    /// Both parties (index = `Side as usize`): `Buff::Mon` / `Buff::MonNick` name a party slot,
+    /// The battlers (index = [`Side::i`]; in singles the right ones repeat the left ones).
+    pub mons: [&'a BattleMon; 4],
+    /// Both parties (index = [`Side::s`]): `Buff::Mon` / `Buff::MonNick` name a party slot,
     /// so a queued message names the same Pokémon whichever battler is out when it plays.
     pub parties: [&'a Party; 2],
 }

@@ -88,7 +88,10 @@ impl Battle {
             },
             _ => (env.t.struggle, None),
         };
-        let u = self.move_use(env, side, mov, slot);
+        let mut u = self.move_use(env, side, mov, slot);
+        if self.is_double() {
+            u.target = self.pick_target(env, &u);
+        }
         self.sync = None;
         self.no_effect = false;
         // Mold Breaker: the target's breakable ability is off for the move (restored below).
@@ -99,15 +102,21 @@ impl Battle {
             effects::Canceler::Use => {
                 let hit = self.execute(env, &u);
                 self.set_last_move(side, &u, mov);
-                effects::after_move(self, env, &u, hit);
-                self.landed(&u)
+                self.move_end(env, &u, hit);
+                let landed = self.landed(&u);
+                self.next_target(env, &u);
+                landed
             }
             // The canceler ran the move itself (Bide's release, Magic Coat, Snatch): `moveend`
             // still runs, for that script's attacker.
             effects::Canceler::Done(done, hit) => {
                 self.set_last_move(done.attacker, &u, mov);
-                effects::after_move(self, env, &done, hit);
-                self.landed(&done)
+                self.move_end(env, &done, hit);
+                let landed = self.landed(&done);
+                if done.attacker == side {
+                    self.next_target(env, &done);
+                }
+                landed
             }
             effects::Canceler::Skip => None,
         };
@@ -121,6 +130,40 @@ impl Battle {
             self.battler_mut(u.target).last_landed = landed;
         }
         self.sync = None;
+    }
+
+    /// `moveend`, unless the script already ran it for each of its targets
+    /// (`MOVE_TARGET_FOES_AND_ALLY`).
+    fn move_end(&mut self, env: &mut Env, u: &MoveUse, hit: Option<HitResult>) {
+        if !core::mem::take(&mut self.fx.ended) {
+            effects::after_move(self, env, u, hit);
+        }
+    }
+
+    /// `MOVEEND_NEXT_TARGET` (doubles): a `MOVE_TARGET_BOTH` move, past its charging turn,
+    /// runs its script again on the target's partner when it stands, without the attack
+    /// string nor PP (`HITMARKER_NO_ATTACKSTRING`), then that run's `moveend`.
+    fn next_target(&mut self, env: &mut Env, u: &MoveUse) {
+        if !self.is_double() || u.info.target != MoveTarget::BothFoes || u.printed {
+            return;
+        }
+        let charging = matches!(u.info.effect, MoveEffect::TwoTurn(_))
+            && self.battler(u.attacker).fx.lock.is_some();
+        let p = u.target.partner();
+        if charging || self.battler(p).mon.hp == 0 {
+            return;
+        }
+        let u2 = MoveUse {
+            target: p,
+            printed: true,
+            ..*u
+        };
+        self.no_effect = false;
+        let hit = self.execute(env, &u2);
+        self.move_end(env, &u2, hit);
+        if u2.info.effect != MoveEffect::BatonPass {
+            self.battler_mut(p).last_landed = self.landed(&u2);
+        }
     }
 
     /// `MOVEEND_UPDATE_LAST_MOVES`' `gLastMoves`: not for Baton Pass (its user left);
@@ -140,6 +183,77 @@ impl Battle {
         (!self.no_effect && u.power > 0 && u.info.effect != MoveEffect::Bide).then_some(u.mov)
     }
 
+    /// `HandleAction_UseMove`'s "choose target" in a double battle, from the chosen target
+    /// (`gBattleStruct->moveTarget`): the other side's Follow Me for a `MOVE_TARGET_SELECTED`
+    /// move; else an Electric move (not aimed at a Lightning Rod) goes to the other side's
+    /// Lightning Rod first in turn order (`lightningRodRedirected`); else a
+    /// `MOVE_TARGET_RANDOM` move rolls a foe (`Random() & 1`: the left one); an absent target
+    /// is replaced (a foe by its partner, an ally by the facing foe or its partner).
+    pub(crate) fn pick_target(&mut self, env: &mut Env, u: &MoveUse) -> Side {
+        let a = u.attacker;
+        let chosen = self.targets[a.i()];
+        let other = a.other().s();
+        let follow = self.fx.follow_me[other];
+        if let Some(f) = follow
+            && u.info.target == MoveTarget::Selected
+            && f.side() != a.side()
+            && self.battler(f).mon.hp != 0
+        {
+            return f;
+        }
+        let rod = |s: Side| {
+            matches!(
+                self.battler(s).ability,
+                Ability::LightningRod | Ability::LightningRodGen3
+            )
+        };
+        let random = u.info.target == MoveTarget::Random;
+        let roll = |env: &mut Env| {
+            let left = if a.is_player() {
+                Side::Opponent
+            } else {
+                Side::Player
+            };
+            if env.rng.random() & 1 != 0 {
+                left
+            } else {
+                left.partner()
+            }
+        };
+        let redirect = |b: &Self, t: Side| {
+            if !b.is_absent(t) {
+                t
+            } else if t.side() != a.side() {
+                t.partner()
+            } else {
+                let o = a.other();
+                if b.is_absent(o) { o.partner() } else { o }
+            }
+        };
+        if follow.is_none()
+            && (u.info.power != 0 || u.info.target != MoveTarget::User)
+            && !rod(chosen)
+            && u.info.ty == Type::Electric
+        {
+            let n = self.count();
+            let drawn = self.order[..n]
+                .iter()
+                .copied()
+                .find(|&s| s.side() != a.side() && s != chosen && rod(s));
+            if let Some(r) = drawn {
+                self.fx.rod = true;
+                return r;
+            }
+            let t = if random { roll(env) } else { chosen };
+            return redirect(self, t);
+        }
+        if random {
+            let t = roll(env);
+            return if self.is_absent(t) { t.partner() } else { t };
+        }
+        redirect(self, chosen)
+    }
+
     /// The `MoveUse` of `mov` by `attacker` (singles: user-targeting moves target the user,
     /// as the controllers set `gBattlerTarget` for `MOVE_TARGET_USER`).
     pub(crate) fn move_use(
@@ -152,6 +266,8 @@ impl Battle {
         let info = env.t.move_info(mov);
         let target = match info.target {
             MoveTarget::User | MoveTarget::UserOrSelected => attacker,
+            // Doubles (`GetMoveTarget`'s default): the facing foe, else its partner.
+            _ if self.is_double() && self.is_absent(attacker.other()) => attacker.other().partner(),
             _ => attacker.other(),
         };
         // Aerilate / Pixilate / Refrigerate: Normal moves take the ability's type (Gen7).
@@ -276,7 +392,7 @@ impl Battle {
             c.printed = true;
         }
         if let Some(s) = u.slot {
-            let cost = 1 + self.pressure(u) as u8;
+            let cost = 1 + self.pressure(u);
             let pp = &mut self.battler_mut(u.attacker).mon.pp[s as usize];
             *pp = pp.saturating_sub(cost);
             self.write_back(u.attacker);
@@ -287,18 +403,22 @@ impl Battle {
     /// target its side (`MOVE_TARGET_BOTH`, `_OPPONENTS_FIELD`, `_FOES_AND_ALLY`), or that
     /// target it (another battler); any HP, as Gen3. Not under `ppNotAffectedByPressure`
     /// (Snatch, Magic Coat, a failed Counter / Mirror Coat, Spikes at 3 layers).
-    fn pressure(&self, u: &MoveUse) -> bool {
+    /// The spread moves count every Pressure on the other side
+    /// (`ABILITYEFFECT_COUNT_OTHER_SIDE`, 2 at most in doubles).
+    fn pressure(&self, u: &MoveUse) -> u8 {
         if self.fx.cur.is_some_and(|c| c.no_pressure) {
-            return false;
+            return 0;
         }
-        let foe = match u.info.target {
-            MoveTarget::BothFoes | MoveTarget::OpponentsField | MoveTarget::FoesAndAlly => {
-                u.attacker.other()
-            }
-            _ if u.target != u.attacker => u.target,
-            _ => return false,
-        };
-        self.battler(foe).ability == Ability::Pressure
+        let pressure = |s: Side| (self.battler(s).ability == Ability::Pressure) as u8;
+        match u.info.target {
+            MoveTarget::BothFoes | MoveTarget::OpponentsField | MoveTarget::FoesAndAlly => self
+                .sides()
+                .filter(|s| s.side() != u.attacker.side())
+                .map(pressure)
+                .sum(),
+            _ if u.target != u.attacker => pressure(u.target),
+            _ => 0,
+        }
     }
 
     /// `Cmd_accuracycheck` with `ACC_CURR_MOVE`: one roll. Under Foresight the target's
@@ -476,6 +596,10 @@ impl Battle {
         // (`gBattleMoves[gCurrentMove].type`) is Electric.
         if self.battler(u.attacker).charge > 0 && u.info.ty == Type::Electric {
             damage *= 2;
+        }
+        // Then `gProtectStructs[gBattlerAttacker].helpingHand`: × 15 / 10.
+        if self.fx.helping_hand & (1 << u.attacker.i()) != 0 {
+            damage = damage * 15 / 10;
         }
         damage
     }
@@ -750,13 +874,19 @@ impl Battle {
         b.v = super::Volatiles::default();
         b.fx = super::BattlerFx::default();
         let (party, ability, level) = (b.mon.party, b.ability, b.mon.level);
-        if side == Side::Player {
-            // Gen3 `Cmd_tryfaintmon` → `AdjustFriendshipOnBattleFaint` (Task E).
+        if side.is_player() {
+            // Gen3 `Cmd_tryfaintmon` → `AdjustFriendshipOnBattleFaint` (Task E): the highest
+            // level among the opponents on the field.
             use crate::world::friendship::{FriendshipEvent, on_event};
-            let foe_level = self.battler(Side::Opponent).mon.level;
+            let foe_level = [Side::Opponent, Side::OpponentRight]
+                .into_iter()
+                .filter(|&s| self.is_present(s))
+                .map(|s| self.battler(s).mon.level)
+                .max()
+                .unwrap_or(1);
             let event = FriendshipEvent::battle_faint(foe_level, level);
-            let hold = self.x.holds[side as usize][party as usize];
-            if let Some(m) = self.parties[side as usize].get_mut(party as usize) {
+            let hold = self.x.holds[side.s()][party as usize];
+            if let Some(m) = self.parties[side.s()].get_mut(party as usize) {
                 on_event(m, event, hold, env.t, env.rng);
             }
         }

@@ -674,9 +674,10 @@ fn teleport(b: &mut Battle, env: &mut Env, u: &MoveUse) {
             env.out.push(BattleEvent::Msg(
                 u.msg_long(Str::PkmnFledFromBattle, u.attacker),
             ));
-            let outcome = match u.attacker {
-                Side::Player => BattleOutcome::PlayerTeleported,
-                Side::Opponent => BattleOutcome::MonTeleported,
+            let outcome = if u.attacker.is_player() {
+                BattleOutcome::PlayerTeleported
+            } else {
+                BattleOutcome::MonTeleported
             };
             b.finish(env, outcome);
         }
@@ -801,8 +802,22 @@ fn fury_cutter(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> 
 /// the damage (no accuracy check), the faint check and `moveendfromto
 /// MOVEEND_ON_DAMAGE_ABILITIES`.
 pub(super) fn pursuit_on_switch(b: &mut Battle, env: &mut Env, side: Side) -> bool {
-    let foe = side.other();
-    let Some(Action::Move(slot)) = b.actions[foe as usize] else {
+    // Doubles (`BattleScript_PursuitSwitchDmgSetMultihit`): the left foe, then the right one,
+    // when its move targets `side` (the first that pursues here).
+    let left = if side.is_player() {
+        Side::Opponent
+    } else {
+        Side::Player
+    };
+    let foes = [left, left.partner()];
+    let Some(foe) = foes.into_iter().take(b.count() / 2).find(|&f| {
+        b.is_present(f)
+            && matches!(b.actions[f.i()], Some(Action::Move(_)))
+            && (!b.is_double() || b.targets[f.i()] == side)
+    }) else {
+        return false;
+    };
+    let Some(Action::Move(slot)) = b.actions[foe.i()] else {
         return false;
     };
     let f = b.battler(foe);
@@ -816,7 +831,7 @@ pub(super) fn pursuit_on_switch(b: &mut Battle, env: &mut Env, side: Side) -> bo
     {
         return false;
     }
-    b.actions[foe as usize] = None;
+    b.actions[foe.i()] = None;
     let u = MoveUse {
         target: side,
         multiplier: 2,

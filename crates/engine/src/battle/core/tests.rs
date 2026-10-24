@@ -9,9 +9,11 @@ use alloc::format;
 use alloc::string::String;
 
 pub(crate) fn side(s: Side) -> char {
-    match s {
-        Side::Player => 'P',
-        Side::Opponent => 'O',
+    match (s.is_player(), s.is_right()) {
+        (true, false) => 'P',
+        (false, false) => 'O',
+        (true, true) => 'p',
+        (false, true) => 'o',
     }
 }
 
@@ -103,6 +105,7 @@ impl Run {
             kind,
             opponents: party(opponents),
             environment: Environment::Grass,
+            double: None,
         };
         let mut b = Battle::new(&Game, setup, &party(player), &mut rng);
         let mut out = Vec::new();
@@ -726,6 +729,7 @@ fn setup_draws_come_first() {
         kind,
         opponents: party(&[normal(2)]),
         environment: Environment::Grass,
+        double: None,
     };
     let draws = |kind| {
         let mut rng = Rng::new(3);
@@ -790,6 +794,7 @@ fn need_is_busy_before_start() {
         },
         opponents: party(&[normal(2)]),
         environment: Environment::Grass,
+        double: None,
     };
     let b = Battle::new(&Game, setup, &party(&[water(5)]), &mut rng);
     assert_eq!(b.need(), Need::Busy);
@@ -830,7 +835,7 @@ fn a_faint_message_names_the_fainted_mon_after_its_replacement() {
             _ => None,
         })
         .unwrap();
-    assert_eq!(fainted.slots, [0, 0]);
+    assert_eq!(fainted.slots, [0, 0, 0, 0]);
     let sent = out
         .iter()
         .find_map(|e| match e {
@@ -838,13 +843,15 @@ fn a_faint_message_names_the_fainted_mon_after_its_replacement() {
             _ => None,
         })
         .unwrap();
-    assert_eq!(sent.slots, [0, 1]);
+    assert_eq!(sent.slots, [0, 1, 0, 0]);
     let names = Names {
         player: &[0xFF],
         trainer_class: &[0xFF],
         trainer_name: &[0xFF],
+        trainer2_class: &[0xFF],
+        trainer2_name: &[0xFF],
         wild: false,
-        mons: [r.b.mon(Side::Player), r.b.mon(Side::Opponent)],
+        mons: Side::ALL.map(|s| r.b.mon(s)),
         parties: [r.b.party(Side::Player), r.b.party(Side::Opponent)],
     };
     // NORMAL's nickname (0xBB + 2), not DARK's (0xBB + 5).

@@ -136,7 +136,7 @@
     "SPECIAL_DoSealedChamberShakingEffect_Short": Unsupported,
     "SPECIAL_DoSecretBasePCTurnOffEffect": Unsupported,
     "SPECIAL_DoSoftReset": Unsupported,
-    "SPECIAL_DoSpecialTrainerBattle": Native, // Wave F: SPECIAL_BATTLE_STEVEN degraded to two single battles (Maxie, then Tabitha) without the partner; the others report
+    "SPECIAL_DoSpecialTrainerBattle": Native, // Wave G: SPECIAL_BATTLE_STEVEN is the multi battle with Steven (FillPartnerParty) against Maxie and Tabitha; the other battle types report
     "SPECIAL_DoTVShow": Default(1), // TV shows are not modelled: ends the show loop (unreachable: no active show)
     "SPECIAL_DoTVShowInSearchOfTrainers": Default(1), // TV shows are not modelled: ends the show loop (unreachable: Gabby and Ty are off the air)
     "SPECIAL_DoTrainerApproach": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
@@ -246,7 +246,7 @@
     "SPECIAL_HasAtLeastOneBerry": Default(0), // Berry Crush is link only
     "SPECIAL_HasBardSongBeenChanged": Unsupported,
     "SPECIAL_HasEnoughBerryPowder": Default(0), // Berry Crush is link only: the powder stays 0
-    "SPECIAL_HasEnoughMonsForDoubleBattle": Native, // degraded with 2+ mons: fainted ones count as usable
+    "SPECIAL_HasEnoughMonsForDoubleBattle": Native, // GetMonsStateToDoubles: one mon, two usable (HP, not an egg) or one usable
     "SPECIAL_HasHipsterTaughtWord": Unsupported,
     "SPECIAL_HasMonWonThisContestBefore": Default(0), // contests are M13: no rank ribbons
     "SPECIAL_HasPlayerGivenContestLadyPokeblock": Default(0), // the Lilycove ladies are M13

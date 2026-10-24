@@ -156,7 +156,7 @@ pub(super) fn assist(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitRe
     let a = u.attacker;
     let me = b.battler(a).mon.party as usize;
     let mut valid: alloc::vec::Vec<MoveId> = alloc::vec::Vec::new();
-    for (i, p) in b.parties[a as usize].iter().enumerate() {
+    for (i, p) in b.parties[a.s()].iter().enumerate() {
         if i == me {
             continue;
         }

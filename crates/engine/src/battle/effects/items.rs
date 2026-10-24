@@ -48,8 +48,8 @@ fn consume(b: &mut Battle, side: Side) {
     let m = b.battler_mut(side);
     m.x.item = None;
     m.x.hold = None;
-    b.x.holds[side as usize][party] = None;
-    if let Some(p) = b.parties[side as usize].get_mut(party) {
+    b.x.holds[side.s()][party] = None;
+    if let Some(p) = b.parties[side.s()].get_mut(party) {
         p.held = None;
     }
 }
@@ -197,7 +197,7 @@ fn confuse_berry(b: &mut Battle, env: &mut Env, side: Side, flavor: u8, param: u
         .get(flavor as usize)
         .copied();
     let party = m.mon.party as usize;
-    let dislikes = match (stat, b.parties[side as usize].get(party)) {
+    let dislikes = match (stat, b.parties[side.s()].get(party)) {
         (Some(s), Some(p)) => p.nature().effect(s) < 0,
         _ => false,
     };
@@ -329,7 +329,7 @@ pub(super) fn move_end(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<H
     // Gen3 does not check HP here; a fainted battler's status is irrelevant, so the engine
     // skips it.
     loop {
-        let found = [Side::Player, Side::Opponent].into_iter().find_map(|s| {
+        let found = b.sides().find_map(|s| {
             if b.battler(s).mon.hp == 0 {
                 return None;
             }

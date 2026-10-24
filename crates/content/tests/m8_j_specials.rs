@@ -145,9 +145,9 @@ impl Rec {
             Request::YesNo { .. } | Request::RockSmashEncounter => Response::Bool(false),
             Request::Multichoice { .. } => Response::Value(content::MULTI_B_PRESSED),
             Request::ChoosePartyMon(_) => Response::Value(1),
-            Request::BattleWild { .. } | Request::BattleTrainer { .. } => {
-                Response::Value(BattleOutcome::Won as u16)
-            }
+            Request::BattleWild { .. }
+            | Request::BattleTrainer { .. }
+            | Request::BattleMulti { .. } => Response::Value(BattleOutcome::Won as u16),
             Request::ItemAdd { .. }
             | Request::ItemRemove { .. }
             | Request::ItemCheck { .. }
@@ -346,11 +346,13 @@ fn native_specials_issue_their_requests_in_order() {
         (
             "SPECIAL_HasEnoughMonsForDoubleBattle",
             2,
-            vec![
-                Request::PartySize,
-                degraded("SPECIAL_HasEnoughMonsForDoubleBattle"),
-                set(VAR_RESULT, 0),
-            ],
+            // Gen3 `GetMonsStateToDoubles`: no mon with HP (the queries answer 0):
+            // `PLAYER_HAS_ONE_USABLE_MON`.
+            [Request::PartySize]
+                .into_iter()
+                .chain((0..6).map(|s| Request::Query(Query::PartySpecies(s))))
+                .chain([set(VAR_RESULT, 2)])
+                .collect(),
             0,
         ),
         (
@@ -788,16 +790,12 @@ fn native_specials_issue_their_requests_in_order() {
             h.log,
             [
                 Request::GetVar(VAR_0x8004),
-                degraded("SPECIAL_DoSpecialTrainerBattle"),
-                Request::BattleTrainer {
-                    trainer: TrainerId(734),
-                    defeat: text("MossdeepCity_SpaceCenter_2F_Text_JustWantToExpandLand"),
-                    no_whiteout: false,
-                },
-                Request::BattleTrainer {
-                    trainer: TrainerId(514),
-                    defeat: text("MossdeepCity_SpaceCenter_Text_TabithaDefeat"),
-                    no_whiteout: false,
+                // Wave G: the multi battle with Steven against Maxie and Tabitha.
+                Request::BattleMulti {
+                    a: TrainerId(734),
+                    a_defeat: text("MossdeepCity_SpaceCenter_2F_Text_JustWantToExpandLand"),
+                    b: TrainerId(514),
+                    b_defeat: text("MossdeepCity_SpaceCenter_Text_TabithaDefeat"),
                 },
                 set(VAR_RESULT, 1),
             ]
@@ -805,6 +803,16 @@ fn native_specials_issue_their_requests_in_order() {
     }
     let _ = won;
     covered.insert("SPECIAL_DoSpecialTrainerBattle");
+    // Wave G: `GetMonsStateToDoubles` with two mons with HP: `PLAYER_HAS_TWO_USABLE_MONS`.
+    let mut h = Rec::with_party(3);
+    h.queries = vec![
+        (Query::PartySpecies(0), 1),
+        (Query::PartyHp(0), 10),
+        (Query::PartySpecies(2), 1),
+        (Query::PartyHp(2), 5),
+    ];
+    run_special(&mut h, "SPECIAL_HasEnoughMonsForDoubleBattle");
+    assert_eq!(h.vars.get(&VAR_RESULT.0), Some(&0));
     // `GetMomOrDadStringForTVMessage` with `VAR_TEMP_3` already set (a second look at the TV):
     // no random draw, as in Gen3; above 2 by parity.
     for (t3, s) in [(1, MOM), (2, DAD), (5, DAD), (6, MOM)] {

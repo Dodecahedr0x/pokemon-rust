@@ -42,7 +42,7 @@ pub(super) fn move_end(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<H
 /// none. `{B_BUFF1}` is a `gStatusConditionString_*Jpn` the content does not carry: empty.
 pub(super) fn immunity(b: &mut Battle, env: &mut Env) {
     loop {
-        let found = [Side::Player, Side::Opponent].into_iter().find(|&s| {
+        let found = b.sides().find(|&s| {
             let m = b.battler(s);
             match m.ability {
                 Ability::Immunity => matches!(m.mon.status, Status::Poison | Status::Toxic(_)),
@@ -211,7 +211,7 @@ pub(super) fn forecast(b: &mut Battle, env: &mut Env, side: Side) -> bool {
 
 /// `ABILITYEFFECT_FORECAST`: the first Forecast battler (index order) that changes.
 pub(super) fn forecast_all(b: &mut Battle, env: &mut Env) {
-    for side in [Side::Player, Side::Opponent] {
+    for side in b.sides() {
         if forecast(b, env, side) {
             return;
         }
@@ -223,7 +223,8 @@ pub(super) fn forecast_all(b: &mut Battle, env: &mut Env) {
 /// stopped, with the message.
 #[allow(dead_code)] // for the move effects that call it
 pub(crate) fn damp(b: &mut Battle, env: &mut Env, u: &MoveUse) -> bool {
-    let Some(owner) = [Side::Player, Side::Opponent]
+    let Some(owner) = b
+        .sides()
         .into_iter()
         .find(|&s| b.battler(s).ability == Ability::Damp && b.battler(s).mon.hp > 0)
     else {
@@ -523,8 +524,20 @@ pub(super) fn end_turn(b: &mut Battle, env: &mut Env, side: Side) {
 
 /// `ABILITYEFFECT_INTIMIDATE1` → `BattleScript_IntimidateActivates`: the foe's Attack -1
 /// (nothing at -6), with `STRINGID_PKMNCUTSATTACKWITH`.
+/// Doubles: each foe on the field in battler order (`trygetintimidatetarget`).
 pub(super) fn intimidate(b: &mut Battle, env: &mut Env, side: Side) {
-    let foe = side.other();
+    if !b.is_double() {
+        intimidate_one(b, env, side, side.other());
+        return;
+    }
+    for foe in b.sides() {
+        if foe.side() != side.side() && b.is_present(foe) {
+            intimidate_one(b, env, side, foe);
+        }
+    }
+}
+
+fn intimidate_one(b: &mut Battle, env: &mut Env, side: Side, foe: Side) {
     // `jumpifstatus2 BS_TARGET, STATUS2_SUBSTITUTE`: a substitute (Baton Pass) is skipped.
     if b.battler(side).ability != Ability::Intimidate
         || b.battler(side).mon.hp == 0
@@ -572,7 +585,22 @@ pub(super) fn intimidate(b: &mut Battle, env: &mut Env, side: Side) {
 /// `ABILITYEFFECT_TRACE` → `BattleScript_TraceActivates`: copies the foe's ability when it has
 /// one and HP.
 pub(super) fn trace(b: &mut Battle, env: &mut Env, side: Side) {
-    let foe = side.other();
+    let ok =
+        |b: &Battle, s: Side| b.battler(s).ability != Ability::None && b.battler(s).mon.hp != 0;
+    let left = side.other().side();
+    // Doubles: a random one of the two foes when both qualify (`Random() & 1`: the right).
+    let foe = if !b.is_double()
+        || b.battler(side).ability != Ability::Trace
+        || b.battler(side).mon.hp == 0
+    {
+        left
+    } else {
+        match (ok(b, left), ok(b, left.partner())) {
+            (true, true) if env.rng.random() & 1 != 0 => left.partner(),
+            (false, true) => left.partner(),
+            _ => left,
+        }
+    };
     let f = b.battler(foe);
     if b.battler(side).ability != Ability::Trace
         || b.battler(side).mon.hp == 0

@@ -17,6 +17,8 @@ const PARTY_NOTHING_CHOSEN: u16 = 0xFF;
 const PLAYER_HAS_TWO_USABLE_MONS: u16 = 0;
 /// Gen3 `PLAYER_HAS_ONE_MON`.
 const PLAYER_HAS_ONE_MON: u16 = 1;
+/// Gen3 `PLAYER_HAS_ONE_USABLE_MON`.
+const PLAYER_HAS_ONE_USABLE_MON: u16 = 2;
 /// The PokéNav entry of the start menu (`ScriptMenu_CreateStartMenuForPokenavTutorial`: Pokédex,
 /// Pokémon, Bag, PokéNav, …), the only answer Rustboro's tutorial accepts.
 const START_MENU_POKENAV: u16 = 3;
@@ -177,22 +179,15 @@ async fn call_frontier_util_func(ctx: &Ctx, id: u16) {
 
 /// Gen3 `DoSpecialTrainerBattle` (`battle_tower.c`): `SPECIAL_BATTLE_STEVEN` only (see
 /// [`special`]); the outcome, also in `VAR_RESULT`.
-async fn do_special_trainer_battle(ctx: &Ctx, id: u16) -> u16 {
+async fn do_special_trainer_battle(ctx: &Ctx) -> u16 {
     let foes = story::STEVEN_MULTI_FOES;
     let (SPECIAL_BATTLE_STEVEN, Some(foes)) = (ctx.var(VAR_0x8004).await, foes) else {
         ctx.report(Report::Unsupported("SPECIAL_DoSpecialTrainerBattle"))
             .await;
         return 0;
     };
-    degraded(ctx, id).await;
-    let mut outcome = BattleOutcome::Won;
-    for (trainer, defeat) in foes {
-        let defeat = text_named(defeat).unwrap_or(TextId(0));
-        outcome = ctx.battle_trainer(trainer, defeat).await;
-        if outcome != BattleOutcome::Won {
-            break;
-        }
-    }
+    let [a, b] = foes.map(|(t, defeat)| (t, text_named(defeat).unwrap_or(TextId(0))));
+    let outcome = ctx.battle_multi(a, b).await;
     let v = outcome as u16;
     ctx.set_var(VAR_RESULT, v).await;
     v
@@ -277,9 +272,9 @@ async fn cable_car_destination(ctx: &Ctx) -> MapId {
 ///     1), `VAR_RESULT` = whether a mon was chosen (`CB2_ReturnFromChooseHalfParty`); the
 ///     field fades back in (`CB2_ReturnToFieldContinueScriptPlayMapMusic`);
 ///   - `DoSpecialTrainerBattle` (`battle_tower.c`) with `VAR_0x8004` = `SPECIAL_BATTLE_STEVEN`,
-///     degraded (no double battles): the chosen party fights Maxie, then (won) Tabitha, as
-///     single battles without Steven; `VAR_RESULT` = the outcome
-///     (`HandleSpecialTrainerBattleEnd`). A loss whites out at once (the engine restores the
+///     a multi battle (`BATTLE_TYPE_MULTI | BATTLE_TYPE_TWO_OPPONENTS |
+///     BATTLE_TYPE_INGAME_PARTNER`): the chosen three and Steven's (`FillPartnerParty`) against
+///     Maxie and Tabitha; `VAR_RESULT` = the outcome (`HandleSpecialTrainerBattleEnd`). A loss whites out at once (the engine restores the
 ///     party first, as the script's `frontier_saveparty` and `LoadPlayerParty` would before
 ///     `SetCB2WhiteOut`). The other battle types report `Unsupported`.
 /// - Degraded (reported), as if cancelled:
@@ -332,11 +327,13 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             return ctx.party_size().await;
         }
         id if id == SPECIAL_HasEnoughMonsForDoubleBattle => {
-            let r = if ctx.party_size().await >= 2 {
-                degraded(ctx, id).await;
+            // Gen3 `GetMonsStateToDoubles` (`pokemon.c`).
+            let r = if ctx.party_size().await == 1 {
+                PLAYER_HAS_ONE_MON
+            } else if party_alive_except(ctx, PARTY_SIZE).await > 1 {
                 PLAYER_HAS_TWO_USABLE_MONS
             } else {
-                PLAYER_HAS_ONE_MON
+                PLAYER_HAS_ONE_USABLE_MON
             };
             ctx.set_var(VAR_RESULT, r).await;
         }
@@ -389,7 +386,7 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             return chosen;
         }
         id if id == SPECIAL_DoSpecialTrainerBattle => {
-            return do_special_trainer_battle(ctx, id).await;
+            return do_special_trainer_battle(ctx).await;
         }
         id if id == SPECIAL_CableCarWarp => {
             cable_car_destination(ctx).await;

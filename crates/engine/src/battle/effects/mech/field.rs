@@ -16,12 +16,12 @@ pub(in crate::battle::effects) fn mist_blocks(
     side: Side,
     loud: bool,
 ) -> bool {
-    if b.fx.mist[side as usize].is_none() {
+    if b.fx.mist[side.s()].is_none() {
         return false;
     }
     if loud {
         let first = match &mut b.fx.cur {
-            Some(c) => !core::mem::replace(&mut c.lowered[side as usize], true),
+            Some(c) => !core::mem::replace(&mut c.lowered[side.i()], true),
             None => true,
         };
         if first {
@@ -36,12 +36,12 @@ pub(in crate::battle::effects) fn mist_blocks(
 pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     use MoveEffect as E;
     let a = u.attacker;
-    let side = a as usize;
+    let side = a.s();
     match u.info.effect {
         E::Protect | E::Endure => protect(b, env, u),
         E::Spikes => {
             // `trysetspikes BattleScript_FailedFromAtkString`.
-            let foe = a.other() as usize;
+            let foe = a.other().s();
             if b.fx.spikes[foe] >= 3 {
                 super::copy::no_pressure(b);
             }
@@ -132,21 +132,36 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) {
         }
         E::Wish => {
             b.attack_string(env, u);
-            if b.fx.wish[side] != 0 {
+            if b.fx.wish[a.i()] != 0 {
                 b.fail(env, u);
                 return;
             }
-            b.fx.wish[side] = 2;
-            b.fx.wish_party[side] = b.battler(a).mon.party;
+            b.fx.wish[a.i()] = 2;
+            b.fx.wish_party[a.i()] = b.battler(a).mon.party;
             anim(env, u);
         }
-        // `trysethelpinghand`: no partner in a single battle.
+        // `trysethelpinghand`: the partner, on the field, and neither helped yet (never in
+        // a single battle).
         E::HelpingHand => {
             b.attack_string(env, u);
-            b.fail(env, u);
+            let p = a.partner();
+            let bit = |s: Side| 1u8 << s.i();
+            if !b.is_double() || !b.is_present(p) || b.fx.helping_hand & (bit(a) | bit(p)) != 0 {
+                b.fail(env, u);
+                return;
+            }
+            b.fx.helping_hand |= bit(p);
+            let u = MoveUse { target: p, ..*u };
+            anim(env, &u);
+            say(env, &u, Str::PkmnReadyToHelp, a);
         }
+        // `setforcedtarget`: the user's side draws the other side's selected moves until the
+        // turn ends (`followmeTimer`; kept in doubles only, where it can matter).
         E::FollowMe => {
             b.attack_string(env, u);
+            if b.is_double() {
+                b.fx.follow_me[side] = Some(a);
+            }
             anim(env, u);
             say(env, u, Str::PkmnCenterAttention, a);
         }
@@ -168,7 +183,7 @@ fn protect(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     if !last_protect {
         b.battler_mut(a).fx.protect_uses = 0;
     }
-    let last_turn = b.order[1] == a;
+    let last_turn = b.acts_last(a);
     let rate = protect_rate(env.t, b.battler(a).fx.protect_uses);
     if rate >= env.rng.random() && !last_turn {
         let fx = &mut b.battler_mut(a).fx;
@@ -257,9 +272,24 @@ pub(super) fn roar(b: &mut Battle, env: &mut Env, u: &MoveUse) {
         b.miss_message(env, u);
         return;
     }
-    let party = &b.parties[t as usize];
+    // Cmd_forcerandomswitch: the trainer's mons (by flank with a partner or two
+    // trainers), and more than the battlers that must stay.
+    let d = b.setup().double;
+    let flank = d.is_some_and(|d| d.partner.is_some())
+        || (d.is_some_and(|d| d.second.is_some()) && !t.is_player());
+    let (first, count, min) = match (flank, b.is_double()) {
+        (true, _) => (if t.i() & 2 != 0 { 3 } else { 0 }, 3, 1),
+        (false, true) => (0, 6, 2),
+        (false, false) => (0, 6, 1),
+    };
+    let partner = if b.is_double() { t.partner() } else { t };
+    let out = [
+        b.battler(t).mon.party as usize,
+        b.battler(partner).mon.party as usize,
+    ];
+    let party = &b.parties[t.s()];
     let valid = |i: usize| party.get(i).is_some_and(|p| p.hp > 0);
-    if b.is_trainer() && (0..6).filter(|&i| valid(i)).count() <= 1 {
+    if b.is_trainer() && (first..first + count).filter(|&i| valid(i)).count() <= min {
         b.fail(env, u);
         return;
     }
@@ -276,13 +306,10 @@ pub(super) fn roar(b: &mut Battle, env: &mut Env, u: &MoveUse) {
             return;
         }
     }
-    let current = b.battler(t).mon.party as usize;
     let next = if b.is_trainer() {
-        let party = &b.parties[t as usize];
-        let valid = |i: usize| party.get(i).is_some_and(|p| p.hp > 0);
         Some(loop {
-            let i = (env.rng.random() % 6) as usize;
-            if i != current && valid(i) {
+            let i = first + (env.rng.random() % count as u16) as usize;
+            if !out.contains(&i) && valid(i) {
                 break i as u8;
             }
         })
@@ -297,9 +324,10 @@ pub(super) fn roar(b: &mut Battle, env: &mut Env, u: &MoveUse) {
             b.switch_in_with(env, t, i, Some(m));
         }
         None => {
-            let outcome = match u.attacker {
-                Side::Player => BattleOutcome::PlayerTeleported,
-                Side::Opponent => BattleOutcome::MonTeleported,
+            let outcome = if u.attacker.is_player() {
+                BattleOutcome::PlayerTeleported
+            } else {
+                BattleOutcome::MonTeleported
             };
             b.finish(env, outcome);
         }
@@ -311,7 +339,7 @@ pub(super) fn roar(b: &mut Battle, env: &mut Env, u: &MoveUse) {
 pub(super) fn end_turn(b: &mut Battle, env: &mut Env) {
     for which in 0..3 {
         for side in [Side::Player, Side::Opponent] {
-            let s = side as usize;
+            let s = side.s();
             let slot = match which {
                 0 => &mut b.fx.reflect[s],
                 1 => &mut b.fx.light_screen[s],
@@ -329,7 +357,7 @@ pub(super) fn end_turn(b: &mut Battle, env: &mut Env) {
         }
     }
     for side in [Side::Player, Side::Opponent] {
-        let s = side as usize;
+        let s = side.s();
         if b.fx.safeguard[s] > 0 {
             b.fx.safeguard[s] -= 1;
             if b.fx.safeguard[s] == 0 {
@@ -337,8 +365,8 @@ pub(super) fn end_turn(b: &mut Battle, env: &mut Env) {
             }
         }
     }
-    for side in b.order {
-        let s = side as usize;
+    for side in b.turn_sides() {
+        let s = side.i();
         if b.fx.wish[s] == 0 {
             continue;
         }

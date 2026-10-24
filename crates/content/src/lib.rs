@@ -482,6 +482,10 @@ macro_rules! game_data_tables {
             $crate::battle::trainer(id.0)
         }
 
+        fn partner(&self) -> Option<&'static ::engine::mon::PartnerData> {
+            $crate::battle::PARTNER.as_ref()
+        }
+
         fn battle_text(&self, s: ::engine::battle::Str) -> &'static [u8] {
             $crate::battle::text(s)
         }

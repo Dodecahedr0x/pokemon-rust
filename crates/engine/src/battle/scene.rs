@@ -155,8 +155,9 @@ enum Play {
     Exp,
     /// Until the pending bar redraws are done (a level-up).
     Bars,
-    /// The trainer slides in (`false`), then its defeat text prints (`true`).
-    Defeated(bool),
+    /// The trainer slides in (`false`), then its defeat text prints (`true`); the second flag
+    /// is trainer B (two trainers: its defeat text, [`super::Double::second`]).
+    Defeated(bool, bool),
     /// Fading out after `End`.
     Ending,
     /// Until a form change's pic is loaded.
@@ -167,36 +168,35 @@ enum Play {
 struct Parts {
     bg: Background,
     windows: BattleWindows,
-    /// Index = `Side`.
-    mons: [MonSprite; 2],
+    /// Index = [`Side::i`] (2 in singles, 4 in doubles).
+    mons: Vec<MonSprite>,
     /// `[player back pic, opponent trainer]`.
     trainers: [TrainerSprite; 2],
-    boxes: [Healthbox; 2],
-    bars: [HpBar; 2],
+    boxes: Vec<Healthbox>,
+    bars: Vec<HpBar>,
     exp: ExpBar,
 }
 
 impl Parts {
-    fn new(gfx: &'static BattleGfx, env: Environment) -> Self {
+    fn new(gfx: &'static BattleGfx, env: Environment, n: usize) -> Self {
+        let double = n == 4;
+        let sides = &Side::ALL[..n];
         Parts {
             bg: Background::new(env),
             windows: BattleWindows::new(),
-            mons: [
-                MonSprite::new(Side::Player, gfx),
-                MonSprite::new(Side::Opponent, gfx),
-            ],
+            mons: sides
+                .iter()
+                .map(|&s| MonSprite::with(s, double, gfx))
+                .collect(),
             trainers: [
                 TrainerSprite::new(Side::Player),
                 TrainerSprite::new(Side::Opponent),
             ],
-            boxes: [
-                Healthbox::new(Side::Player, gfx),
-                Healthbox::new(Side::Opponent, gfx),
-            ],
-            bars: [
-                HpBar::new(Side::Player, gfx),
-                HpBar::new(Side::Opponent, gfx),
-            ],
+            boxes: sides
+                .iter()
+                .map(|&s| Healthbox::with(s, double, gfx))
+                .collect(),
+            bars: sides.iter().map(|&s| HpBar::new(s, gfx)).collect(),
             exp: ExpBar::new(gfx),
         }
     }
@@ -215,6 +215,8 @@ pub enum OpenMenu {
     LearnPick(u8),
     /// "Stop learning?" yes/no (0 = yes).
     StopAsk(u8),
+    /// The doubles target cursor: the index in `Battle::target_choices`.
+    Target(u8),
 }
 
 /// The most reports a scene keeps until `take_reports` (the rest are dropped).
@@ -226,6 +228,8 @@ const LOADED: &str = "the scene's parts exist from the first load step";
 /// Plays a battle's events and turns input into [`Choice`]s. See the module docs.
 pub struct BattleScene {
     kind: BattleKind,
+    /// Trainer B and its defeat text (two trainers).
+    second: Option<(crate::data::TrainerId, crate::data::TextId)>,
     /// Built by the first [`BattleScene::load`] step (with the game's graphics), so that
     /// [`BattleScene::new`] is cheap on the battle's start frame.
     parts: Option<Parts>,
@@ -233,16 +237,18 @@ pub struct BattleScene {
     loading: Option<u8>,
     /// The scene's copy of both parties (index = `Side`), as of the playback.
     parties: [Party; 2],
-    /// The party slot out on each side.
-    out: [u8; 2],
+    /// The battlers (2 or 4): the per-battler arrays below use `..n` ([`Side::i`]).
+    n: usize,
+    /// The party slot out on each battler.
+    out: [u8; 4],
     /// The pic in OBJ VRAM, intact (`None` after a faint).
-    pics: [Option<(SpeciesId, bool)>; 2],
+    pics: [Option<(SpeciesId, bool)>; 4],
     /// A mid-battle pic upload in progress.
-    pic_load: [Option<(SpeciesId, bool)>; 2],
+    pic_load: [Option<(SpeciesId, bool)>; 4],
     /// The party slot the healthbox and bars show.
-    box_slot: [Option<u8>; 2],
-    /// HP bar redraws waiting for budget (index = `Side`), then the exp bar's.
-    hp_pending: [bool; 2],
+    box_slot: [Option<u8>; 4],
+    /// HP bar redraws waiting for budget (by battler), then the exp bar's.
+    hp_pending: [bool; 4],
     exp_pending: bool,
     queue: VecDeque<BattleEvent>,
     /// Reports set aside by `push` (capped, not hashed), until `take_reports`.
@@ -255,6 +261,8 @@ pub struct BattleScene {
     fader: Fader,
     outcome: Option<BattleOutcome>,
     finished: bool,
+    /// Frames the target cursor has blinked (doubles; 0 when closed).
+    blink: u8,
     /// The World's player name (`{B_PLAYER_NAME}`, `{PLAYER}`). Not hashed: the World hashes it.
     player: PlayerName,
     /// The ball BAG throws and how many the bag holds ([`BattleScene::set_balls`]).
@@ -294,14 +302,16 @@ impl BattleScene {
         fader.start(Fade::FromBlack);
         BattleScene {
             kind: setup.kind,
+            second: setup.double.and_then(|d| d.second),
             parts: None,
             loading: Some(0),
             parties: [Party::default(), Party::default()],
-            out: [0; 2],
-            pics: [None; 2],
-            pic_load: [None; 2],
-            box_slot: [None; 2],
-            hp_pending: [false; 2],
+            n: if setup.double.is_some() { 4 } else { 2 },
+            out: [0; 4],
+            pics: [None; 4],
+            pic_load: [None; 4],
+            box_slot: [None; 4],
+            hp_pending: [false; 4],
             exp_pending: false,
             queue: VecDeque::new(),
             reports: Vec::new(),
@@ -310,6 +320,7 @@ impl BattleScene {
             last_msg: None,
             fader,
             outcome: None,
+            blink: 0,
             finished: false,
             player,
             balls: None,
@@ -356,7 +367,7 @@ impl BattleScene {
         let gfx = game.battle_gfx();
         let t = game.battle();
         if step == 0 {
-            self.parts = Some(Parts::new(gfx, battle.setup().environment));
+            self.parts = Some(Parts::new(gfx, battle.setup().environment, self.n));
         }
         let p = self.parts.as_mut().expect(LOADED);
         let next = match step {
@@ -365,7 +376,7 @@ impl BattleScene {
                     battle.party(Side::Player).clone(),
                     battle.party(Side::Opponent).clone(),
                 ];
-                self.out = [Side::Player, Side::Opponent].map(|s| battle.mon(s).party);
+                self.out = Side::ALL.map(|s| battle.mon(s).party);
                 f.cmds.push(Cmd::Bg {
                     layer: ANIM.0,
                     control: BgControl::default(),
@@ -393,12 +404,20 @@ impl BattleScene {
                 4
             }
             4 => {
-                for side in [Side::Opponent, Side::Player] {
+                let order = [
+                    Side::Opponent,
+                    Side::OpponentRight,
+                    Side::Player,
+                    Side::PlayerRight,
+                ];
+                for side in order {
+                    if !self.present(battle, side) {
+                        continue;
+                    }
                     let mon = self.mon(side);
                     let pic = (mon.species, mon.is_shiny());
-                    self.parts.as_mut().expect(LOADED).mons[side as usize]
-                        .load(game, pic.0, pic.1, f);
-                    self.pics[side as usize] = Some(pic);
+                    self.parts.as_mut().expect(LOADED).mons[side.i()].load(game, pic.0, pic.1, f);
+                    self.pics[side.i()] = Some(pic);
                 }
                 5
             }
@@ -417,15 +436,20 @@ impl BattleScene {
                 } else {
                     Side::Opponent
                 };
-                let s = side as usize;
-                let mon = view(t, self.mon(side), self.out[s]);
-                self.parts.as_mut().expect(LOADED).boxes[s].load(&mon, f);
-                self.parts.as_mut().expect(LOADED).bars[s].set(mon.hp, mon.max_hp, f);
-                if side == Side::Player {
-                    self.parts.as_mut().expect(LOADED).exp.invalidate();
-                    self.set_exp(t, f);
+                for b in [side, side.partner()] {
+                    if !self.present(battle, b) {
+                        continue;
+                    }
+                    let s = b.i();
+                    let mon = view(t, self.mon(b), self.out[s]);
+                    self.parts.as_mut().expect(LOADED).boxes[s].load(&mon, f);
+                    self.parts.as_mut().expect(LOADED).bars[s].set(mon.hp, mon.max_hp, f);
+                    if b == Side::Player {
+                        self.parts.as_mut().expect(LOADED).exp.invalidate();
+                        self.set_exp(t, f);
+                    }
+                    self.box_slot[s] = Some(self.out[s]);
                 }
-                self.box_slot[s] = Some(self.out[s]);
                 if side == Side::Opponent {
                     self.loading = None;
                     return true;
@@ -493,12 +517,12 @@ impl BattleScene {
             t.update(f);
         }
         let choice = self.advance(game, battle, f);
+        self.target_blink(game, battle);
         let p = self.parts.as_mut().expect(LOADED);
         for b in &mut p.boxes {
             b.update(f);
         }
-        for side in [Side::Player, Side::Opponent] {
-            let s = side as usize;
+        for s in 0..self.n {
             if let Some((species, shiny)) = self.pic_load[s]
                 && p.mons[s].load_step(game, species, shiny, f)
             {
@@ -551,6 +575,7 @@ impl BattleScene {
             Menu::LearnAsk { .. } => OpenMenu::LearnAsk(cursor),
             Menu::LearnPick { .. } => OpenMenu::LearnPick(cursor),
             Menu::StopAsk { .. } => OpenMenu::StopAsk(cursor),
+            Menu::Target { .. } => OpenMenu::Target(cursor),
             Menu::None | Menu::StopMsg { .. } | Menu::HmMsg { .. } | Menu::Retry { .. } => {
                 return None;
             }
@@ -611,7 +636,21 @@ impl BattleScene {
             self.outcome.map_or(0, |o| o as u8),
             self.finished as u8,
         ]);
-        for pic in self.pics.iter().chain(&self.pic_load) {
+        if self.n == 4 {
+            // Doubles only (the singles hash is unchanged).
+            h.write(&[
+                0xDB,
+                self.out[2],
+                self.out[3],
+                self.box_slot[2].unwrap_or(0xFF),
+                self.box_slot[3].unwrap_or(0xFF),
+                self.hp_pending[2] as u8,
+                self.hp_pending[3] as u8,
+                self.blink,
+            ]);
+        }
+        let n = self.n;
+        for pic in self.pics[..n].iter().chain(&self.pic_load[..n]) {
             match pic {
                 None => h.write(&[0xFF]),
                 Some((s, shiny)) => {
@@ -634,11 +673,38 @@ impl BattleScene {
 
     // ---- playback ----
 
+    /// The target cursor blinks its battler's pic (`SpriteCb_ShowAsMoveTarget`, every 8
+    /// frames here).
+    fn target_blink(&mut self, game: &impl GameData, battle: &Battle) {
+        let p = self.parts.as_mut().expect(LOADED);
+        let target = match (self.menu, p.windows.menu_cursor()) {
+            (Menu::Target { slot, .. }, Some(k)) => battle
+                .target_choices(game.battle(), battle.choosing(), slot)
+                .and_then(|v| v.get(k as usize).copied()),
+            _ => None,
+        };
+        if target.is_none() && self.blink == 0 {
+            return;
+        }
+        self.blink = if target.is_some() {
+            self.blink.wrapping_add(1).max(1)
+        } else {
+            0
+        };
+        for (i, m) in p.mons.iter_mut().enumerate() {
+            m.set_blink_off(target.is_some_and(|t| t.i() == i) && (self.blink / 8) % 2 == 1);
+        }
+    }
+
+    /// Whether `side` has a battler on the field at the intro (not absent).
+    fn present(&self, battle: &Battle, side: Side) -> bool {
+        side.i() < self.n && !battle.is_absent(side)
+    }
+
     /// The scene's copy of the mon out on `side`.
     fn mon(&self, side: Side) -> &Pokemon {
-        let s = side as usize;
-        self.parties[s]
-            .get(self.out[s] as usize)
+        self.parties[side.s()]
+            .get(self.out[side.i()] as usize)
             .expect("the battler's party slot")
     }
 
@@ -680,8 +746,8 @@ impl BattleScene {
     /// The bar redraws waiting for OBJ tile budget (`HpBar::set` after `Healthbox::set_mon`,
     /// then `ExpBar::set`).
     fn sync_bars(&mut self, t: &BattleTables, f: &mut Frame) {
-        for side in [Side::Player, Side::Opponent] {
-            let s = side as usize;
+        for s in 0..self.n {
+            let side = Side::at(s);
             if self.hp_pending[s] && gfx::obj_tiles_left(f) >= BAR_SET_TILES {
                 let mon = self.mon(side);
                 let (hp, max) = (mon.hp, mon.stats[0]);
@@ -726,7 +792,7 @@ impl BattleScene {
             }
             Play::WildAppear(true) => !self.anims_busy(),
             Play::SendOut(side, stage) => {
-                let s = side as usize;
+                let s = side.i();
                 let next = match stage {
                     Send::Wait(n) if n > 0 => Send::Wait(n - 1),
                     Send::Wait(_) => {
@@ -750,7 +816,7 @@ impl BattleScene {
                 false
             }
             Play::Faint(side, Some(0)) => {
-                p.mons[side as usize].faint();
+                p.mons[side.i()].faint();
                 self.play = Play::Faint(side, None);
                 false
             }
@@ -759,7 +825,7 @@ impl BattleScene {
                 false
             }
             Play::Faint(side, None) => {
-                let s = side as usize;
+                let s = side.i();
                 if p.mons[s].busy() {
                     return false;
                 }
@@ -768,9 +834,9 @@ impl BattleScene {
                 self.pics[s] = None;
                 true
             }
-            Play::Form(side) => self.pic_load[side as usize].is_none(),
+            Play::Form(side) => self.pic_load[side.i()].is_none(),
             Play::Hp(side) => {
-                let s = side as usize;
+                let s = side.i();
                 p.boxes[s].set_hp(p.bars[s].value());
                 p.bars[s].done()
             }
@@ -783,11 +849,16 @@ impl BattleScene {
                 }
                 true
             }
-            Play::Defeated(false) => {
+            Play::Defeated(false, second) => {
                 if p.trainers[1].busy() {
                     return false;
                 }
-                if let BattleKind::Trainer { defeat, .. } = self.kind {
+                let defeat = match (self.kind, second) {
+                    (_, true) => self.second.map(|(_, text)| text),
+                    (BattleKind::Trainer { defeat, .. }, false) => Some(defeat),
+                    _ => None,
+                };
+                if let Some(defeat) = defeat {
                     let text = crate::text::expand(game, game.text(defeat), &self.player);
                     let wait = if ends_with_prompt(&text) {
                         MsgWait::Frames(0)
@@ -796,10 +867,10 @@ impl BattleScene {
                     };
                     p.windows.print(game, text, wait, f);
                 }
-                self.play = Play::Defeated(true);
+                self.play = Play::Defeated(true, second);
                 false
             }
-            Play::Defeated(true) => !p.windows.is_printing(),
+            Play::Defeated(true, _) => !p.windows.is_printing(),
             Play::Ending => false,
         }
     }
@@ -829,27 +900,29 @@ impl BattleScene {
             }
             BattleEvent::TrainerDefeated => {
                 p.trainers[1].slide_in_defeated();
-                Play::Defeated(false)
+                Play::Defeated(false, false)
             }
+            // Degraded: trainer A's pic stays (no second trainer pic); B's defeat text prints.
+            BattleEvent::TrainerDefeated2 => Play::Defeated(false, true),
             BattleEvent::SendOut { side, party } => self.send_out(t, side, party),
             BattleEvent::Recall { side } => {
-                p.mons[side as usize].recall();
-                p.boxes[side as usize].hide();
+                p.mons[side.i()].recall();
+                p.boxes[side.i()].hide();
                 Play::Anims
             }
             BattleEvent::MoveAnim { attacker, .. } => {
-                p.mons[attacker as usize].lunge();
+                p.mons[attacker.i()].lunge();
                 Play::Anims
             }
             BattleEvent::Hit { target, .. } => {
-                p.mons[target as usize].hit();
-                p.boxes[target as usize].shake();
+                p.mons[target.i()].hit();
+                p.boxes[target.i()].shake();
                 Play::Anims
             }
             BattleEvent::Hp { side, from, to } => {
-                let s = side as usize;
+                let s = side.i();
                 let slot = self.out[s] as usize;
-                let max = match self.parties[s].get_mut(slot) {
+                let max = match self.parties[side.s()].get_mut(slot) {
                     Some(m) => {
                         m.hp = to;
                         m.stats[0]
@@ -860,15 +933,15 @@ impl BattleScene {
                 Play::Hp(side)
             }
             BattleEvent::StatusIcon { side, status } => {
-                let s = side as usize;
-                if let Some(m) = self.parties[s].get_mut(self.out[s] as usize) {
+                let s = side.i();
+                if let Some(m) = self.parties[side.s()].get_mut(self.out[s] as usize) {
                     m.status = status;
                 }
                 p.boxes[s].set_status(status);
                 Play::Idle
             }
             BattleEvent::StatAnim { side, up } => {
-                p.mons[side as usize].tint(if up { TINT_STAT_UP } else { TINT_STAT_DOWN });
+                p.mons[side.i()].tint(if up { TINT_STAT_UP } else { TINT_STAT_DOWN });
                 Play::Anims
             }
             BattleEvent::Faint { side } => Play::Faint(side, Some(FAINT_PAUSE)),
@@ -883,12 +956,13 @@ impl BattleScene {
                 // one needs a new `Choice`), so no later knock-out is queued and the battle's
                 // EVs are the ones of this exp.
                 debug_assert!(
-                    !self.queue.iter().any(|e| matches!(
-                        e,
-                        BattleEvent::Faint {
-                            side: Side::Opponent
-                        }
-                    )),
+                    self.n == 4
+                        || !self.queue.iter().any(|e| matches!(
+                            e,
+                            BattleEvent::Faint {
+                                side: Side::Opponent
+                            }
+                        )),
                     "two opponent knock-outs in one choose"
                 );
                 if let Some(b) = battle.party(Side::Player).get(party as usize) {
@@ -896,7 +970,8 @@ impl BattleScene {
                 }
                 m.exp = to;
                 m.recalc_stats(t);
-                if party == self.out[0] {
+                // Doubles: no exp bar (Gen3's doubles healthboxes have none).
+                if party == self.out[0] && self.n == 2 {
                     p.exp.start(level, from, to, |l| exp_for_level(growth, l));
                     Play::Exp
                 } else {
@@ -904,10 +979,14 @@ impl BattleScene {
                 }
             }
             BattleEvent::LevelUp { party, .. } => {
-                if party == self.out[0] && self.box_slot[0] == Some(party) {
-                    let mon = view(t, self.mon(Side::Player), party);
-                    self.parts.as_mut().expect(LOADED).boxes[0].set_mon(&mon);
-                    self.hp_pending[0] = true;
+                let shown = [Side::Player, Side::PlayerRight]
+                    .into_iter()
+                    .take(self.n / 2)
+                    .find(|s| self.out[s.i()] == party && self.box_slot[s.i()] == Some(party));
+                if let Some(side) = shown {
+                    let mon = view(t, self.mon(side), party);
+                    self.parts.as_mut().expect(LOADED).boxes[side.i()].set_mon(&mon);
+                    self.hp_pending[side.i()] = true;
                     Play::Bars
                 } else {
                     Play::Idle
@@ -932,8 +1011,8 @@ impl BattleScene {
                 party,
                 species,
             } => {
-                let s = side as usize;
-                let Some(m) = self.parties[s].get_mut(party as usize) else {
+                let s = side.i();
+                let Some(m) = self.parties[side.s()].get_mut(party as usize) else {
                     return;
                 };
                 m.species = species;
@@ -953,7 +1032,7 @@ impl BattleScene {
 
     /// `SendOut`: the pic, healthbox and bars of the new mon, then the ball.
     fn send_out(&mut self, t: &BattleTables, side: Side, party: u8) -> Play {
-        let s = side as usize;
+        let s = side.i();
         self.out[s] = party;
         let mon = *self.mon(side);
         let pic = (mon.species, mon.is_shiny());
@@ -1004,12 +1083,20 @@ fn names<'a>(game: &impl GameData, battle: &'a Battle, player: &'a [u8]) -> Name
             .map_or((&[EOS], &[EOS]), |t| (t.class_name, t.name)),
         BattleKind::Wild { .. } => (&[EOS], &[EOS]),
     };
+    let (trainer2_class, trainer2_name): (&[u8], &[u8]) = battle
+        .setup()
+        .double
+        .and_then(|d| d.second)
+        .and_then(|(t, _)| game.trainer(t))
+        .map_or((&[EOS], &[EOS]), |t| (t.class_name, t.name));
     Names {
         player,
         trainer_class,
         trainer_name,
+        trainer2_class,
+        trainer2_name,
         wild: matches!(battle.setup().kind, BattleKind::Wild { .. }),
-        mons: [battle.mon(Side::Player), battle.mon(Side::Opponent)],
+        mons: Side::ALL.map(|s| battle.mon(s)),
         parties: [battle.party(Side::Player), battle.party(Side::Opponent)],
     }
 }

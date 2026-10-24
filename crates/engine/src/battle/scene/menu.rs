@@ -13,6 +13,11 @@ pub(super) enum Menu {
     None,
     Action,
     Move,
+    /// The doubles target cursor for move `slot` (`mega`: armed).
+    Target {
+        slot: u8,
+        mega: bool,
+    },
     /// "Learn `mov`?" yes/no (`Cmd_yesnoboxlearnmove`).
     LearnAsk {
         party: u8,
@@ -76,14 +81,19 @@ impl BattleScene {
         match self.menu {
             Menu::None => match battle.need() {
                 Need::Action => {
-                    w.action_menu(game, &names(game, battle, &self.player), f);
+                    let me = battle.choosing();
+                    // B_ACTION_CANCEL_PARTNER: the right battler, asked after the left one.
+                    let cancel = me == Side::PlayerRight && battle.player_chooses(Side::Player);
+                    w.action_menu_for(game, &names(game, battle, &self.player), me, cancel, f);
                     self.menu = Menu::Action;
                 }
                 // No party screen: the first mon that can fight and is not out (Baton Pass
                 // asks with the user still out).
                 Need::Switch => {
-                    let n = battle.party(Side::Player).len() as u8;
-                    let next = (0..n).find(|&i| battle.can_switch_to(Side::Player, i));
+                    let me = battle.choosing();
+                    let next = battle
+                        .party_range(me)
+                        .find(|&i| battle.can_switch_to(me, i));
                     debug_assert!(next.is_some(), "Need::Switch without a usable mon");
                     return next.map(Choice::Switch);
                 }
@@ -95,9 +105,14 @@ impl BattleScene {
             },
             Menu::Action => match w.action_result() {
                 Some(Action::Fight) => {
-                    let mega = battle.can_mega(Side::Player);
-                    w.move_menu_mega(game, battle.mon(Side::Player), mega, f);
+                    let me = battle.choosing();
+                    let mega = battle.can_mega(me);
+                    w.move_menu_mega(game, battle.mon(me), mega, f);
                     self.menu = Menu::Move;
+                }
+                Some(Action::Cancel) => {
+                    self.menu = Menu::None;
+                    return Some(Choice::Cancel);
                 }
                 Some(Action::Run) => {
                     self.menu = Menu::None;
@@ -112,21 +127,52 @@ impl BattleScene {
                 // No bag screen for the other pockets nor party screen in the slice: back to
                 // the menu.
                 Some(Action::Bag | Action::Pokemon) => {
-                    w.action_menu(game, &names(game, battle, &self.player), f);
+                    let me = battle.choosing();
+                    let cancel = me == Side::PlayerRight && battle.player_chooses(Side::Player);
+                    w.action_menu_for(game, &names(game, battle, &self.player), me, cancel, f);
                 }
                 None => {}
             },
             Menu::Move => match w.move_result() {
                 Some(MoveChoice::Move(slot)) => {
+                    let me = battle.choosing();
+                    let mega = w.mega_armed();
+                    if let Some(targets) = battle.target_choices(game.battle(), me, slot) {
+                        w.target_menu(targets.len() as u8, 0, f);
+                        self.menu = Menu::Target { slot, mega };
+                        return None;
+                    }
                     self.menu = Menu::None;
-                    if w.mega_armed() {
+                    if mega {
                         return Some(Choice::Mega(slot));
                     }
                     return Some(Choice::Move(slot));
                 }
                 Some(MoveChoice::Back) => {
-                    w.action_menu(game, &names(game, battle, &self.player), f);
+                    let me = battle.choosing();
+                    let cancel = me == Side::PlayerRight && battle.player_chooses(Side::Player);
+                    w.action_menu_for(game, &names(game, battle, &self.player), me, cancel, f);
                     self.menu = Menu::Action;
+                }
+                None => {}
+            },
+            Menu::Target { slot, mega } => match w.target_result() {
+                Some(Some(k)) => {
+                    self.menu = Menu::None;
+                    let me = battle.choosing();
+                    let targets = battle
+                        .target_choices(game.battle(), me, slot)
+                        .unwrap_or_default();
+                    let target = targets.get(k as usize).copied().unwrap_or(me.other());
+                    // No Mega Evolution with a picked target (Silice only; not in doubles).
+                    let _ = mega;
+                    return Some(Choice::MoveAt { slot, target });
+                }
+                Some(None) => {
+                    let me = battle.choosing();
+                    let can = battle.can_mega(me);
+                    w.move_menu_mega(game, battle.mon(me), can, f);
+                    self.menu = Menu::Move;
                 }
                 None => {}
             },

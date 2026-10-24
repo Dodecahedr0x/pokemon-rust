@@ -62,8 +62,8 @@
 use crate::export::Out;
 use crate::schema::{
     BattleStringsFile, DexFile, EncounterHeader, EncountersFile, EvolutionsFile, HealLocationsFile,
-    Hex, LandEncounters, Move, MovesFile, Rematch, RematchesFile, Species, SpeciesFile, Trainer,
-    TrainerMon, TrainerMoneyFile, TrainersFile, TypesFile, WildMon,
+    Hex, LandEncounters, Move, MovesFile, PartnerMon, PartnersFile, Rematch, RematchesFile,
+    Species, SpeciesFile, Trainer, TrainerMon, TrainerMoneyFile, TrainersFile, TypesFile, WildMon,
 };
 use crate::text::{self, charmap};
 use crate::{ROM_BASE, Rom, names};
@@ -146,6 +146,14 @@ const REMATCH_ANCHOR: ([&str; 5], &str) = (
     ],
     "Route118",
 );
+/// `sizeof` of a `sStevenMons` entry (`battle_tower.c`): species, `fixedIV`, level, nature,
+/// six EVs, a padding byte, then four moves.
+const PARTNER_MON_SIZE: u32 = 20;
+/// `MULTI_PARTY_SIZE`.
+const PARTNER_MONS: u32 = 3;
+/// `sStevenMons[0]` up to its EVs (`battle_tower.c`): `SPECIES_METANG`, `MAX_PER_STAT_IVS`,
+/// level 42, `NATURE_BRAVE`, `{0, 252, 252, 0, 6, 0}`.
+const STEVEN_ANCHOR: (&str, [u8; 9]) = ("SPECIES_METANG", [31, 42, 2, 0, 252, 252, 0, 6, 0]);
 /// The class that ends `gTrainerMoneyTable`; its value is the default of unlisted classes.
 const TRAINER_MONEY_END: u8 = 0xFF;
 /// `sizeof(struct TrainerMoney)`: two u8 padded to 4 by agbcc.
@@ -308,6 +316,8 @@ pub struct Locations {
     pub hoenn_dex: Option<u32>,
     /// `gRematchTable`, if found ([`REMATCH_ANCHOR`]).
     pub rematches: Option<u32>,
+    /// `sStevenMons`, if found ([`STEVEN_ANCHOR`]).
+    pub partners: Option<u32>,
     pub nature_power: u32,
     pub heal_locations: u32,
     pub battle_strings: u32,
@@ -504,6 +514,10 @@ pub fn locate(rom: &Rom) -> Result<Locations> {
         .inspect_err(|e| eprintln!("warning: no rematch table: {e:#}"))
         .ok();
 
+    let partners = locate_partners(rom)
+        .inspect_err(|e| eprintln!("warning: no in-game partner: {e:#}"))
+        .ok();
+
     let nature_power =
         unique_referenced(rom, &u16s_le(&NATURE_POWER.map(mv)), "sNaturePowerMoves")?;
 
@@ -541,6 +555,7 @@ pub fn locate(rom: &Rom) -> Result<Locations> {
         pokedex,
         hoenn_dex,
         rematches,
+        partners,
         nature_power,
         heal_locations,
         battle_strings,
@@ -689,6 +704,35 @@ fn read_rematches(rom: &Rom, at: u32) -> Result<RematchesFile> {
         });
     }
     Ok(RematchesFile { rematches })
+}
+
+/// `sStevenMons`: the bytes of [`STEVEN_ANCHOR`], referenced (`FillPartnerParty`'s literal pool).
+fn locate_partners(rom: &Rom) -> Result<u32> {
+    let (species, rest) = STEVEN_ANCHOR;
+    let mut needle = u16s_le(&[value(&names::SPECIES, species) as u16]);
+    needle.extend(rest);
+    unique_referenced(rom, &needle, "sStevenMons")
+}
+
+fn read_partners(rom: &Rom, at: u32) -> Result<PartnersFile> {
+    let mut steven = Vec::new();
+    for i in 0..PARTNER_MONS {
+        let e = at + PARTNER_MON_SIZE * i;
+        let evs = rom.bytes()[(e + 5) as usize..(e + 11) as usize]
+            .try_into()
+            .expect("six EVs");
+        steven.push(PartnerMon {
+            species: names::SPECIES.name_or_hex(rom.u16(e)?.into()),
+            fixed_iv: rom.u8(e + 2)?,
+            level: rom.u8(e + 3)?,
+            nature: rom.u8(e + 4)?,
+            evs,
+            moves: (rom.u16s(e + 12, 4)?.into_iter())
+                .map(|m| names::MOVES.name_or_hex(m.into()))
+                .collect(),
+        });
+    }
+    Ok(PartnersFile { steven })
 }
 
 /// `gPokedexEntries`: the referenced table whose first entries have the heights and weights of
@@ -1039,6 +1083,7 @@ pub struct BattleData {
     pub heal_locations: HealLocationsFile,
     pub dex: DexFile,
     pub rematches: RematchesFile,
+    pub partners: PartnersFile,
     pub strings: BattleStringsFile,
     /// `battle/<table>` -> offset, for the manifest.
     pub provenance: BTreeMap<String, Hex>,
@@ -1103,6 +1148,9 @@ pub fn extract(rom: &Rom, maps: &[&str]) -> Result<BattleData> {
     if let Some(at) = loc.rematches {
         provenance.insert("battle/rematches".into(), Hex(at));
     }
+    if let Some(at) = loc.partners {
+        provenance.insert("battle/partners".into(), Hex(at));
+    }
     Ok(BattleData {
         species: read_species(rom, &loc, &n)?,
         moves: read_moves(rom, &loc, &n)?,
@@ -1136,6 +1184,10 @@ pub fn extract(rom: &Rom, maps: &[&str]) -> Result<BattleData> {
             Some(at) => read_rematches(rom, at)?,
             None => RematchesFile::default(),
         },
+        partners: match loc.partners {
+            Some(at) => read_partners(rom, at)?,
+            None => PartnersFile::default(),
+        },
         strings: read_strings(rom, &loc, &n)?,
         provenance,
     })
@@ -1154,6 +1206,7 @@ impl BattleData {
         o.ron("battle/heal_locations.ron", &self.heal_locations)?;
         o.ron("battle/dex.ron", &self.dex)?;
         o.ron("battle/rematches.ron", &self.rematches)?;
+        o.ron("battle/partners.ron", &self.partners)?;
         o.ron("battle/strings.ron", &self.strings)
     }
 }
