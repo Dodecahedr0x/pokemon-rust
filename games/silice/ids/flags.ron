@@ -2630,5 +2630,79 @@
             name: "FLAG_SIL_HIDE_HOUSE_ELYSIUM_3",
             num: 1277,
         ),
+        // SIL6 Ch12 scripts: the champions' gems (§4.1 "FLAG_SIL_ITEM_PG_GEM_LOIC … _LOULPIX") and the
+        // daily flags (§8 "FLAG_SIL_DAILY_<CHAMPION>, _ANTENNE_<X>"), cleared by the engine's day change.
+        (
+            name: "FLAG_SIL_ITEM_PG_GEM_YOHAN",
+            num: 1124,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_GEM_TAUBER_HOCSEAT",
+            num: 1125,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_GEM_SAMUEL",
+            num: 1126,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_GEM_SKYCKER",
+            num: 1127,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_GEM_TAK",
+            num: 1128,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_GEM_REVERSE",
+            num: 1129,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_GEM_LOULPIX_DORIS",
+            num: 1130,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_LOIC",
+            num: 1131,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_YOHAN",
+            num: 1132,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_TAUBER_HOCSEAT",
+            num: 1133,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_SAMUEL",
+            num: 1134,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_SKYCKER",
+            num: 1135,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_TAK",
+            num: 1136,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_REVERSE",
+            num: 1137,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_LOULPIX_DORIS",
+            num: 1138,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_ANTENNE_ALPHA",
+            num: 1139,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_ANTENNE_GAMMA",
+            num: 1140,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_ANTENNE_ETA",
+            num: 1141,
+        ),
     ],
 )
