@@ -1,7 +1,7 @@
 //! Chapter 7, Reverse-City, from Route S7's south end (`VAR_SIL_STORY` 68, Chapter 6's end, the
 //! Grand Torii behind) to the Porte Êta-Nord open (76):
 //! - Route S7, the Pont de la Logique Brisée: the first data wall (Sc01, 70), the Full Heal, the
-//!   four silica blocks broken with the Scanner de Faille (C1, C2, C-Puzzle's trap left whole,
+//!   four silica blocks broken with the Scanner de Faille (C1, C2, C-Puzzle, the trap's way out,
 //!   C3), the five trainers, the Twisted Spoon, the Rare Candy, the Ultra Ball, the hidden
 //!   Ether, the Max Revive, Adrien's holographic call (Sc02, 71), the north sign;
 //! - Reverse-City: the welcome (Sc01, 72), the four mirror signs' plaques, the lighthouse (Oscar,
@@ -14,25 +14,19 @@
 //! - out: the vault (the alley block, the plaques' code, the Master Ball: Sc04), Benou at the
 //!   north gate (Sc07, 76), Route S8.
 //!
-//! **The fallbacks the path relies on** (`ch07_*.rs`): the controls are not inverted, the arrows
-//! and the ice are plain floor, the Gogo–Romain double is two single battles, Reverse's battle
-//! is on the normal type chart, the vault's dial is one yes/no that dials the plaques' code.
+//! **The fallbacks the path relies on** (`ch07_*.rs`): the controls are not inverted, the
+//! Gogo–Romain double is two single battles, Reverse's battle is on the normal type chart, the
+//! vault's dial is one yes/no that dials the plaques' code.
 //!
-//! **The party** ([`PARTY`]): Chapter 6's end (`ch06::PARTY` trained by `sil7_ch6`: AMPHAROS
-//! 53, the lead trained for Tak; KADABRA 45, TYPHLOSION 42, AGGRON 42, WAILORD 40 on the bench)
-//! with about five levels on each bench member for Manga-Square's trainers that a player fights
-//! with the bench and the spine walks round (Route S6's six, Kenta; 40–46): the KADABRA an
-//! ALAKAZAM (Chapter 5's Link Stone) at 50, leading again as in Chapter 4, the TYPHLOSION and the
-//! AGGRON 47, the WAILORD 45; the AMPHAROS stays at 53. No hook and no [`Step::Train`]: the
-//! chapter's trainers (44–49) are the training, and the run heals at the Centre between the
-//! city's fights and before Reverse. Measured, one member at ±1 at a time (the Ch6 review):
-//! eight of the ten neighbours win; the AMPHAROS at 52 loses to Reverse (Porygon2's Recover) and
-//! the TYPHLOSION at 46 to Gogo and Romain (the battle policy never switches). The AMPHAROS at
-//! 53–54 wins with the ALAKAZAM anywhere in 48–55; at 55–56 (the first measure, before Chapter 6
-//! settled on Tak at 53) several ALAKAZAM levels lose. With the AMPHAROS leading (Chapter 6's
-//! order), Gogo's Donphan (Ground) sweeps it in the no-heal double.
+//! **The party** ([`PARTY`]): Chapter 6's end as `sil7_ch6` leaves it (KADABRA 59 leading, with
+//! Chapter 6's Shock Wave taught again first; TYPHLOSION 62; LAIRON 35, MAREEP 14, PORYGON 25,
+//! DUGTRIO 26). No hook. The chapter's trainers (44–49) train the lead; the run heals at the
+//! Centre between the city's fights and before the Palais. Reverse's Wobbuffet (Counter, Mirror
+//! Coat) outlasts the KADABRA, so the TYPHLOSION, second, is trained in the town's grass to
+//! [`REVERSE_LEVEL`] (66) first. Measured (`SPINE_LEVEL_66`): 62 and 64 lose to Reverse; 63 and
+//! 65–69 win. The run ends with the KADABRA at 61 and the TYPHLOSION at 66.
 
-use super::{Run, Start, Step, goto, goto_avoiding};
+use super::{Run, Start, Step, TeachTm, goto, goto_avoiding};
 use content::consts::*;
 use engine::data::{Dir, ItemId, MapId, SpeciesId};
 use engine::script::Ctx;
@@ -95,14 +89,15 @@ pub fn phare_at_123() -> Start {
     }
 }
 
-/// The start state's party (see the module docs): the ALAKAZAM leads, as the KADABRA did in
-/// Chapter 4 (Chapter 6 led with the AMPHAROS).
+/// The start state's party: Chapter 6's end as its run (`sil7_ch6`) leaves it, the KADABRA
+/// (with Chapter 6's Shock Wave, taught first) leading.
 pub const PARTY: &[(SpeciesId, u8)] = &[
-    (SPECIES_ALAKAZAM, 50),
-    (SPECIES_AMPHAROS, 53),
-    (SPECIES_TYPHLOSION, 47),
-    (SPECIES_AGGRON, 47),
-    (SPECIES_WAILORD, 45),
+    (SPECIES_KADABRA, 59),
+    (SPECIES_TYPHLOSION, 62),
+    (SPECIES_LAIRON, 35),
+    (SPECIES_MAREEP, 14),
+    (SPECIES_PORYGON, 25),
+    (SPECIES_DUGTRIO, 26),
 ];
 
 /// Chapter 6's end state (`07-reverse-city.md`'s prerequisites), on top of Silice's new-game
@@ -155,10 +150,17 @@ async fn end_of_chapter_6(ctx: Ctx) {
     ctx.item_add(ItemId(ITEM_HYPER_POTION), 3).await;
     ctx.money_add(20000).await;
     ctx.set_respawn(HEAL_LOCATION_SIL_MANGA_SQUARE).await;
+    // The start state cannot set moves (`givemon`'s extras are not applied yet): the bag holds
+    // Chapter 6's TM34 again, and the spine teaches it first (the lead's Shock Wave).
+    ctx.item_add(ItemId(ITEM_TM34), 1).await;
     for &(species, level) in PARTY {
         ctx.give_mon(species, level).await;
     }
 }
+
+/// The TYPHLOSION's level before the Palais: Reverse's Wobbuffet (Counter, Mirror Coat) is
+/// fought by whoever stands after the lead, the TYPHLOSION (measures in the module docs).
+const REVERSE_LEVEL: u8 = 66;
 
 /// The Centre's nurse, from the town and back to its door.
 const HEAL: &[Step] = &[
@@ -245,6 +247,12 @@ pub fn steps() -> Vec<Step> {
             assert!(!r.w.flag(FLAG_SIL_BADGE_07));
             assert_eq!(r.w.party().len(), PARTY.len());
         }),
+        // Chapter 6's Shock Wave over Role Play (see [`end_of_chapter_6`]).
+        Step::Teach(TeachTm {
+            item: ITEM_TM34,
+            mon: 0,
+            forget: 1,
+        }),
         // S7-A: the entrance sign, the worker, the Full Heal, C1 across the bridge.
         goto(ROUTE, 16, 69),
         Step::Interact(Right),
@@ -282,6 +290,9 @@ pub fn steps() -> Vec<Step> {
         goto(ROUTE, 14, 45),
         Step::Interact(Left),
         goto(ROUTE, 14, 40),
+        Step::Interact(Left),
+        // The arrows slide: the trap's only way out is C-Puzzle, broken (then up the west arrows).
+        goto(ROUTE, 13, 40),
         Step::Interact(Left),
         goto(ROUTE, 18, 37),
         Step::Interact(Down),
@@ -502,6 +513,17 @@ pub fn steps() -> Vec<Step> {
         Step::Check("plaque_4", |r| {
             assert!(r.w.flag(FLAG_SIL_REVERSE_PLAQUE_4));
         }),
+    ]);
+    // The TYPHLOSION trained for Reverse (see [`REVERSE_LEVEL`]), in the town's grass.
+    s.extend_from_slice(&[
+        Step::Swap(0, 1),
+        Step::Train {
+            a: (17, 21),
+            b: (18, 21),
+            level: REVERSE_LEVEL,
+            heal: HEAL,
+        },
+        Step::Swap(0, 1),
     ]);
     s.extend_from_slice(HEAL);
     s.extend_from_slice(&[
