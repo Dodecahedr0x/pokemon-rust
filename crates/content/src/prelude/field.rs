@@ -25,17 +25,15 @@ pub const FLDEFF_PCTURN_ON: u16 = 61;
 pub const FLDEFF_HALL_OF_FAME_RECORD: u16 = 62;
 pub const FLDEFF_DESTROY_DEOXYS_ROCK: u16 = 65;
 
-/// The effects reported, by id: Waterfall's and Dive's are M10's, the secret bases M13's,
-/// and Deoxys's rock (an event island) moves and removes an object.
-const UNSUPPORTED: [(u16, &str); 8] = [
+/// The effects reported, by id: the secret bases are M13's, and Deoxys's rock (an event
+/// island) moves and removes an object.
+const UNSUPPORTED: [(u16, &str); 6] = [
     (FLDEFF_USE_SECRET_POWER_CAVE, "FLDEFF_USE_SECRET_POWER_CAVE"),
     (FLDEFF_USE_SECRET_POWER_TREE, "FLDEFF_USE_SECRET_POWER_TREE"),
     (
         FLDEFF_USE_SECRET_POWER_SHRUB,
         "FLDEFF_USE_SECRET_POWER_SHRUB",
     ),
-    (FLDEFF_USE_WATERFALL, "FLDEFF_USE_WATERFALL"),
-    (FLDEFF_USE_DIVE, "FLDEFF_USE_DIVE"),
     (FLDEFF_SAND_PILLAR, "FLDEFF_SAND_PILLAR"),
     (FLDEFF_PCTURN_ON, "FLDEFF_PCTURN_ON"),
     (FLDEFF_DESTROY_DEOXYS_ROCK, "FLDEFF_DESTROY_DEOXYS_ROCK"),
@@ -86,6 +84,8 @@ pub async fn field_effect(ctx: &Ctx, id: u16) {
         FLDEFF_USE_CUT_ON_TREE => Some(FieldMove::Cut),
         FLDEFF_USE_ROCK_SMASH => Some(FieldMove::RockSmash),
         FLDEFF_USE_STRENGTH => Some(FieldMove::Strength),
+        FLDEFF_USE_WATERFALL => Some(FieldMove::Waterfall),
+        FLDEFF_USE_DIVE => Some(FieldMove::Dive),
         _ => None,
     };
     if let Some(m) = field_move {

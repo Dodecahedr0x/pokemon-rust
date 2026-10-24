@@ -61,7 +61,9 @@ use crate::battle::BattleReport;
 use crate::battle::scene::BattleScene;
 use crate::battle::transition::BattleTransition;
 use crate::battle::{Battle, BattleKind, BattleOutcome, BattleSetup, Environment, Side};
-use crate::data::{Behavior, Dir, Floor, GameData, MapId, MapType, PLAYER, SpeciesId, Water};
+use crate::data::{
+    Behavior, Dir, Floor, GameData, MapId, MapType, PLAYER, Pocket, SpeciesId, Water,
+};
 use crate::flow::{FADE_MAX, Fader, Input};
 use crate::hash::Fnv64;
 use crate::mon::{Ivs, Party, Pokemon};
@@ -326,7 +328,10 @@ impl State {
             // place this is reported, for every trainer battle (scripted or by sight).
             report(self, Report::Degraded("double battle"));
         }
-        let scene = BattleScene::new(battle.setup(), self.player_name);
+        let mut scene = BattleScene::new(battle.setup(), self.player_name);
+        if let Some(b) = (self.bag.pocket(Pocket::PokeBalls).iter()).find(|b| b.qty > 0) {
+            scene.set_balls(b.item, b.qty);
+        }
         // SAFETY: as above; this writes every remaining field.
         let run = unsafe {
             (&raw mut (*p).scene).write(scene);
@@ -692,6 +697,10 @@ impl World {
                     run.outcome = Some(outcome);
                     s.event(super::Event::BattleEnded(outcome));
                     s.party = run.battle.party(Side::Player).clone();
+                    // Gen3 `HandleAction_UseItem` takes each ball out of the bag as it is used.
+                    if let Some((ball, n)) = run.scene.balls_thrown() {
+                        s.bag.remove(Pocket::PokeBalls, ball, n);
+                    }
                     if outcome == BattleOutcome::Won {
                         after_win(game, s, &run.battle);
                     }

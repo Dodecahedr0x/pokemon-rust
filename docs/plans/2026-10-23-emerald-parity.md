@@ -116,16 +116,13 @@ After each merge, the spine is extended past the blocker it removed.
 
 Each row is one `Step::Bypass` of `explore/src/spine/emerald.rs` (its `issue`); `spine_real::SPINE_BLOCKERS` lists the same ids in spine order. Fixing a gap means deleting its bypass and its row; the spine then plays the real thing and may need a step or two in place of the bypass.
 
-| issue (step) | map (cell) | error / report | decomp feature | owner |
-|---|---|---|---|---|
-| `fly-mauville` (628), `fly-slateport` (669), `fly-lilycove` (678) | Route 120 → Mauville (22,6); Jagged Pass → Slateport (19,20); Slateport → Lilycove (24,15) | no field Fly; nothing in the party could learn it | `FIELD_MOVE_FLY`, `FLDEFF_USE_FLY`, the region map | Milestone 10 (field moves from the party menu) |
-| `water-door-in` (690), `water-door-out` (708) | Lilycove (70,5) ↔ Aqua Hideout 1F (13,12) | the surf movement never takes the water door's warp | `MB_WATER_DOOR` (surfing onto a warp) | engine field (Wave C field moves) |
-| `dive-seafloor` (845), `dive-sootopolis` (906, 932), `dive-out-sootopolis` (924, 980) | Route 128 → Seafloor Cavern (10,17); Route 126 ↔ Sootopolis (31,50) / Route 126 (45,66) | no field Dive, no underwater maps | `FIELD_MOVE_DIVE`, `FLDEFF_USE_DIVE`, `MB_DEEP_WATER`, underwater maps | Milestone 10 |
-| `waterfall-ever-grande` (985) | Ever Grande (20,68) → (20,59) | no field Waterfall | `FIELD_MOVE_WATERFALL`, `FLDEFF_USE_WATERFALL`, `MB_WATERFALL` | Milestone 10 |
+No bypass is left: `SPINE_BLOCKERS` is empty and the Emerald spine plays from a new game to the Hall of Fame on real steps.
 
 The bag-use rows (`bag-use-hm06`, `bag-use-hm03`) went with Milestone 9 Task B's bag; the spine teaches Rock Smash, Surf and Strength through START → BAG → the HM → USE → the party menu (`Step::UseItem`), and drinks Full Restores and the Max Elixir the same way.
 
 The rows `mossdeep-gym-puzzle`, `legendaries-scene`, `rayquaza-scene`, `sky-pillar-layouts` and `game-clear` went with Wave F (the Sky Pillar cluster, as built in §3): the layout override is in checkpoint schema 6 and in `World::hash`, and the planner walks it.
+
+The rows `fly-*`, `water-door-*`, `dive-*` and `waterfall-ever-grande` went with Wave F's field moves (the water and Fly cluster, as built in §3).
 
 **Report-only findings along the spine** (it plays on; first site of each): `bufferitemnameplural` (degraded, Birch's lab); `SPECIAL_StartWallyTutorialBattle` (degraded, Petalburg); the evolution scene (degraded); `SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial` (degraded, Rustboro (11,17)); move effects 208 (Brawly's gym), 176 (Route 110 wild), 158 (Route 113) and 043 (Route 112); `SPECIAL_UpdateCyclingRoadState` (Route 110 (17,99)); `ai pursuit viability` (degraded, Route 110 rival); `SPECIAL_SetMauvilleOldManObjEventGfx` (Mauville Center); `SPECIAL_SetMirageTowerVisibility` (Route 111 (16,139)); `FLDEFF_USE_ROCK_SMASH` and `SPECIAL_RockSmashWildEncounter` (Route 111 (18,102)); `SPECIAL_CableCar` (degraded: the ride is a fade and Gen3's 602 frames, Route 112's station). Surf works (Wave C field moves): the spine surfs Route 118 and walks Route 119 to Fortree; the next gap is Fortree's gym, behind the Kecleon that only the Devon Scope (Route 120, Steven) reveals.
 
@@ -737,3 +734,58 @@ Merged on master `70a3d50` (Waves E2, F3 and F2). The rule now is Gen3's: field 
 **Lanes** (`cargo xtask gates`, `parity`):
 - **fmt, clippy, clippy-ui, test, test-stub, parity:** pass. Hash at most 48 lines (gate 65); loop at most 159 lines (gate 217).
 - **test-silice:** only the known six fail (`sil4_ch3` to `sil9_ch8`).
+
+### Wave F — Waterfall, Dive, the water door and Fly (as built, branch `worktree-agent-a3c4c85bea9a1a653`)
+
+The bypasses `fly-mauville`, `fly-slateport`, `fly-lilycove`, `water-door-in`, `water-door-out`, `dive-seafloor`, `dive-sootopolis` (×2), `dive-out-sootopolis` (×2) and `waterfall-ever-grande` are gone. With the Sky Pillar cluster merged, `SPINE_BLOCKERS` is empty. `spine_real` is green to `hall_of_fame`. After merging master `ae0551e` (E2's field poison), `EMERALD_FRAMES` goes from 3,006,097 to 3,031,502, and `badge1` stays at 104,523.
+
+- **Water doors and arrow warps on water.**
+  - `Water::Door` is `MB_WATER_DOOR` and `Water::SouthArrowWarp` is `MB_WATER_SOUTH_ARROW_WARP`. Both are appended to `Water`, so no postcard index shifts.
+  - A surfer pushing into a water door takes its warp. South on a south arrow warp takes its warp.
+  - The arrival keeps surfing on water. Gen3 `GetInitialPlayerAvatarState` drops surfing on dry land, and so does the engine.
+- **Waterfall.**
+  - `GetInteractedWaterScript`'s case runs after Surf: an `MB_WATERFALL` cell ahead, surfing, facing north. It needs the badge and a party mon with the move.
+  - With those, `EventScript_UseWaterfall` runs. Without them, `EventScript_CannotUseWaterfall` runs (`GameData::waterfall_refused_script`).
+  - `FLDEFF_USE_WATERFALL` rides up one slow walk per cell while the player stands on a waterfall (`WaterfallFieldEffect_RideUp`/`_ContinueRideOrEnd`).
+- **Dive.**
+  - `TrySetupDiveDownScript`: A on diveable water (`MB_DEEP_WATER`, `MB_INTERIOR_DEEP_WATER`, `MB_SOOTOPOLIS_DEEP_WATER`) runs `EventScript_UseDive`.
+  - `TrySetupDiveEmergeScript`: B underwater, off the no-surfacing cells, runs `EventScript_UseDiveUnderwater` (`GameData::dive_emerge_script`).
+  - `FLDEFF_USE_DIVE` warps (`TrySetDiveWarp`, `GameData::dive_warp`):
+    - first the map's dive or emerge connection, which keeps the player's cell (generated from the map headers);
+    - else the fixed warp its `on_resume` sets (`setdivewarp`, a 10-entry table in `content::prelude::puzzle`).
+  - `setdivewarp` is classified `Ignore`: the table stands for it. Not yet: `Underwater_SealedChamber`'s `MAP_SCRIPT_ON_DIVE_WARP`, which picks a warp by cell.
+  - The arrival swaps between surfing and underwater and keeps the facing (`GetAdjustedInitialDirection`).
+  - **Extract format minor 12:** the water scripts are exported as `roots::FIELD_SCRIPTS[7..]`, after E2's `EventScript_FieldPoison` (minor 11). They go into `scripts/Common_field_move_scripts.ron`, which every extract since minor 8 already has, so `MINOR_FILES` gets no line, as with minor 10.
+- **Fly.**
+  - Party menu FLY (`SetUpFieldMove_Fly`) works outdoors only (`Overworld_MapTypeAllowsTeleportAndFly`). Indoors, it reports `Degraded("fly: can't use here")` and goes back to the slots.
+  - FLY pushes `ScreenKind::FlyMap` (`ui/fly_map.rs`, degraded). It lists the visited destinations of `GameData::fly_destination`: the `MAPSEC` towns 0 to 15, gated on `FLAG_VISITED_*`, landing on `sMapHealLocations`.
+    - The picker is one framed window with the destination's name; UP/DOWN wrap. A gives `ScreenOut::Fly(i)`: the screens close and the field warps (`FieldCallback_UseFly`). B goes back to the party menu.
+    - Not done: the region map, the cursor, `FLDEFF_USE_FLY`'s bird, Littleroot by the player's gender (Brendan's house is used), the League entrance, Southern Island and the Frontier.
+  - The table lives in `content::emerald_story`, so that `SHARED_GEN3` does not reserve the `FLAG_VISITED_*` names in Silice.
+- **Catching (degraded battle bag).**
+  - In a wild battle (not the first) with a ball in the bag, the scene's BAG throws the bag's first ball as `Choice::Ball` (`BattleScene::set_balls`/`can_throw`/`balls_thrown`). The field then takes the thrown balls out of the bag.
+  - There is no bag screen in battle; the battle side was already Gen3's (`Cmd_handleballthrow`).
+- **Explorer.**
+  - `Step::Catch { map, x, y, species }` paces the cell with `Opts::catch` until `species` joins the party. The policy throws at that species and runs from the rest, giving up after 60 battles.
+  - `Step::Fly { mon, dest, to }` and `MacroKind::Fly` drive START → POKéMON → the slot → FLY → the fly map's cursor → A, then check that the map is `to`.
+- **Spine.**
+  - Swampert's four slots are Strength, Earthquake, Rock Smash and Surf, and Castform learns no HMs. Teaching HM08 to Swampert over Earthquake lost Victory Road and Wallace.
+  - So the spine catches a Tentacool and a Wingull on Route 122 (22,33), before Lilycove's Center. Catching on Route 118 shifted the RNG into a whiteout on Route 121.
+  - HM02 goes on the Wingull (slot 3, over Growl). Since E2's field poison, the Tentacool's Poison Sting can poison the lead during the catch, so a Pecha Berry is used after the catches (otherwise the lead faints on Route 121). HM08 goes on the Tentacool after `hm_dive` (slot 2, over Poison Sting) and HM07 after `hm_waterfall` (over Constrict).
+  - The spine flies to Mauville (destination 9), Slateport (8) and Lilycove (12).
+  - The water door is real both ways: `enter` (70,5) into the pool's arrow warp, then the pool's (13,27) arrow warp back.
+  - The dives are real: Route 128 (38,27) → Underwater 128's (38,26) tunnel → the cavern pool; Route 126 (45,66) → Underwater 126 (45,65) → Sootopolis's lake (29,53); the lake's (29,54) → Underwater Sootopolis (9,8) → Route 126.
+  - Waterfall is real: `use_` Ever Grande (20,68) Up.
+  - A `sootopolis-layout` bypass, which made up for the missing layout override in the checkpoint, went away when merging schema 6.
+- **Ledger** (`cargo xtask ledger`, after merging master `70a3d50`): script commands 118 native / 14 degraded / 44 ignored / 53 unsupported, up from 118 / 14 / 43 / 54 (`setdivewarp`). Field moves 5 native / 2 degraded / 7 missing, up from 3 / 1 / 10 (Waterfall and Dive native, Fly degraded). `MB_WATER_DOOR` and `MB_WATER_SOUTH_ARROW_WARP` are native.
+- **Branches** (`explore branch --from hm_dive`): 106 branches. 58 rejoined, 41 aborted, 5 diverged, 2 stranded.
+  - All 5 divergences are in the Seafloor Cavern's Strength rooms (Room 1 at step 896, Room 2 at step 904): a branch that leaves the room, or pushes a boulder, finds the puzzle reset or blocked, and the spine's next `Use` on the boulder never reaches its cell.
+  - This is not a Dive gap. F2 saw it with the dive still bypassed. It is a rejoin problem: positions in the middle of a boulder puzzle.
+- **Checkpoints and goldens (not re-accepted):**
+  - The battle scene's hash gains the bag's balls and the thrown count. Goldens `bag_*`/`scene_*` move to `(806, 407566406512155080)` and `(1020, 12470217771155615926)`.
+  - The Emerald spine's inputs and frames move from Route 122 on (the catches).
+  - The extract's minor 12 moves every node's content hash.
+- **Checkpoints, accepted after merging `ae0551e`:** one `chore(checkpoints)` commit ran `verify --accept` on the Emerald tree (12 nodes) and the stub tree (3 nodes). Inputs, frames, parents and labels are unchanged; `badge1` stays at 104,523.
+- **Lanes** (`cargo xtask gates`, `parity`):
+  - **fmt, clippy, clippy-ui, test, test-stub, parity:** pass. Route hash 48 lines (gate 65); loop 159 lines (gate 217).
+  - **test-silice:** only the known six fail (`sil4_ch3` to `sil9_ch8`).

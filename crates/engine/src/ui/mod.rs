@@ -14,6 +14,7 @@
 
 pub mod bag;
 pub mod evolution;
+pub mod fly_map;
 pub mod kit;
 pub mod main_menu;
 pub mod mart;
@@ -66,6 +67,8 @@ pub enum ScreenKind {
     },
     MainMenu,
     Naming(NamingKind),
+    /// Fly's destination picker (Gen3 `CB2_OpenFlyMap`), from the party menu's FLY.
+    FlyMap,
 }
 
 /// The party menu's modes (Gen3 `PARTY_MENU_TYPE_*` / `PARTY_ACTION_*`).
@@ -142,6 +145,7 @@ pub enum ScreenKindTag {
     Evolution,
     MainMenu,
     Naming,
+    FlyMap,
 }
 
 impl ScreenKind {
@@ -158,6 +162,7 @@ impl ScreenKind {
             ScreenKind::Evolution { .. } => ScreenKindTag::Evolution,
             ScreenKind::MainMenu => ScreenKindTag::MainMenu,
             ScreenKind::Naming(_) => ScreenKindTag::Naming,
+            ScreenKind::FlyMap => ScreenKindTag::FlyMap,
         }
     }
 
@@ -170,7 +175,8 @@ impl ScreenKind {
             ScreenKind::StartMenu
             | ScreenKind::Options
             | ScreenKind::SaveDialog
-            | ScreenKind::MainMenu => {}
+            | ScreenKind::MainMenu
+            | ScreenKind::FlyMap => {}
             ScreenKind::Party(m) => {
                 let (tag, v) = match m {
                     PartyMode::Field => (0, 0),
@@ -249,6 +255,9 @@ pub enum ScreenOut {
     /// the bag closes, the field comes back, then the item's field callback runs; Escape Rope,
     /// and the M10 bikes, rods and Itemfinder): `item_use::use_on_field` (Task B).
     UseOnField(ItemId),
+    /// Close every screen and Fly to destination `i` ([`crate::data::GameData::fly_destination`];
+    /// Gen3 `ReturnToFieldFromFlyMapSelect` → `FieldCallback_UseFly`).
+    Fly(u8),
 }
 
 /// What a screen may touch: the game, this frame's output, and the player's state.
@@ -316,6 +325,7 @@ pub enum ScreenState {
     Evolution(evolution::EvolutionScene),
     MainMenu(main_menu::MainMenu),
     Naming(naming::NamingScreen),
+    FlyMap(fly_map::FlyMap),
 }
 
 impl ScreenState {
@@ -338,6 +348,7 @@ impl ScreenState {
             } => ScreenState::Evolution(evolution::EvolutionScene::new(slot, into, can_cancel)),
             ScreenKind::MainMenu => ScreenState::MainMenu(main_menu::MainMenu::new()),
             ScreenKind::Naming(k) => ScreenState::Naming(naming::NamingScreen::new(k)),
+            ScreenKind::FlyMap => ScreenState::FlyMap(fly_map::FlyMap::new()),
         }
     }
 
@@ -354,6 +365,7 @@ impl ScreenState {
             ScreenState::Evolution(s) => s.step(cx, input),
             ScreenState::MainMenu(s) => s.step(cx, input),
             ScreenState::Naming(s) => s.step(cx, input),
+            ScreenState::FlyMap(s) => s.step(cx, input),
         }
     }
 
@@ -371,6 +383,7 @@ impl ScreenState {
             ScreenState::Evolution(s) => s.hash(h),
             ScreenState::MainMenu(s) => s.hash(h),
             ScreenState::Naming(s) => s.hash(h),
+            ScreenState::FlyMap(s) => s.hash(h),
         }
     }
 }

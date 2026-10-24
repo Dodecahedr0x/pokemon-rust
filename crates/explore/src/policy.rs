@@ -36,6 +36,7 @@ impl Default for Policy {
 /// RUN in the 2x2 action menu (FIGHT 0, BAG 1, POKéMON 2, RUN 3).
 const RUN: u8 = 3;
 const FIGHT: u8 = 0;
+const BAG: u8 = 1;
 
 /// The key that moves a 2x2 menu cursor from `c` toward `want` (column first, then row), or A
 /// once it is there.
@@ -89,14 +90,20 @@ impl Policy {
         let k = match w.battle() {
             None => Buttons::A,
             Some((_, battle, scene)) => {
-                let run = opts.run_wild
-                    && matches!(
-                        battle.setup().kind,
-                        BattleKind::Wild {
-                            first_battle: false
-                        }
-                    );
+                let wild = matches!(
+                    battle.setup().kind,
+                    BattleKind::Wild {
+                        first_battle: false
+                    }
+                );
+                // `opts.catch`: balls at that species while there are any, else run.
+                let target =
+                    opts.catch != 0 && battle.mon(Side::Opponent).species == SpeciesId(opts.catch);
+                let throw = wild && target && scene.can_throw();
+                let run = wild && !throw && (opts.run_wild || opts.catch != 0);
                 match scene.open_menu() {
+                    Some(OpenMenu::Action(c)) if throw => toward(c, BAG),
+                    Some(OpenMenu::Move(_)) if throw => Buttons::B,
                     Some(OpenMenu::Action(c)) => toward(c, if run { RUN } else { FIGHT }),
                     // Never fight when running: back out to the action menu.
                     Some(OpenMenu::Move(_)) if run => Buttons::B,

@@ -315,6 +315,20 @@ impl Engine for Real {
                     "EventScript_RockSmash, FLDEFF_USE_ROCK_SMASH; SPECIAL_RockSmashWildEncounter \
                      unsupported",
                 ),
+                "FIELD_MOVE_WATERFALL" => Answer::new(
+                    Status::Native,
+                    "A on a waterfall: EventScript_UseWaterfall, FLDEFF_USE_WATERFALL's ride up",
+                ),
+                "FIELD_MOVE_DIVE" => Answer::new(
+                    Status::Native,
+                    "A on deep water / B underwater: EventScript_UseDive(Underwater), \
+                     FLDEFF_USE_DIVE, the dive warps (GameData::dive_warp)",
+                ),
+                "FIELD_MOVE_FLY" => Answer::new(
+                    Status::Degraded,
+                    "party menu FLY: the fly map is a one-line picker of the visited \
+                     destinations (no region map), no FLDEFF_USE_FLY animation",
+                ),
                 _ => Answer::new(
                     Status::Missing,
                     "no field use in the engine (GameData::field_move_gate only; M10)",

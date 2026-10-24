@@ -152,6 +152,7 @@ fn candidates_are_deterministic_and_applicable() {
         | MacroKind::Step { .. }
         | MacroKind::Push { .. }
         | MacroKind::UseItem { .. }
+        | MacroKind::Fly { .. }
         | MacroKind::Buy { .. } => 7,
     };
     assert!(c1.windows(2).all(|w| rank(&w[0].kind) <= rank(&w[1].kind)));
