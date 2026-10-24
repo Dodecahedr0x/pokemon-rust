@@ -1176,3 +1176,51 @@ fn hoenn_dex_and_rematches_match_decomp() {
         assert_eq!(got, want_rematches);
     }
 }
+
+/// Wave G: `battle/partners.ron` is the decomp's `sStevenMons` (`src/battle_tower.c`), on both
+/// ROMs.
+#[test]
+fn steven_partner_matches_decomp() {
+    let c = src("src/battle_tower.c");
+    let table = c.split("sStevenMons[MULTI_PARTY_SIZE] =").nth(1).unwrap();
+    let table = table.split("};").next().unwrap();
+    let field = |e: &str, k: &str| -> String {
+        let v = e.split(&format!(".{k} = ")).nth(1).unwrap();
+        v.split(",\n").next().unwrap().trim().to_string()
+    };
+    let list = |s: String| -> Vec<String> {
+        s.split(',')
+            .map(|a| {
+                a.trim_matches(|c: char| c == '{' || c == '}' || c.is_whitespace())
+                    .to_string()
+            })
+            .collect()
+    };
+    let want: Vec<(String, u8, Vec<u8>, Vec<String>)> = table
+        .split(".species = ")
+        .skip(1)
+        .map(|e| {
+            let e = format!(".species = {e}");
+            (
+                field(&e, "species"),
+                field(&e, "level").parse().unwrap(),
+                list(field(&e, "evs"))
+                    .iter()
+                    .map(|v| v.parse().unwrap())
+                    .collect(),
+                list(field(&e, "moves")),
+            )
+        })
+        .collect();
+    assert_eq!(want.len(), 3);
+    for (_, data) in [us(), fr()] {
+        let got: Vec<(String, u8, Vec<u8>, Vec<String>)> = (data.partners.steven.iter())
+            .map(|m| (m.species.clone(), m.level, m.evs.to_vec(), m.moves.clone()))
+            .collect();
+        assert_eq!(got, want);
+        assert!(data.partners.steven.iter().all(|m| m.fixed_iv == 31));
+        let natures: Vec<u8> = data.partners.steven.iter().map(|m| m.nature).collect();
+        // `NATURE_BRAVE`, `NATURE_IMPISH`, `NATURE_ADAMANT`.
+        assert_eq!(natures, [2, 8, 3]);
+    }
+}

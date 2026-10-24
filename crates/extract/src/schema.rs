@@ -56,6 +56,7 @@
 //!   battle/rematches.ron         RematchesFile (minor 6: gRematchTable)
 //!   tables/tmhm.ron              TmHmFile (minor 7: sTMHMMoves, gTMHMLearnsets)
 //!   tables/berries.ron           BerriesFile (minor 9: gBerries)
+//!   battle/partners.ron          PartnersFile (minor 13: sStevenMons)
 //! ```
 //!
 //! **Versions.** [`FORMAT_VERSION`] is the major version: an extract of another major builds the
@@ -117,7 +118,9 @@ pub const FORMAT_VERSION: u32 = 5;
 ///   (`EventScript_UseWaterfall`, `_CannotUseWaterfall`, `_UseDive`, `_UseDiveUnderwater`) in
 ///   `scripts/Common_field_move_scripts.ron`, which minor 8's extracts already have: no new
 ///   file.
-pub const FORMAT_MINOR: u32 = 12;
+/// - 13: Wave G (double battles) adds `battle/partners.ron` (`sStevenMons`, the in-game
+///   partner of the Space Center multi battle).
+pub const FORMAT_MINOR: u32 = 13;
 /// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
 /// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
 /// ones when an extract is older ([`missing_since`]). Only paths every extract has are listed:
@@ -145,6 +148,7 @@ pub const MINOR_FILES: &[(u32, &str)] = &[
     (8, "scripts/Common_surf.ron"),
     (9, "tables/berries.ron"),
     (11, "scripts/Common_field_poison.ron"),
+    (13, "battle/partners.ron"),
 ];
 
 /// The [`MINOR_FILES`] paths added after `minor` that `exists` reports missing.
@@ -639,6 +643,28 @@ pub struct Rematch {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct RematchesFile {
     pub rematches: Vec<Rematch>,
+}
+
+/// One `sStevenMons` entry (`battle_tower.c`).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct PartnerMon {
+    /// `SPECIES_*`.
+    pub species: String,
+    pub fixed_iv: u8,
+    pub level: u8,
+    /// `NATURE_*` value.
+    pub nature: u8,
+    /// HP, Atk, Def, Speed, SpAtk, SpDef.
+    pub evs: [u8; 6],
+    /// `MOVE_*` (`MOVE_NONE` for an empty slot).
+    pub moves: Vec<String>,
+}
+
+/// `battle/partners.ron` (minor 13): the in-game partner's party, `sStevenMons`
+/// (`FillPartnerParty(TRAINER_STEVEN_PARTNER)`). Empty when the ROM has no such table.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct PartnersFile {
+    pub steven: Vec<PartnerMon>,
 }
 
 /// `battle/strings.ron`: `STRINGID_*` or `gText_*` name -> decomp `.string` syntax.
