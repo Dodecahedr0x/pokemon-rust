@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/engine", "crates/content", "crates/game-native", "crates/emu", "crates/extract", "crates/studio", "crates/explore", "crates/parity", "crates/vanilla", "xtask"]
+members = ["crates/engine", "crates/sound", "crates/content", "crates/game-native", "crates/emu", "crates/extract", "crates/studio", "crates/explore", "crates/parity", "crates/vanilla", "xtask"]
 exclude = ["crates/game-gba"]
 
 [workspace.package]
@@ -10,6 +10,7 @@ publish = false
 
 [workspace.dependencies]
 engine = { path = "crates/engine" }
+sound = { path = "crates/sound" }
 content = { path = "crates/content" }
 game-native = { path = "crates/game-native" }
 emu = { path = "crates/emu" }

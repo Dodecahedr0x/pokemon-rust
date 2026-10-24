@@ -17,6 +17,7 @@
 //! from `sound/voicegroups/**.inc` by entry position. Anything else is positional
 //! (`voicegroup_017`, `sample_042`, `wave_03`, `keysplit_1`), numbered in ROM order.
 
+pub mod blob;
 pub mod track;
 
 use crate::ROM_BASE;
@@ -391,7 +392,7 @@ pub fn read(rom: &Rom) -> Result<SoundData> {
     loop {
         let last = *groups.iter().next_back().unwrap();
         hi = (last + GROUP_VOICES * TONE_SIZE).min(len - len % TONE_SIZE);
-        let in_region = |g: u32| g >= lo && g < hi && (g - lo) % TONE_SIZE == 0;
+        let in_region = |g: u32| g >= lo && g < hi && (g - lo).is_multiple_of(TONE_SIZE);
         tones = Vec::new();
         let mut at = lo;
         while at + TONE_SIZE <= hi {
@@ -469,6 +470,9 @@ pub fn read(rom: &Rom) -> Result<SoundData> {
 }
 
 /// Names transferred from the decomp's sound sources (see the module docs).
+/// A voicegroup entry: its macro and arguments.
+pub type GroupEntry = (String, Vec<String>);
+
 #[derive(Default, Debug)]
 pub struct DecompNames {
     /// `gSongTable`'s labels, by song number.
@@ -476,7 +480,7 @@ pub struct DecompNames {
     /// Song label (`mus_littleroot`) -> voicegroup label (`voicegroup_littleroot`).
     pub song_groups: BTreeMap<String, String>,
     /// Voicegroup label -> (its label offset in voices, its entries' macro and arguments).
-    pub groups: BTreeMap<String, (u32, Vec<(String, Vec<String>)>)>,
+    pub groups: BTreeMap<String, (u32, Vec<GroupEntry>)>,
     /// `gCryTable` entries' samples (`Cry_Bulbasaur`).
     pub cries: Vec<String>,
 }
@@ -602,7 +606,7 @@ fn song_label(id: usize) -> String {
 impl SoundData {
     fn tone_at(&self, at: u32) -> Option<&Tone> {
         let i = at.checked_sub(self.voices_at)? / TONE_SIZE;
-        (at >= self.voices_at && (at - self.voices_at) % TONE_SIZE == 0)
+        (at >= self.voices_at && (at - self.voices_at).is_multiple_of(TONE_SIZE))
             .then(|| self.tones.get(i as usize))
             .flatten()
     }

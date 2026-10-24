@@ -225,7 +225,8 @@ fn samples_are_the_decomp_wavs() {
                 continue;
             };
             let src = sound::wav_samples(
-                &std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display())),
+                &std::fs::read(path.as_path())
+                    .unwrap_or_else(|e| panic!("{}: {e}", path.display())),
             )
             .unwrap();
             if w.kind == 0 {

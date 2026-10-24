@@ -216,7 +216,10 @@ fn targets(raw: &Raw) -> Option<u32> {
 }
 
 /// Decodes linearly from `lo`, and every jump target seen.
-fn decode_range(b: &impl Bytes, lo: u32, start: u32) -> Result<(Vec<(u32, Raw)>, BTreeSet<u32>)> {
+/// Commands by address, and the jump targets.
+type Linear = (Vec<(u32, Raw)>, BTreeSet<u32>);
+
+fn decode_range(b: &impl Bytes, lo: u32, start: u32) -> Result<Linear> {
     let mut out = Vec::new();
     let mut want = BTreeSet::from([start]);
     let (mut at, mut rs) = (lo, 0u8);
@@ -342,7 +345,7 @@ pub fn encode(cmds: &[SongCmd], base: u32) -> Result<Vec<u8>> {
             };
             // A note's running status needs its key byte (the byte that triggers it).
             let keyless_note = matches!(c, SongCmd::N(_, None, ..));
-            if !(byte >= VOICE && byte == rs && !keyless_note && !open) {
+            if byte < VOICE || byte != rs || keyless_note || open {
                 out.push(byte);
             }
             open = match c {
