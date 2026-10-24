@@ -705,3 +705,35 @@ Bypasses `mossdeep-gym-puzzle`, `legendaries-scene`, `rayquaza-scene`, `sky-pill
 - **Ledger** (`cargo xtask ledger`, after merging master `ffdbc16`): script commands 118 native / 14 degraded / 43 ignored / 54 unsupported (the four rotating-tile commands native); specials 66 / 99 / 19 / 343 (`Script_DoRayquazaScene` ×2 and `GameClear` degraded, `SetChampionSaveWarp` ignored).
 - **Not done:** the save behind `GameClear`, the Hall of Fame screen and the credits; the vanilla oracle/driver does not read the layout override; `warpmossdeepgym` (`WarpToEntrance`) is a plain warp, not a pad warp; `SpawnCameraObject`, `ShakeCamera` and `WaitWeather` stay unsupported (the scenes' camera); the twins' double sight is one battle per trainer (no double battles).
 - **Checkpoints and goldens (not re-accepted):** schema 6 changes every checkpoint's encoding (the engine goldens are updated). World hashes move only on override maps, while `keep_templates` is set, and where a cell is `PadWarp`. From Mossdeep's gym on, the Emerald spine's steps, frames and labels move (+22 gym paths, Nate, the Sky Pillar and the E4 changes). `explore branch`: 3,000 branches, 10 divergences (3 signatures, all at step 896 after `hm_dive` on map 0x181C: `NoPath` back to the spine, outside this cluster).
+
+### Re-green after Wave E2 (as built)
+
+Merged on master `70a3d50` (Waves E2, F3 and F2). The rule now is Gen3's: field poison faints, and `EventScript_FieldPoison` whites out when the whole party has fainted.
+
+**What moved, and why.**
+- **The woods.** The fix: a Pecha Berry from Route 104's tree (24, 41), used from the bag (`Step::UseItem`) before the `woods` checkpoint. The berry pick moves the battle RNG, so in this run no Wurmple poisons the lead and the use only says it has no effect. It stays as the guard. The lead never faints from poison on the spine: no `TryFieldPoisonWhiteOut` whiteout and no whiteout at all.
+- **Act 1.** The frames move: `woods` 62,561 → 62,320, `rustboro` 63,664 → 63,423, `badge1` 104,879 → 104,523. `EMERALD_BADGE1_FRAMES` is 104,523. `spine --export --label badge1` keeps c00005–c00009; c00010–c00012 are re-exported and promoted as the same ids.
+- **Spine tuning for the new RNG:**
+  - One more Fortree round (to 50).
+  - A Center heal between the gym's trainers and Winona: goto (15, 3), out, the Center, back in.
+  - The Magma Hideout's 2F 2R Full Restore and Max Elixir, used at Maxie's side (the grunts drained Earthquake and Surf).
+  - Two-frame waits before Victory Road B1F's first boulder and the south rock: an A on the frame a walk settles is not read.
+  - The League training to 99 (at 98, Wallace's Milotic won).
+- **Frames.** `EMERALD_FRAMES` is 3,006,097. The spine reaches `hall_of_fame` at step 1,365.
+- **Merges:**
+  - Extract `FORMAT_MINOR`: F3's pokemart lists keep 10. E2's `EventScript_FieldPoison` moves to 11, with its `MINOR_FILES` line.
+  - `Behavior`: F2's `PadWarp` keeps postcard index 22. E2's `PopOutWarp` moves to 23 (pin test, hash code).
+  - `specials.ron` counts: both waves' changes.
+- **Checkpoints:** one accept covers content 5.11 and schema 6. The other Emerald nodes and the 3 stub nodes rehash.
+
+**Fixed on the way.**
+- `sil1_w0_contracts`: the shared prelude's comment named `FLAG_ENABLE_MR_STONE_POKENAV`. The flag only lives in the story module.
+- F3's `m8_j_specials` on Silice: no Steven multi, no facility var.
+- F2's tests:
+  - The codegen sample lacked the rotating tile puzzle commands.
+  - `GameClear`'s heal location on the stub.
+  - The Route 131 surfer test did not compile on Silice.
+
+**Lanes** (`cargo xtask gates`, `parity`):
+- **fmt, clippy, clippy-ui, test, test-stub, parity:** pass. Hash at most 48 lines (gate 65); loop at most 159 lines (gate 217).
+- **test-silice:** only the known six fail (`sil4_ch3` to `sil9_ch8`).
