@@ -361,11 +361,19 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 }));
                 None
             }
-            Request::BattleWild { .. } | Request::BattleTrainer { .. } if self.immediate => {
+            Request::BattleWild { .. }
+            | Request::BattleTrainer { .. }
+            | Request::BattleMulti { .. }
+                if self.immediate =>
+            {
                 s.log("battle in a map script answered Ran");
                 Some(Response::Value(BattleOutcome::Ran as u16))
             }
-            Request::BattleWild { .. } | Request::BattleTrainer { .. } if !s.can_battle() => {
+            Request::BattleWild { .. }
+            | Request::BattleTrainer { .. }
+            | Request::BattleMulti { .. }
+                if !s.can_battle() =>
+            {
                 s.log("battle without a mon that can fight answered Won");
                 Some(Response::Value(BattleOutcome::Won as u16))
             }
@@ -394,6 +402,42 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                     return Some(Response::Value(BattleOutcome::Won as u16));
                 };
                 let kind = BattleKind::Trainer { trainer, defeat };
+                s.start_battle_with(game, kind, opponents, double, Origin::Script, self.f);
+                None
+            }
+            Request::BattleMulti {
+                a,
+                a_defeat,
+                b,
+                b_defeat,
+            } => {
+                let Some(partner) = game.partner() else {
+                    s.log("multi battle without an in-game partner answered Won");
+                    return Some(Response::Value(BattleOutcome::Won as u16));
+                };
+                // Gen3 `FillPartnerParty` (`gPlayerParty[3..]`), then the opponents.
+                let own = s.party.len().min(crate::battle::MULTI_PARTY_SIZE as usize);
+                let mons = crate::trainer::create_partner_party(game.battle(), partner, &mut s.rng);
+                let Some((opponents, double)) =
+                    super::battle::trainer_party(game, &mut s.rng, a, Some((b, b_defeat)))
+                else {
+                    s.log("multi battle against an unknown or empty trainer answered Won");
+                    return Some(Response::Value(BattleOutcome::Won as u16));
+                };
+                let mut party = crate::mon::Party::default();
+                for m in s.party.iter().take(own).chain(mons.iter()) {
+                    let _ = party.push(*m);
+                }
+                s.party = party;
+                let double = double.map(|d| crate::battle::Double {
+                    partner: Some(partner.trainer),
+                    split: [own as u8, d.split[1]],
+                    ..d
+                });
+                let kind = BattleKind::Trainer {
+                    trainer: a,
+                    defeat: a_defeat,
+                };
                 s.start_battle_with(game, kind, opponents, double, Origin::Script, self.f);
                 None
             }
@@ -470,7 +514,8 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
     fn resume(&mut self, r: &Request) -> Option<Response> {
         if let Request::ChooseStarter(_)
         | Request::BattleWild { .. }
-        | Request::BattleTrainer { .. } = r
+        | Request::BattleTrainer { .. }
+        | Request::BattleMulti { .. } = r
         {
             // Set once the starter screen or the battle has handed the screen back.
             return self.s.answer.take().map(Response::Value);

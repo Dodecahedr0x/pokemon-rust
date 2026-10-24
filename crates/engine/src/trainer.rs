@@ -1,7 +1,8 @@
 //! Trainer parties, as Gen3 `CreateNPCTrainerParty` (`battle_main.c`).
 
 use crate::mon::{
-    BattleTables, Ivs, PARTY_SIZE, Party, Pokemon, TrainerData, is_shiny_ot_personality,
+    BattleTables, Ivs, PARTY_SIZE, PartnerData, Party, Pokemon, TrainerData,
+    is_shiny_ot_personality,
 };
 use crate::rng::Rng;
 
@@ -67,6 +68,46 @@ pub fn create_trainer_party_up_to(
         p.held = mon.item;
         // `take(PARTY_SIZE)` keeps the push in bounds.
         let _ = party.push(p);
+    }
+    party
+}
+
+/// Gen3 `FillPartnerParty(TRAINER_STEVEN_PARTNER)` (`battle_tower.c`), each of at most
+/// `MULTI_PARTY_SIZE` mons: `Random32()` until a personality that is not shiny with the
+/// partner's OT id and has the mon's nature; then, without `BUGFIX`, `CreateMon` with the
+/// personality `i` (the mon's index: the drawn one is lost, so the natures are not the
+/// intended ones), the fixed IVs and the preset OT id; the EVs, the moves (base PP) and the
+/// stats.
+pub fn create_partner_party(t: &BattleTables, p: &PartnerData, rng: &mut Rng) -> Party {
+    let mut party = Party::default();
+    for (i, m) in p
+        .mons
+        .iter()
+        .take(crate::battle::MULTI_PARTY_SIZE as usize)
+        .enumerate()
+    {
+        loop {
+            let j = rng.random32();
+            if !is_shiny_ot_personality(p.ot_id, j) && (j % 25) as u8 == m.nature {
+                break;
+            }
+        }
+        let mut mon = Pokemon::new(
+            t,
+            m.species,
+            m.level,
+            Ivs::Fixed(m.iv),
+            i as u32,
+            p.ot_id,
+            rng,
+        );
+        mon.evs = m.evs;
+        for (k, mv) in m.moves.into_iter().enumerate() {
+            mon.moves[k] = mv;
+            mon.pp[k] = mv.map_or(0, |mv| t.move_info(mv).pp);
+        }
+        mon.recalc_stats(t);
+        let _ = party.push(mon);
     }
     party
 }

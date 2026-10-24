@@ -754,6 +754,16 @@ impl World {
                     run.outcome = Some(outcome);
                     s.event(super::Event::BattleEnded(outcome));
                     s.party = run.battle.party(Side::Player).clone();
+                    // Wave G: the in-game partner's mons leave with it (Gen3's script loads
+                    // the saved party back over `gPlayerParty`).
+                    if run.battle.has_partner() {
+                        let mut own = Party::default();
+                        let n = run.battle.party_range(Side::Player).end as usize;
+                        for m in s.party.iter().take(n) {
+                            let _ = own.push(*m);
+                        }
+                        s.party = own;
+                    }
                     // Gen3 `HandleAction_UseItem` takes each ball out of the bag as it is used.
                     if let Some((ball, n)) = run.scene.balls_thrown() {
                         s.bag.remove(Pocket::PokeBalls, ball, n);

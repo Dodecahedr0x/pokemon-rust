@@ -357,6 +357,16 @@ pub enum Request {
         trainer: TrainerId,
         defeat: TextId,
     },
+    /// Wave G: Gen3 `DoSpecialTrainerBattle(SPECIAL_BATTLE_STEVEN)`: a multi battle
+    /// (`BATTLE_TYPE_MULTI | BATTLE_TYPE_INGAME_PARTNER | BATTLE_TYPE_TWO_OPPONENTS`) with the
+    /// game's in-game partner ([`crate::data::GameData::partner`]) beside the player's first
+    /// three mons, against trainers `a` and `b`; answers the outcome (`Value`).
+    BattleMulti {
+        a: TrainerId,
+        a_defeat: TextId,
+        b: TrainerId,
+        b_defeat: TextId,
+    },
     // ---- Milestone 9: screens (`world/host/screens.rs`, Task K) ----
     /// Gen3 `pokemart`: the shop with these items; answers `Unit` once it closes.
     Mart {
@@ -727,6 +737,12 @@ impl Request {
             Request::TrainerApproach { obj } => (54, obj as u16, 0, 0, 0),
             // Wave G doubles: tags 215 and up.
             Request::TrainerPair { trainer, defeat } => (215, trainer.0, defeat.0, 0, 0),
+            Request::BattleMulti {
+                a,
+                a_defeat,
+                b,
+                b_defeat,
+            } => (216, a.0, a_defeat.0, b.0, b_defeat.0),
             Request::CurrentMap => (55, 0, 0, 0, 0),
             // ---- Milestone 9 ----
             Request::Mart { items } => {
@@ -1299,6 +1315,23 @@ impl Ctx {
                 trainer,
                 defeat,
                 no_whiteout: false,
+            },
+            outcome,
+        )
+    }
+
+    /// [`Request::BattleMulti`]: the in-game partner's multi battle against `a` and `b`.
+    pub fn battle_multi(
+        &self,
+        (a, a_defeat): (TrainerId, TextId),
+        (b, b_defeat): (TrainerId, TextId),
+    ) -> Req<BattleOutcome> {
+        self.req(
+            Request::BattleMulti {
+                a,
+                a_defeat,
+                b,
+                b_defeat,
             },
             outcome,
         )

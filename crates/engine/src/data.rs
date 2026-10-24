@@ -1370,6 +1370,11 @@ pub trait GameData {
         let _ = id;
         None
     }
+    /// The in-game partner of the multi battle (Wave G: Steven, `FillPartnerParty`), if the
+    /// game has one.
+    fn partner(&self) -> Option<&'static crate::mon::PartnerData> {
+        None
+    }
     /// Gen3-encoded, 0xFF-terminated battle string (`gBattleStringsTable`, `gText_*`).
     fn battle_text(&self, s: battle::Str) -> &'static [u8] {
         let _ = s;
