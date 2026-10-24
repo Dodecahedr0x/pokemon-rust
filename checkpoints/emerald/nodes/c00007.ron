@@ -2,10 +2,10 @@
     meta: (
         id: 7,
         label: "spine:act1:may",
-        schema: 6,
+        schema: 7,
         build: (
-            engine: 5218105561515920808,
-            content: 9013499722245152114,
+            engine: 5402704636901204205,
+            content: 3593614023437575673,
         ),
         frame: 12226,
         map: (18),
@@ -16,8 +16,8 @@
         schema: 2,
         parent: Checkpoint(6),
         build: (
-            engine: 5218105561515920808,
-            content: 9013499722245152114,
+            engine: 5402704636901204205,
+            content: 3593614023437575673,
         ),
         start_frame: 7695,
         inputs: [

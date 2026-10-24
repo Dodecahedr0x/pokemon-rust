@@ -307,6 +307,30 @@ impl GameData for Spy {
     fn rotating_gates(&self, map: MapId) -> &'static [engine::data::RotatingGate] {
         Game.rotating_gates(map)
     }
+    fn map_weather(&self, map: MapId) -> u8 {
+        Game.map_weather(map)
+    }
+    fn weather_coords(&self, map: MapId) -> &'static [engine::data::CoordWeather] {
+        Game.weather_coords(map)
+    }
+    fn weather_look(&self, id: u8) -> Option<&'static engine::weather::Look> {
+        Game.weather_look(id)
+    }
+    fn overlay(&self, id: u8) -> Option<&'static engine::sky::Overlay> {
+        Game.overlay(id)
+    }
+    fn hidden_item_script(&self) -> Option<ScriptId> {
+        Game.hidden_item_script()
+    }
+    fn pushable_objects(&self) -> &'static [GfxId] {
+        Game.pushable_objects()
+    }
+    fn push_allowed(&self, map: MapId, local_id: u8, from: (i16, i16), to: (i16, i16)) -> bool {
+        Game.push_allowed(map, local_id, from, to)
+    }
+    fn pushed_script(&self, map: MapId) -> Option<ScriptId> {
+        Game.pushed_script(map)
+    }
 }
 
 // ---- the runner ----
@@ -381,6 +405,7 @@ impl Run {
                 }
                 Step::Enter { dir, map } => self.enter(dir, map),
                 Step::Interact(d) => self.interact(d),
+                Step::Push(d) => self.push(d),
                 Step::Walk(d) => self.step_toward(d),
                 Step::Choose(i) => self.choice = i,
                 Step::Menu(i) => self.menu.set(Some(i)),
@@ -832,6 +857,16 @@ impl Run {
         self.settle();
     }
 
+    /// A Strength push towards `d` ([`Step::Push`]): faces `d`, then one frame of `d` into the
+    /// object, settled. The player stays on its cell.
+    fn push(&mut self, d: Dir) {
+        self.face(d);
+        let p = self.pos();
+        self.step(self.w.input_map(&self.g).key_for(d));
+        self.settle();
+        assert_eq!(self.pos(), p, "a push leaves the player on its cell");
+    }
+
     /// One step toward `d` (held until the player leaves its cell or a script starts), settled.
     fn step_toward(&mut self, d: Dir) {
         self.settle();
@@ -937,6 +972,30 @@ impl Run {
     /// How many times `t` was printed (repeats in a row count once).
     pub fn times(&self, t: TextId) -> usize {
         self.g.texts.borrow().iter().filter(|x| **x == t).count()
+    }
+
+    /// Asserts that none of the engine-feature fallbacks were reported: the weathers, palettes,
+    /// tints, strobes and the sky's crack are real (`silice::sky`), and so are hidden items.
+    pub fn no_engine_fallbacks(&self) {
+        for name in [
+            "set_time_tint",
+            "set_sky_alert",
+            "clear_sky_alert",
+            "strobes",
+            "dawn_tint",
+            "weather",
+            "palette",
+            "sky_crack",
+            "set_weather",
+            "set_palette_set",
+            "set_time_of_day",
+            "hidden item",
+            "strength",
+            "battle_multi",
+            "battle_wild_double",
+        ] {
+            assert!(!self.degraded.contains(name), "{name} is still a fallback");
+        }
     }
 
     /// Asserts that `want` were printed in this order (other texts may come between).

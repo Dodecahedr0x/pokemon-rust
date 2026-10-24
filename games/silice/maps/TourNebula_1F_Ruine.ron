@@ -135,9 +135,9 @@
             x: 12,
             y: 9,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("TourNebula_1F_Ruine_EventScript_HiddenRhum"),
+            kind: HiddenItem(
+                item: "ITEM_SIL_RHUM_PIRATE",
+                flag: "FLAG_SIL_ITEM_PG_RUINE1_RHUM",
             ),
         ),
         (
@@ -153,7 +153,7 @@
     connections: [],
     scripts: (
         on_load: None,
-        on_transition: None,
+        on_transition: Some("TourNebula_1F_Ruine_OnTransition"),
         on_resume: None,
         on_return_to_field: None,
         on_dive_warp: None,

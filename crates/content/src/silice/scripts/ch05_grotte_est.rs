@@ -41,9 +41,9 @@ const OWL_JUMP: &[Step] = &[Step::Jump(Dir::Down, 0)];
 const PRAUGECT_PLUME: &[Step] = &[walk(Dir::Up), walk(Dir::Up)];
 
 /// Owlys_Grotte_Est_Sc01, the Grand Praugect: the row y 19 of the hall at `VAR_SIL_STORY` 52.
-/// The duo battle (a multi battle with Praugect as the partner) is the source's fallback: the
-/// player fights driver A, Mathieu holds B "off screen", the party is healed, then the player
-/// fights B (`_Repli`). Then Owl-Justice on the ledge, the Shaded Feather
+/// The duo battle: a multi battle, the player's first three beside Praugect
+/// (`TRAINER_SIL_PRAUGECT_OWLYS`) against drivers A and B (the source's fallback text `_Repli`
+/// is not said). Then Owl-Justice on the ledge, the Shaded Feather
 /// (`FLAG_SIL_OWLYS_PLUME`), Mathieu leaves. Sets 53.
 pub async fn Owlys_GrotteEst_Sc01(ctx: Ctx) {
     ctx.lock_all().await;
@@ -56,21 +56,11 @@ pub async fn Owlys_GrotteEst_Sc01(ctx: Ctx) {
     ctx.wait_move(LOCALID_GROTTE_EST_CONVOYEUR_A).await;
     say(&ctx, Owlys_Grotte_Est_Sc01_T3).await;
     ctx.heal_party().await;
-    // fallback: battle_multi (a multi battle with an AI partner, M11; the source's §9 fallback):
-    // two single battles, A then B, with a heal between them and Praugect's `_Repli` line.
-    fallback(&ctx, "battle_multi").await;
-    battle_trainer(
+    battle_multi(
         &ctx,
-        TRAINER_SIL_OWLYS_CONVOYEUR_A,
-        Owlys_Grotte_Est_Sc01_DefeatA,
-    )
-    .await;
-    say(&ctx, Owlys_Grotte_Est_Sc01_Repli).await;
-    ctx.heal_party().await;
-    battle_trainer(
-        &ctx,
-        TRAINER_SIL_OWLYS_CONVOYEUR_B,
-        Owlys_Grotte_Est_Sc01_DefeatB,
+        TRAINER_SIL_PRAUGECT_OWLYS,
+        (TRAINER_SIL_OWLYS_CONVOYEUR_A, Owlys_Grotte_Est_Sc01_DefeatA),
+        (TRAINER_SIL_OWLYS_CONVOYEUR_B, Owlys_Grotte_Est_Sc01_DefeatB),
     )
     .await;
     say(&ctx, Owlys_Grotte_Est_Sc01_T4).await;
@@ -165,9 +155,3 @@ pub async fn Owlys_GrotteEst_EventScript_ItemCorde(ctx: Ctx) {
     find_item(&ctx, ITEM_ESCAPE_ROPE, 1).await;
 }
 
-/// The Ultra Ball hidden in an overturned cart (37, 21).
-pub async fn Owlys_GrotteEst_EventScript_HiddenUltraBall(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of
-    // "SIL1 Task F as built"): the map has a sign here instead.
-    hidden_item(&ctx, FLAG_SIL_ITEM_OWLYS_GROTTE_HYPER_BALL, ITEM_ULTRA_BALL).await;
-}

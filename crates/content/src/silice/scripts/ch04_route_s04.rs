@@ -238,9 +238,3 @@ pub async fn RouteS04_EventScript_Corde(ctx: Ctx) {
     find_item(&ctx, ITEM_ESCAPE_ROPE, 1).await;
 }
 
-/// The Ether under M6 (50, 3).
-pub async fn RouteS04_EventScript_HiddenEther(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of SIL1
-    // Task F): a sign on the cell (`06_ch4_scripts.ron`) runs `hidden_item`.
-    hidden_item(&ctx, FLAG_SIL_ITEM_ROUTE_S04_ETHER, ITEM_ETHER).await;
-}

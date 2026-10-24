@@ -60,9 +60,9 @@ pub async fn BoisEther_OnTransition(ctx: Ctx) {
         ctx.set_flag(f, true).await;
     }
     if ctx.flag(FLAG_SIL_BOIS_ETHER_RED_SKY).await {
-        // fallback: set_sky_alert(RED) and MUS_ENCOUNTER_MAGMA (`Request::SetTint`, SIL2 Wave 0
-        // in the M9 plan; audio, M12): no tint, the map's own music.
-        fallback(&ctx, "set_sky_alert").await;
+        // set_sky_alert(RED) on every load while the alert lasts; fallback: MUS_ENCOUNTER_MAGMA
+        // (audio, M12): the map's own music.
+        set_palette(&ctx, SKY_ALERT_RED, 0, false).await;
     }
 }
 
@@ -220,10 +220,8 @@ pub async fn BoisEther_Sc06(ctx: Ctx) {
     }
     ctx.lock_all().await;
     move_wait(&ctx, PLAYER, FACE_DOWN).await;
-    // fallback: set_sky_alert(RED) (`Request::SetTint`, SIL2 Wave 0 in the M9 plan; the source's
-    // own fallback, WEATHER_DROUGHT, has no script request either): no tint; the flag is set, T1
-    // describes the sky.
-    fallback(&ctx, "set_sky_alert").await;
+    // set_sky_alert(RED): the sky turns red; the flag keeps it on the next loads.
+    set_palette(&ctx, SKY_ALERT_RED, PALETTE_FRAMES, false).await;
     ctx.set_flag(FLAG_SIL_BOIS_ETHER_RED_SKY, true).await;
     say(&ctx, Bois_Ether_Sc06_T1).await;
     show(&ctx, LOCALID_BOIS_ETHER_GOGO, FLAG_SIL_HIDE_BOIS_ETHER_GOGO).await;
@@ -316,9 +314,8 @@ pub async fn BoisEther_Sc07(ctx: Ctx) {
         GARDE_UP
     };
     move_wait(&ctx, LOCALID_BOIS_ETHER_GARDE, aside).await;
-    // fallback: clear_sky_alert() (`Request::SetTint`, as Sc06): nothing to clear on screen; the
-    // alert's flag ends (§8: cleared at 17).
-    fallback(&ctx, "clear_sky_alert").await;
+    // clear_sky_alert(): the map's own palette back; the alert's flag ends (§8: cleared at 17).
+    clear_palette(&ctx, PALETTE_FRAMES).await;
     ctx.set_flag(FLAG_SIL_BOIS_ETHER_RED_SKY, false).await;
     set_story(&ctx, 17).await;
     ctx.release_all().await;
@@ -342,22 +339,6 @@ pub async fn BoisEther_Sc08(ctx: Ctx) {
 /// The X Defend behind the Center (28, 8).
 pub async fn BoisEther_EventScript_ItemXDefend(ctx: Ctx) {
     find_item(&ctx, ITEM_X_DEFEND, 1).await;
-}
-
-/// The hidden Super Potion in the market's high-tech pot (4, 14), once
-/// (`FLAG_SIL_ITEM_BOIS_ETHER_SUPER_POTION`).
-pub async fn BoisEther_EventScript_HiddenSuperPotion(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of SIL1
-    // Task F): the map has a sign here instead, and this script gives the item with Gen3's
-    // obtain messages, once, behind the item's flag.
-    hidden_item(&ctx, FLAG_SIL_ITEM_BOIS_ETHER_SUPER_POTION, ITEM_SUPER_POTION).await;
-}
-
-/// The hidden Evoluroc under a root of the secret grove (4, 7), behind the brambles, once
-/// (`FLAG_SIL_ITEM_BOIS_ETHER_EVOLUROC`).
-pub async fn BoisEther_EventScript_HiddenEvoluroc(ctx: Ctx) {
-    // fallback: hidden items (as the Super Potion's).
-    hidden_item(&ctx, FLAG_SIL_ITEM_BOIS_ETHER_EVOLUROC, ITEM_SIL_EVOLUROC).await;
 }
 
 // ---- ambient NPCs (§2; after the alert, `VAR_SIL_STORY` ≥ 16, their second lines) ----

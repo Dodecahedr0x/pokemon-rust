@@ -681,18 +681,18 @@
             x: 20,
             y: 38,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("Nebula_EventScript_HiddenPpUp"),
+            kind: HiddenItem(
+                item: "ITEM_PP_UP",
+                flag: "FLAG_SIL_ITEM_NEBULA_CACHE_1",
             ),
         ),
         (
             x: 10,
             y: 44,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("Nebula_EventScript_HiddenRevive"),
+            kind: HiddenItem(
+                item: "ITEM_REVIVE",
+                flag: "FLAG_SIL_ITEM_NEBULA_CACHE_2",
             ),
         ),
         (

@@ -1,0 +1,5 @@
+// The weather wave: Chapter 12's destroyed sky (the "destroyed" palette and the fog from 127 to 129,
+// `ch12_breche::destroyed_sky`) on every load.
+[
+    Scripts((on_load: None, on_transition: Some("TourNebula_4F_Ruine_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+]

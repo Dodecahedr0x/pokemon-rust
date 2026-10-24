@@ -242,6 +242,7 @@ const fn field(id: u8) -> BattleRules {
         clone_player: false,
         intro: None,
         no_catch: false,
+        weather: None,
     }
 }
 
@@ -268,6 +269,7 @@ pub static INVERSE: BattleRules = BattleRules {
     clone_player: false,
     intro: Some(Gym07_Inverse_Debut),
     no_catch: false,
+    weather: None,
 };
 
 /// Ch12 `Route_S08_PG_Sc28`'s « Dominant » (§4.4, §9 `battle_wild_boss`): the boss's aura
@@ -280,6 +282,7 @@ pub static BOSS: BattleRules = BattleRules {
     clone_player: false,
     intro: None,
     no_catch: true,
+    weather: None,
 };
 
 /// Ch12 `Zone_404_PG_Sc26`'s Clone (§9 `battle_mirror`): a copy of the player's party.
@@ -291,6 +294,7 @@ pub static MIRROR: BattleRules = BattleRules {
     clone_player: true,
     intro: None,
     no_catch: false,
+    weather: None,
 };
 
 /// `GameData::trainer_rules`: the battles that always have rules, wherever they start.

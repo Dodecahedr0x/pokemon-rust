@@ -547,8 +547,9 @@ pub async fn BricoBourg_PG_Sc20(ctx: Ctx) {
         return;
     }
     ctx.lock_all().await;
-    // fallback: set_time_of_day(DUSK) (§9): no time-of-day palette.
-    fallback(&ctx, "set_time_of_day").await;
+    // set_time_of_day(DUSK): the scene at dusk, whatever the hour (the next morning's load
+    // ends it).
+    set_palette(&ctx, CREPUSCULE, PALETTE_FRAMES, false).await;
     show(&ctx, LOCALID_BRICO_MAMAN, FLAG_SIL_HIDE_BRICO_MAMAN).await;
     move_wait(&ctx, LOCALID_BRICO_MAMAN, MAMAN_OUT).await;
     say(&ctx, Brico_Bourg_PG_Sc20_T1).await;

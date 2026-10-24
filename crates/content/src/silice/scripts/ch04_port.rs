@@ -5,7 +5,7 @@
 //! chapter's end, Gwada beaten). The Taverne and the cargo are `ch04_buildings.rs`, the
 //! Zenith-Grog `ch04_gym.rs`.
 //!
-//! Also here: [`push_object`], the Champ Magnétique fallback shared with the gym's hold, and
+//! Also here: [`push_object`], the Champ Magnétique shared with every push puzzle, and
 //! the end of Samuel's lost battle (`PortRessac_EventScript_SamuelPerdu`, R-7).
 
 use crate::silice::prelude::*;
@@ -19,93 +19,46 @@ const METATILE_MER: u16 = 368;
 const CARGO_X: core::ops::RangeInclusive<i16> = 4..=11;
 const CARGO_Y: core::ops::RangeInclusive<i16> = 22..=26;
 
+// ---- the Champ Magnétique (Strength) ----
 
-// ---- the Champ Magnétique fallback (Strength) ----
+pub(crate) use crate::silice::push::Puzzle;
 
-/// One push, per direction.
-const PUSH_DOWN: &[Step] = &[walk(Dir::Down)];
-const PUSH_UP: &[Step] = &[walk(Dir::Up)];
-const PUSH_LEFT: &[Step] = &[walk(Dir::Left)];
-const PUSH_RIGHT: &[Step] = &[walk(Dir::Right)];
-
-fn push_steps(d: Dir) -> &'static [Step] {
-    match d {
-        Dir::Down => PUSH_DOWN,
-        Dir::Up => PUSH_UP,
-        Dir::Left => PUSH_LEFT,
-        Dir::Right => PUSH_RIGHT,
-    }
-}
-
-/// A pushable object: its local id, the temp var that holds its cell once pushed
-/// (`y * 64 + x + 1`; 0: its template's cell), and its template's cell. Temp vars are cleared on every map
-/// load, so the objects are back on their template cells after each load, as Emerald's Strength
-/// boulders are (§4 "les positions se réinitialisent").
-pub(super) type Pushable = (u8, VarId, (i16, i16));
-
-async fn pushed_pos(ctx: &Ctx, (_, var, home): Pushable) -> (i16, i16) {
-    match ctx.var(var).await {
-        0 => home,
-        v => {
-            let v = (v - 1) as i16;
-            (v % 64, v / 64)
-        }
-    }
-}
-
-/// The source's Champ Magnétique on a pushable object (`FLAG_SIL_MODULE_FORCE`, Ch2; Emerald's
-/// Strength): the talked-to object of `objects` moves one cell the way the player faces, when
-/// `free` says the cell beyond is floor and no other of `objects` stands there. Without the
-/// module, Ch3's `Depot_Bloc_T1`; the first push of a visit says `Depot_Bloc_T2` (`VAR_TEMP_4`).
+/// The source's Champ Magnétique on a pushable object (`FLAG_SIL_MODULE_FORCE`; Emerald's
+/// Strength, `EventScript_StrengthBoulder` with the module for the party move): without the
+/// module, Ch3's `Depot_Bloc_T1`; with it, the first time on this map load, `Depot_Bloc_T2`
+/// and Strength in use (`FLAG_SYS_USE_STRENGTH`, cleared on every map load). The player then
+/// pushes the object by walking into it, within its puzzle's rule (`silice::push`).
 ///
-/// fallback: Strength (M10's field moves): the push is an A press on the object rather than a
-/// walk into it. Reported (`strength`).
-///
-/// `pub(super)`: shared with the gym's hold, and not a script (the registry takes the `pub`
+/// `pub(super)`: shared with every puzzle, and not a script (the registry takes the `pub`
 /// async fns).
-pub(super) async fn push_object(ctx: &Ctx, objects: &[Pushable], free: fn((i16, i16)) -> bool) {
-    let obj = ctx.var(VAR_LAST_TALKED).await;
-    let Some(&me) = objects.iter().find(|p| u16::from(p.0) == obj) else {
-        return;
-    };
+pub(super) async fn push_object(ctx: &Ctx) {
     if !ctx.flag(FLAG_SIL_MODULE_FORCE).await {
         msgbox(ctx, Depot_Bloc_T1, MsgBox::Sign).await;
         return;
     }
+    if ctx.flag(FLAG_SYS_USE_STRENGTH).await {
+        return;
+    }
     ctx.lock().await;
-    if ctx.var(VAR_TEMP_4).await == 0 {
-        say(ctx, Depot_Bloc_T2).await;
-        ctx.set_var(VAR_TEMP_4, 1).await;
-    }
-    fallback(ctx, "strength").await;
-    let d = ctx.player_facing().await;
-    let (dx, dy) = d.delta();
-    let (x, y) = pushed_pos(ctx, me).await;
-    let to = (x + dx, y + dy);
-    let mut blocked = !free(to);
-    for &other in objects {
-        if other.0 != me.0 && pushed_pos(ctx, other).await == to {
-            blocked = true;
-        }
-    }
-    if !blocked {
-        play_se(ctx, "SE_M_STRENGTH").await;
-        move_wait(ctx, me.0, push_steps(d)).await;
-        ctx.set_var(me.1, (to.1 * 64 + to.0 + 1) as u16).await;
-    }
+    say(ctx, Depot_Bloc_T2).await;
+    ctx.set_flag(FLAG_SYS_USE_STRENGTH, true).await;
     ctx.release().await;
 }
 
 /// The blue container (6, 15) and the sand pocket it can move in: pushed north from (6, 16)
 /// into (6, 14), it opens the corridor west to the Water Stone (4, 15).
-const CONTAINER: &[Pushable] = &[(LOCALID_PORT_CONTAINER, VAR_TEMP_1, (6, 15))];
+pub(crate) const CONTAINER: Puzzle = Puzzle {
+    map: MAP_PORT_RESSAC,
+    objects: &[(LOCALID_PORT_CONTAINER, VAR_TEMP_1, (6, 15))],
+    free: container_free,
+};
 
-fn container_free(c: (i16, i16)) -> bool {
+fn container_free(_: (i16, i16), c: (i16, i16)) -> bool {
     matches!(c, (6, 14) | (4, 15) | (5, 15) | (6, 15) | (6, 16))
 }
 
 pub async fn PortRessac_EventScript_Container(ctx: Ctx) {
-    push_object(&ctx, CONTAINER, container_free).await;
+    push_object(&ctx).await;
 }
 
 // ---- map scripts ----
@@ -677,18 +630,6 @@ pub async fn PortRessac_EventScript_Pecheur(ctx: Ctx) {
 
 pub async fn PortRessac_EventScript_SuperBall(ctx: Ctx) {
     find_item(&ctx, ITEM_GREAT_BALL, 1).await;
-}
-
-/// The Water Stone behind the blue container (4, 15).
-pub async fn PortRessac_EventScript_HiddenPierreEau(ctx: Ctx) {
-    // fallback: hidden items (as Route S4's Ether).
-    hidden_item(&ctx, FLAG_SIL_ITEM_PORT_PIERRE_EAU, ITEM_WATER_STONE).await;
-}
-
-/// The Pearl in the sand near the old sailor (16, 17).
-pub async fn PortRessac_EventScript_HiddenPerle(ctx: Ctx) {
-    // fallback: hidden items (as Route S4's Ether).
-    hidden_item(&ctx, FLAG_SIL_ITEM_PORT_PERLE, ITEM_PEARL).await;
 }
 
 // ---- signs ----

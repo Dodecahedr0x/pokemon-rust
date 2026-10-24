@@ -23,11 +23,15 @@ pub(in crate::world) struct Stash {
     pub saved: Option<Party>,
     /// Gen3 `gSelectedOrderFromParty`: party slots + 1 in the chosen order, 0 past the last.
     pub order: [u8; MAX_ORDER],
+    /// The player's mons past the first [`crate::battle::MULTI_PARTY_SIZE`] while an in-game
+    /// partner's take their slots (a game's partner battle on a full party; Emerald's script
+    /// reduces the party first, so its bench stays empty): they come back after the battle.
+    pub bench: Party,
 }
 
 impl Stash {
     pub fn is_empty(&self) -> bool {
-        self.saved.is_none() && self.order == [0; MAX_ORDER]
+        self.saved.is_none() && self.order == [0; MAX_ORDER] && self.bench.is_empty()
     }
 
     /// Feeds the stash into `h` when it holds anything.
@@ -43,6 +47,11 @@ impl Stash {
                 h.write(&[1]);
                 p.hash(h);
             }
+        }
+        // Only when set: Emerald's stash hashes as before.
+        if !self.bench.is_empty() {
+            h.write(&[0xB9]);
+            self.bench.hash(h);
         }
     }
 

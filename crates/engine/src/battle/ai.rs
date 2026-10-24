@@ -62,10 +62,11 @@ pub const AI_SCRIPT_DOUBLE_BATTLE: u32 = 1 << 7;
 pub fn choose(battle: &Battle, t: &BattleTables, rng: &mut Rng, side: Side) -> Choice {
     let flags = if battle.is_first_battle() {
         AI_SCRIPT_FIRST_BATTLE
-    } else if battle.is_trainer() {
+    } else if battle.is_trainer() || (side == Side::PlayerRight && battle.has_partner()) {
+        // A wild double's in-game partner: its own trainer's flags (`trainer_ai`).
         battle.trainer_ai
     } else {
-        return wild(battle, rng, side);
+        return wild(battle, t, rng, side);
     };
     if !battle.is_double() {
         let mut ai = Ai::setup(battle, t, rng, side, side.other());
@@ -127,17 +128,35 @@ fn doubles(battle: &Battle, t: &BattleTables, rng: &mut Rng, side: Side, flags: 
 }
 
 /// `OpponentHandleChooseMove` outside the AI branch; a slot without PP is refused by
-/// `TrySetCantSelectMoveBattleScript` and chosen again.
-fn wild(battle: &Battle, rng: &mut Rng, side: Side) -> Choice {
+/// `TrySetCantSelectMoveBattleScript` and chosen again. In a double (a game's wild double),
+/// a move that does not target its user aims at `GetBattlerAtPosition(Random() & 2)`: either
+/// player battler.
+fn wild(battle: &Battle, t: &BattleTables, rng: &mut Rng, side: Side) -> Choice {
     let m = battle.mon(side);
     if (0..4).all(|i| m.moves[i].is_none() || m.pp[i] == 0) {
         return Choice::Move(0);
     }
     loop {
         let slot = (rng.random() & 3) as usize;
-        if m.moves[slot].is_some() && m.pp[slot] > 0 {
+        let Some(mv) = m.moves[slot].filter(|_| m.pp[slot] > 0) else {
+            continue;
+        };
+        let user = matches!(
+            t.move_info(mv).target,
+            crate::mon::MoveTarget::User | crate::mon::MoveTarget::UserOrSelected
+        );
+        if !battle.is_double() || user {
             return Choice::Move(slot as u8);
         }
+        let target = if rng.random() & 2 == 0 {
+            Side::Player
+        } else {
+            Side::PlayerRight
+        };
+        return Choice::MoveAt {
+            slot: slot as u8,
+            target,
+        };
     }
 }
 

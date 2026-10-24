@@ -786,3 +786,64 @@ fn the_hydro_propulseur_asks_then_surfs() {
         assert_eq!(h.log.last(), Some(&Request::ReleaseAll));
     }
 }
+
+#[test]
+fn the_champ_magnetique_pushes_within_each_puzzles_rule() {
+    use crate::silice::push;
+    // Gen3's boulder graphics and Strength's flag.
+    assert_eq!(
+        Game.pushable_boulder(),
+        Some((
+            engine::data::GfxId(OBJ_EVENT_GFX_PUSHABLE_BOULDER),
+            FLAG_SYS_USE_STRENGTH
+        ))
+    );
+    // The depot: up the south corridor yes, down into it no (the softlock rule).
+    let a1 = LOCALID_DEPOT_BLOC_A1;
+    assert!(Game.push_allowed(MAP_ROUTE_S03_DEPOT, a1, (7, 11), (7, 10)));
+    assert!(!Game.push_allowed(MAP_ROUTE_S03_DEPOT, a1, (7, 9), (7, 10)));
+    assert!(
+        !Game.push_allowed(MAP_ROUTE_S03_DEPOT, a1, (7, 6), (6, 5)),
+        "a wall"
+    );
+    // The Tour du Scribe's bookcases: into their niches only.
+    let r1 = LOCALID_TOUR_RAYONNAGE_1;
+    assert!(Game.push_allowed(MAP_EVALON_TOUR_SCRIBE, r1, (5, 7), (4, 7)));
+    assert!(!Game.push_allowed(MAP_EVALON_TOUR_SCRIBE, r1, (5, 7), (6, 7)));
+    // Off the puzzles: Gen3's rule alone, and no bookkeeping script.
+    assert!(Game.push_allowed(MAP_PORT_RESSAC, 99, (0, 0), (0, 1)));
+    assert_eq!(Game.pushed_script(MAP_PORT_RESSAC_TAVERNE), None);
+    assert_eq!(
+        Game.pushed_script(MAP_ROUTE_S03_DEPOT),
+        Some(crate::data::script_ids::Mallette_Pushed)
+    );
+    // Every puzzle object stands on its map, at its home, with the boulder's graphics.
+    for p in push::PUZZLES {
+        for &(id, _, home) in p.objects {
+            let o = Game.map(p.map).objects.iter().find(|o| o.local_id == id);
+            let o = o.unwrap_or_else(|| panic!("{:?} {id}", p.map));
+            assert_eq!(
+                o.gfx,
+                engine::data::Gfx::Fixed(engine::data::GfxId(OBJ_EVENT_GFX_PUSHABLE_BOULDER))
+            );
+            assert_eq!((o.x, o.y), home, "{:?} {id}", p.map);
+        }
+    }
+}
+
+#[test]
+fn a_press_on_a_pushable_object_puts_strength_in_use_with_the_module() {
+    for module in [false, true] {
+        let mut h = Host::new();
+        h.flags.insert(FLAG_SIL_MODULE_FORCE.0, module);
+        run(&mut h, |ctx| {
+            Box::pin(crate::scripts::ch04_port::PortRessac_EventScript_Container(
+                ctx,
+            ))
+        });
+        assert_eq!(
+            h.count(|r| *r == Request::SetFlag(FLAG_SYS_USE_STRENGTH, true)),
+            usize::from(module)
+        );
+    }
+}

@@ -683,18 +683,18 @@
             x: 4,
             y: 15,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("PortRessac_EventScript_HiddenPierreEau"),
+            kind: HiddenItem(
+                item: "ITEM_WATER_STONE",
+                flag: "FLAG_SIL_ITEM_PORT_PIERRE_EAU",
             ),
         ),
         (
             x: 16,
             y: 17,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("PortRessac_EventScript_HiddenPerle"),
+            kind: HiddenItem(
+                item: "ITEM_PEARL",
+                flag: "FLAG_SIL_ITEM_PORT_PERLE",
             ),
         ),
     ],

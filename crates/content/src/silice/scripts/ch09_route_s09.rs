@@ -9,7 +9,7 @@
 //! field_move_gate`, `scripts/mallette.rs`). P2 dives through the map's Dive connection into the
 //! conduit (`RouteS09_Underwater`), whose south exit is a south arrow warp onto Nébula's quai.
 
-use super::ch04_port::{Pushable, push_object};
+use super::ch04_port::{Puzzle, push_object};
 use crate::silice::prelude::*;
 
 /// The maps whose scripts this file owns: strict (every script they name must exist).
@@ -43,16 +43,20 @@ pub async fn RouteS09_EventScript_Cables(ctx: Ctx) {
 /// The two containers in the gap (4–5, 35) above the nook (2–6, 36–41) that hides the Max
 /// Repel: Chapter 4's push (`ch04_port::push_object`, `FLAG_SIL_MODULE_FORCE`). Their cells are
 /// temp vars, so they are home again on every load.
-const CONTENEURS: &[Pushable] = &[
+pub(crate) const CONTENEURS: Puzzle = Puzzle {
+    map: MAP_ROUTE_S09,
+    objects: &[
     (LOCALID_ROUTE_S09_CONTENEUR_1, VAR_TEMP_1, (4, 35)),
     (LOCALID_ROUTE_S09_CONTENEUR_2, VAR_TEMP_2, (5, 35)),
-];
+],
+    free: conteneur_free,
+};
 
 /// Where a container may be pushed: any walkable cell of the berge (x 2–13, y 21–41), the gap
 /// and the nook included. Softlock review: with the berge open, two containers can never seal
 /// the player in the nook (a container in a nook exit can always be pushed up through the gap
 /// or aside), which a nook-only rule allowed (both at (4–5, 36)).
-fn conteneur_free((x, y): (i16, i16)) -> bool {
+fn conteneur_free(_: (i16, i16), (x, y): (i16, i16)) -> bool {
     let solid = matches!(
         (x, y),
         (2 | 3 | 6 | 7, 35) | (7, 36..=41) | (10, 34) | (6, 24)
@@ -61,7 +65,7 @@ fn conteneur_free((x, y): (i16, i16)) -> bool {
 }
 
 pub async fn RouteS09_EventScript_Conteneur(ctx: Ctx) {
-    push_object(&ctx, CONTENEURS, conteneur_free).await;
+    push_object(&ctx).await;
 }
 
 // ---- Route S9: map scripts and scenes ----
@@ -222,26 +226,23 @@ pub async fn RouteS09_EventScript_ItemConteneurs(ctx: Ctx) {
     find_item(&ctx, ITEM_MAX_REPEL, 1).await;
 }
 
-/// The Full Restore at the last tree's foot (13, 5).
-pub async fn RouteS09_EventScript_HiddenFullRestore(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of
-    // "SIL1 Task F as built"): the map has a sign here instead (`06_ch9_scripts.ron`).
-    hidden_item(&ctx, FLAG_SIL_ITEM_S09_CACHE_1, ITEM_FULL_RESTORE).await;
-}
-
 // ---- the Station de Pompage ----
 
 /// The breaker's cabinet (2, 2), in the glass office: Chapter 4's push, along the office's back
 /// row (y 2, x 1–8) only, so it can never close the office door (4, 6). Pushed east from (1, 2),
 /// it uncovers the breaker (2, 1), read from (2, 2).
-const ARMOIRE: &[Pushable] = &[(LOCALID_S09_STATION_ARMOIRE, VAR_TEMP_1, (2, 2))];
+pub(crate) const ARMOIRE: Puzzle = Puzzle {
+    map: MAP_ROUTE_S09_STATION,
+    objects: &[(LOCALID_S09_STATION_ARMOIRE, VAR_TEMP_1, (2, 2))],
+    free: armoire_free,
+};
 
-fn armoire_free((x, y): (i16, i16)) -> bool {
+fn armoire_free(_: (i16, i16), (x, y): (i16, i16)) -> bool {
     y == 2 && (1..=8).contains(&x)
 }
 
 pub async fn RouteS09_Station_EventScript_Armoire(ctx: Ctx) {
-    push_object(&ctx, ARMOIRE, armoire_free).await;
+    push_object(&ctx).await;
 }
 
 /// The breaker B behind the cabinet: `Route_S09_Sc03_T5` and `FLAG_SIL_S09_DISJONCTEUR`, once.
@@ -421,20 +422,3 @@ pub async fn RouteS09_Underwater_EventScript_ItemMaxRevive(ctx: Ctx) {
     find_item(&ctx, ITEM_MAX_REVIVE, 1).await;
 }
 
-/// The Salle des Filtres' sand (32, 71).
-pub async fn RouteS09_Underwater_EventScript_HiddenBigPearl(ctx: Ctx) {
-    // fallback: hidden items, as `RouteS09_EventScript_HiddenFullRestore`.
-    hidden_item(&ctx, FLAG_SIL_ITEM_S09_UW_1, ITEM_BIG_PEARL).await;
-}
-
-/// The P1 grotto (19, 10).
-pub async fn RouteS09_Underwater_EventScript_HiddenStarPiece(ctx: Ctx) {
-    // fallback: hidden items, as `RouteS09_EventScript_HiddenFullRestore`.
-    hidden_item(&ctx, FLAG_SIL_ITEM_S09_UW_2, ITEM_STAR_PIECE).await;
-}
-
-/// The P1 grotto (26, 15).
-pub async fn RouteS09_Underwater_EventScript_HiddenHeartScale(ctx: Ctx) {
-    // fallback: hidden items, as `RouteS09_EventScript_HiddenFullRestore`.
-    hidden_item(&ctx, FLAG_SIL_ITEM_S09_UW_3, ITEM_HEART_SCALE).await;
-}

@@ -270,7 +270,6 @@ pub async fn GrisEchec_EventScript_SbireToit(ctx: Ctx) {
     }
 }
 
-
 // ---- the townsfolk (the embargo) ----
 
 /// A townsperson: white noise until the jammer that gives them their voice back is cut (§2:
@@ -343,13 +342,6 @@ pub async fn GrisEchec_EventScript_SignTour(ctx: Ctx) {
 
 pub async fn GrisEchec_EventScript_SignUsine(ctx: Ctx) {
     msgbox(&ctx, Gris_Echec_Sign_Usine, MsgBox::Sign).await;
-}
-
-/// The Iron hidden behind the Centre (6, 4), once (`FLAG_SIL_ITEM_GRIS_ECHEC_IRON`).
-pub async fn GrisEchec_EventScript_HiddenIron(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of
-    // "SIL1 Task F as built"): the map has a sign here instead.
-    hidden_item(&ctx, FLAG_SIL_ITEM_GRIS_ECHEC_IRON, ITEM_IRON).await;
 }
 
 // ---- the Centre ----

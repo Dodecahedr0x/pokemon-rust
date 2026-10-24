@@ -77,6 +77,8 @@ pub struct ScreenFx {
     /// Text on a black screen (Silice `show_text_on_black`): only the text window shows.
     pub text_on_black: bool,
     pub pan: Option<Pan>,
+    /// The game's overlay over the field (`Request::ShowOverlay`, drawn by `crate::sky`).
+    pub overlay: Option<crate::sky::OverlayRun>,
     /// The field BGs were switched off by [`ScreenFx::text_on_black`] and must be switched
     /// back on (a display detail, not hashed).
     layers_off: bool,
@@ -90,6 +92,7 @@ impl ScreenFx {
             || self.tint.is_some()
             || self.text_on_black
             || self.pan.is_some()
+            || self.overlay.is_some()
     }
 
     /// Feeds the effects into `h`, only while one is active.
@@ -134,6 +137,9 @@ impl ScreenFx {
             for v in [p.x, p.y, p.tx, p.ty] {
                 h.write_u16(v as u16);
             }
+        }
+        if let Some(o) = self.overlay {
+            o.hash(h);
         }
     }
 }
@@ -272,6 +278,13 @@ pub fn apply(fx: &mut ScreenFx, f: &mut Frame) {
             });
         }
         fx.layers_off = false;
+    }
+    // The overlay was drawn by `crate::sky::apply`; it advances here.
+    if let Some(o) = &mut fx.overlay {
+        o.t += 1;
+        if o.done() {
+            fx.overlay = None;
+        }
     }
     if let Some(fl) = &mut fx.flash {
         f.brightness = BRIGHTNESS_BLACK;

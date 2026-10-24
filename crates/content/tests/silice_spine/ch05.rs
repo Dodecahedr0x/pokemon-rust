@@ -5,7 +5,7 @@
 //!   alley grunt and Milo (Sc03, TM46);
 //! - the silo (optional, played): the guard, the three grunts, the three Umbreon junctions
 //!   (Sc01), the Silo Chief and the sacks emptied (Sc02), the five hidden items;
-//! - the East Cave: the Grand Praugect's duo battle (two single battles, the multi-battle
+//! - the East Cave: the Grand Praugect's duo battle (a multi battle beside him, not the
 //!   fallback), Owl-Justice and the Shaded Feather (Sc01, story 53), Lilith, the Moon Stone, the
 //!   cart's Ultra Ball;
 //! - the gym: the door (Sc04, shut before the cave, open after), the blue and black lecterns,
@@ -264,6 +264,37 @@ const B1F_HEAL: &[Step] = &[
 /// 46 loses, 50 runs past the frame limit.
 const CHEF_LEVEL: u8 = 48;
 
+/// The lead's level before Skycker, after [`Step::Train`] on the East Cave's hall floor: the
+/// cave's multi battle beside Praugect shares its exp between the player's two battlers (the
+/// fallback's two single battles gave it all to the lead). Measured: 50 (no training) loses.
+const SKYCKER_LEVEL: u8 = 51;
+
+/// From the East Cave's hall to the Centre and back.
+const GROTTE_HEAL: &[Step] = &[
+    goto_avoiding(GROTTE, 6, 21, LILITH_SIGHT),
+    Step::Enter {
+        dir: Dir::Down,
+        map: TOWN,
+    },
+    goto(TOWN, 15, 30),
+    Step::Enter {
+        dir: Dir::Up,
+        map: CENTER,
+    },
+    goto(CENTER, 6, 4),
+    Step::Interact(Dir::Up),
+    goto(CENTER, 6, 6),
+    Step::Enter {
+        dir: Dir::Down,
+        map: TOWN,
+    },
+    goto_avoiding(TOWN, 54, 29, TOWN_AVOID),
+    Step::Enter {
+        dir: Dir::Up,
+        map: GROTTE,
+    },
+];
+
 /// Lilith's sight in the East Cave (25, 13) left, 4 cells: off the hall's path.
 const LILITH_SIGHT: &[(i16, i16)] = &[(21, 13), (22, 13), (23, 13), (24, 13)];
 
@@ -501,20 +532,25 @@ pub fn steps() -> Vec<Step> {
             assert_eq!(r.w.var(VAR_SIL_STORY), 53);
             assert!(r.beaten(TRAINER_SIL_OWLYS_CONVOYEUR_A));
             assert!(r.beaten(TRAINER_SIL_OWLYS_CONVOYEUR_B));
+            // The multi battle beside Praugect, not the fallback's two battles.
+            assert!(!r.has_text(Owlys_Grotte_Est_Sc01_Repli));
             assert!(r.w.flag(FLAG_SIL_OWLYS_PLUME));
             assert!(r.count(ITEM_SIL_PLUME_OMBREE) >= 1);
             assert!(r.w.flag(FLAG_SIL_HIDE_OWLYS_GROTTE_EST_MATHIEU));
             r.printed_in_order(&[
                 Owlys_Grotte_Est_Sc01_T1,
                 Owlys_Grotte_Est_Sc01_T3,
-                Owlys_Grotte_Est_Sc01_DefeatA,
-                Owlys_Grotte_Est_Sc01_Repli,
-                Owlys_Grotte_Est_Sc01_DefeatB,
                 Owlys_Grotte_Est_Sc01_T4,
                 Owlys_Grotte_Est_Sc01_T8,
                 Owlys_Grotte_Est_Sc01_T10,
             ]);
         }),
+        Step::Train {
+            a: (6, 19),
+            b: (7, 19),
+            level: SKYCKER_LEVEL,
+            heal: GROTTE_HEAL,
+        },
         // Lilith by sight, the Moon Stone above her cell, the cart's Ultra Ball.
         goto(GROTTE, 21, 13),
         Step::Interact(Up),
@@ -645,6 +681,7 @@ pub fn steps() -> Vec<Step> {
 /// the bag, no dropped event, and every Chapter 5 fallback the main path meets reported (the
 /// mart's is the islet's: [`ilot_steps`]).
 pub fn check_end(r: &Run) {
+    r.no_engine_fallbacks();
     assert_eq!(r.w.map(), ROUTE_S06);
     // Chapter 5 leaves the story at 55 as the player comes up the elevator; Route S6's
     // on-frame entry (Chapter 6's `RouteS06_Sc01`, the signal moves) plays on arrival and sets 60.
@@ -668,13 +705,8 @@ pub fn check_end(r: &Run) {
         assert!(r.count(item) >= n, "item {item}");
     }
     assert_eq!(r.w.events_dropped(), 0);
-    for name in [
-        "battle_multi",
-        "play_fanfare",
-        "show_sync",
-        "moving light",
-        "hidden item",
-    ] {
+    for name in ["play_fanfare", "show_sync", "moving light"] {
         assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);
     }
+    assert!(!r.degraded.contains("battle_multi"));
 }

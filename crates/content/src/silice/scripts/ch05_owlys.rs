@@ -304,13 +304,6 @@ pub async fn Owlys_EventScript_ItemCorde(ctx: Ctx) {
     find_item(&ctx, ITEM_ESCAPE_ROPE, 1).await;
 }
 
-/// The Black Glasses hidden behind the gargoyle (34, 25).
-pub async fn Owlys_EventScript_HiddenBlackGlasses(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of
-    // "SIL1 Task F as built"): the map has a sign here instead.
-    hidden_item(&ctx, FLAG_SIL_ITEM_OWLYS_LUNETTES_NOIRES, ITEM_BLACK_GLASSES).await;
-}
-
 // ---- the Centre ----
 
 /// The Centre is Owlys's heal point and the Sustentation destination

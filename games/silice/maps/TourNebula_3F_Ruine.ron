@@ -99,7 +99,7 @@
     connections: [],
     scripts: (
         on_load: None,
-        on_transition: None,
+        on_transition: Some("TourNebula_3F_Ruine_OnTransition"),
         on_resume: None,
         on_return_to_field: None,
         on_dive_warp: None,

@@ -97,7 +97,6 @@ pub async fn RouteS01_EventScript_Yanis(ctx: Ctx) {
     }
 }
 
-
 // ---- items (§7) ----
 
 /// The Poké Ball near the camper (14, 6).
@@ -108,14 +107,6 @@ pub async fn RouteS01_EventScript_ItemPokeBall(ctx: Ctx) {
 /// The Potion (14, 22).
 pub async fn RouteS01_EventScript_ItemPotion(ctx: Ctx) {
     find_item(&ctx, ITEM_POTION, 1).await;
-}
-
-/// The hidden Antidote at the foot of a root (4, 22), once (`FLAG_SIL_ITEM_ROUTE_S01_ANTIDOTE`).
-pub async fn RouteS01_EventScript_HiddenAntidote(ctx: Ctx) {
-    // fallback: hidden items (the engine has ignored `BgKind::HiddenItem` since M3, and no
-    // milestone owns it yet): the map has a sign here instead, and this script gives the item
-    // with Gen3's obtain messages, once, behind the item's flag.
-    hidden_item(&ctx, FLAG_SIL_ITEM_ROUTE_S01_ANTIDOTE, ITEM_ANTIDOTE).await;
 }
 
 // ---- ambient NPCs ----

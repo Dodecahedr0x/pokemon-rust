@@ -290,9 +290,9 @@
             x: 4,
             y: 22,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("RouteS01_EventScript_HiddenAntidote"),
+            kind: HiddenItem(
+                item: "ITEM_ANTIDOTE",
+                flag: "FLAG_SIL_ITEM_ROUTE_S01_ANTIDOTE",
             ),
         ),
         (

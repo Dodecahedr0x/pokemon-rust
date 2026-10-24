@@ -200,11 +200,6 @@ pub async fn TourNebula_3F_EventScript_Ecrans(ctx: Ctx) {
     msgbox(&ctx, Tour_3F_Sign_Ecrans, MsgBox::Sign).await;
 }
 
-/// The hidden Full Restore (22, 13): a sign while the engine ignores hidden items.
-pub async fn TourNebula_3F_EventScript_HiddenFullRestore(ctx: Ctx) {
-    hidden_item(&ctx, FLAG_SIL_ITEM_TOUR_3F_FULL_RESTORE, ITEM_FULL_RESTORE).await;
-}
-
 /// The elevator door the player came in by (11, 16), closed: no text in the source.
 pub async fn TourNebula_3F_EventScript_PorteVerrouillee(_ctx: Ctx) {
     // fallback: no text in the source for the locked elevator door.

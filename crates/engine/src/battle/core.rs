@@ -717,7 +717,11 @@ impl Battle {
                     .map_or(0, |t| t.ai);
                 game.trainer(trainer).map_or(0, |t| t.ai) | b
             }
-            BattleKind::Wild { .. } => 0,
+            // A wild double's in-game partner: its trainer's flags (0 without one).
+            BattleKind::Wild { .. } => double
+                .and_then(|d| d.partner)
+                .and_then(|t| game.trainer(t))
+                .map_or(0, |t| t.ai),
         };
         let prize = match setup.kind {
             BattleKind::Trainer { trainer, .. } => match double.and_then(|d| d.second) {
@@ -969,22 +973,34 @@ impl Battle {
     fn double_intro(&mut self, env: &mut Env) {
         let (p, o) = (Side::Player, Side::Opponent);
         let present = |b: &Battle, s: Side| b.is_present(s);
-        env.out.push(BattleEvent::TrainerAppear);
-        env.out
-            .push(BattleEvent::Msg(msg(Str::IntroTrainer, p, o, o)));
         let two = self.setup.double.is_some_and(|d| d.second.is_some());
         let partner = self.has_partner();
-        if two || partner {
+        let wild = !self.is_trainer();
+        if wild {
+            // A wild double (`battle_wild_double`, a game's own: Emerald has none): both wild
+            // mons slide in together, then Gen3's `sText_TwoWildPkmnAppeared` (not extracted:
+            // the one-mon line, degraded), then the player's two.
+            env.out.push(BattleEvent::WildAppear);
             env.out.push(BattleEvent::Report(BattleReport::Degraded(
                 "double battle intro text",
             )));
+            env.out.push(BattleEvent::Msg(msg(Str::Intro1, p, o, o)));
+        } else {
+            env.out.push(BattleEvent::TrainerAppear);
+            env.out
+                .push(BattleEvent::Msg(msg(Str::IntroTrainer, p, o, o)));
+            if two || partner {
+                env.out.push(BattleEvent::Report(BattleReport::Degraded(
+                    "double battle intro text",
+                )));
+            }
         }
         if two {
             self.send_out_events(env, o, true);
             if present(self, Side::OpponentRight) {
                 self.send_out_events(env, Side::OpponentRight, false);
             }
-        } else {
+        } else if !wild {
             let buffs = [Buff::None; 3];
             env.out.push(BattleEvent::Msg(Msg {
                 buffs,
@@ -1384,6 +1400,8 @@ impl Battle {
                 // first, Gen6; the weather abilities), then Intimidate and Trace.
                 let order = self.strike_order(env, true);
                 let order: Vec<Side> = order.into_iter().filter(|&s| !self.is_absent(s)).collect();
+                // `ABILITYEFFECT_SWITCH_IN_WEATHER`: the field's weather first.
+                super::effects::overworld_weather(self, env);
                 for &side in &order {
                     self.primal_reversion(env, side);
                     super::effects::on_switch_in(self, env, side);
@@ -1705,7 +1723,11 @@ impl Battle {
             }
             // Refused in trainer battles for now. E2: Gen3 throws the ball anyway and plays
             // BattleScript_TrainerBallBlock ("The TRAINER blocked the BALL!"), using the turn.
-            Choice::Ball if self.is_trainer() || self.setup.rules.no_catch => None,
+            // A wild double refuses it too (a deviation: Emerald has no wild doubles, and its
+            // `handleballthrow` aims at the left wild mon only).
+            Choice::Ball if self.is_trainer() || self.setup.rules.no_catch || self.is_double() => {
+                None
+            }
             Choice::Ball => Some(Action::Ball),
             Choice::Item { item, party } => items::choose(self, env, item, party),
             Choice::Switch(_) | Choice::LearnMove { .. } | Choice::Cancel => None,

@@ -251,7 +251,9 @@ pub const LEVEL_GYM: u8 = 46;
 /// Wave and the TYPHLOSION's Fire moves are resisted) and the petals heal the SCYTHER and the
 /// NINJASK. Measured again (KADABRA/TYPHLOSION): 60/64 wins, and so do 60/63 and 61/64; 59/62
 /// (the Gen3 tuning), 59/63, 59/64, 61/63, 60/65, 61/65 and 62/65 lose to the Mega CHARIZARD.
-pub const LEVEL_TAK: u8 = 60;
+/// With the Route S6 multi battle beside Adrien (one battle instead of two), 60/64 loses and
+/// 61/64 wins.
+pub const LEVEL_TAK: u8 = 61;
 /// The TYPHLOSION's level before Tak (see [`LEVEL_TAK`]).
 pub const LEVEL_TAK_SECOND: u8 = 64;
 
@@ -287,7 +289,6 @@ pub fn steps() -> Vec<Step> {
                 r.printed_in_order(&[
                     Route_S06_Sc02_T1,
                     Route_S06_Sc02_T5,
-                    Route_S06_Sc02_T5b,
                     Route_S06_Sc02_T6,
                     Route_S06_Sc02_T9,
                 ]);
@@ -532,6 +533,7 @@ pub fn steps() -> Vec<Step> {
 /// What the end of Chapter 6 asserts beyond its checkpoints.
 pub fn check_end(r: &Run) {
     assert_eq!(r.w.events_dropped(), 0);
+    r.no_engine_fallbacks();
     for f in FALLBACKS {
         assert!(r.degraded.contains(f), "fallback {f} not reported");
     }
@@ -541,8 +543,6 @@ pub fn check_end(r: &Run) {
 /// The fallbacks the chapter's path reports.
 const FALLBACKS: &[&str] = &[
     "play_music",
-    "battle_multi",
-    "dawn_tint",
     "show_book",
     "play_se",
     "multichoice",

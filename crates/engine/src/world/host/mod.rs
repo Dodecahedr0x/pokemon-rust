@@ -385,6 +385,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             Request::BattleWild { .. }
             | Request::BattleTrainer { .. }
             | Request::BattleMulti { .. }
+            | Request::BattleWildDouble { .. }
                 if self.immediate =>
             {
                 s.log("battle in a map script answered Ran");
@@ -393,6 +394,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             Request::BattleWild { .. }
             | Request::BattleTrainer { .. }
             | Request::BattleMulti { .. }
+            | Request::BattleWildDouble { .. }
                 if !s.can_battle() =>
             {
                 s.log("battle without a mon that can fight answered Won");
@@ -443,28 +445,24 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 a_defeat,
                 b,
                 b_defeat,
+                partner,
             } => {
-                let Some(partner) = game.partner() else {
+                // Gen3 `FillPartnerParty` (`gPlayerParty[3..]`), then the opponents.
+                let Some((partner, mons)) = super::battle::partner_party(game, &mut s.rng, partner)
+                else {
                     s.log("multi battle without an in-game partner answered Won");
                     return Some(Response::Value(BattleOutcome::Won as u16));
                 };
-                // Gen3 `FillPartnerParty` (`gPlayerParty[3..]`), then the opponents.
-                let own = s.party.len().min(crate::battle::MULTI_PARTY_SIZE as usize);
-                let mons = crate::trainer::create_partner_party(game.battle(), partner, &mut s.rng);
                 let Some((opponents, double)) =
                     super::battle::trainer_party(game, &mut s.rng, a, Some((b, b_defeat)))
                 else {
                     s.log("multi battle against an unknown or empty trainer answered Won");
                     return Some(Response::Value(BattleOutcome::Won as u16));
                 };
-                let mut party = crate::mon::Party::default();
-                for m in s.party.iter().take(own).chain(mons.iter()) {
-                    let _ = party.push(*m);
-                }
-                s.party = party;
+                let own = s.join_partner(&mons);
                 let double = double.map(|d| crate::battle::Double {
-                    partner: Some(partner.trainer),
-                    split: [own as u8, d.split[1]],
+                    partner: Some(partner),
+                    split: [own, d.split[1]],
                     ..d
                 });
                 let kind = BattleKind::Trainer {
@@ -477,6 +475,44 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                     opponents,
                     double,
                     Default::default(),
+                    Origin::Script,
+                    self.f,
+                );
+                None
+            }
+            Request::BattleWildDouble {
+                mons: wild,
+                partner,
+                rules,
+            } => {
+                // The player's first two mons, or the first three beside the partner's.
+                let mut double = crate::battle::Double::default();
+                if partner.is_some() {
+                    let Some((partner, mons)) =
+                        super::battle::partner_party(game, &mut s.rng, partner)
+                    else {
+                        s.log("wild double without its partner answered Won");
+                        return Some(Response::Value(BattleOutcome::Won as u16));
+                    };
+                    let own = s.join_partner(&mons);
+                    double.partner = Some(partner);
+                    double.split = [own, 0];
+                }
+                let mut opponents = Party::default();
+                for (species, level) in wild {
+                    let mon = s.create_mon(game, species, level);
+                    let _ = opponents.push(mon);
+                }
+                let kind = BattleKind::Wild {
+                    first_battle: false,
+                };
+                let rules = rules.copied().unwrap_or_default();
+                s.start_battle_with(
+                    game,
+                    kind,
+                    opponents,
+                    Some(double),
+                    rules,
                     Origin::Script,
                     self.f,
                 );
@@ -515,7 +551,12 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::SetTint { .. }
             | Request::TextOnBlack(_)
             | Request::CameraPan { .. }
-            | Request::WaitInputOrTimeout(_) => fx::begin(self, r),
+            | Request::WaitInputOrTimeout(_)
+            | Request::SetWeather(_)
+            | Request::DoWeather
+            | Request::ResetWeather
+            | Request::SetPalette { .. }
+            | Request::ShowOverlay { .. } => fx::begin(self, r),
             Request::SetInputMap(m) => {
                 match game.special_ids().var_input_map {
                     Some(v) => s.vars.set_var(v, m.code()),
@@ -567,7 +608,8 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
         if let Request::ChooseStarter(_)
         | Request::BattleWild { .. }
         | Request::BattleTrainer { .. }
-        | Request::BattleMulti { .. } = r
+        | Request::BattleMulti { .. }
+        | Request::BattleWildDouble { .. } = r
         {
             // Set once the starter screen or the battle has handed the screen back.
             return self.s.answer.take().map(Response::Value);
@@ -601,7 +643,8 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
         | Request::ScreenShake { .. }
         | Request::SetTint { .. }
         | Request::CameraPan { .. }
-        | Request::WaitInputOrTimeout(_) = r
+        | Request::WaitInputOrTimeout(_)
+        | Request::ShowOverlay { .. } = r
         {
             return fx::resume(self, r);
         }

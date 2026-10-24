@@ -691,6 +691,7 @@ pub fn steps() -> Vec<Step> {
 /// What the end of Chapter 7 asserts beyond its checkpoints: the story, the badge, module and
 /// log, the bag, no dropped event, and every Chapter 7 fallback the path meets reported.
 pub fn check_end(r: &Run) {
+    r.no_engine_fallbacks();
     assert_eq!(r.w.map(), ROUTE_S08);
     assert_eq!(r.w.var(VAR_SIL_STORY), 76);
     assert!(r.w.flag(FLAG_SIL_BADGE_07));
@@ -731,7 +732,6 @@ pub fn check_end(r: &Run) {
         "play_fanfare",
         "show_sync",
         "mart",
-        "hidden item",
     ] {
         assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);
     }

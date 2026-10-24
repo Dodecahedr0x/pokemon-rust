@@ -123,12 +123,6 @@ pub async fn RouteS05_IleDebug_EventScript_Deoxys(ctx: Ctx) {
     .await;
 }
 
-/// The Starf Berry in the island's north-east corner (8, 0), hidden.
-pub async fn RouteS05_IleDebug_EventScript_HiddenStarf(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`): a sign here instead.
-    hidden_item(&ctx, FLAG_SIL_ITEM_PG_ILE_STARF, ITEM_STARF_BERRY).await;
-}
-
 // ---- the Stele cave (Route_S08_PG_Sc28) ----
 
 /// `Route_S08_PG_Sc28`, the original form (reading the stele, from 121, once:

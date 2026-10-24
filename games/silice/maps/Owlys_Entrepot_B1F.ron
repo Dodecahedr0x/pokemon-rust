@@ -147,45 +147,45 @@
             x: 31,
             y: 2,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("Owlys_Entrepot_B1F_EventScript_HiddenIron"),
+            kind: HiddenItem(
+                item: "ITEM_IRON",
+                flag: "FLAG_SIL_ITEM_OWLYS_SILO_FER",
             ),
         ),
         (
             x: 9,
             y: 24,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("Owlys_Entrepot_B1F_EventScript_HiddenZinc"),
+            kind: HiddenItem(
+                item: "ITEM_ZINC",
+                flag: "FLAG_SIL_ITEM_OWLYS_SILO_ZINC",
             ),
         ),
         (
             x: 15,
             y: 3,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("Owlys_Entrepot_B1F_EventScript_HiddenCalcium"),
+            kind: HiddenItem(
+                item: "ITEM_CALCIUM",
+                flag: "FLAG_SIL_ITEM_OWLYS_SILO_CALCIUM",
             ),
         ),
         (
             x: 15,
             y: 14,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("Owlys_Entrepot_B1F_EventScript_HiddenPierreLien"),
+            kind: HiddenItem(
+                item: "ITEM_SIL_PIERRE_LIEN",
+                flag: "FLAG_SIL_ITEM_OWLYS_SILO_PIERRE_LIEN",
             ),
         ),
         (
             x: 33,
             y: 27,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("Owlys_Entrepot_B1F_EventScript_HiddenSablenite"),
+            kind: HiddenItem(
+                item: "ITEM_SIL_SABLENITE",
+                flag: "FLAG_SIL_ITEM_OWLYS_SILO_SABLENITE",
             ),
         ),
     ],

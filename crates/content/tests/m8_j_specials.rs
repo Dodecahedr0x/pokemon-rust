@@ -804,6 +804,7 @@ fn native_specials_issue_their_requests_in_order() {
                     a_defeat: text("MossdeepCity_SpaceCenter_2F_Text_JustWantToExpandLand"),
                     b: TrainerId(514),
                     b_defeat: text("MossdeepCity_SpaceCenter_Text_TabithaDefeat"),
+                    partner: None,
                 },
                 set(VAR_RESULT, 1),
             ]

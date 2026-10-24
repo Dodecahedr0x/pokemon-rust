@@ -230,6 +230,11 @@ pub(crate) fn wonder_guard(
     abilities::wonder_guard(b, env, u, eff)
 }
 
+/// The field's weather as the battle starts (`ABILITYEFFECT_SWITCH_IN_WEATHER`).
+pub(crate) fn overworld_weather(b: &mut Battle, env: &mut Env) {
+    later::overworld_weather(b, env);
+}
+
 /// A battler with `ability` left the field: a primal weather may end.
 pub(crate) fn left_field(b: &mut Battle, env: &mut Env, ability: Ability) {
     later::left_field(b, env, ability);

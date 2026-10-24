@@ -7,9 +7,9 @@
 //! elevator door (16, 1) behind it.
 //!
 //! Temp vars: `VAR_TEMP_1` (the intro's coords), `VAR_TEMP_2` (the pulse's coords), `VAR_TEMP_3`
-//! and `VAR_TEMP_5` (the barrels' cells), `VAR_TEMP_4` (`push_object`'s first-push line).
+//! and `VAR_TEMP_5` (the barrels' cells).
 
-use super::ch04_port::{Pushable, push_object};
+use super::ch04_port::{Puzzle, push_object};
 use super::ch08_evalon::lost;
 use crate::silice::prelude::*;
 
@@ -216,21 +216,20 @@ pub async fn TourNebula_1F_EventScript_ItemFullRestore(ctx: Ctx) {
     find_item(&ctx, ITEM_FULL_RESTORE, 1).await;
 }
 
-/// The hidden Max Elixir (21, 9): a sign while the engine ignores hidden items.
-pub async fn TourNebula_1F_EventScript_HiddenMaxElixir(ctx: Ctx) {
-    hidden_item(&ctx, FLAG_SIL_ITEM_TOUR_1F_MAX_ELIXIR, ITEM_MAX_ELIXIR).await;
-}
-
 /// The two iron-bound barrels on the pontoons' north ends, each pushed north off its pontoon
 /// (one is enough). Temp vars `VAR_TEMP_3` / `VAR_TEMP_5`.
-const FUTS: &[Pushable] = &[
+pub(crate) const FUTS: Puzzle = Puzzle {
+    map: MAP_TOUR_NEBULA_1F,
+    objects: &[
     (LOCALID_TOUR_1F_FUT_1, VAR_TEMP_3, (7, 10)),
     (LOCALID_TOUR_1F_FUT_2, VAR_TEMP_5, (17, 10)),
-];
+],
+    free: fut_free,
+};
 
 /// The barrel zone's floor (rows 6–10, x 5–20) without the stacks, the tasting barrels and the
 /// maître de chai's cell.
-fn fut_free((x, y): (i16, i16)) -> bool {
+fn fut_free(_: (i16, i16), (x, y): (i16, i16)) -> bool {
     const SOLID: &[(i16, i16)] = &[
         (16, 7),
         (7, 7),
@@ -250,7 +249,7 @@ fn fut_free((x, y): (i16, i16)) -> bool {
 
 /// An iron-bound barrel (Champ Magnétique).
 pub async fn TourNebula_1F_EventScript_FutCercle(ctx: Ctx) {
-    push_object(&ctx, FUTS, fut_free).await;
+    push_object(&ctx).await;
 }
 
 pub async fn TourNebula_1F_EventScript_Entree(ctx: Ctx) {

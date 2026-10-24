@@ -248,19 +248,12 @@ pub async fn ReverseCity_Gym_Sc02(ctx: Ctx) {
 
 // ---- hidden items ----
 
-/// Room 1, at the foot of a pillar (2, 25).
-pub async fn ReverseCity_Gym_EventScript_HiddenLumBerry(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of
-    // "SIL1 Task F as built"): the map has a sign here instead.
-    hidden_item(&ctx, FLAG_SIL_ITEM_GYM07_LUM_BERRY, ITEM_LUM_BERRY).await;
-}
-
 /// Room 3, at the foot of the great mirror where Reverse stood (6, 4): only once he has fled
 /// and Benou has taken the pixels ("the reflection left something", §7).
 pub async fn ReverseCity_Gym_EventScript_HiddenAlakazite(ctx: Ctx) {
     if story(&ctx).await < 75 {
         return;
     }
-    // fallback: hidden items (as above).
+    // A sign running the hidden-item script: a Gen3 hidden item cannot wait for the story.
     hidden_item(&ctx, FLAG_SIL_ITEM_GYM07_ALAKAZITE, ITEM_SIL_ALAKAZITE).await;
 }

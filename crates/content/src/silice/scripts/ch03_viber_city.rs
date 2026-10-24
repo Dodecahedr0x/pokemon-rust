@@ -435,19 +435,12 @@ pub async fn ViberCity_EventScript_ItemRevive(ctx: Ctx) {
     find_item(&ctx, ITEM_REVIVE, 1).await;
 }
 
-/// The hidden Hyper Potion under a bench of the Jardin des Néons (29, 26), once.
-pub async fn ViberCity_EventScript_HiddenHyperPotion(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the M9 finding of SIL1
-    // Task F): a sign (`05_ch3_scripts.ron`) gives the item once, behind its flag.
-    hidden_item(&ctx, FLAG_SIL_ITEM_VIBER_HYPER_POTION, ITEM_HYPER_POTION).await;
-}
-
 /// The hidden PP Up behind the Station (13, 3), there only after the black-out (§7), once.
 pub async fn ViberCity_EventScript_HiddenPpUp(ctx: Ctx) {
     if !ctx.flag(FLAG_SIL_VIBER_BLACKOUT).await {
         return;
     }
-    // fallback: hidden items (as the Hyper Potion's).
+    // A sign running the hidden-item script: a Gen3 hidden item cannot wait for the story.
     hidden_item(&ctx, FLAG_SIL_ITEM_VIBER_PP_UP, ITEM_PP_UP).await;
 }
 

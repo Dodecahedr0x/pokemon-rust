@@ -18,7 +18,9 @@ const EMERALD_BADGE1_FRAMES: u64 = 104_523;
 /// frames from Route 118, and Victory Road B1F's `Wait(2)`s gone).
 /// 3,166,366 before Wave G's engine gaps (Fortree's rotating gates: Darius fought; a current
 /// ends Surf ashore: Seafloor Cavern Room 7 the long way round).
-const EMERALD_FRAMES: u64 = 3_143_931;
+/// 3,143,931 before the field weather (Gen3's map weathers on the path, and battles that start
+/// in them, `ABILITYEFFECT_SWITCH_IN_WEATHER`).
+const EMERALD_FRAMES: u64 = 3_167_220;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -72,8 +74,10 @@ const SPINE_BLOCKERS: &[&str] = &[];
 
 /// The Silice spine's frame count to the end of Chapter 0 (21,821 until `2fc4c16` redrew
 /// Brico-Bourg on its own tileset: the walks are 8 frames shorter; 21,813 until the bar's and
-/// the town's shakes became `Request::ScreenShake` in place of a fade out and in: 34 shorter).
-const SILICE_CH0_FRAMES: u64 = 21_779;
+/// the town's shakes became `Request::ScreenShake` in place of a fade out and in: 34 shorter;
+/// 21,779 until the skies (palettes and weather, `silice::sky`) and the real hidden items: 28
+/// longer).
+const SILICE_CH0_FRAMES: u64 = 21_807;
 
 fn play() -> SpineRun {
     let s = spine::run(&Emerald::for_shells(), spine::steps(), &Config::default());

@@ -889,9 +889,9 @@
             x: 31,
             y: 15,
             elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("Evalon_EventScript_HiddenRevive"),
+            kind: HiddenItem(
+                item: "ITEM_REVIVE",
+                flag: "FLAG_SIL_ITEM_EVALON_CACHE_1",
             ),
         ),
     ],

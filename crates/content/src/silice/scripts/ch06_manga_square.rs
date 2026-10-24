@@ -20,7 +20,7 @@ pub const MAPS: &[&str] = &[
 
 /// The scenes' actors: Benou and Adrien (the chapter's end) only inside their scenes; the
 /// controleur bars the Grand Torii until Manga_Square_Sc02 (67); the hard-drive courier from 64
-/// (§2 "après VAR 64"). The dawn tint is a fallback.
+/// (§2 "après VAR 64"). The square's palette is the dawn's ([`AUBE`]).
 pub async fn MangaSquare_OnTransition(ctx: Ctx) {
     let s = story(&ctx).await;
     ctx.set_flag(FLAG_SIL_HIDE_MANGA_SQUARE_BENOU, true).await;
@@ -32,9 +32,8 @@ pub async fn MangaSquare_OnTransition(ctx: Ctx) {
         .await;
     // Chapter 12: Tak before the lit statue from 130 (`Manga_Square_PG_Sc32a`).
     ctx.set_flag(FLAG_SIL_HIDE_MANGA_TAK, s < 130).await;
-    // fallback: the dawn tint (§2, the Secteur Zêta's sky set to dawn; a palette tint, M12):
-    // the map is drawn with its own palettes.
-    fallback(&ctx, "dawn_tint").await;
+    // The dawn tint (§2, the Secteur Zêta's sky set to dawn).
+    set_palette(&ctx, AUBE, 0, false).await;
 }
 
 // ---- scenes ----
@@ -236,13 +235,6 @@ pub async fn MangaSquare_EventScript_Gamin(ctx: Ctx) {
 /// The Cocket controleur on the Grand Torii's exit (37, 1), until Manga_Square_Sc02.
 pub async fn MangaSquare_EventScript_Controleur(ctx: Ctx) {
     msgbox(&ctx, Manga_Square_Npc_Controleur, MsgBox::Npc).await;
-}
-
-/// The Revive behind the dragon statue (22, 13).
-pub async fn MangaSquare_EventScript_HiddenRevive(ctx: Ctx) {
-    // fallback: hidden items (the engine ignores `BgKind::HiddenItem`; the SIL1 Task F
-    // fallback): a sign on the cell (`06_ch6_scripts.ron`) runs `hidden_item`.
-    hidden_item(&ctx, FLAG_SIL_ITEM_MANGA_SQUARE_REVIVE, ITEM_REVIVE).await;
 }
 
 // ---- the Pokémon Center, the Konbini, the Toiletteur ----
