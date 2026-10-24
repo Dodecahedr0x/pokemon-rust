@@ -176,6 +176,7 @@ impl Audio {
         a
     }
 
+    #[allow(clippy::should_implement_trait)] // the engine-wide `hash(&self, &mut Fnv64)` shape
     pub fn hash(&self, h: &mut Fnv64) {
         for p in &self.players {
             h.write_u16(p.song);
