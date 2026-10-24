@@ -185,9 +185,9 @@
             x: 10,
             y: 13,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_HYPER_POTION",
-                flag: "FLAG_SIL_ITEM_TOUR_HALL_ACCUEIL",
+            kind: Script(
+                facing: 0,
+                script: Some("Nebula_TourHall_EventScript_HiddenHyperPotion"),
             ),
         ),
     ],

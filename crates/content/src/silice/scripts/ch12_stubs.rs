@@ -126,3 +126,46 @@ pub async fn ReverseCity_Phare_PG_Sc04(_ctx: Ctx) {
 pub async fn ReverseCity_Phare_PG_Thomas(_ctx: Ctx) {
     // fallback: Ch12 post-game scripts not written yet.
 }
+
+// ---- Nebula (claimed by ch09_nebula.rs) ----
+// Ch9's `Nebula_OnLoad` already opens the MAINTENANCE door and draws the crack from 126, and
+// `Nebula_OnTransition` shows Julien from 120 and Nebula_PG_Sc10's cast at 126 only.
+
+/// Ch12 `Nebula_PG_Sc10`, the sky splits: the on-frame script at `VAR_SIL_STORY` 126.
+pub async fn Nebula_PG_Sc10(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet: the frame does nothing.
+}
+
+/// Ch12: Julien at his tent (hidden before `VAR_SIL_STORY` 120).
+pub async fn Nebula_PG_Julien(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12: Julien's workbench (the lamp post at (21, 8)), read before the post-game too.
+pub async fn Nebula_PG_Etabli(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet: the sign is silent.
+}
+
+// Chapter 11's names on Nebula (not Ch12's, here for the same reason): the four EVEIL NPCs of
+// Nebula_Sc13 and Elysium_E2 (local ids 40–43, hidden until Ch11 shows them).
+// **Merge note:** SIL-10's `ch11_endings.rs` writes these four; at the merge, delete these stubs.
+
+/// Ch11: EVEIL_1, the old woman (`Nebula_Sc13_T1`).
+pub async fn Nebula_EventScript_Eveil1(_ctx: Ctx) {
+    // fallback: Ch11 scripts not written yet.
+}
+
+/// Ch11: EVEIL_2, the Cocket worker (`Nebula_Sc13_T2`).
+pub async fn Nebula_EventScript_Eveil2(_ctx: Ctx) {
+    // fallback: Ch11 scripts not written yet.
+}
+
+/// Ch11: EVEIL_3, the child (`Nebula_Sc13_T3`).
+pub async fn Nebula_EventScript_Eveil3(_ctx: Ctx) {
+    // fallback: Ch11 scripts not written yet.
+}
+
+/// Ch11: EVEIL_4, the passer-by (`Nebula_Sc13_T4`).
+pub async fn Nebula_EventScript_Eveil4(_ctx: Ctx) {
+    // fallback: Ch11 scripts not written yet.
+}

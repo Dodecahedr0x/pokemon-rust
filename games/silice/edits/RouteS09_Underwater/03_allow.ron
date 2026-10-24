@@ -1,11 +1,9 @@
 // Behaviour and reachability warnings accepted on purpose.
 [
     AllowReach(subject: "warp 1", reason: "the walk model blocks MB_NO_SURFACING floor and skips Dive and Emerge; checked with the plan's own search"),
-    AllowReach(subject: "object LOCALID_ROUTE_S09_UW_ITEM_MAX_REVIVE", reason: "the walk model blocks MB_NO_SURFACING floor and skips Dive and Emerge; checked with the plan's own search"),
     AllowReach(subject: "bg 0", reason: "the walk model blocks MB_NO_SURFACING floor and skips Dive and Emerge; checked with the plan's own search"),
     AllowReach(subject: "bg 1", reason: "the walk model blocks MB_NO_SURFACING floor and skips Dive and Emerge; checked with the plan's own search"),
     AllowReach(subject: "bg 2", reason: "the walk model blocks MB_NO_SURFACING floor and skips Dive and Emerge; checked with the plan's own search"),
-    AllowReach(subject: "bg 3", reason: "the walk model blocks MB_NO_SURFACING floor and skips Dive and Emerge; checked with the plan's own search"),
     AllowReach(subject: "bg 4", reason: "the walk model blocks MB_NO_SURFACING floor and skips Dive and Emerge; checked with the plan's own search"),
     AllowReach(subject: "bg 5", reason: "the walk model blocks MB_NO_SURFACING floor and skips Dive and Emerge; checked with the plan's own search"),
     AllowCollision(cells: [(39, 74), (40, 74)], reason: "Gen3 MB_WATER_SOUTH_ARROW_WARP (IsSouthArrowWarp): the engine classifies it as blocked water until Dive lands"),
