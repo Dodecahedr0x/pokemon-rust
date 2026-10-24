@@ -1,0 +1,14 @@
+// Chapter 12 (post-game), Manga_Square_PG_Sc21: the Friends' Tournament on the Dojo's central tatami
+// (G-50, the author's ruling of 2026-10-24: it happens in the Dojo). Adrien asks at the Bibliotheque,
+// marks the tournament under way (FLAG_SIL_TOURNOI_EN_COURS) and warps the player to (6, 10), the
+// source's cell (a map load ends a script); this on-frame script runs the three battles there.
+[
+    ScriptsSet(on_frame: [(var: "VAR_TEMP_1", value: 0, script: "MangaSquare_Dojo_PG_Sc21")]),
+    // The actors, hidden (FLAG_SIL_HIDE_DOJO_PG_*, set at the start) until the tournament shows them:
+    // Tak the referee above the mat, and the three friends one behind the other, east of the player's
+    // cell, facing him. Each beaten friend goes to sit on the bench to the left (row 9, x 4-5).
+    Object(x: 7, y: 8, gfx: "OBJ_EVENT_GFX_BRAWLY", id: "LOCALID_DOJO_PG_TAK", local_id: 16, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_DOJO_PG_TAK"),
+    Object(x: 7, y: 10, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_DOJO_PG_MATHIEU", local_id: 17, movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_DOJO_PG_MATHIEU"),
+    Object(x: 8, y: 10, gfx: "OBJ_EVENT_GFX_SIL_GWADA", id: "LOCALID_DOJO_PG_GWADA", local_id: 18, movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_DOJO_PG_GWADA"),
+    Object(x: 9, y: 10, gfx: "OBJ_EVENT_GFX_SIL_ADRIEN", id: "LOCALID_DOJO_PG_ADRIEN", local_id: 19, movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_DOJO_PG_ADRIEN"),
+]

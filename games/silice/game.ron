@@ -297,6 +297,11 @@
         "FLAG_SIL_HIDE_ANTENNE_ETA_2",
         "FLAG_SIL_HIDE_ANTENNE_ETA_3",
         "FLAG_SIL_HIDE_MANGA_TAK",
+        // The Friends' Tournament's actors in the Dojo (G-50; Sc21 shows them for its battles).
+        "FLAG_SIL_HIDE_DOJO_PG_TAK",
+        "FLAG_SIL_HIDE_DOJO_PG_MATHIEU",
+        "FLAG_SIL_HIDE_DOJO_PG_GWADA",
+        "FLAG_SIL_HIDE_DOJO_PG_ADRIEN",
     ],
     new_game_vars: [],
 )

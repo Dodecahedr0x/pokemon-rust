@@ -2784,5 +2784,29 @@
             name: "FLAG_SIL_ANTENNE_MONTEE",
             num: 1165,
         ),
+        // G-50 (author ruling 2026-10-24): the Friends' Tournament in the Dojo (1245-1249). The
+        // hide flags of its four actors (Tak the referee, Mathieu, Gwada, Adrien; set at the
+        // start, the tournament shows them), and the tournament under way (set by Adrien at the
+        // Bibliotheque, read by the Dojo's on-frame script after the warp).
+        (
+            name: "FLAG_SIL_HIDE_DOJO_PG_TAK",
+            num: 1245,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_DOJO_PG_MATHIEU",
+            num: 1246,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_DOJO_PG_GWADA",
+            num: 1247,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_DOJO_PG_ADRIEN",
+            num: 1248,
+        ),
+        (
+            name: "FLAG_SIL_TOURNOI_EN_COURS",
+            num: 1249,
+        ),
     ],
 )
