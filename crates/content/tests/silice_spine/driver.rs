@@ -398,6 +398,8 @@ impl Run {
             },
             Some(OpenMenu::StopAsk(0)) => Buttons::A,
             Some(OpenMenu::StopAsk(_)) => Buttons::UP,
+            // A doubles target cursor: its default target.
+            Some(OpenMenu::Target(_)) => Buttons::A,
             None => Buttons::A,
         }
     }
