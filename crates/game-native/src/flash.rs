@@ -245,6 +245,7 @@ mod tests {
                 sky: None,
                 rival_name: None,
                 box_names: Vec::new(),
+                audio: None,
             },
         }
     }

@@ -61,6 +61,37 @@ pub mod consts {
 /// Battle tables (`TABLES`), trainers, encounters (every wild header), evolutions, trainer
 /// money, heal locations, battle strings and graphics (`GFX`, with every species and trainer
 /// pic the extract has), the starters and `SUMMARY`.
+/// Milestone 12: the sound blob (`BLOB`) and the tables the World reads (`AUDIO`, `MAP_MUSIC`,
+/// `TRAINER_MUSIC`), and the song names (`build/sound.rs`).
+#[allow(non_upper_case_globals, dead_code, clippy::all)]
+pub mod sound {
+    include!(concat!(env!("OUT_DIR"), "/sound.rs"));
+
+    /// The song a `MUS_*` / `SE_*` name plays (Silice's own names included), if any.
+    pub fn song_named(name: &str) -> Option<u16> {
+        let i = SONG_NAMES.binary_search_by_key(&name, |&(n, _)| n).ok()?;
+        Some(SONG_NAMES[i].1)
+    }
+
+    /// Gen3 `MUS_ROUTE118`: the map's music depends on the player's column.
+    pub const MUS_ROUTE118: u16 = 0x7FFF;
+
+    /// The music of map `id` with the player on column `x` (Gen3 `MUS_NONE` without one):
+    /// Route 118's west half (`x < 24`) plays Route 110's, the rest and a warp's destination
+    /// (`x < 0`) Route 119's (`GetCurrLocationDefaultMusic`, `GetWarpDestinationMusic` but
+    /// for its Mauville case).
+    pub fn map_music(id: u16, x: i16) -> u16 {
+        let m = MAP_MUSIC
+            .binary_search_by_key(&id, |&(m, _)| m)
+            .map_or(::engine::audio::MUS_NONE, |i| MAP_MUSIC[i].1);
+        match m {
+            MUS_ROUTE118 if (0..24).contains(&x) => ROUTE118_HALVES.0,
+            MUS_ROUTE118 => ROUTE118_HALVES.1,
+            m => m,
+        }
+    }
+}
+
 #[allow(non_upper_case_globals, dead_code, clippy::all)]
 pub mod battle {
     include!(concat!(env!("OUT_DIR"), "/battle.rs"));
@@ -316,6 +347,18 @@ fn flavor_multichoice(list: u8) -> Option<&'static [&'static [u8]]> {
 
 macro_rules! game_data_tables {
     () => {
+        fn audio(&self) -> &'static ::engine::audio::AudioData {
+            &$crate::sound::AUDIO
+        }
+
+        fn map_music(&self, id: ::engine::data::MapId, x: i16) -> u16 {
+            $crate::sound::map_music(id.0, x)
+        }
+
+        fn trainer_music(&self, id: ::engine::data::TrainerId) -> Option<(u16, u16)> {
+            $crate::sound::TRAINER_MUSIC.get(id.0 as usize).copied()
+        }
+
         fn map(&self, id: ::engine::data::MapId) -> &'static ::engine::data::MapData {
             $crate::data::map(id.0).unwrap_or(&$crate::data::MISSING_MAP)
         }

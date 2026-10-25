@@ -25,6 +25,9 @@
 //!
 //! **Buildings:** [`pokecenter_nurse`] (Gen3's nurse), [`mart`] (a fallback until M9's shop).
 //!
+//! **Sound** (Milestone 12): [`play_se`], [`play_music`], [`play_fanfare`], by name (Silice's
+//! own names play the Emerald song `games/silice/sound.ron` gives).
+//!
 //! **Screen effects:** [`screen_shake`], [`screen_flash`] (with [`WHITE`], [`YELLOW`],
 //! [`BLACK`]), [`negatif`], [`fade_white`], [`show_text_on_black`], [`camera_pan`].
 //!
@@ -33,8 +36,7 @@
 //! weathers and [`WEATHER_PETALS`]), the sky's crack ([`SKY_CRACK`], `Ctx::show_overlay`).
 //!
 //! **Fallbacks:** [`fallback`] reports `Report::Degraded(name)` and returns, so the scene goes
-//! on: [`play_se`] (nothing),
-//! [`mallette_call`] and [`end_call`] (nothing: the call's lines are plain messages),
+//! on: [`mallette_call`] and [`end_call`] (nothing: the call's lines are plain messages),
 //! [`battle_two_trainers`] (two single battles in a row), [`show_sync`] (the sync gauge: the
 //! scene's text says the value).
 //!
@@ -387,12 +389,46 @@ pub async fn camera_pan(ctx: &Ctx, cells_x: i16, cells_y: i16) {
     ctx.camera_pan(cells_x * 16, cells_y * 16, 2).await;
 }
 
-/// `play_se(SE_*)`: no sound yet; nothing plays (the texts carry the onomatopoeia). Reported,
-/// and `se` (the decomp or `SE_SIL_*` name, which `cargo xtask silice check` checks in the
-/// scripts; the build has no sound constants yet) logged.
+/// `play_se(SE_*)`: Gen3 `playse` of the sound named: an Emerald `SE_*`, or an invented one,
+/// which plays its Emerald stand-in (`games/silice/sound.ron`). A name the build does not know
+/// is reported (`Report::Degraded("play_se")`) and logged.
 pub async fn play_se(ctx: &Ctx, se: &'static str) {
-    fallback(ctx, "play_se").await;
-    ctx.log(se).await;
+    match crate::sound::song_named(se) {
+        Some(n) => ctx.play_se(n).await,
+        None => {
+            fallback(ctx, "play_se").await;
+            ctx.log(se).await;
+        }
+    }
+}
+
+/// The song `name` names (`MUS_NONE`: Gen3's 0xFFFF, silence), or reported and logged.
+async fn song(ctx: &Ctx, what: &'static str, name: &'static str) -> Option<u16> {
+    if name == "MUS_NONE" {
+        return Some(engine::audio::MUS_NONE);
+    }
+    let n = crate::sound::song_named(name);
+    if n.is_none() {
+        fallback(ctx, what).await;
+        ctx.log(name).await;
+    }
+    n
+}
+
+/// `play_music(MUS_*)`: Gen3 `playbgm MUS_*, FALSE` (the map's music comes back on the next
+/// map). A `MUS_SIL_*` plays its Emerald stand-in (`games/silice/sound.ron`).
+pub async fn play_music(ctx: &Ctx, name: &'static str) {
+    if let Some(n) = song(ctx, "play_music", name).await {
+        ctx.play_bgm(n, false).await;
+    }
+}
+
+/// `play_fanfare(MUS_*)`: Gen3 `playfanfare` (the music stops while it plays; nothing waits for
+/// it).
+pub async fn play_fanfare(ctx: &Ctx, name: &'static str) {
+    if let Some(n) = song(ctx, "play_fanfare", name).await {
+        ctx.play_fanfare(n).await;
+    }
 }
 
 /// `mallette_call(PERSON)`: no call window yet; the call's lines are plain messages. Reported,

@@ -198,6 +198,17 @@ fn writes_current_format_tree() {
         menu_gfx.len()
     );
     want.extend(menu_gfx);
+    // The m4a sound data (minor 14), whose contents tests/sound.rs checks.
+    let sound: Vec<String> = files
+        .iter()
+        .filter(|f| f.starts_with("sound/"))
+        .cloned()
+        .collect();
+    for f in ["songs", "voices", "samples", "tables"] {
+        assert!(sound.contains(&format!("sound/{f}.ron")), "sound/{f}.ron");
+    }
+    assert!(sound.len() > 500 + 400, "{} sound files", sound.len());
+    want.extend(sound);
     assert_eq!(files, want);
     assert_eq!(m.files.keys().cloned().collect::<BTreeSet<_>>(), want);
     assert_eq!(

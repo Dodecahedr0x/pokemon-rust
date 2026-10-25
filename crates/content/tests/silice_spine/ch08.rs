@@ -881,12 +881,9 @@ pub fn check_end(r: &Run) {
     assert_eq!(r.w.var(VAR_SIL_EVALON_RENOM), 10);
     assert_eq!(r.w.events_dropped(), 0);
     for name in [
-        "play_se",
         "dark_map",
         "read_item",
         "multichoice",
-        "play_music",
-        "play_fanfare",
         "coeur_evalon",
         "fade_music",
     ] {

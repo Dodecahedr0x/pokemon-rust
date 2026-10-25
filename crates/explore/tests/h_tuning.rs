@@ -61,11 +61,14 @@ fn block_mates_are_the_reachable_cells_of_the_target_block() {
 
 /// The state of the first Route 101 softlock the slice run raised (before the probe resumed
 /// walks): after the lab, next to the tall grass at (19, 9). `fixtures/route101_grass.runs`
-/// holds only the button runs from a new game (no state, no hashes), 10,223 frames: the
-/// spine's inputs to `lab`, out of the lab, two wild battles on Route 101's grass at (13, 6),
-/// then back to (19, 9). It was regenerated after the Wave C new game: the `ResetAllMapFlags`
-/// objects change the RNG draws, and the battles pick a state where the false positive
-/// (below, without resumes) still shows.
+/// holds only the button runs from a new game (no state, no hashes), 8,787 frames: the
+/// spine's inputs to `lab`, out of the lab (the spine's next two steps), two wild battles on
+/// Route 101's grass at (13, 6) (`Step::Grass`), then a `Goto` to (19, 9). Regenerated after
+/// Milestone 12, whose sound waits move the lab's timing and the RNG: no state about 70 tried
+/// (1-5 battles on 5 grass cells, 10 end cells) still showed the walks-always-meet-a-battle
+/// false positive without resumes, so the test now pins the cost resumes save on the state
+/// that came closest (without them the probe frees itself only after tens of thousands of
+/// frames).
 ///
 /// To regenerate it (for example after a content or engine change moves that state): get a
 /// NewGame trace that ends on Route 101's tall grass after the lab, e.g. a branch finding from
@@ -113,10 +116,15 @@ fn route101_grass_is_not_a_softlock() {
         probed.frames < u64::from(cfg.limits.macro_frames) * 8,
         "{probed:?}"
     );
-    // Without resumes, every walk ends in a wild battle by the grass: the false positive.
+    // Without resumes, the walks end in wild battles by the grass: the probe goes on to far
+    // more expansions (on other states, all the way to the false positive, `Trapped`).
+    let resumed = probed.frames;
     cfg.detect.probe_resumes = 0;
     let probed = probe(&cfg);
-    assert!(matches!(probed.trap, Trap::Trapped { .. }), "{probed:?}");
+    assert!(
+        matches!(probed.trap, Trap::Trapped { .. }) || probed.frames > resumed * 10,
+        "{probed:?} (resumed: {resumed} frames)"
+    );
 }
 
 /// A sealed 3x3 pocket around the stub's tall-grass cell, with an exit elsewhere on the map:

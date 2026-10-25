@@ -427,7 +427,7 @@ pub fn labo_brambles_probe() -> Vec<Step> {
 pub fn check_end(r: &Run) {
     assert_eq!(r.w.events_dropped(), 0);
     r.no_engine_fallbacks();
-    for name in ["play_se", "mallette_call", "end_call"] {
+    for name in ["mallette_call", "end_call"] {
         assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);
     }
 }

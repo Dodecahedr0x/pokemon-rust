@@ -225,13 +225,16 @@ macro_rules! forward_game_data {
     (@ $f:tt pushable_objects) => { fn pushable_objects(&self) -> &'static [::engine::data::GfxId] { self.$f.pushable_objects() } };
     (@ $f:tt push_allowed) => { fn push_allowed(&self, map: ::engine::data::MapId, local_id: u8, from: (i16, i16), to: (i16, i16)) -> bool { self.$f.push_allowed(map, local_id, from, to) } };
     (@ $f:tt pushed_script) => { fn pushed_script(&self, map: ::engine::data::MapId) -> ::core::option::Option<::engine::data::ScriptId> { self.$f.pushed_script(map) } };
+    (@ $f:tt audio) => { fn audio(&self) -> &'static ::engine::audio::AudioData { self.$f.audio() } };
+    (@ $f:tt map_music) => { fn map_music(&self, map: ::engine::data::MapId, x: i16) -> u16 { self.$f.map_music(map, x) } };
+    (@ $f:tt trainer_music) => { fn trainer_music(&self, id: ::engine::data::TrainerId) -> ::core::option::Option<(u16, u16)> { self.$f.trainer_music(id) } };
     (@ $f:tt hidden_item_script) => { fn hidden_item_script(&self) -> ::core::option::Option<::engine::data::ScriptId> { self.$f.hidden_item_script() } };
     (@ $f:tt m8) => {
         $crate::forward_game_data!($f; item multichoice std_string trainer_flag_of emote
                                    trainer_money evolutions hold_effect form_changes map_type m9);
     };
     (@ $f:tt m9) => {
-        $crate::forward_game_data!($f; map_layout trainer_battle_kind start_menu field_move_gate item_use mart_bonus item_description move_description is_hm_move tm_move can_learn_tm ui_gfx window_frame item_icon mon_icon in_game_trade nature_name step_callback hole_warp fall_script step_count_script field_move_script waterfall_refused_script dive_emerge_script dive_warp fly_destination water_encounters rock_smash_encounters pushable_boulder player_surf_sprite rotating_gates map_weather weather_coords weather_look overlay hidden_item_script pushable_objects push_allowed pushed_script hoenn_dex national_dex);
+        $crate::forward_game_data!($f; map_layout trainer_battle_kind start_menu field_move_gate item_use mart_bonus item_description move_description is_hm_move tm_move can_learn_tm ui_gfx window_frame item_icon mon_icon in_game_trade nature_name step_callback hole_warp fall_script step_count_script field_move_script waterfall_refused_script dive_emerge_script dive_warp fly_destination water_encounters rock_smash_encounters pushable_boulder player_surf_sprite rotating_gates map_weather weather_coords weather_look overlay hidden_item_script pushable_objects push_allowed pushed_script hoenn_dex national_dex audio map_music trainer_music);
     };
 }
 

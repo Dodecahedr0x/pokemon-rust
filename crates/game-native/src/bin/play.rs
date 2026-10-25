@@ -2,7 +2,8 @@
 //!
 //! Keys: arrows = D-pad, X = A, Z = B, A = L, S = R, Enter = Start, Backspace = Select,
 //! F5 saves a checkpoint, F9 reloads the current one, F8 rewinds, Escape quits.
-//! The window is 4x the GBA screen; the game runs at the window's 60 fps target.
+//! The window is 4x the GBA screen; the game runs at the window's 60 fps target. Sound plays
+//! on the default output device (Milestone 12; `--mute` or no device: silence).
 //!
 //! `play --load <id|label>` starts at a checkpoint node, `play --list` prints the tree. Saves
 //! go to a personal, git-ignored store (`checkpoints/{stub|emerald}/local`, or
@@ -102,7 +103,15 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    let mute = args.iter().any(|a| a == "--mute");
+    let args: Vec<String> = args.into_iter().filter(|a| a != "--mute").collect();
     let mut controls = Controls::new(content::Emerald::for_shells());
+    let audio = (!mute)
+        .then(|| game_native::audio::Output::open(content::sound::AUDIO.blob))
+        .and_then(|r| r.map_err(|e| eprintln!("sound off: {e}")).ok());
+    if audio.is_some() {
+        controls.session_mut().enable_sound();
+    }
     let mut mat = Materializer::new(content::Emerald::for_shells(), MATERIALIZED);
     match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
         [] => {}
@@ -126,7 +135,7 @@ fn main() -> ExitCode {
             }
         }
         _ => {
-            eprintln!("usage: play [--load <id|label> | --list]");
+            eprintln!("usage: play [--mute] [--load <id|label> | --list]");
             return ExitCode::FAILURE;
         }
     }
@@ -174,6 +183,10 @@ fn main() -> ExitCode {
         {
             controls.session_mut().save_failed();
             controls.note(format!("in-game save failed: {e}"));
+        }
+        let sound = controls.session_mut().take_sound();
+        if let Some(a) = &audio {
+            a.apply(&sound);
         }
         for (dst, &c) in buf.iter_mut().zip(controls.session_mut().framebuffer()) {
             *dst = rgb555_to_0rgb(c);

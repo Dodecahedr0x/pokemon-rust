@@ -208,12 +208,7 @@ pub fn check_end(r: &Run) {
     assert!(!r.reloaded);
     assert_eq!(r.w.events_dropped(), 0);
     r.no_engine_fallbacks();
-    for name in [
-        "play_music",
-        "battle_lines",
-        "cabin_background",
-        "credits_montage",
-    ] {
+    for name in ["battle_lines", "cabin_background", "credits_montage"] {
         assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);
     }
 }

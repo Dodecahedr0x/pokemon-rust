@@ -90,8 +90,7 @@ pub async fn NoMansLand_PG_Sc16(ctx: Ctx) {
         return;
     }
     ctx.lock_all().await;
-    // fallback: MUS_SIL_NO_MANS_LAND (play_music).
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_SIL_NO_MANS_LAND").await;
     move_wait(&ctx, PLAYER, OUT_STEPS).await;
     say(&ctx, No_Mans_Land_PG_Sc16_T1).await;
     move_wait(&ctx, PLAYER, LOOK_BACK).await;
@@ -544,8 +543,7 @@ pub async fn SommetApex_PG_Sc16c(ctx: Ctx) {
         ctx.release().await;
         return;
     }
-    // fallback: MUS_SIL_VS_POUSSIN (play_music).
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_SIL_VS_POUSSIN").await;
     if battle_lost(&ctx, TRAINER_SIL_POUSSIN_9, Sommet_Apex_PG_Sc16c_T5).await {
         return;
     }
@@ -573,10 +571,10 @@ pub async fn SommetApex_PG_Sc19(ctx: Ctx) {
     say(&ctx, Sommet_Apex_PG_Sc19_T2).await;
     say(&ctx, Sommet_Apex_PG_Sc19_T3).await;
     fade_white(&ctx, true).await;
-    // set_palette_set(ORIGINALE), set_weather(NONE); fallback: MUS_SIL_AUBE_VRAIE (§9).
+    // set_palette_set(ORIGINALE), set_weather(NONE), MUS_SIL_AUBE_VRAIE (§9).
     clear_palette(&ctx, 0).await;
     set_weather(&ctx, engine::weather::NONE).await;
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_SIL_AUBE_VRAIE").await;
     fade_white(&ctx, false).await;
     say(&ctx, Sommet_Apex_PG_Sc19_T4).await;
     ctx.set_var(VAR_SIL_SYNC, 0).await;

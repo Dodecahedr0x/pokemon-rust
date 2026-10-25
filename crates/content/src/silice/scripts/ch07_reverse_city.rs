@@ -143,8 +143,7 @@ pub async fn ReverseCity_Sc02(ctx: Ctx) {
         return;
     }
     ctx.lock_all().await;
-    // fallback: play_music(MUS_ENCOUNTER_MAGMA) (audio, M12): the map's own music.
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_ENCOUNTER_MAGMA").await;
     ctx.move_obj(LOCALID_REVERSE_GOGO, DOWN_2).await;
     ctx.move_obj(LOCALID_REVERSE_ROMAIN, DOWN_2).await;
     ctx.wait_move(LOCALID_REVERSE_ROMAIN).await;

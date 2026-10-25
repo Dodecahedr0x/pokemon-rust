@@ -230,6 +230,7 @@ dependencies = [
  "anyhow",
  "engine",
  "extract",
+ "sound",
  "syn 2.0.119",
 ]
 
@@ -287,6 +288,7 @@ version = "0.1.0"
 dependencies = [
  "postcard",
  "serde",
+ "sound",
 ]
 
 [[package]]
@@ -305,6 +307,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha1_smol",
+ "sound",
 ]
 
 [[package]]
@@ -350,6 +353,7 @@ dependencies = [
  "agb",
  "content",
  "engine",
+ "sound",
 ]
 
 [[package]]
@@ -646,6 +650,10 @@ dependencies = [
  "quote",
  "syn 2.0.119",
 ]
+
+[[package]]
+name = "sound"
+version = "0.1.0"
 
 [[package]]
 name = "syn"

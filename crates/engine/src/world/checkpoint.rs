@@ -145,6 +145,7 @@ impl World {
                     palette: s.palette,
                 },
             ),
+            audio: (s.audio != s.settled_audio_unsaved(game)).then_some(s.audio),
         }
     }
 
@@ -303,10 +304,15 @@ impl World {
                 contest: crate::contest::Session::default(),
                 wonder_card: None,
                 mystery_event_status: 0,
+                audio: crate::audio::Audio::default(),
             },
             rtc: None,
             sound: w.options.unwrap_or_default().sound,
             boot: None,
+        };
+        world.s.audio = match w.audio {
+            Some(a) => a,
+            None => world.s.settled_audio_unsaved(game),
         };
         world.boot = Some(world.restore_frame(game));
         // The clock is not part of the snapshot. Sample it for this frame before anything
@@ -343,6 +349,11 @@ impl World {
         f.brightness = s.fader.level();
         f.lighten = false;
         self.apply_sky(game, true, &mut f);
+        // The music the state implies (a fresh sound engine plays nothing).
+        let bgm = self.s.audio.players[0];
+        if bgm.left > 0 && !bgm.paused {
+            f.sound.push(crate::audio::Cmd::Start(bgm.song));
+        }
         f
     }
 }

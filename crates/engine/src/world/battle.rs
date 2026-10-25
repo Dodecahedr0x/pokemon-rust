@@ -581,6 +581,10 @@ impl State {
         if origin == Origin::Field {
             self.objects.freeze_all();
         }
+        // Gen3 `PlayBattleBGM` (`GetBattleBGM`), as the transition starts.
+        if let Some((song, _)) = battle_music(game, &kind) {
+            self.audio.play_battle_bgm(game.audio(), &mut f.sound, song);
+        }
         self.mode = Mode::Battle(run);
     }
 
@@ -874,6 +878,16 @@ pub(super) fn partner_party(
     p.first_usable().is_some().then_some((id, p))
 }
 
+/// The battle and victory music of a battle of `kind` (`GetBattleBGM`; the trainer's from
+/// [`GameData::trainer_music`], else none: the music does not change).
+fn battle_music(game: &impl GameData, kind: &BattleKind) -> Option<(u16, u16)> {
+    let ids = &game.audio().ids;
+    match *kind {
+        BattleKind::Wild { .. } => Some((ids.vs_wild, ids.victory_wild)),
+        BattleKind::Trainer { trainer, .. } => game.trainer_music(trainer),
+    }
+}
+
 /// Re-uploads the field after a battle or the starter screen owned the screen (black frame):
 /// tilesets, palettes and BG controls (the view is redrawn at the frame's camera update), the
 /// object sprite caches dropped, and a new field text box (BG0 off and cleared).
@@ -1001,6 +1015,14 @@ impl World {
                 // Each opponent switched in (Gen3 `Cmd_switchindataupdate`'s seen flag): the
                 // opponent out this frame, which every switch-in is for at least one frame.
                 see_opponent(s, run.battle.as_ref().unwrap());
+                // Gen3 `HandleLowHpMusicChange`: the beep while the player's mon's HP bar is
+                // red (`GetHPBarLevel` 1 to 9 of 48).
+                if run.scene.finished().is_none() {
+                    let m = run.battle.as_ref().unwrap().mon(Side::Player);
+                    let red = m.hp > 0 && (m.hp as u32 * 48 / m.max_hp.max(1) as u32) <= 9;
+                    s.audio.set_low_hp(game.audio(), &mut f.sound, red);
+                }
+
                 if let Some(outcome) = run.scene.finished() {
                     run.outcome = Some(outcome);
                     s.event(super::Event::BattleEnded(outcome));
@@ -1020,7 +1042,15 @@ impl World {
                     if let Some((ball, n)) = run.scene.balls_thrown() {
                         s.bag.remove(Pocket::PokeBalls, ball, n);
                     }
+                    s.audio.set_low_hp(game.audio(), &mut f.sound, false);
                     if outcome == BattleOutcome::Won {
+                        // Gen3 `HandleEndTurn_BattleWon` (trainers) and `Cmd_getexp` (wild):
+                        // the victory music.
+                        if let Some((_, song)) =
+                            battle_music(game, &run.battle.as_ref().unwrap().setup().kind)
+                        {
+                            s.audio.play_bgm(game.audio(), &mut f.sound, song);
+                        }
                         after_win(game, s, run.battle.as_ref().unwrap());
                     }
                     if outcome == BattleOutcome::Caught
@@ -1049,6 +1079,8 @@ impl World {
                 }
             }
             Stage::Leaving => {
+                // Gen3 `CB2_ReturnToField`: `Overworld_PlaySpecialMapMusic`.
+                s.play_special_map_music(game);
                 // Gen3 `FreeResetData_ReturnToOvOrDoEvolutions`: after a win with a level-up,
                 // the evolution scenes run over the black screen before the field comes back
                 // (Task E opens them; their host restores the field when the last closes).
@@ -1134,6 +1166,7 @@ impl World {
             Some((map, x, y)) if game.has_map(map) => {
                 load_map(game, s, f, map, x, y);
                 s.objects.face(PLAYER, Dir::Down);
+                s.play_special_map_music(game);
             }
             _ => {
                 s.log("whiteout: no respawn heal location; the field is restored in place");

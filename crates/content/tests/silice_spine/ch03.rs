@@ -757,10 +757,8 @@ pub fn check_end(r: &Run) {
         "multichoice",
         "hidden coins message",
         "capsule metatile",
-        "play_music",
         "party_valid_count",
         "show_sync",
-        "play_se",
         "mallette_call",
         "end_call",
     ] {

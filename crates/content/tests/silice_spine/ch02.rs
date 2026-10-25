@@ -673,7 +673,6 @@ pub fn check_end(r: &Run) {
     }
     assert_eq!(r.w.events_dropped(), 0);
     for name in [
-        "play_se",
         "mallette_call",
         "end_call",
         "follower",

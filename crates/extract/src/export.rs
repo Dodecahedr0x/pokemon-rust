@@ -420,6 +420,12 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
     tables::export_tmhm(rom, &mut o, &mut provenance).context("TM/HM tables")?;
     tables::export_berries(rom, &mut o, &mut provenance).context("berry table")?;
     ui::export_ui(rom, &mut o, &mut provenance)?;
+    // Milestone 12: the m4a songs, voices and samples (decomp names when it is there).
+    let sound_names = match scripts::decomp_dir() {
+        Some(dir) => Some(crate::sound::DecompNames::read(&dir).context("decomp sound names")?),
+        None => None,
+    };
+    crate::sound::export(rom, &mut o, sound_names.as_ref(), &mut provenance).context("sound")?;
 
     let manifest = Manifest {
         format: schema::FORMAT_VERSION,

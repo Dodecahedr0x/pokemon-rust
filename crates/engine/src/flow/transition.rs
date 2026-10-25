@@ -111,6 +111,11 @@ impl Transition {
         };
     }
 
+    /// The warp's destination map.
+    pub fn dest(&self) -> MapId {
+        self.map
+    }
+
     /// Reports the behavior of the arrival cell, read from the live field after the load and its
     /// `on_load` script (Gen3 reads it then too), and returns the facing to give the player
     /// (Gen3 `GetAdjustedInitialDirection`, `SetUpWarpExitTask`). `warped_facing` is the

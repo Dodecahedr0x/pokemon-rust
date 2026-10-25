@@ -96,8 +96,7 @@ const DRONE_PASSE: &[Step] = &[
 /// names the Gargote. Sets 93.
 pub async fn Nebula_Sc01(ctx: Ctx) {
     ctx.lock_all().await;
-    // fallback: play_music(MUS_RG_SILPH) (the map's own music).
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_RG_SILPH").await;
     say(&ctx, Nebula_Sc01_T1).await;
     move_wait(&ctx, LOCALID_NEBULA_DRONE, DRONE_PASSE).await;
     say(&ctx, Nebula_Sc01_T2).await;
@@ -134,8 +133,7 @@ pub async fn Nebula_Sc03(ctx: Ctx) {
     say(&ctx, Nebula_Sc03_T1).await;
     let (px, py) = ctx.player_pos().await;
     camera_pan(&ctx, GRANDE_PORTE.0 - px, GRANDE_PORTE.1 - py).await;
-    // fallback: play_music(MUS_EVER_GRANDE).
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_EVER_GRANDE").await;
     say(&ctx, Nebula_Sc03_T2).await;
     show(&ctx, LOCALID_NEBULA_MATHIEU, FLAG_SIL_HIDE_NEBULA_MATHIEU).await;
     say(&ctx, Nebula_Sc03_T3).await;

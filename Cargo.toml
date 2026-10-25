@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/engine", "crates/content", "crates/game-native", "crates/emu", "crates/extract", "crates/studio", "crates/explore", "crates/parity", "crates/vanilla", "xtask"]
+members = ["crates/engine", "crates/sound", "crates/content", "crates/game-native", "crates/emu", "crates/extract", "crates/studio", "crates/explore", "crates/parity", "crates/vanilla", "xtask"]
 exclude = ["crates/game-gba"]
 
 [workspace.package]
@@ -10,6 +10,7 @@ publish = false
 
 [workspace.dependencies]
 engine = { path = "crates/engine" }
+sound = { path = "crates/sound" }
 content = { path = "crates/content" }
 game-native = { path = "crates/game-native" }
 emu = { path = "crates/emu" }
@@ -40,6 +41,10 @@ opt-level = 2
 # binaries take 3x to 10x less CPU (extract's export 149 s to 27 s, studio's map_edit 55 s to
 # 5 s), for about two more minutes of build when these crates rebuild.
 [profile.dev.package.extract]
+opt-level = 2
+
+# The content build's dry runs of every song and cry (Milestone 12, `content/build/sound.rs`).
+[profile.dev.package.sound]
 opt-level = 2
 
 [profile.dev.package.studio]

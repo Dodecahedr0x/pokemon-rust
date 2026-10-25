@@ -543,7 +543,7 @@ pub fn check_end(r: &Run) {
         assert!(r.beaten(t), "{t:?}");
     }
     assert_eq!(r.w.events_dropped(), 0);
-    for name in ["play_music", "mallette_call", "end_call", "play_se"] {
+    for name in ["mallette_call", "end_call"] {
         assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);
     }
     // Sc01's flash and Sc03's camera pan are the engine's own (SIL-M).

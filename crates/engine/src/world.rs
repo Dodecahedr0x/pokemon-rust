@@ -24,6 +24,7 @@
 //! once, and text, fades and warps there are logged and ignored. A warp load ends the running
 //! script (Gen3 `CB2_LoadMap` resets the script context).
 
+mod audio;
 mod battle;
 pub(crate) mod caught;
 mod checkpoint;
@@ -314,6 +315,8 @@ pub(crate) struct State {
     /// Gen3 `sMysteryEventScriptContext.mStatus` (`setmysteryeventstatus`). Not snapshotted,
     /// not hashed (EWRAM, like the comparison register).
     pub(crate) mystery_event_status: u8,
+    /// Milestone 12: the music players and sound tasks the game reads ([`crate::audio`]).
+    pub(crate) audio: crate::audio::Audio,
 }
 
 /// Gen3 `gLocalTime` after `RtcCalcLocalTime` with a zero saved offset: the RTC in decimal,
@@ -565,6 +568,7 @@ impl World {
                 contest: crate::contest::Session::default(),
                 wonder_card: None,
                 mystery_event_status: 0,
+                audio: crate::audio::Audio::default(),
             },
             rtc: None,
             sound: crate::options::Sound::Mono,
@@ -575,6 +579,8 @@ impl World {
             run_immediate(game, &mut w.s, &mut f, id);
         }
         load_map(game, &mut w.s, &mut f, ng.map, ng.x, ng.y);
+        // Gen3 `CB2_NewGame` -> `Overworld_PlaySpecialMapMusic`.
+        w.s.play_special_map_music(game);
         w.s.objects.face(PLAYER, ng.facing);
         w.s.fader.start(Fade::FromBlack);
         let reserved = crate::sky::reserved_banks(game, &w.s.weather, None);
@@ -653,6 +659,7 @@ impl World {
         let reserved =
             crate::sky::reserved_banks(game, &self.s.weather, self.s.fx.overlay.as_ref());
         self.s.objects.reserve_banks(reserved);
+        let warping = self.s.transition.is_active();
         match core::mem::replace(&mut self.s.mode, Mode::Field) {
             Mode::Field => self.step_field(game, &mut f),
             Mode::Starter(run) => self.step_starter(game, run, &mut f),
@@ -673,6 +680,13 @@ impl World {
         self.apply_sky(game, field, &mut f);
         // Screen effects post-process the whole frame, last (Task R).
         crate::fx::apply(&mut self.s.fx, &mut f);
+        // Gen3 `TryFadeOutOldMapMusic`, as each warp starts.
+        if !warping && self.s.transition.is_active() {
+            let dest = self.s.transition.dest();
+            self.s.warp_fade_out_music(game, dest, &mut f);
+        }
+        // Milestone 12: the frame's sound tasks, `MapMusicMain` and `SoundMain`, last.
+        self.s.audio.tick(game.audio(), &mut f.sound);
         // Task S: the Hall of Fame's save, on the first capturable frame after it.
         save::after_step(self, game);
         // The cable-car ride owns the picture while the script waits on it (the field keeps
@@ -1375,7 +1389,9 @@ impl World {
         if let Some(name) = &s.rival_name {
             h.write(&[0xB1]);
             h.write(name);
-        }
+        } // Milestone 12: the music players and sound tasks.
+        s.audio.hash(&mut h);
+
         h.finish()
     }
 }

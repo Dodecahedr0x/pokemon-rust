@@ -34,6 +34,7 @@ mod layouts;
 mod parity;
 mod scripts;
 mod silice;
+mod sound;
 mod stub;
 mod ui;
 
@@ -216,6 +217,11 @@ fn main() {
     ] {
         write_if_changed(&out.join(name), src.as_bytes()).unwrap();
     }
+    // Milestone 12: the sound blob and its tables.
+    let snd = sound::generate(&world, silice)
+        .unwrap_or_else(|e| panic!("generating the sound data: {e:#}"));
+    write_if_changed(&out.join("sound.rs"), snd.rs.as_bytes()).unwrap();
+    write_if_changed(&out.join("sound.bin"), &snd.bin).unwrap();
     write_if_changed(&out.join("battle.bin"), &g.battle_bin).unwrap();
     write_if_changed(&out.join("data.bin"), &g.data_bin).unwrap();
     write_if_changed(&out.join("ui.bin"), &ui_bin).unwrap();

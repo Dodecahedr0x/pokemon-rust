@@ -115,8 +115,8 @@ fn options_menu_changes_the_other_settings_and_they_apply() {
             ctx.battle_wild(NORMAL, 5, false).await;
         })
     });
-    for _ in 0..40 {
-        if scene.in_battle() {
+    for _ in 0..160 {
+        if scene.battle().is_some() {
             break;
         }
         run(&mut scene, Buttons::NONE, 1);
@@ -131,8 +131,8 @@ fn options_menu_changes_the_other_settings_and_they_apply() {
             ctx.battle_wild(NORMAL, 5, false).await;
         })
     });
-    for _ in 0..40 {
-        if style.in_battle() {
+    for _ in 0..160 {
+        if style.battle().is_some() {
             break;
         }
         run(&mut style, Buttons::NONE, 1);

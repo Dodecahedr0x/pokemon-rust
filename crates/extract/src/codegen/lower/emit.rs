@@ -402,6 +402,53 @@ impl<'a> Low<'a> {
                 return Ok(self.special(s, Some(v), st, out));
             }
             ("waitstate", _) => out.push("ctx.wait_state().await;".to_string()),
+            // ---- Milestone 12: sound ----
+            ("playse" | "playfanfare" | "savebgm" | "fadenewbgm", [n]) => {
+                let Some(n) = u16_expr(n, false) else {
+                    return Ok(false);
+                };
+                let f = match op {
+                    "playse" => "play_se",
+                    "playfanfare" => "play_fanfare",
+                    "savebgm" => "save_bgm",
+                    _ => "fade_new_bgm",
+                };
+                out.push(format!("ctx.{f}({n}).await;"));
+            }
+            ("waitse" | "waitfanfare" | "waitmoncry" | "fadedefaultbgm", []) => {
+                let f = match op {
+                    "waitse" => "wait_se",
+                    "waitfanfare" => "wait_fanfare",
+                    "waitmoncry" => "wait_cry",
+                    _ => "fade_default_bgm",
+                };
+                out.push(format!("ctx.{f}().await;"));
+            }
+            ("playbgm", [n, save]) => {
+                let (Some(n), Some(save)) = (u16_expr(n, false), u8_lit(save)) else {
+                    return Ok(false);
+                };
+                // `ScrCmd_playbgm`: `save == TRUE`.
+                out.push(format!("ctx.play_bgm({n}, {}).await;", save == 1));
+            }
+            ("fadeoutbgm" | "fadeinbgm", [speed]) => {
+                let Some(speed) = u8_lit(speed) else {
+                    return Ok(false);
+                };
+                let f = if op == "fadeoutbgm" {
+                    "fade_out_bgm"
+                } else {
+                    "fade_in_bgm"
+                };
+                out.push(format!("ctx.{f}({speed}).await;"));
+            }
+            ("playmoncry", [species, mode]) => {
+                let (Some(species), Some(mode)) = (u16_expr(species, true), u16_expr(mode, true))
+                else {
+                    return Ok(false);
+                };
+                out.push(format!("ctx.play_cry({species}, {}).await;", as_u8(&mode)));
+            }
             ("delay", [n]) => {
                 let Some(n) = u16_expr(n, false) else {
                     return Ok(false);

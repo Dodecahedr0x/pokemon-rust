@@ -193,6 +193,7 @@ fn checkpoint(frame: u32, state: u32, build: BuildHash) -> Checkpoint {
         sky: None,
         rival_name: None,
         box_names: Vec::new(),
+        audio: None,
     };
     Checkpoint {
         header: Header {

@@ -14,6 +14,7 @@ pub(in crate::world) use fx::whiteout_allowed;
 pub(in crate::world) use rotating_tiles::RotatingTiles;
 pub(in crate::world) use stash::Stash;
 
+mod audio;
 mod buffers;
 mod contest;
 mod field;
@@ -113,6 +114,9 @@ impl<G: GameData> Host<'_, G> {
             Request::Multichoice { .. } => menu::done(self, r),
             Request::TrainerApproach { .. } => trainer::done(self, r),
             Request::WaitFieldEffect(_) => field::done(self, r),
+            Request::WaitSe | Request::WaitFanfare | Request::FadeOutBgm(_) | Request::WaitCry => {
+                audio::done(self, r)
+            }
             _ => true,
         }
     }
@@ -556,6 +560,19 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::WaitButton
             | Request::WaitDoor
             | Request::WaitState => self.wait(r),
+            // ---- Milestone 12 ----
+            Request::PlaySe(_)
+            | Request::WaitSe
+            | Request::PlayFanfare(_)
+            | Request::WaitFanfare
+            | Request::PlayBgm { .. }
+            | Request::SaveBgm(_)
+            | Request::FadeDefaultBgm
+            | Request::FadeNewBgm(_)
+            | Request::FadeOutBgm(_)
+            | Request::FadeInBgm(_)
+            | Request::PlayCry { .. }
+            | Request::WaitCry => audio::begin(self, r),
             // ---- Milestone 8 ----
             Request::ItemAdd { .. }
             | Request::ItemRemove { .. }

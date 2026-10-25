@@ -99,6 +99,19 @@ use std::fmt::Write as _;
 /// report is `lower_every_native_command_without_reports` in `extract/tests/codegen.rs`: add a
 /// use of a new entry there.
 pub const NATIVE_COMMANDS: &[&str] = &[
+    // Milestone 12: sound.
+    "playse",
+    "waitse",
+    "playfanfare",
+    "waitfanfare",
+    "playbgm",
+    "savebgm",
+    "fadedefaultbgm",
+    "fadenewbgm",
+    "fadeoutbgm",
+    "fadeinbgm",
+    "playmoncry",
+    "waitmoncry",
     "nop",
     "nop1",
     "end",

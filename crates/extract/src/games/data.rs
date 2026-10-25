@@ -292,6 +292,16 @@ pub struct IdsFile {
     pub ids: Vec<IdEntry>,
 }
 
+/// `sound.ron` (Milestone 12): the game's own songs and invented sound effects, each mapped to
+/// the Emerald song that plays for it until the author's tracks land.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct SoundFile {
+    /// `MUS_SIL_*` (`ids/songs.ron`) -> Emerald `MUS_*`.
+    pub songs: std::collections::BTreeMap<String, String>,
+    /// An invented `SE_*` name the scripts use -> Emerald `SE_*`.
+    pub effects: std::collections::BTreeMap<String, String>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct IdEntry {
     pub name: String,

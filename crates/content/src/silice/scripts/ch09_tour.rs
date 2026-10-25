@@ -207,8 +207,7 @@ pub async fn Nebula_TourHall_EventScript_Kroll(ctx: Ctx) {
 /// proposed, the warp lands in Chapter 10's cabin, `TourNebulaAscenseur` (3, 6).
 pub async fn Nebula_TourHall_Sc02(ctx: Ctx) {
     ctx.lock_all().await;
-    // fallback: play_music(MUS_NONE), the silence (no music change in a script yet).
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_NONE").await;
     say(&ctx, Tour_Hall_Sc02_T1).await;
     say(&ctx, Tour_Hall_Sc02_T2).await;
     ctx.heal_party().await;

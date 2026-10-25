@@ -57,6 +57,13 @@
 //!   tables/tmhm.ron              TmHmFile (minor 7: sTMHMMoves, gTMHMLearnsets)
 //!   tables/berries.ron           BerriesFile (minor 9: gBerries)
 //!   battle/partners.ron          PartnersFile (minor 13: sStevenMons)
+//!   sound/songs.ron              SongTableFile (minor 14: gSongTable, each song's player)
+//!   sound/songs/<song>.ron       SongFile (minor 14: one per SongHeader, decoded MP2K tracks)
+//!   sound/voices.ron             VoicesFile (minor 14: the ToneData region, voicegroups,
+//!                                keysplit tables, the cry tables)
+//!   sound/samples.ron            SamplesFile (minor 14: WaveData headers, programmable waves)
+//!   sound/samples/<name>.wav     8-bit mono PCM (minor 14: each sample, DPCM decoded)
+//!   sound/tables.ron             SoundTablesFile (minor 14: sFanfares, gSpeciesIdToCryId)
 //! ```
 //!
 //! **Versions.** [`FORMAT_VERSION`] is the major version: an extract of another major builds the
@@ -120,7 +127,9 @@ pub const FORMAT_VERSION: u32 = 5;
 ///   file.
 /// - 13: Wave G (double battles) adds `battle/partners.ron` (`sStevenMons`, the in-game
 ///   partner of the Space Center multi battle).
-pub const FORMAT_MINOR: u32 = 13;
+/// - 14: Milestone 12 (audio) adds `sound/`: the song table, every song's tracks, the
+///   voicegroups, the samples (`.wav`), the programmable waves, `sFanfares` and the cry ids.
+pub const FORMAT_MINOR: u32 = 14;
 /// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
 /// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
 /// ones when an extract is older ([`missing_since`]). Only paths every extract has are listed:
@@ -149,6 +158,10 @@ pub const MINOR_FILES: &[(u32, &str)] = &[
     (9, "tables/berries.ron"),
     (11, "scripts/Common_field_poison.ron"),
     (13, "battle/partners.ron"),
+    (14, "sound/songs.ron"),
+    (14, "sound/voices.ron"),
+    (14, "sound/samples.ron"),
+    (14, "sound/tables.ron"),
 ];
 
 /// The [`MINOR_FILES`] paths added after `minor` that `exists` reports missing.
@@ -1058,6 +1071,168 @@ pub struct InGameTradeEntry {
     pub ot_gender: u8,
     pub sheen: u8,
     pub requested: String,
+}
+
+// ---- minor 14 (Milestone 12, audio): the MP2K (m4a) sound data, `sound.rs` ----
+
+/// `sound/songs.ron`: `gSongTable` by song number (`MUS_*`, `SE_*`, `PH_*`), with the m4a
+/// music player of each song (`ms`: 0 BGM, 1-3 SE1-SE3) and its `me` field.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct SongTableFile {
+    pub songs: Vec<SongTableEntry>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct SongTableEntry {
+    /// The song constant (`MUS_LITTLEROOT`), `charmap::SOUNDS`' name of the number.
+    pub name: String,
+    pub player: u8,
+    pub me: u8,
+    /// `sound/songs/<song>.ron`; several entries may share one song (one header). `None`: a
+    /// header with no tracks (`mus_dummy`).
+    pub song: Option<String>,
+}
+
+/// `sound/songs/<song>.ron`: one `struct SongHeader` and its tracks, decoded.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct SongFile {
+    pub block_count: u8,
+    pub priority: u8,
+    /// `reverb` (bit 7 set: `m4aSoundMode` takes the low 7 bits as the reverb).
+    pub reverb: u8,
+    /// A [`VoicesFile::groups`] name.
+    pub voicegroup: String,
+    pub tracks: Vec<Vec<SongCmd>>,
+}
+
+/// One MP2K track command (`sound/MPlayDef.s`). Execution starts at the first command; labels
+/// (`L`) are jump targets and encode to nothing. Running status is not kept: the encoder writes
+/// every command byte (or omits repeats again, which plays the same).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub enum SongCmd {
+    /// A jump target.
+    L(u16),
+    /// `W00`-`W96`: wait this many ticks (a `gClockTable` value).
+    W(u8),
+    /// `N01`-`N96`: a note of this many ticks (a `gClockTable` value), with its optional key,
+    /// velocity and extra gate ticks (omitted: the track's last key and velocity). 0 ticks is
+    /// `TIE` (held until `EOT`, unless the extra gate ticks end it).
+    N(u8, Option<u8>, Option<u8>, Option<u8>),
+    /// `EOT` (key).
+    Eot(Option<u8>),
+    Fine,
+    Goto(u16),
+    Patt(u16),
+    Pend,
+    /// `REPT count, label` (count 0 loops forever).
+    Rept(u8, u16),
+    /// `MEMACC op, addr, data` (ops 6-17 jump to the label when their test holds).
+    MemAcc(u8, u8, u8, Option<u16>),
+    Prio(u8),
+    /// Beats per minute / 2.
+    Tempo(u8),
+    Keysh(u8),
+    Voice(u8),
+    Vol(u8),
+    Pan(u8),
+    Bend(u8),
+    Bendr(u8),
+    Lfos(u8),
+    Lfodl(u8),
+    Mod(u8),
+    Modt(u8),
+    Tune(u8),
+    /// `PORT register, value` (a raw sound register write).
+    Port(u8, u8),
+    /// `XCMD sub, args` (`gXcmdTable`; `xIECV`, `xIECL`, `xRELE`, `xWAIT`, ...).
+    X(u8, Vec<u8>),
+    /// A command byte m4a runs as `ply_fine` (0xB6-0xB8, 0xC6, 0xC7, 0xC9-0xCB).
+    Op(u8),
+}
+
+/// `sound/voices.ron`: the voice memory as m4a reads it. `voices` are the 12-byte
+/// `struct ToneData` entries of `voice_groups.inc` (with the cry tables) in ROM order, from the
+/// first voicegroup to 128 entries after the last one; a voicegroup is an index into them, and
+/// voice `n` of a group is entry `index + n` (groups overlap, as in the ROM). Entries that are
+/// not a valid `ToneData` (the bytes after the last group) are `Raw`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct VoicesFile {
+    pub voices: Vec<Voice>,
+    /// Voicegroup name -> index of its voice 0.
+    pub groups: Vec<(String, u32)>,
+    /// Key split table name -> `table[key]` for the 128 keys (m4a reads `table + key`).
+    pub keysplits: Vec<(String, Vec<u8>)>,
+    /// Index of `gCryTable` and `gCryTable_Reverse` (one entry per cry id).
+    pub cry_table: u32,
+    pub cry_table_reverse: u32,
+    pub cry_count: u32,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub enum Voice {
+    /// `ToneData { type, key, length, pan_sweep, wav, attack, decay, sustain, release }`, or
+    /// for a key split (`type` 0x40) `wav` = the group and `tail` = the table.
+    Tone {
+        ty: u8,
+        key: u8,
+        length: u8,
+        pan_sweep: u8,
+        wav: VoiceRef,
+        tail: VoiceTail,
+    },
+    Raw(Vec<u8>),
+}
+
+/// `ToneData.wav` by voice type.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub enum VoiceRef {
+    /// Direct sound (`type & 7 == 0`): a [`SamplesFile`] sample.
+    Sample(String),
+    /// Programmable wave (`type & 7 == 3`): a [`SamplesFile::waves`] wave.
+    Wave(String),
+    /// Key split or rhythm (`type & 0xC0`): a voicegroup.
+    Group(String),
+    /// Square duty cycle or noise period (`type & 7` 1, 2, 4).
+    Value(u32),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub enum VoiceTail {
+    /// attack, decay, sustain, release.
+    Adsr([u8; 4]),
+    /// A key split's table ([`VoicesFile::keysplits`]).
+    Table(String),
+}
+
+/// `sound/samples.ron`: the direct sound samples (`struct WaveData`), each in
+/// `sound/samples/<name>.wav` (8-bit mono, decompressed), and the programmable waves.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct SamplesFile {
+    pub samples: Vec<SampleInfo>,
+    /// Wave name -> its 16 bytes (32 4-bit samples, high nibble first).
+    pub waves: Vec<(String, Vec<u8>)>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct SampleInfo {
+    pub name: String,
+    /// `WaveData.type` (1: DPCM-compressed in the ROM, as the cries; the `.wav` is decoded).
+    pub kind: u16,
+    /// `WaveData.status` (0x4000: loops).
+    pub status: u16,
+    /// `WaveData.freq`: the sample rate at the voice's key times 1024.
+    pub freq: u32,
+    pub loop_start: u32,
+    /// Samples (`WaveData.size`).
+    pub size: u32,
+}
+
+/// `sound/tables.ron`: the sound tables outside m4a: `sFanfares` (song, frames) and
+/// `gSpeciesIdToCryId` (from `SPECIES_TREECKO`).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct SoundTablesFile {
+    pub fanfares: Vec<(String, u16)>,
+    pub cry_ids: Vec<u16>,
 }
 
 #[cfg(test)]

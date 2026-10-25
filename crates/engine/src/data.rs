@@ -1652,6 +1652,31 @@ pub trait GameData {
 
     // ---- off-grass encounters ----
 
+    // ---- Milestone 12: audio ----
+
+    /// The game's sound data; the default has no songs (nothing plays, nothing waits).
+    fn audio(&self) -> &'static crate::audio::AudioData {
+        &crate::audio::EMPTY_AUDIO
+    }
+    /// Gen3 `GetCurrLocationDefaultMusic`: the music of `map` with the player on column `x`
+    /// (Route 118's two halves; `x` is negative for a warp's destination,
+    /// `GetWarpDestinationMusic`) ([`crate::audio::MUS_NONE`]: no change).
+    fn map_music(&self, map: MapId, x: i16) -> u16 {
+        let _ = (map, x);
+        crate::audio::MUS_NONE
+    }
+    /// Trainer `id`'s battle music and victory music (`GetBattleBGM`, `HandleEndTurn_BattleWon`
+    /// by trainer class); `None` for the defaults (`MUS_VS_TRAINER`-like songs the game does
+    /// not name: nothing changes).
+    fn trainer_music(&self, id: TrainerId) -> Option<(u16, u16)> {
+        let _ = id;
+        None
+    }
+    /// Whether `map`'s type is indoors (`IsMapTypeIndoors`: the warp fade-out speed).
+    fn map_indoors(&self, map: MapId) -> bool {
+        self.map_type(map) == MapType::Indoor
+    }
+
     /// Gen3 `gMapHeader.mapType` of `map`, as `BattleSetup_GetEnvironmentId` reads it (the
     /// battle background). The default, [`MapType::Outdoor`], is a route's.
     fn map_type(&self, map: MapId) -> MapType {

@@ -667,7 +667,6 @@ pub fn check_end(r: &Run) {
         "mart",
         "show_sync",
         "battle_two_trainers",
-        "play_se",
         "mallette_call",
         "end_call",
     ] {

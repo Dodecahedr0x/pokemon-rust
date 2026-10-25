@@ -3,6 +3,7 @@
 
 extern crate alloc;
 
+pub mod audio;
 pub mod bag;
 pub mod battle;
 pub mod berry;

@@ -210,8 +210,7 @@ pub async fn MangaSquare_Gym_Sc03(ctx: Ctx) {
     }
     ctx.lock_all().await;
     move_wait(&ctx, LOCALID_GYM06_TAK, FACE_PLAYER).await;
-    // fallback: play_music(MUS_RG_ENCOUNTER_GYM_LEADER) (audio, M12): nothing.
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_RG_ENCOUNTER_GYM_LEADER").await;
     say(&ctx, Gym_Sc03_T1).await;
     say(&ctx, Gym_Sc03_T2).await;
     say(&ctx, Gym_Sc03_T3).await;
@@ -222,8 +221,7 @@ pub async fn MangaSquare_Gym_Sc03(ctx: Ctx) {
     say(&ctx, Gym_Sc03_T4).await;
     say(&ctx, Gym_Sc03_T5).await;
     say(&ctx, Gym_Sc03_T6).await;
-    // fallback: play_fanfare(MUS_OBTAIN_BADGE) (audio, M12): nothing.
-    fallback(&ctx, "play_fanfare").await;
+    play_fanfare(&ctx, "MUS_OBTAIN_BADGE").await;
     say(&ctx, Gym_Sc03_T7).await;
     ctx.set_flag(FLAG_SIL_BADGE_06, true).await;
     say(&ctx, Gym_Sc03_T8).await;

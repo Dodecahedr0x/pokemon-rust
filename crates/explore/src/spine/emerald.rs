@@ -42,6 +42,8 @@ mod list {
     const ITEM_PECHA_BERRY: engine::data::ItemId = engine::data::ItemId(135);
     /// Gen3's `ITEM_MAX_ELIXIR`, for the same reason.
     const ITEM_MAX_ELIXIR: engine::data::ItemId = engine::data::ItemId(37);
+    /// Gen3's `ITEM_GREAT_BALL`, for the same reason.
+    const ITEM_GREAT_BALL: engine::data::ItemId = engine::data::ItemId(3);
 
     /// The League's Poké Mart (`EverGrandeCity_PokemonLeague_1F_EventScript_Clerk`'s
     /// `pokemart`): the Full Restores the lead drinks between the Elite Four's rooms (the
@@ -175,6 +177,8 @@ mod list {
     const FT48: [Step; 6] = fortree_train(48);
     const FT49: [Step; 6] = fortree_train(49);
     const FT50: [Step; 6] = fortree_train(50);
+    const FT51: [Step; 6] = fortree_train(51);
+    const FT52: [Step; 6] = fortree_train(52);
 
     /// One training round on the water west of Mossdeep: Surf from (10, 10), pace on (8, 10)
     /// to `level` (stopping at half HP or low PP), back ashore, healed at the Center.
@@ -1334,6 +1338,19 @@ mod list {
         FT50[3],
         FT50[4],
         FT50[5],
+        // Milestone 12's sound waits (`waitse`, `waitfanfare`, cries) moved the RNG: two more.
+        FT51[0],
+        FT51[1],
+        FT51[2],
+        FT51[3],
+        FT51[4],
+        FT51[5],
+        FT52[0],
+        FT52[1],
+        FT52[2],
+        FT52[3],
+        FT52[4],
+        FT52[5],
         // ---- Winona ----
         enter(MAP_FORTREE_CITY, 22, 11, Up),
         // The gym's trainers leave the lead too drained for Winona: past them to her
@@ -1353,6 +1370,15 @@ mod list {
         enter(MAP_FORTREE_CITY, 5, 6, Up),
         use_(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // Great Balls for Route 122's catches (the bag's few found balls can run out).
+        enter(MAP_FORTREE_CITY, 4, 14, Up),
+        Step::Buy {
+            map: MAP_FORTREE_CITY_MART,
+            local_id: 1,
+            item: ITEM_GREAT_BALL,
+            qty: 10,
+        },
+        enter(MAP_FORTREE_CITY_MART, 3, 7, Down),
         cross(MAP_FORTREE_CITY, 39, 8, Right),
         cross(MAP_ROUTE120, 39, 89, Right),
         // Aqua's grunts block the way east until the player steps on their trigger

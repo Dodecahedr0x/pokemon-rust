@@ -523,10 +523,7 @@ fn fallback_reports_and_the_script_goes_on() {
             _ => None,
         })
         .collect();
-    assert_eq!(
-        degraded,
-        ["set_sky_alert", "play_se", "mallette_call", "end_call"]
-    );
+    assert_eq!(degraded, ["set_sky_alert", "mallette_call", "end_call"]);
     // The shake is the engine's.
     assert_eq!(
         h.count(|r| *r

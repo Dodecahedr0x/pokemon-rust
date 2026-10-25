@@ -1,5 +1,7 @@
 //! Host shell: runs engine + content natively and draws each [`Frame`] with a software PPU.
 
+#[cfg(feature = "window")]
+pub mod audio;
 pub mod checkpoints;
 pub mod controls;
 pub mod flash;
@@ -43,6 +45,9 @@ pub struct Session<G: GameData> {
     /// The last save known to the shell (the booted one, then each in-game save): what
     /// `Event::ReloadLastSave` brings back.
     last_save: Option<Checkpoint>,
+    /// The sound commands of the frames since the last [`Session::take_sound`], once
+    /// [`Session::enable_sound`] asked for them (headless runs keep none).
+    sound: Option<Vec<engine::audio::Cmd>>,
 }
 
 impl<G: GameData> Session<G> {
@@ -109,6 +114,7 @@ impl<G: GameData> Session<G> {
             save: None,
             continue_cp: None,
             last_save: None,
+            sound: None,
         };
         s.reset();
         s
@@ -121,11 +127,30 @@ impl<G: GameData> Session<G> {
         self.ppu = Ppu::new();
         self.ppu.apply(&self.frame);
         self.drawn = false;
+        // A new World: the sound engine starts over too, then plays what the World implies.
+        if let Some(q) = &mut self.sound {
+            q.push(engine::audio::Cmd::StopAll);
+            q.extend_from_slice(&self.frame.sound);
+        }
+    }
+
+    /// Keeps each frame's sound commands for [`Session::take_sound`] from now on.
+    pub fn enable_sound(&mut self) {
+        self.sound.get_or_insert_with(Vec::new);
+    }
+
+    /// The sound commands since the last call, in order, for a sound engine
+    /// ([`sound::synth::Synth`]) that has had all earlier ones.
+    pub fn take_sound(&mut self) -> Vec<engine::audio::Cmd> {
+        self.sound.as_mut().map(std::mem::take).unwrap_or_default()
     }
 
     pub fn step(&mut self, keys: Buttons) {
         self.frame = self.world.step(&self.game, keys);
         self.ppu.apply(&self.frame);
+        if let Some(q) = &mut self.sound {
+            q.extend_from_slice(&self.frame.sound);
+        }
         self.drawn = false;
         // The main menu's choice replaces the boot World, on a fresh PPU as the ROM's black
         // load does (Task S).
@@ -358,6 +383,27 @@ mod tests {
         let mut ppu_fb = vec![0; SCREEN_W * SCREEN_H];
         s.ppu().render(s.frame(), &mut ppu_fb);
         assert_eq!(fb, ppu_fb);
+    }
+
+    /// Milestone 12: a session keeps its frames' sound commands only when asked; a load stops
+    /// everything first.
+    #[test]
+    fn sound_commands_queue_when_enabled() {
+        use engine::audio::Cmd;
+        let mut s = Session::new(content::Emerald::for_shells());
+        s.step(Buttons::NONE);
+        assert!(s.take_sound().is_empty());
+        s.enable_sound();
+        let mut want = Vec::new();
+        for _ in 0..10 {
+            s.step(Buttons::NONE);
+            want.extend_from_slice(&s.frame().sound);
+        }
+        assert_eq!(s.take_sound(), want);
+        assert!(s.take_sound().is_empty());
+        let Ok(cp) = s.checkpoint() else { return };
+        s.load(&cp).unwrap();
+        assert_eq!(s.take_sound().first(), Some(&Cmd::StopAll));
     }
 
     #[test]

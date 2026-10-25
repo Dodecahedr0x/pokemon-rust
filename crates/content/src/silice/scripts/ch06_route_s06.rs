@@ -135,8 +135,7 @@ pub async fn RouteS06_Sc02(ctx: Ctx) {
         return;
     }
     ctx.lock_all().await;
-    // fallback: play_music(MUS_ENCOUNTER_AQUA) (audio, M12): the map's music goes on.
-    fallback(&ctx, "play_music").await;
+    play_music(&ctx, "MUS_ENCOUNTER_AQUA").await;
     say(&ctx, Route_S06_Sc02_T1).await;
     let (x, _) = ctx.player_pos().await;
     let path = match x {

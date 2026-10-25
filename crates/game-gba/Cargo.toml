@@ -12,6 +12,8 @@ publish = false
 agb = { version = "0.25.0", default-features = false }
 engine = { path = "../engine", features = ["iwram"] }
 content = { path = "../content" }
+# Milestone 12: the MP2K engine the shell runs each frame.
+sound = { path = "../sound" }
 
 [features]
 # The map tour (Milestone 8 Task M): L+R+START warps to the next map (`src/tour_logic.rs`).

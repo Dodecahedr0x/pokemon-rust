@@ -349,8 +349,7 @@ pub async fn Owlys_Gym_Sc01(ctx: Ctx) {
     .await;
     ctx.fade(Fade::FromBlack).await;
     say(&ctx, Owlys_Gym_Sc01_T2).await;
-    // fallback: play_fanfare(MUS_OBTAIN_BADGE) (audio, M12): the badge line alone.
-    fallback(&ctx, "play_fanfare").await;
+    play_fanfare(&ctx, "MUS_OBTAIN_BADGE").await;
     say(&ctx, Owlys_Gym_Sc01_Badge).await;
     ctx.set_flag(FLAG_SIL_BADGE_05, true).await;
     say(&ctx, Owlys_Gym_Sc01_T3).await;
