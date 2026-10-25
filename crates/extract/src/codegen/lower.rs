@@ -222,6 +222,12 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "moverotatingtileobjects",
     "turnrotatingtileobjects",
     "freerotatingtilepuzzle",
+    "choosecontestmon",
+    "startcontest",
+    "showcontestresults",
+    "contestlinktransfer",
+    "showcontestpainting",
+    "buffercontestname",
 ];
 
 /// Commands after which execution never reaches the next instruction.

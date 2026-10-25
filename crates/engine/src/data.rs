@@ -1431,6 +1431,18 @@ pub trait GameData {
         let _ = id;
         None
     }
+    /// Contest appeal of `mov` (Gen3 `gContestMoves`: appeal, jam, category).
+    ///
+    /// The default is a Cool move of appeal 40 and jam 0, so a contest can be judged before a
+    /// game fills the table. Jam `0xFF` is no jam (`CONTEST_JAM_NONE`).
+    fn contest_move(&self, mov: MoveId) -> crate::contest::MoveAppeal {
+        let _ = mov;
+        crate::contest::MoveAppeal {
+            appeal: 40,
+            jam: 0,
+            category: 0,
+        }
+    }
     /// The Gen3-encoded choices of multichoice list `list` (`MULTI_*`, `sMultichoiceLists`).
     fn multichoice(&self, list: u8) -> Option<&'static [&'static [u8]]> {
         let _ = list;

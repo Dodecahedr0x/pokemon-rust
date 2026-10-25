@@ -739,6 +739,28 @@ impl<'a> Low<'a> {
                     "buffer(&ctx, {slot}, BufferSrc::{src}).await;{note}"
                 ));
             }
+            ("choosecontestmon", _) => out
+                .push("ctx.set_var(VAR_0x8004, ctx.choose_contest_mon().await).await;".to_string()),
+            ("startcontest", _) => out.push("ctx.start_contest().await;".to_string()),
+            ("showcontestresults", _) => out.push("ctx.show_contest_results().await;".to_string()),
+            ("contestlinktransfer", _) => {
+                out.push("ctx.contest_link_transfer().await;".to_string())
+            }
+            ("showcontestpainting", [n]) => {
+                let Some(n) = u8_lit(n) else {
+                    return Ok(false);
+                };
+                out.push(format!("ctx.show_contest_painting({n}).await;"));
+            }
+            ("buffercontestname", [slot, cat]) => {
+                let (Some(slot), Some(cat)) = (u8_lit(slot), u16_expr(cat, true)) else {
+                    return Ok(false);
+                };
+                out.push(format!(
+                    "buffer(&ctx, {slot}, BufferSrc::ContestName({})).await;",
+                    as_u8(&cat)
+                ));
+            }
             ("bufferleadmonspeciesname", [slot]) => {
                 let Some(slot) = u8_lit(slot) else {
                     return Ok(false);

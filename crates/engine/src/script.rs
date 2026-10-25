@@ -116,6 +116,25 @@ pub enum BufferSrc {
     LeadSpecies,
     /// `bufferstring` of a script text.
     Text(TextId),
+    /// `buffercontestname`: `sContestNames[category]` (`COOLNESS CONTEST` and the other four).
+    ContestName(u8),
+}
+
+/// A contest command (`choosecontestmon`, `startcontest`, `showcontestresults`,
+/// `contestlinktransfer`, `showcontestpainting`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ContestOp {
+    /// The party menu. Answers the slot, or [`PARTY_NOTHING_CHOSEN`], and writes `VAR_0x8004`.
+    ChooseMon,
+    /// Judges the contest and shows the appeals.
+    Start,
+    /// Shows the results. Records the artist painting when the player won.
+    Results,
+    /// Link-contest category check. Sets `VAR_0x8004` to 0 when every player chose the same
+    /// category (a solo contest), else 1. Answers at once.
+    LinkTransfer,
+    /// `showcontestpainting`. `0` is the artist painting.
+    Painting(u8),
 }
 
 /// Which warp a `setdynamicwarp` / `setescapewarp` sets.
@@ -626,6 +645,9 @@ pub enum Request {
     /// to `VAR_0x8000`..`VAR_0x8002`. Answers at once. The clock is a host input, so the
     /// request itself carries no time.
     GetTime,
+    /// A contest command (see [`ContestOp`]). `ChooseMon` answers `Value`; the scenes answer
+    /// `Unit` when they close; `LinkTransfer` answers `Unit` at once.
+    Contest(ContestOp),
 }
 
 /// Gen3 `PARTY_SIZE`: [`Query::PartyMoveSlot`]'s answer when no party mon knows the move.
@@ -798,6 +820,7 @@ impl Request {
                     BufferSrc::PartyNick(n) => (5, n as u32),
                     BufferSrc::LeadSpecies => (6, 0),
                     BufferSrc::Text(t) => (7, t.0 as u32),
+                    BufferSrc::ContestName(c) => (8, c as u32),
                 };
                 (50, slot as u16, kind, v as u16, (v >> 16) as u16)
             }
@@ -1012,6 +1035,17 @@ impl Request {
             Request::GetTime => (213, 0, 0, 0, 0),
             // The cable-car ride scene (tag 214).
             Request::CableCar { down } => (214, down as u16, 0, 0, 0),
+            // A contest command (tag 215).
+            Request::Contest(op) => {
+                let (kind, id) = match op {
+                    ContestOp::ChooseMon => (0, 0),
+                    ContestOp::Start => (1, 0),
+                    ContestOp::Results => (2, 0),
+                    ContestOp::LinkTransfer => (3, 0),
+                    ContestOp::Painting(n) => (4, n as u16),
+                };
+                (215, kind, id, 0, 0)
+            }
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -1922,6 +1956,32 @@ impl Ctx {
     /// saved offset is 0).
     pub fn gettime(&self) -> Req<()> {
         self.req(Request::GetTime, unit)
+    }
+
+    /// `choosecontestmon`: the party slot, or [`PARTY_NOTHING_CHOSEN`]. Also written to
+    /// `VAR_0x8004`.
+    pub fn choose_contest_mon(&self) -> Req<u16> {
+        self.req(Request::Contest(ContestOp::ChooseMon), Response::value)
+    }
+
+    /// `startcontest`: judges, then the appeals screen.
+    pub fn start_contest(&self) -> Req<()> {
+        self.req(Request::Contest(ContestOp::Start), unit)
+    }
+
+    /// `showcontestresults`.
+    pub fn show_contest_results(&self) -> Req<()> {
+        self.req(Request::Contest(ContestOp::Results), unit)
+    }
+
+    /// `contestlinktransfer`: sets `VAR_0x8004` to 0 or 1 (see [`ContestOp::LinkTransfer`]).
+    pub fn contest_link_transfer(&self) -> Req<()> {
+        self.req(Request::Contest(ContestOp::LinkTransfer), unit)
+    }
+
+    /// `showcontestpainting`.
+    pub fn show_contest_painting(&self, id: u8) -> Req<()> {
+        self.req(Request::Contest(ContestOp::Painting(id)), unit)
     }
 
     /// Gen3 `RockSmashWildEncounter` (see [`Request::RockSmashEncounter`]): whether a wild

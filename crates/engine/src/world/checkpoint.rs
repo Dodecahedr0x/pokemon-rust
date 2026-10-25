@@ -300,6 +300,7 @@ impl World {
                 clock_hours: 0,
                 clock_minutes: 0,
                 clock_seconds: 0,
+                contest: crate::contest::Session::default(),
             },
             rtc: None,
             sound: w.options.unwrap_or_default().sound,

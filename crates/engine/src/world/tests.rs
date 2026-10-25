@@ -1135,6 +1135,7 @@ mod battles;
 mod cable_car;
 mod cave_encounters;
 mod checkpoint;
+mod contest;
 mod forced_movement;
 mod goldens;
 // Milestone 8 Wave 1: one file per task, so no task edits another's tests.

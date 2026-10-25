@@ -85,6 +85,11 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
         ),
         // Gen3 `bufferstring`: copied as is (its placeholders expand when printed).
         BufferSrc::Text(t) => (Some(game.text(t)), ""),
+        // `buffercontestname`: `sContestNames[category]`. An unknown category writes nothing.
+        BufferSrc::ContestName(c) => {
+            s.str_vars.set(slot as usize, crate::contest::name(c));
+            return UNIT;
+        }
     };
     match text {
         Some(t) => s.str_vars.set(slot as usize, t),

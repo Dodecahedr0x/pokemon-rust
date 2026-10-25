@@ -10,7 +10,7 @@
 //   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
 // Only Unsupported commands report.
 //
-// Counts: 121 Native, 41 Ignore, 13 Default, 52 Unsupported.
+// Counts: 127 Native, 41 Ignore, 13 Default, 46 Unsupported.
 //
 // Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
 {
@@ -133,7 +133,7 @@
     "drawboxtext": Ignore,                          // cosmetic window
     "showmonpic": Ignore,                           // cosmetic picture window
     "hidemonpic": Ignore,                           // cosmetic picture window
-    "showcontestpainting": Unsupported,
+    "showcontestpainting": Native,
     "braillemessage": Unsupported,
     "givemon": Native,
     "giveegg": Default(2),                          // VAR_RESULT: MON_CANT_GIVE, the truth: the egg is not given
@@ -153,10 +153,10 @@
     "pokemartdecoration2": Unsupported,
     "playslotmachine": Unsupported,
     "setberrytree": Unsupported,
-    "choosecontestmon": Unsupported,
-    "startcontest": Unsupported,
-    "showcontestresults": Unsupported,
-    "contestlinktransfer": Unsupported,
+    "choosecontestmon": Native,
+    "startcontest": Native,
+    "showcontestresults": Native,
+    "contestlinktransfer": Native,
     "random": Native,
     "addmoney": Native,
     "removemoney": Native,
@@ -239,6 +239,6 @@
     "buffertrainername": Unsupported,
     "pokenavcall": Native,                          // Wave C: the call's text in the field message box
     "warpwhitefade": Native,
-    "buffercontestname": Unsupported,
+    "buffercontestname": Native,
     "bufferitemnameplural": Native,
 }
