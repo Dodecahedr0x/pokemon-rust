@@ -95,11 +95,9 @@ Merged `847b43e5`. The player, a rival, a nickname, and a box can be named on Ge
 
 Merged `10253afd`. Power-on with a save shows the title (copyright, blinking PRESS START, a flying Pokémon). Start opens the main menu, and B there returns to the title. Continue still restores the save. Tests: `power_on_shows_the_title_and_b_returns_to_it` and `an_in_game_save_boots_to_the_title_and_continues`. Checkpoints did not move.
 
-### `move-anims`
+### `move-anims` — closed
 
-Battle pictures lunge, blink, and tint (`crates/engine/src/battle/gfx.rs`). There is no per-move animation. Send-out has no affine zoom.
-
-**Done when:** a move plays its Gen3 animation (the ROM's anim script and sprites), and send-out zooms. A test plays Tackle and asserts the anim runs.
+Merged `3bc3ba89`. A move with extracted data plays that move's Gen3 anim script and sprites. With no script, it still lunges. Send-out uses the emerge zoom (`0x28`, then `+0x12` up to `0x100`) instead of the 4-frame pop. Battle-scene-off still skips the anim. Tests: `tackle_runs_the_gen3_anim`, `send_out_ball_then_mon`. The stub route's after-battle node moved from frame 1211 to 1221. The start node's digest is unchanged. Emerald checkpoints were not re-seeded.
 
 ### `evolution` — closed
 
