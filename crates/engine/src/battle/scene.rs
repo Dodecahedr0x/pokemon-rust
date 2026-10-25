@@ -34,7 +34,7 @@
 //!   the ball pops, the healthbox slides in (`Intro_TryShinyAnimShowHealthbox`,
 //!   `StartHealthboxSlideIn`: 5 px/frame) and the scene waits 3 more frames
 //!   (`Intro_DelayAndEnd`, `introEndDelay = 3`).
-//! - `Recall`, `MoveAnim` (lunge), `Hit` (blink + healthbox shake, `PlayerHandleHitAnimation`,
+//! - `Recall`, `MoveAnim` (the move's Gen3 script, or a lunge when the game has none), `Hit` (blink + healthbox shake, `PlayerHandleHitAnimation`,
 //!   `DoHitAnimHealthboxEffect`), `StatAnim` (tint): run to completion.
 //! - `Hp`: the bar drains (`MoveBattleBar`) and the numbers follow its value.
 //! - `Faint`: `BattleScript_FaintTarget`'s `pause B_WAIT_TIME_LONG` (64 frames), the faint
@@ -175,6 +175,8 @@ struct Parts {
     boxes: Vec<Healthbox>,
     bars: Vec<HpBar>,
     exp: ExpBar,
+    /// The move script playing now (`None` when the event only lunges).
+    move_anim: Option<super::anim::Player>,
 }
 
 impl Parts {
@@ -198,6 +200,7 @@ impl Parts {
                 .collect(),
             bars: sides.iter().map(|&s| HpBar::new(s, gfx)).collect(),
             exp: ExpBar::new(gfx),
+            move_anim: None,
         }
     }
 }
@@ -529,6 +532,12 @@ impl BattleScene {
             b.update(f);
         }
         p.exp.update(f);
+        if let Some(mut player) = p.move_anim.take() {
+            player.step(&mut p.mons, |tag| game.anim_gfx(tag), f);
+            if !player.done() {
+                p.move_anim = Some(player);
+            }
+        }
         for m in &mut p.mons {
             m.update(f);
         }
@@ -627,6 +636,9 @@ impl BattleScene {
                 p.windows.hash(h);
                 for m in &p.mons {
                     m.hash(h);
+                }
+                if let Some(player) = &p.move_anim {
+                    player.hash(h);
                 }
                 for t in &p.trainers {
                     t.hash(h);
@@ -742,6 +754,7 @@ impl BattleScene {
             || self.pic_load.iter().any(Option::is_some)
             || self.hp_pending.iter().any(|&b| b)
             || self.exp_pending
+            || p.move_anim.is_some()
     }
 
     /// Runs the current event, starts the next ones, and opens the menus when idle.
@@ -943,9 +956,17 @@ impl BattleScene {
                 p.boxes[side.i()].hide();
                 Play::Anims
             }
-            BattleEvent::MoveAnim { attacker, .. } => {
+            BattleEvent::MoveAnim { attacker, mov } => {
                 if self.animations {
-                    p.mons[attacker.i()].lunge();
+                    if let Some(script) = game.move_anim(mov).filter(|s| !s.is_empty()) {
+                        p.move_anim = Some(super::anim::Player::start(
+                            script,
+                            attacker,
+                            attacker.other(),
+                        ));
+                    } else {
+                        p.mons[attacker.i()].lunge();
+                    }
                     Play::Anims
                 } else {
                     Play::Idle

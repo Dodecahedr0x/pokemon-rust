@@ -15,6 +15,7 @@ pub mod inc;
 pub mod labels;
 pub mod lz77;
 pub mod maps;
+pub mod move_anim;
 pub mod movement;
 pub mod names;
 pub mod render;

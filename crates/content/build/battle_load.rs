@@ -127,6 +127,7 @@ pub fn load(dir: &Path) -> Result<BattleIn> {
         dex: crate::read_opt!(b.join("dex.ron")),
         rematches: crate::read_opt!(b.join("rematches.ron")),
         partners: crate::read_opt!(b.join("partners.ron")),
+        move_anims: crate::read_opt!(b.join("move_anims.ron")),
         player_back: PicIn {
             tiles: vec![],
             palette: [0; 16],

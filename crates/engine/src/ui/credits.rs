@@ -300,6 +300,7 @@ impl Roll {
                 hflip: false,
                 vflip: false,
                 priority: 1,
+                scale: 0,
             });
         }
     }
@@ -351,6 +352,7 @@ impl Roll {
             hflip: false,
             vflip: false,
             priority: 1,
+            scale: 0,
         });
     }
 

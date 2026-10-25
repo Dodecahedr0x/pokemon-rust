@@ -415,6 +415,7 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
     battle.write(&mut o)?;
     provenance.extend(battle.provenance);
     battle_gfx::export(rom, &mut o, &mut provenance)?;
+    crate::move_anim::export(rom, &mut o).context("move animations")?;
 
     tables::export_tables(rom, &mut o, &mut provenance)?;
     tables::export_tmhm(rom, &mut o, &mut provenance).context("TM/HM tables")?;

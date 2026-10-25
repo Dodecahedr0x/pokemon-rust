@@ -925,6 +925,7 @@ fn obj_output_for_a_known_state() {
         hflip: true,
         vflip: false,
         priority: layout::OBJ_PRIORITY,
+        scale: 0,
     };
     let below = Obj {
         x: 96,
@@ -936,6 +937,7 @@ fn obj_output_for_a_known_state() {
         hflip: false,
         vflip: false,
         priority: layout::OBJ_PRIORITY,
+        scale: 0,
     };
     let above = Obj {
         x: 128,
@@ -947,6 +949,7 @@ fn obj_output_for_a_known_state() {
         hflip: false,
         vflip: false,
         priority: layout::OBJ_PRIORITY,
+        scale: 0,
     };
     // Lower on screen is in front (lower OAM index).
     assert_eq!(f.objs, [below, player, above]);

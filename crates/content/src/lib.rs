@@ -532,6 +532,17 @@ macro_rules! game_data_tables {
             &$crate::battle::GFX
         }
 
+        fn move_anim(
+            &self,
+            id: ::engine::data::MoveId,
+        ) -> Option<&'static ::engine::battle::anim::Script> {
+            $crate::battle::move_anim(id.0)
+        }
+
+        fn anim_gfx(&self, tag: u16) -> Option<&'static ::engine::battle::GfxImage> {
+            $crate::battle::anim_gfx(tag)
+        }
+
         fn build_id(&self) -> u64 {
             $crate::BUILD_ID
         }

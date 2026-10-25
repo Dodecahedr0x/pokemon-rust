@@ -28,8 +28,8 @@
 //!   `{EXTRA_SYMBOL n}`.
 //!
 //! Positions are Gen3 sprite centres turned into OAM top-left corners (`centerToCornerVec` of
-//! the sprite's template). Documented approximations: no affine scaling (the send-out ball pops
-//! and the mon appears at full size), no move animations beyond lunge/blink/tint, no healthbox
+//! the sprite's template). The send-out uses `sAffineAnim_Battler_Emerge` (scale `0x28`, then
+//! `+0x12` twelve times) and move scripts run in [`super::anim`]. Approximations: no healthbox
 //! bob while choosing an action, no caught-ball icon, no Nidoran gender special case.
 
 mod background;

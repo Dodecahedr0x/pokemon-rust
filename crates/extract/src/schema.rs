@@ -23,6 +23,7 @@
 //!   battle/trainers.ron          TrainersFile   (all trainers, key TRAINER_*)
 //!   battle/heal_locations.ron    HealLocationsFile
 //!   battle/strings.ron           BattleStringsFile (STRINGID_* | gText_* -> decomp `.string`, FR)
+//!   battle/move_anims.ron        optional; move anim scripts and their sprite sheets
 //!   battle/gfx/<name>.{png,ron}  GfxFile: textbox (+tilemap), healthbox_player,
 //!                                healthbox_opponent, hpbar, expbar, status, misc, ball
 //!                                (contents: `battle_gfx.rs`)
