@@ -49,11 +49,9 @@ Secret-base specials are Unsupported (`SPECIAL_EnterSecretBase`, `SPECIAL_CheckP
 
 Merged `4acc3483`. `playslotmachine` is Native. The machine takes a 1–3 coin bet, pays the center line and the extra lines the bet covers, and writes the coins back. A replay with no forced stop respins. Reels do not animate. Test: `a_winning_spin_pays_and_a_losing_spin_costs_the_bet` (three red 7s pay 300; a mismatched center line pays 0). Checkpoints did not move. Counts on that merge: 128 Native, 45 Unsupported.
 
-### `decoration-mart`
+### `decoration-mart` — closed
 
-`pokemartdecoration`, `pokemartdecoration2`, and `bufferdecorationname` are Unsupported.
-
-**Done when:** a decoration mart buys a decoration into the PC and the name buffer is filled. A test covers one purchase.
+Merged `90330e3f`. `pokemartdecoration`, `pokemartdecoration2`, and `bufferdecorationname` are Native. The shop is buy-only: buying SMALL DESK (3000) puts it in the first empty desk slot, subtracts the money, and copies `SMALL DESK` into string var 0. A full category takes no money. Decorations are live on the world and are not hashed or snapshotted, so checkpoints were not re-baselined. Test: `buying_a_decoration_puts_it_in_the_pc_and_buffers_its_name`.
 
 ### `mystery-gift` — closed
 
