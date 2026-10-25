@@ -93,11 +93,9 @@ Seen/caught flags and counts exist (`crates/engine/src/pokedex.rs`, `SPECIAL_Scr
 
 Merged `4bffb579`. Someone's PC and the bedroom PC withdraw, deposit, and move items and Pokémon, including between the party and a box. A full box, party, or bag is refused, and the last party Pokémon cannot be deposited. Test: `depositing_a_mon_and_withdrawing_it_round_trips_the_party`. Checkpoints did not move.
 
-### `options`
+### `options` — closed
 
-`crates/engine/src/ui/options.rs` is a stub. `crate::options::Options` already holds the Gen3 defaults.
-
-**Done when:** the options menu changes text speed, battle scene, battle style, sound, and button mode, and those values affect play. A test changes text speed and reads it back.
+Merged `b672f2fc`. The menu changes text speed, battle scene, battle style, sound, and button mode, and those values change printing, move animations, the shift prompt, the mixer mode, and L=A. Sound is stored only. Nothing is played. The stub checkpoint tree verified. The Emerald tree was not replayed in that worktree.
 
 ### `naming` — closed
 
