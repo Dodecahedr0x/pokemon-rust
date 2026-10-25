@@ -55,11 +55,9 @@ Merged `4acc3483`. `playslotmachine` is Native. The machine takes a 1–3 coin b
 
 **Done when:** a decoration mart buys a decoration into the PC and the name buffer is filled. A test covers one purchase.
 
-### `mystery-gift`
+### `mystery-gift` — closed
 
-`setmysteryeventstatus`, `trywondercardscript`, and `setmodernfatefulencounter` are Unsupported.
-
-**Done when:** a Wonder Card can be delivered and the script it points at runs. A test covers one card.
+Merged `b20b3e2b`. `setmysteryeventstatus`, `trywondercardscript`, and `setmodernfatefulencounter` are Native. A card that passes the Gen3 checks is stored with the script it points at, and `trywondercardscript` runs that script. The card, the mystery-event status, and the modern-fateful bit are session state: they are not in the checkpoint or the world hash. Tests: `a_delivered_wonder_card_runs_its_script`, `no_card_and_an_invalid_card_do_not_run_a_script`. Counts on that merge: 131 Native, 42 Unsupported.
 
 ### `ereader`
 
