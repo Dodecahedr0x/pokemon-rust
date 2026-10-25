@@ -673,10 +673,35 @@ pub(crate) fn setup_ai_draws(rng: &mut Rng) {
 }
 
 impl Battle {
+    /// `SetUpBattleVarsAndBirchZigzagoon`'s `BattleAI_HandleItemUseBeforeAISetup` and, in
+    /// doubles, `BattleAI_SetupAIData`'s target roll. `CB2_InitBattle` draws these before
+    /// `CreateNPCTrainerParty` and the first battle's `CreateMon`.
+    pub fn draws_before_party(rng: &mut Rng, double: bool) {
+        setup_ai_draws(rng);
+        if double {
+            rng.random();
+        }
+    }
+}
+
+impl Battle {
     /// A battle between `player` (cloned; the first mon with HP leads) and the setup's
-    /// opponents. Draws Gen3 `BattleStartClearSetData`'s `gRandomTurnNumber`. Both parties must
-    /// have a mon.
+    /// opponents. Draws [`Battle::draws_before_party`], then [`Battle::after_party`]. Both
+    /// parties must have a mon. The world calls the two halves around `CreateNPCTrainerParty`
+    /// so the AI draws land before the party, as `CB2_InitBattle` does.
     pub fn new(game: &impl GameData, setup: BattleSetup, player: &Party, rng: &mut Rng) -> Self {
+        Self::draws_before_party(rng, setup.double.is_some());
+        Self::after_party(game, setup, player, rng)
+    }
+
+    /// The rest of [`Battle::new`] once [`Battle::draws_before_party`] has been drawn: the
+    /// battlers, `SetWildMonHeldItem` (wild only) and `gRandomTurnNumber`.
+    pub(crate) fn after_party(
+        game: &impl GameData,
+        setup: BattleSetup,
+        player: &Party,
+        rng: &mut Rng,
+    ) -> Self {
         let t = game.battle();
         let parties = [player.clone(), setup.opponents.clone()];
         // The leads (`gBattlerPartyIndexes`): the first mons with HP of each battler's party
@@ -755,16 +780,9 @@ impl Battle {
             },
             BattleKind::Wild { .. } => None,
         };
-        // SetUpBattleVarsAndBirchZigzagoon → BattleAI_HandleItemUseBeforeAISetup(0xF) →
-        // BattleAI_SetupAIData: four `simulatedRNG` rolls, in every battle (battle_controllers.c,
-        // battle_ai_script_commands.c). CB2_InitBattleInternal runs it before
-        // CreateNPCTrainerParty / SetWildMonHeldItem, and BattleStartClearSetData's
-        // gRandomTurnNumber comes later (CB2_HandleStartBattle).
-        setup_ai_draws(rng);
-        if double.is_some() {
-            // BattleAI_SetupAIData in doubles: `gBattlerTarget = (Random() & BIT_FLANK) + ..`.
-            rng.random();
-        }
+        // `draws_before_party` already ran (four `simulatedRNG` rolls, plus the doubles
+        // target). `SetWildMonHeldItem` is after the party; `gRandomTurnNumber` is later in
+        // Gen3 (`CB2_HandleStartBattle`) and stays here, immediately after that draw.
         if !matches!(setup.kind, BattleKind::Trainer { .. }) {
             // SetWildMonHeldItem: `Random() % 100` for every wild battle (no held items in the
             // engine yet, so only the draw is kept).

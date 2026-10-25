@@ -231,7 +231,7 @@ fn a_trainer_win_pays_the_prize_money() {
                 ctx.set_flag(FLAG_DONE, o == BattleOutcome::Won).await;
             })
         });
-        g.run(Buttons::NONE, 1);
+        g.mash(20_000, |w| w.battle().is_some());
         assert_eq!(g.w.battle().unwrap().1.prize(), Some(32));
         g.mash(20_000, |w| !w.script_running());
         assert!(g.w.flag(FLAG_DONE));
@@ -411,9 +411,9 @@ fn battle_reports_become_world_events() {
 }
 
 #[test]
-fn the_battle_starts_on_the_transitions_first_frame() {
-    // Battle::start (the intro events and the first turn) runs on the frame after the one that
-    // started the battle, before the transition draws; the draws are the same.
+fn the_party_is_built_after_the_transition_and_the_turn_starts_next() {
+    // `CB2_InitBattle` builds the party the frame after the transition; `Battle::start`
+    // (the intro and the first turn) is the frame after that.
     let mut w = started();
     start(&mut w, |ctx| {
         Box::pin(async move {
@@ -422,14 +422,32 @@ fn the_battle_starts_on_the_transitions_first_frame() {
         })
     });
     run(&mut w, Buttons::NONE, 1);
-    let (stage, battle, _) = w.battle().unwrap();
-    assert_eq!(stage, Stage::Transition);
-    assert_eq!(battle.need(), crate::battle::Need::Busy, "not started yet");
-    let rng = w.s.rng.state();
-    run(&mut w, Buttons::NONE, 1);
-    let (_, battle, _) = w.battle().unwrap();
-    assert_eq!(battle.need(), crate::battle::Need::Action, "started");
-    assert_ne!(w.s.rng.state(), rng, "the first turn's draws");
+    assert!(w.in_battle());
+    assert!(w.battle().is_none(), "not built on the request frame");
+    let mut opened = false;
+    for _ in 0..400 {
+        run(&mut w, Buttons::NONE, 1);
+        if w.battle().is_some() {
+            let (stage, need) = {
+                let (stage, battle, _) = w.battle().unwrap();
+                (stage, battle.need())
+            };
+            assert_eq!(stage, Stage::Transition);
+            assert_eq!(need, crate::battle::Need::Busy, "built, not started");
+            let rng = w.s.rng.state();
+            run(&mut w, Buttons::NONE, 1);
+            let (stage, need) = {
+                let (stage, battle, _) = w.battle().unwrap();
+                (stage, battle.need())
+            };
+            assert_eq!(stage, Stage::Loading);
+            assert_eq!(need, crate::battle::Need::Action, "started");
+            assert_ne!(w.s.rng.state(), rng, "the first turn's draws");
+            opened = true;
+            break;
+        }
+    }
+    assert!(opened, "the battle opened");
 }
 
 #[test]
@@ -535,7 +553,7 @@ fn a_rock_smash_encounter_starts_a_field_wild_battle() {
             ctx.set_flag(FLAG_DONE, started).await;
         })
     });
-    g.run(Buttons::NONE, 2);
+    g.mash(20_000, |w| w.battle().is_some());
     let (_, battle, _) = g.w.battle().expect("a wild battle");
     let foe = battle.party(crate::battle::Side::Opponent).get(0).unwrap();
     assert_eq!((foe.species, foe.level), (WATER, 3));
@@ -592,7 +610,7 @@ fn a_clone_battle_fights_a_healed_copy_of_the_party_with_the_rules_background() 
                 .await;
         })
     });
-    g.mash(20_000, |w| w.in_battle());
+    g.mash(20_000, |w| w.battle().is_some());
     let (_, b, _) = g.w.battle().unwrap();
     let foes: Vec<_> = b
         .party(crate::battle::Side::Opponent)
@@ -614,7 +632,7 @@ fn a_trainer_with_rules_battles_under_them_unless_the_request_names_its_own() {
                 ctx.battle_trainer(who, TextId(0)).await;
             })
         });
-        g.mash(20_000, |w| w.in_battle());
+        g.mash(20_000, |w| w.battle().is_some());
         let (_, b, _) = g.w.battle().unwrap();
         assert_eq!(b.setup().rules.inverse, inverse, "{who:?}");
     }

@@ -264,6 +264,12 @@ fn cave_floor_steps_meet_wild_pokemon_with_gen3_rolls() {
         let mut w = cave(seed);
         let (n, m) = walk_until_battle(&mut w);
         checked += n;
+        for _ in 0..400 {
+            if w.battle().is_some() {
+                break;
+            }
+            hold(&mut w, Buttons::NONE, 1);
+        }
         let (_, battle, _) = w.battle().unwrap();
         assert!(matches!(battle.setup().kind, BattleKind::Wild { .. }));
         // `BattleSetup_GetEnvironmentId`: the cave's background, the long grass's on its row.

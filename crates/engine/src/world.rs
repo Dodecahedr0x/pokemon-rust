@@ -1246,7 +1246,10 @@ impl World {
     /// The running battle's stage, core and scene.
     pub fn battle(&self) -> Option<(Stage, &crate::battle::Battle, &BattleScene)> {
         match &self.s.mode {
-            Mode::Battle(run) => Some((run.stage, &run.battle, &run.scene)),
+            Mode::Battle(run) => {
+                let battle = run.battle.as_ref()?;
+                Some((run.stage, battle, &run.scene))
+            }
             _ => None,
         }
     }

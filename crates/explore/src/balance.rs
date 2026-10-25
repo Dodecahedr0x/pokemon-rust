@@ -4,11 +4,12 @@ use crate::model::BattleSummary;
 use engine::World;
 use engine::battle::{BattleKind, Side};
 
-/// Tracks one battle from its first frame to the field's return.
+/// Tracks one battle from `Event::BattleStarted` to the field's return.
 ///
-/// The driver calls [`BattleTracker::start`] on the frame of `Event::BattleStarted`,
-/// [`BattleTracker::observe`] after every battle frame, and [`BattleTracker::finish`] once the
-/// field is back (or when it gives up on the battle).
+/// The driver calls [`BattleTracker::start`] once the battle core exists (`CB2_InitBattle`
+/// builds it the frame after the transition; `Event::BattleStarted` is earlier),
+/// [`BattleTracker::rewind_start`] back to that event's frame, [`BattleTracker::observe`]
+/// after every later battle frame, and [`BattleTracker::finish`] once the field is back.
 #[derive(Clone, Debug)]
 pub struct BattleTracker {
     start_frame: u32,
@@ -51,6 +52,11 @@ impl BattleTracker {
             hp_min: player.hp,
             outcome: scene.finished().map(|o| o as u8),
         })
+    }
+
+    /// Count frames from `Event::BattleStarted` when the core is built later.
+    pub fn rewind_start(&mut self, frame: u32) {
+        self.start_frame = frame;
     }
 
     /// Records the player battler's lowest HP and the outcome once the scene has one (no-op

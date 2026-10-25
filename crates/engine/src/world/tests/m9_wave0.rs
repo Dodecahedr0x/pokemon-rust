@@ -91,6 +91,12 @@ fn battles_record_the_opponent_as_seen() {
     });
     run(&mut w, Buttons::NONE, 1);
     assert!(w.in_battle());
+    for _ in 0..400 {
+        if w.battle().is_some() {
+            break;
+        }
+        run(&mut w, Buttons::NONE, 1);
+    }
     let foe = w
         .battle()
         .unwrap()
@@ -117,6 +123,12 @@ fn battles_record_the_opponent_as_seen() {
     });
     until_done(&mut w, 3);
     walk_grass_until_battle(&mut w);
+    for _ in 0..400 {
+        if w.battle().is_some() {
+            break;
+        }
+        run(&mut w, Buttons::NONE, 1);
+    }
     let foe = w
         .battle()
         .unwrap()

@@ -504,6 +504,17 @@ impl GameData for Game {
     }
 }
 
+/// Spins until `CB2_InitBattle` has built the battle (the frame after the transition).
+fn until_core(w: &mut World) {
+    for _ in 0..400 {
+        if w.battle().is_some() {
+            return;
+        }
+        run(w, Buttons::NONE, 1);
+    }
+    panic!("the battle never opened");
+}
+
 fn run(w: &mut World, keys: Buttons, frames: u32) -> Frame {
     let mut f = Frame::default();
     for _ in 0..frames {
@@ -919,6 +930,12 @@ fn the_worlds_player_name_reaches_messages_the_starter_screen_and_battles() {
         })
     });
     run(&mut w, Buttons::NONE, 1);
+    for _ in 0..400 {
+        if w.battle().is_some() {
+            break;
+        }
+        run(&mut w, Buttons::NONE, 1);
+    }
     assert_eq!(w.battle().map(|b| *b.2.player()), Some(PADDED));
 }
 
@@ -935,7 +952,7 @@ fn a_wild_battle_counts_the_daily_wilds() {
         })
     });
     run(&mut w, Buttons::NONE, 1);
-    assert!(w.battle().is_some());
+    assert!(w.in_battle());
     assert_eq!(w.var(VAR_DAILY_WILDS), 5);
 }
 

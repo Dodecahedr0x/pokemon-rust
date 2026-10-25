@@ -108,7 +108,7 @@ fn the_stub_spine_plays_to_its_end_and_labels_its_checkpoints() {
     let s = spine_of(&Emerald::for_shells());
     assert_eq!(s.labels(), ["start", "after_battle", "end"]);
     assert_eq!(s.positions.len(), s.steps.len() + 1);
-    assert_eq!(s.frames, 1520, "the stub spine's frame count");
+    assert_eq!(s.frames, 1522, "the stub spine's frame count");
     let frames: u64 = s.inputs.iter().map(|r| u64::from(r.frames)).sum();
     assert_eq!(frames, s.frames);
     assert_eq!(s.coverage.maps.len(), 1);

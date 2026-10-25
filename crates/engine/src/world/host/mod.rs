@@ -429,13 +429,19 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 first_battle,
                 rules,
             } => {
-                // Gen3 `CreateScriptedWildMon` / the first battle's `CreateMon`.
-                let mon = s.create_mon(game, species, level);
-                let mut opponents = Party::default();
-                let _ = opponents.push(mon);
                 let kind = BattleKind::Wild { first_battle };
                 let rules = rules.copied().unwrap_or_default();
-                s.start_battle_with(game, kind, opponents, None, rules, Origin::Script, self.f);
+                // `setwildbattle` builds the mon before `dowildbattle`. The first battle's
+                // Zigzagoon is created in `SetUpBattleVarsAndBirchZigzagoon`, after the transition.
+                let foes = if first_battle {
+                    super::battle::Foes::First { species, level }
+                } else {
+                    let mon = s.create_mon(game, species, level);
+                    let mut opponents = Party::default();
+                    let _ = opponents.push(mon);
+                    super::battle::Foes::Ready(opponents)
+                };
+                s.start_battle_with(game, kind, foes, None, rules, Origin::Script, self.f);
                 None
             }
             Request::BattleTrainer {
@@ -447,20 +453,22 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 let rules = rules.copied().unwrap_or_default();
                 // Wave G: a second trainer saw the player too (`BATTLE_TYPE_TWO_OPPONENTS`).
                 let second = s.pair.b.map(|(b, d, _)| (b, d));
-                let party = if rules.clone_player {
-                    // Silice's mirror battle: a healed copy of the player's party.
+                let foes = if rules.clone_player {
+                    // Silice's mirror battle: a healed copy of the player's party. No party draw.
                     let mut p = s.party.clone();
                     p.heal(game.battle());
-                    Some((p, None))
+                    super::battle::Foes::Ready(p)
+                } else if super::battle::trainer_has_party(game, trainer) {
+                    super::battle::Foes::Trainer {
+                        id: trainer,
+                        second,
+                    }
                 } else {
-                    super::battle::trainer_party(game, &mut s.rng, trainer, second)
-                };
-                let Some((opponents, double)) = party else {
                     s.log("battle against an unknown or empty trainer answered Won");
                     return Some(Response::Value(BattleOutcome::Won as u16));
                 };
                 let kind = BattleKind::Trainer { trainer, defeat };
-                s.start_battle_with(game, kind, opponents, double, rules, Origin::Script, self.f);
+                s.start_battle_with(game, kind, foes, None, rules, Origin::Script, self.f);
                 None
             }
             Request::BattleMulti {
@@ -470,24 +478,23 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 b_defeat,
                 partner,
             } => {
-                // Gen3 `FillPartnerParty` (`gPlayerParty[3..]`), then the opponents.
+                // Gen3 `FillPartnerParty` runs in the script, before the transition. The
+                // opponents' `CreateNPCTrainerParty` waits for `CB2_InitBattle`.
                 let Some((partner, mons)) = super::battle::partner_party(game, &mut s.rng, partner)
                 else {
                     s.log("multi battle without an in-game partner answered Won");
                     return Some(Response::Value(BattleOutcome::Won as u16));
                 };
-                let Some((opponents, double)) =
-                    super::battle::trainer_party(game, &mut s.rng, a, Some((b, b_defeat)))
-                else {
+                if !super::battle::trainer_has_party(game, a) {
                     s.log("multi battle against an unknown or empty trainer answered Won");
                     return Some(Response::Value(BattleOutcome::Won as u16));
-                };
+                }
                 let own = s.join_partner(&mons);
-                let double = double.map(|d| crate::battle::Double {
+                let double = crate::battle::Double {
                     partner: Some(partner),
-                    split: [own, d.split[1]],
-                    ..d
-                });
+                    second: Some((b, b_defeat)),
+                    split: [own, 0],
+                };
                 let kind = BattleKind::Trainer {
                     trainer: a,
                     defeat: a_defeat,
@@ -495,8 +502,11 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 s.start_battle_with(
                     game,
                     kind,
-                    opponents,
-                    double,
+                    super::battle::Foes::Trainer {
+                        id: a,
+                        second: Some((b, b_defeat)),
+                    },
+                    Some(double),
                     Default::default(),
                     Origin::Script,
                     self.f,
@@ -533,7 +543,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 s.start_battle_with(
                     game,
                     kind,
-                    opponents,
+                    super::battle::Foes::Ready(opponents),
                     Some(double),
                     rules,
                     Origin::Script,

@@ -67,6 +67,7 @@ impl Driver {
 
     /// Lets the policy fight the running battle to the field's return.
     fn fight(&mut self, opts: Opts) -> BattleSummary {
+        self.open();
         let t: &BattleTables = self.s.game().battle();
         let mut p = Policy::new();
         let mut tracker = BattleTracker::start(self.w()).expect("in a battle");
@@ -92,6 +93,19 @@ impl Driver {
             }
         }
         tracker.finish(self.w(), None)
+    }
+
+    /// The opponent party is built the frame after the transition (`CB2_InitBattle`).
+    fn open(&mut self) {
+        for _ in 0..400 {
+            if self.w().battle().is_some() {
+                return;
+            }
+            assert!(self.w().in_battle(), "left the battle before it opened");
+            self.s.step(Buttons::NONE);
+            self.last = Buttons::NONE;
+        }
+        panic!("the battle never opened");
     }
 }
 
@@ -199,6 +213,7 @@ fn the_tracker_records_a_battle() {
     let mut damaged = false;
     for start in battle_starts(rec) {
         let mut d = Driver::at(rec, start);
+        d.open();
         let w = d.w();
         let (_, battle, _) = w.battle().unwrap();
         let opp = battle.mon(Side::Opponent).level;
@@ -323,6 +338,7 @@ fn the_starter_screen_takes_the_chosen_ball() {
             assert!(n < 2400, "no first battle");
             d.tap(Buttons::NONE);
         }
+        d.open();
         let (_, battle, _) = d.w().battle().unwrap();
         assert_eq!(
             battle.mon(engine::battle::Side::Player).species,
