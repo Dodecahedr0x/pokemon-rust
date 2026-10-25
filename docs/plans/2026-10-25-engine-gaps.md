@@ -19,11 +19,9 @@ No sound engine. The design defers m4a/Sappy (`docs/plans/2026-10-21-emerald-rus
 
 **Done when:** the GBA shell and the native shell play the ROM's music and sound effects (a field SE, a battle cry, and the save SE), driven from engine events, with a test that a known effect is queued.
 
-### `rtc`
+### `rtc` — closed
 
-`gettime` is Unsupported (`commands.ron`): `VAR_0x8000..VAR_0x8002` stay stale. There is no RTC.
-
-**Done when:** `gettime` writes hours, minutes, and seconds the way Gen3 does, and a test covers a known time.
+Merged `033ec277`. `gettime` is Native and writes hours, minutes, and seconds into `VAR_0x8000..VAR_0x8002` from the shell RTC, or from the frame clock when no RTC is set. Test: `gettime_writes_a_known_local_time` (15:42:07). The clock is not hashed, and no checkpoint moved.
 
 ### `link`
 
