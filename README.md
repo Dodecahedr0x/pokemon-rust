@@ -47,7 +47,15 @@ panic, but features the later story needs (menus, field moves, double battles, �
    rewinds at least two seconds (a ring of 64 states, one a second; it cannot go back past
    the last save or load).
    `play --load <id|label>` starts at a node and `play --list` prints the tree. The title shows
-   the frame, the node the session started from and the last action.
+   the frame, the node the session started from and the last action. Sound plays on the default
+   output device (`play --mute`: none).
+
+Sound (Milestone 12, `docs/plans/2026-10-24-milestone-12-audio.md`): the extracted Gen3 music,
+sound effects, fanfares and cries, played by a port of the MP2K engine (`crates/sound`) in
+software natively and on the GBA's PSG and agb's mixer. Scripts wait on them with Gen3's frame
+counts; maps, battles, the victory and the low-HP beep play their music by themselves. Silice's
+own songs play an Emerald stand-in (`games/silice/sound.ron`) until a MIDI file
+`games/silice/music/MUS_SIL_*.mid` replaces it at build time.
 
 A new game starts in Littleroot Town outside Brendan's house, after meeting May and before
 Birch's rescue (`crates/content/src/new_game.rs` lists the story vars and flags; the real intro
@@ -69,7 +77,7 @@ Pokémon is sent out by itself); no Mart, PC, start menu or in-game save (the sh
 checkpoints); evolution happens silently after a battle (no scene); Wally's tutorial battle is
 skipped; one battle background (grass or plain); move animations are a lunge, the hit blink and
 the healthbox shake; about a third of the move effects and half the abilities (including all of the
-Act 1 route); no sound, running shoes, field moves or weather; parties and encounter rolls are drawn
+Act 1 route); no running shoes, field moves or weather; parties and encounter rolls are drawn
 when the battle is requested, before its transition (Gen3 draws some after it). Every script
 command and special is classified: one the engine lacks raises a `Report` event and continues
 with a documented default (the build's `content::REPORT` lists them).
@@ -121,7 +129,7 @@ The Emerald tree holds the four `route:*` nodes (c00001–c00004) and the Act 1 
 explorer spine's checkpoints up to badge 1 (`explore spine --export --label badge1`, then
 promoted parents first; no hand-authored segment): `spine:act1:lab` (c00005, frame 4,768),
 `oldale_center` (c00006), `may` (c00007), `pokedex` (c00008), `petalburg` (c00009), `woods`
-(c00010), `rustboro` (c00011) and `spine:act1:badge1` (c00012, frame 104,879,
+(c00010), `rustboro` (c00011) and `spine:act1:badge1` (c00012, frame 105,865,
 `FLAG_BADGE01_GET`). `cargo run -p game-native --features window --bin play -- --load
 spine:act1:rustboro` starts at Rustboro.
 

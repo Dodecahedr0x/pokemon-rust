@@ -310,6 +310,15 @@ impl GameData for Spy {
     fn map_weather(&self, map: MapId) -> u8 {
         Game.map_weather(map)
     }
+    fn audio(&self) -> &'static engine::audio::AudioData {
+        Game.audio()
+    }
+    fn map_music(&self, map: MapId, x: i16) -> u16 {
+        Game.map_music(map, x)
+    }
+    fn trainer_music(&self, id: engine::data::TrainerId) -> Option<(u16, u16)> {
+        Game.trainer_music(id)
+    }
     fn weather_coords(&self, map: MapId) -> &'static [engine::data::CoordWeather] {
         Game.weather_coords(map)
     }
