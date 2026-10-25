@@ -16,8 +16,7 @@
 //! 2. **Loading**: [`BattleScene::load`] chunks, one per black frame (`CB2_InitBattle`).
 //! 3. **Running**: [`BattleScene::step`] each frame until [`BattleScene::finished`] (the scene
 //!    fades to black after `End`). The player's party is written back; on a win the prize
-//!    money is added (Gen3 `getmoneyreward`, `AddMoney`) and the mons that gained a level
-//!    evolve (`TryEvolvePokemon`, level methods only, without the scene: reported).
+//!    money is added (Gen3 `getmoneyreward`, `AddMoney`). Evolutions wait for Leaving.
 //! 4. **Leaving** (`CB2_ReturnToField*`): on one black frame the field is restored (tilesets,
 //!    palettes and BG controls re-uploaded, the view redrawn, object sprite caches dropped, the
 //!    field text box rebuilt), then **Returning**: the field fades in
@@ -631,9 +630,8 @@ pub(super) fn report(s: &mut State, r: Report) {
     s.event(super::Event::Report(r));
 }
 
-/// After a win (Gen3 `getmoneyreward` and `TryEvolvePokemon`): the prize money
-/// and Pay Day's coins (`AddMoney`, capped at `SpecialIds::max_money`), then each mon that gained a level evolves if a level
-/// evolution is reached, without the scene (`Report::Degraded("evolution scene")`).
+/// After a win (Gen3 `getmoneyreward`): the prize money and Pay Day's coins (`AddMoney`,
+/// capped at `SpecialIds::max_money`). Evolutions play in [`super::evolve::after_battle`].
 fn after_win(game: &impl GameData, s: &mut State, battle: &Battle) {
     // `getmoneyreward`, then Pay Day's `givepaydaymoney` (Wave D).
     for money in [battle.prize(), battle.pay_day()].into_iter().flatten() {
@@ -649,7 +647,6 @@ fn after_win(game: &impl GameData, s: &mut State, battle: &Battle) {
     {
         s.vars.set_flag(flag, true);
     }
-    super::evolve::after_win(game, s, battle);
 }
 
 /// The opponents of a trainer battle (Gen3 `CreateNPCTrainerParty`): trainer A's party, or,
@@ -866,7 +863,7 @@ impl World {
                 // the evolution scenes run over the black screen before the field comes back
                 // (Task E opens them; their host restores the field when the last closes).
                 if run.outcome == Some(BattleOutcome::Won)
-                    && super::evolve::after_battle(game, s, &run.battle)
+                    && super::evolve::after_battle(game, s, &run.battle, f)
                 {
                     end_battle(s, &mut run);
                     return;

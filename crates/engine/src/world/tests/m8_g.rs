@@ -352,7 +352,7 @@ fn a_mon_that_reached_its_level_evolves_after_the_win() {
         &mut crate::rng::Rng::new(1),
     );
     assert_eq!(p.nickname, fresh.nickname, "renamed to the new species");
-    assert_eq!(g.reports(), [Report::Degraded("evolution scene")]);
+    assert_eq!(g.reports(), []);
 }
 
 #[test]
@@ -379,14 +379,7 @@ fn the_last_reached_level_evolution_wins_and_a_branch_is_reported() {
     let mut g = G::new();
     level_up_in_battle(&mut g, NORMAL);
     assert_eq!(g.w.party().get(0).unwrap().species, FIRE);
-    assert_eq!(
-        g.reports(),
-        [
-            Report::Degraded("friendship evolution"),
-            Report::Degraded("evolution branch"),
-            Report::Degraded("evolution scene")
-        ]
-    );
+    assert_eq!(g.reports(), [Report::Degraded("evolution branch")]);
 }
 
 #[test]

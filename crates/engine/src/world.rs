@@ -114,6 +114,9 @@ pub enum Event {
     },
     /// A party mon evolved into this species.
     Evolved(crate::data::SpeciesId),
+    /// The evolution scene asked for this species' cry (Gen3 `PlayCry_Normal`). Playing the
+    /// sample is the audio gap.
+    Cry(crate::data::SpeciesId),
     /// A script asked for the last save to be reloaded (`Request::ReloadLastSave`): the shells
     /// replace the World by it (GBA: the flash slot, without writing it; native: the last save
     /// they persisted, else a new game).

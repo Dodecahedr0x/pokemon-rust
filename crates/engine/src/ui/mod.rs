@@ -303,6 +303,16 @@ pub enum ScreenOut {
     Fly(u8),
 }
 
+/// Something a screen asks the world to record. Not a [`Report`]: the world turns it into an
+/// [`crate::world::Event`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ScreenNote {
+    /// Gen3 `PlayCry_Normal`. Playing the sample is the audio gap.
+    Cry(SpeciesId),
+    /// The party mon finished evolving into this species.
+    Evolved(SpeciesId),
+}
+
 /// What a screen may touch: the game, this frame's output, and the player's state.
 pub struct ScreenCx<'a, G: GameData> {
     pub game: &'a G,
@@ -336,6 +346,8 @@ pub struct ScreenCx<'a, G: GameData> {
     pub child: Option<ScreenResult>,
     /// Reports raised this frame (the World logs them and raises `Event::Report`).
     pub reports: &'a mut Vec<Report>,
+    /// Cries and evolutions the world records as events (not reports).
+    pub notes: &'a mut Vec<ScreenNote>,
 }
 
 impl<G: GameData> ScreenCx<'_, G> {

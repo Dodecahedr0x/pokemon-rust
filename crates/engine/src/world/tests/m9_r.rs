@@ -6,7 +6,9 @@
 use super::*;
 use crate::data::{EvoMethod, Evolution, ItemUse};
 use crate::fx::ScreenFx;
+use crate::item_use::EvolutionPlay;
 use crate::script::{GiveMonExtra, Report};
+use crate::ui::ScreenKindTag;
 use crate::video::Cmd;
 
 const VAR_INPUT_MAP: VarId = VarId(0x4050);
@@ -332,7 +334,7 @@ fn givemon_extras_set_the_moves_item_ot_and_nickname() {
 }
 
 #[test]
-fn the_evolve_request_changes_the_species_and_reports_the_missing_scene() {
+fn the_evolve_request_plays_the_scene() {
     let mut w = new_world();
     start(&mut w, |ctx| {
         Box::pin(async move {
@@ -342,9 +344,28 @@ fn the_evolve_request_changes_the_species_and_reports_the_missing_scene() {
             ctx.set_var(VAR_RESULT, yes as u16 | (no as u16) << 1).await;
         })
     });
-    finish(&mut w, Buttons::NONE, 10);
+    let mut frames = 0u32;
+    let mut events = Vec::new();
+    while w.script_running() {
+        let keys = if frames % 2 == 0 {
+            Buttons::A
+        } else {
+            Buttons::NONE
+        };
+        step(&mut w, keys, 1);
+        events.extend_from_slice(w.events());
+        frames += 1;
+        assert!(frames <= 4_000, "script still running");
+    }
     assert_eq!(w.var(VAR_RESULT), 1);
     assert_eq!(w.party().get(0).unwrap().species, EVOLVED);
+    assert!(events.contains(&Event::ScreenOpened(ScreenKindTag::Evolution)));
+    assert!(events.iter().any(|e| matches!(e, Event::Cry(_))));
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, Event::Report(Report::Degraded("evolution scene"))))
+    );
 }
 
 #[test]
@@ -355,14 +376,21 @@ fn the_trade_evolution_item_evolves_trade_evolvers_and_uses_the_held_item() {
     let mut mon =
         crate::mon::Pokemon::new(t, SPECIES, 20, crate::mon::Ivs::Fixed(0), 1, 1, &mut rng);
     let used = crate::item_use::use_on_mon(&RGame, &mut mon, LINK_STONE, &mut rng, &mut reports);
-    assert_eq!(used.unwrap().evolved, Some(EVOLVED));
-    assert_eq!(mon.species, EVOLVED);
-    assert_eq!(reports, [Report::Degraded("evolution scene")]);
+    assert_eq!(
+        used.unwrap().scene,
+        Some(EvolutionPlay {
+            into: EVOLVED,
+            can_cancel: false
+        })
+    );
+    assert_eq!(mon.species, SPECIES);
+    assert!(reports.is_empty());
+    mon.evolve(t, EVOLVED);
     // No trade evolution: no effect, the item is kept.
     assert!(
         crate::item_use::use_on_mon(&RGame, &mut mon, LINK_STONE, &mut rng, &mut reports).is_none()
     );
-    // A trade with an item: only while holding it, and it is used up.
+    // A trade with an item: only while holding it, and it is used up. The scene changes the species.
     let bug = crate::battle::test_data::BUG;
     let mut mon = crate::mon::Pokemon::new(t, bug, 20, crate::mon::Ivs::Fixed(0), 1, 1, &mut rng);
     assert!(
@@ -370,7 +398,14 @@ fn the_trade_evolution_item_evolves_trade_evolvers_and_uses_the_held_item() {
     );
     mon.held = Some(TRADE_ITEM);
     let used = crate::item_use::use_on_mon(&RGame, &mut mon, LINK_STONE, &mut rng, &mut reports);
-    assert_eq!(used.unwrap().evolved, Some(ITEM_EVOLVED));
+    assert_eq!(
+        used.unwrap().scene,
+        Some(EvolutionPlay {
+            into: ITEM_EVOLVED,
+            can_cancel: false
+        })
+    );
+    assert_eq!(mon.species, bug);
     assert_eq!(mon.held, None);
     assert_eq!(
         crate::item_use::field_use(&RGame, LINK_STONE),
