@@ -11,7 +11,12 @@ use crate::ui::party::{Action, CANCEL, CONFIRM, PartyMenu, Prompt, pack_order};
 use crate::ui::{PartyMode, ScreenState};
 
 const RESULT: VarId = VarId(0x800D);
-const HALF: PartyMode = PartyMode::ChooseHalf { max: 3, min: 1 };
+const HALF: PartyMode = PartyMode::ChooseHalf {
+    max: 3,
+    min: 1,
+    level_cap: 100,
+    frontier: false,
+};
 
 fn party(w: &World) -> &PartyMenu {
     match w.screens().and_then(|s| s.top()).map(|(_, s)| s) {

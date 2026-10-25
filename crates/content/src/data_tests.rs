@@ -32,6 +32,7 @@ struct Host {
     starter: u16,
     /// The answer to `BattleWild` / `BattleTrainer`.
     outcome: Option<engine::battle::BattleOutcome>,
+    frontier: engine::frontier::Frontier,
 }
 
 impl ScriptHost for Host {
@@ -77,6 +78,19 @@ impl ScriptHost for Host {
             Request::Multichoice { .. } | Request::ChoosePartyMon(_) => Response::Value(0),
             // No saved Wonder Card (`trywondercardscript` is a no-op).
             Request::WonderCardScript => Response::Value(engine::script::NO_WONDER_CARD_SCRIPT),
+            Request::Frontier(call) => {
+                let mut rng = engine::rng::Rng::new(1);
+                let step =
+                    self.frontier
+                        .apply(call, &engine::mon::Party::default(), &[0; 4], &mut rng);
+                Response::Value(match step {
+                    engine::frontier::Step::Value(v) => v,
+                    engine::frontier::Step::StartBattle => {
+                        engine::battle::BattleOutcome::Won as u16
+                    }
+                    _ => 0,
+                })
+            }
             _ => Response::Unit,
         })
     }

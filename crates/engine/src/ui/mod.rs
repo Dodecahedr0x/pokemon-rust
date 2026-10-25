@@ -140,7 +140,13 @@ pub enum PartyMode {
     /// `special ChooseHalfPartyForBattle` (`PARTY_MENU_TYPE_CHOOSE_HALF`): ENTER up to `max`
     /// mons (at least `min`) in order, then CONFIRM. Answers the order (see
     /// [`party::pack_order`](crate::ui::party::pack_order)), `Cancel` when cancelled.
-    ChooseHalf { max: u8, min: u8 },
+    /// `level_cap` is 50 or 100. `frontier` applies the Tower's bans and duplicate checks.
+    ChooseHalf {
+        max: u8,
+        min: u8,
+        level_cap: u8,
+        frontier: bool,
+    },
 }
 
 /// The bag's modes (Gen3 `ITEMMENULOCATION_*`).
@@ -262,17 +268,29 @@ impl ScreenKind {
                 h.write(&v.place);
             }
             ScreenKind::Party(m) => {
-                let (tag, v) = match m {
-                    PartyMode::Field => (0, 0),
-                    PartyMode::Choose => (1, 0),
-                    PartyMode::MoveTutor(m) => (2, m.0),
-                    PartyMode::UseItem(i) => (3, i.0),
-                    PartyMode::GiveItem(i) => (4, i.0),
-                    PartyMode::Battle { forced } => (5, forced as u16),
-                    PartyMode::ChooseHalf { max, min } => (6, max as u16 | (min as u16) << 8),
+                let (tag, v, extra) = match m {
+                    PartyMode::Field => (0, 0, 0),
+                    PartyMode::Choose => (1, 0, 0),
+                    PartyMode::MoveTutor(m) => (2, m.0, 0),
+                    PartyMode::UseItem(i) => (3, i.0, 0),
+                    PartyMode::GiveItem(i) => (4, i.0, 0),
+                    PartyMode::Battle { forced } => (5, forced as u16, 0),
+                    PartyMode::ChooseHalf {
+                        max,
+                        min,
+                        level_cap,
+                        frontier,
+                    } => (
+                        6,
+                        max as u16 | (min as u16) << 8,
+                        level_cap as u16 | (frontier as u16) << 8,
+                    ),
                 };
                 h.write(&[tag]);
                 h.write_u16(v);
+                if tag == 6 {
+                    h.write_u16(extra);
+                }
             }
             ScreenKind::Summary { slot, mode } => {
                 let (tag, v) = match mode {

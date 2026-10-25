@@ -692,6 +692,9 @@ pub enum Request {
     /// A Gen3 link special ([`LinkCall`]): the cable block protocol, answered at once with
     /// the special's result (`Value`).
     Link(LinkCall),
+    /// Battle Tower challenge record (`frontier_util.c` / `battle_tower.c`). Answers `Value`.
+    /// [`crate::frontier::Call::Battle`] waits until the fight ends.
+    Frontier(crate::frontier::Call),
 }
 
 /// Answer of [`Request::WonderCardScript`] when no valid Wonder Card is saved.
@@ -966,16 +969,25 @@ impl Request {
                 )
             }
             Request::ChoosePartyMon(m) => {
-                let (kind, v) = match m {
-                    PartyMode::Field => (0, 0),
-                    PartyMode::Choose => (1, 0),
-                    PartyMode::MoveTutor(m) => (2, m.0),
-                    PartyMode::UseItem(i) => (3, i.0),
-                    PartyMode::GiveItem(i) => (4, i.0),
-                    PartyMode::Battle { forced } => (5, forced as u16),
-                    PartyMode::ChooseHalf { max, min } => (6, max as u16 | (min as u16) << 8),
+                let (kind, v, extra) = match m {
+                    PartyMode::Field => (0, 0, 0),
+                    PartyMode::Choose => (1, 0, 0),
+                    PartyMode::MoveTutor(m) => (2, m.0, 0),
+                    PartyMode::UseItem(i) => (3, i.0, 0),
+                    PartyMode::GiveItem(i) => (4, i.0, 0),
+                    PartyMode::Battle { forced } => (5, forced as u16, 0),
+                    PartyMode::ChooseHalf {
+                        max,
+                        min,
+                        level_cap,
+                        frontier,
+                    } => (
+                        6,
+                        max as u16 | (min as u16) << 8,
+                        level_cap as u16 | (frontier as u16) << 8,
+                    ),
                 };
-                (57, kind, v, 0, 0)
+                (57, kind, v, extra, 0)
             }
             Request::PlayerPc(m) => (58, m as u16, 0, 0, 0),
             Request::SaveDialog => (59, 0, 0, 0, 0),
@@ -1123,6 +1135,11 @@ impl Request {
                     LinkCall::Close => 4,
                 };
                 (237, which, 0, 0, 0)
+            }
+            // Battle Tower challenge (tag 238).
+            Request::Frontier(call) => {
+                let (k, a, b, c) = call.parts();
+                (238, k, a, b, c)
             }
         };
         h.write(&[tag]);
@@ -1861,6 +1878,11 @@ impl Ctx {
     /// The chosen party slot, or [`PARTY_NOTHING_CHOSEN`].
     pub fn choose_party_mon(&self, mode: PartyMode) -> Req<u16> {
         self.req(Request::ChoosePartyMon(mode), Response::value)
+    }
+
+    /// [`Request::Frontier`]: one Battle Tower util or tower func, or the singles fight.
+    pub fn frontier(&self, call: crate::frontier::Call) -> Req<u16> {
+        self.req(Request::Frontier(call), Response::value)
     }
 
     pub fn player_pc(&self, mode: PcMode) -> Req<()> {

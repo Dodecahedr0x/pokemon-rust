@@ -159,9 +159,8 @@ fn new_state_is_hashed_only_when_not_default() {
     assert_eq!(w.hash(), h);
 }
 
-/// A stub screen opened over the field reports itself and closes on its first running frame
-/// (after the hosting's fade in), handing the field back; the stack hashes while open and the
-/// world is not capturable then.
+/// The options menu, opened over the field, hashes while it is up and the world is not
+/// capturable; B closes it and hands the field back.
 #[test]
 fn a_stub_screen_closes_back_to_the_field() {
     use crate::ui::ScreenKind;
@@ -175,18 +174,23 @@ fn a_stub_screen_closes_back_to_the_field() {
         w.capturable(),
         Err(crate::checkpoint::NotCapturable::Screen)
     );
-    let (mut reported, mut closed) = (false, false);
-    for _ in 0..200 {
+    // Fade in, then leave. Input is ignored until the screen is running.
+    for _ in 0..40 {
         w.step(&Game, Buttons::NONE);
-        let events = w.events();
-        reported |= events.contains(&Event::Report(Report::Unsupported("options menu")));
-        closed |= events.contains(&Event::ScreenClosed);
+    }
+    assert_eq!(w.screens_open(), 1);
+    let mut closed = false;
+    w.step(&Game, Buttons::B);
+    w.step(&Game, Buttons::NONE);
+    for _ in 0..80 {
+        w.step(&Game, Buttons::NONE);
+        closed |= w.events().contains(&Event::ScreenClosed);
         if w.screens_open() == 0 {
             break;
         }
     }
     assert!(w.field_active());
-    assert!(reported && closed);
+    assert!(closed);
     for _ in 0..40 {
         w.step(&Game, Buttons::NONE);
     }

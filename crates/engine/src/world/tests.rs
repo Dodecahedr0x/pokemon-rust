@@ -1189,6 +1189,7 @@ mod sky;
 mod ui_pictures;
 // Wave C: one file per cluster.
 mod field_moves;
+mod frontier;
 mod warp_exits;
 mod water_moves;
 mod wave_c_query;

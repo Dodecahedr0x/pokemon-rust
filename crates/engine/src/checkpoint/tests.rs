@@ -234,6 +234,7 @@ fn sample() -> Checkpoint {
         }),
         rival_name: None,
         box_names: Vec::new(),
+        frontier: None,
     };
     Checkpoint {
         header: Header {
@@ -258,7 +259,7 @@ fn hex(bytes: &[u8]) -> String {
 /// `ron` format change) leaves the flash bytes alone and needs no `SCHEMA` bump, but stored RON
 /// files (snapshots, nodes) may need a look.
 const GOLDEN_POSTCARD: &str = concat!(
-    "08ef9bafcdf8acd191012ad20990e4d0b287d3aeeefe01d209effdb6f50d4000",
+    "09ef9bafcdf8acd191012ad20990e4d0b287d3aeeefe01d209effdb6f50d4000",
     "09bbbcbdffffffffff8de0b75d031f400101031e16060801080a81040101031e",
     "01030202ff03000a0c0a0e030000000a0c010201000001000101040007000201",
     "0101030203010710061006030002100601020100000001110000000102011006",
@@ -270,10 +271,10 @@ const GOLDEN_POSTCARD: &str = concat!(
     "000003020080010201000de70701011d8202f8acd191018de0b75dd4d4cec9ca",
     "ffffffffffff8701c198c862000000000000212d00002328000000460000018f",
     "4e0183020103070501d00502000501a302010300030003000000000000000000",
-    "000000000d0100b42408041e0f00010000",
+    "000000000d0100b42408041e0f0001000000",
 );
 const GOLDEN_RON: &str = concat!(
-    "(header:(schema:8,build:(engine:81985529216486895,content:42),frame:1234,",
+    "(header:(schema:9,build:(engine:81985529216486895,content:42),frame:1234,",
     "world_hash:18364758544493064720),world:(frame:1234,rng:3735928559,input:(held:(64),",
     "pressed:(0)),runner_issued:9,player_name:(187,188,189,255,255,255,255,255),",
     "player_id:195948557,field:(map:(3),camera:(-16,32),drawn:Some((-1,-2,15,11)),ring:(3,4),",
@@ -309,7 +310,7 @@ const GOLDEN_RON: &str = concat!(
     "init:0,finish:0,thunder:(state:0,timer:0,long_bolt:false,short_bolts:0,allow_end:false,",
     "enqueued:false,se_timer:0),abnormal:None,abnormal_current:13),palette:Some((mode:Blend,",
     "color:4660,amount:8,current:4,frames:30,t:15,pulse:0,keep:true)))),",
-    "rival_name:None,box_names:[]))",
+    "rival_name:None,box_names:[],frontier:None))",
 );
 
 #[test]
@@ -318,7 +319,7 @@ fn golden_postcard_bytes() {
     std::println!("synthetic checkpoint: {} postcard bytes", bytes.len());
     assert_eq!(hex(&bytes), GOLDEN_POSTCARD, "DTO change: bump SCHEMA");
     assert_eq!(encoded_len(&sample()), bytes.len());
-    assert_eq!(SCHEMA, 8);
+    assert_eq!(SCHEMA, 9);
 }
 
 /// The CONTINUE window's data: the name, the species caught, the badges among the set flags.
@@ -353,7 +354,7 @@ fn schema_3_ron_reads_without_m9_fields() {
     let mut cp = sample_m9_default();
     let ron = ron::to_string(&cp).unwrap();
     let start = ron.find(",options:").unwrap();
-    let v3 = format!("{}))", &ron[..start]).replacen("schema:8", "schema:3", 1);
+    let v3 = format!("{}))", &ron[..start]).replacen("schema:9", "schema:3", 1);
     let back: Checkpoint = ron::from_str(&v3).unwrap();
     cp.header.schema = 3;
     assert_eq!(back, cp);
@@ -376,7 +377,7 @@ fn encoding_starts_with_the_schema() {
 #[test]
 fn another_schema_is_refused_before_decoding() {
     let mut cp = sample();
-    for old_or_new in [1, 9] {
+    for old_or_new in [1, 10] {
         cp.header.schema = old_or_new;
         assert_eq!(
             decode(&encode(&cp)),
@@ -384,9 +385,9 @@ fn another_schema_is_refused_before_decoding() {
         );
     }
     // Only the schema is read: a newer layout behind it does not matter.
-    let mut bytes = postcard::to_allocvec(&9u16).unwrap();
+    let mut bytes = postcard::to_allocvec(&10u16).unwrap();
     bytes.extend_from_slice(&[0xFF; 3]);
-    assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 9 }));
+    assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 10 }));
     // A multi-byte varint schema.
     let bytes = postcard::to_allocvec(&300u16).unwrap();
     assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 300 }));
@@ -417,7 +418,7 @@ fn schema_2_reads_as_6_without_held_items() {
     let mut cp = sample_m9_default();
     cp.world.party_held.clear();
     let v5 = encode(&cp);
-    let tail = 1 + M9_DEFAULT_TAIL.len() + 5;
+    let tail = 1 + M9_DEFAULT_TAIL.len() + 6;
     assert!(v5[v5.len() - tail..].iter().all(|&b| b == 0));
     let mut v2 = v5[..v5.len() - tail].to_vec();
     assert_eq!(v2[0], SCHEMA as u8);
@@ -427,8 +428,8 @@ fn schema_2_reads_as_6_without_held_items() {
     let mut h = Fnv64::new();
     h.write(&world[..world.len() - tail]);
     assert_eq!(state_digest(&cp.world), h.finish());
-    assert!((2..=8).all(schema_readable));
-    assert!(!schema_readable(1) && !schema_readable(9));
+    assert!((2..=9).all(schema_readable));
+    assert!(!schema_readable(1) && !schema_readable(10));
 }
 
 /// A schema-3 checkpoint is a schema-6 one minus `M9_DEFAULT_TAIL`, the empty berry trees and the
@@ -438,8 +439,8 @@ fn schema_2_reads_as_6_without_held_items() {
 fn schema_3_reads_as_6_without_m9_state() {
     let cp = sample_m9_default();
     let v5 = encode(&cp);
-    let tail = M9_DEFAULT_TAIL.len() + 5;
-    assert_eq!(&v5[v5.len() - tail..v5.len() - 5], &M9_DEFAULT_TAIL);
+    let tail = M9_DEFAULT_TAIL.len() + 6;
+    assert_eq!(&v5[v5.len() - tail..v5.len() - 6], &M9_DEFAULT_TAIL);
     let mut v3 = v5[..v5.len() - tail].to_vec();
     v3[0] = 3;
     assert_eq!(decode(&v3), Ok(cp.clone()));
@@ -457,13 +458,13 @@ fn schema_3_reads_as_6_without_m9_state() {
             // Berry trees, the layout, the sky, and the unset names are left out.
             let bytes = postcard::to_allocvec(&w).unwrap();
             let mut h = Fnv64::new();
-            h.write(&bytes[..bytes.len() - 5]);
+            h.write(&bytes[..bytes.len() - 6]);
             assert_eq!(state_digest(&w), h.finish());
             continue;
         }
         let bytes = postcard::to_allocvec(&w).unwrap();
         let mut h = Fnv64::new();
-        h.write(&bytes[..bytes.len() - 2]);
+        h.write(&bytes[..bytes.len() - 3]);
         assert_eq!(state_digest(&w), h.finish());
     }
 }
@@ -478,18 +479,18 @@ fn schema_4_reads_as_6_without_berry_trees() {
     cp.world.map_layout = None;
     cp.world.sky = None;
     let v6 = encode(&cp);
-    assert_eq!(v6[v6.len() - 5..], [0, 0, 0, 0, 0]);
-    let mut v4 = v6[..v6.len() - 5].to_vec();
+    assert_eq!(v6[v6.len() - 6..], [0, 0, 0, 0, 0, 0]);
+    let mut v4 = v6[..v6.len() - 6].to_vec();
     v4[0] = 4;
     assert_eq!(decode(&v4), Ok(cp.clone()));
     let world = postcard::to_allocvec(&cp.world).unwrap();
     let mut h = Fnv64::new();
-    h.write(&world[..world.len() - 5]);
+    h.write(&world[..world.len() - 6]);
     assert_eq!(state_digest(&cp.world), h.finish());
     let w = sample().world;
     let bytes = postcard::to_allocvec(&w).unwrap();
     let mut h = Fnv64::new();
-    h.write(&bytes[..bytes.len() - 2]);
+    h.write(&bytes[..bytes.len() - 3]);
     assert_eq!(state_digest(&w), h.finish());
 }
 
@@ -502,19 +503,19 @@ fn schema_5_reads_as_6_without_layout() {
     cp.world.map_layout = None;
     cp.world.sky = None;
     let v6 = encode(&cp);
-    assert_eq!(v6[v6.len() - 4..], [0, 0, 0, 0]);
-    let mut v5 = v6[..v6.len() - 4].to_vec();
+    assert_eq!(v6[v6.len() - 5..], [0, 0, 0, 0, 0]);
+    let mut v5 = v6[..v6.len() - 5].to_vec();
     v5[0] = 5;
     assert_eq!(decode(&v5), Ok(cp.clone()));
     let world = postcard::to_allocvec(&cp.world).unwrap();
     let mut h = Fnv64::new();
-    h.write(&world[..world.len() - 4]);
+    h.write(&world[..world.len() - 5]);
     assert_eq!(state_digest(&cp.world), h.finish());
     let w = sample().world;
     assert!(w.map_layout.is_some());
     let bytes = postcard::to_allocvec(&w).unwrap();
     let mut h = Fnv64::new();
-    h.write(&bytes[..bytes.len() - 2]);
+    h.write(&bytes[..bytes.len() - 3]);
     assert_eq!(state_digest(&w), h.finish());
 }
 
@@ -526,19 +527,19 @@ fn schema_6_reads_as_7_without_sky() {
     let mut cp = sample();
     cp.world.sky = None;
     let v7 = encode(&cp);
-    assert_eq!(v7[v7.len() - 3..], [0, 0, 0]);
-    let mut v6 = v7[..v7.len() - 3].to_vec();
+    assert_eq!(v7[v7.len() - 4..], [0, 0, 0, 0]);
+    let mut v6 = v7[..v7.len() - 4].to_vec();
     v6[0] = 6;
     assert_eq!(decode(&v6), Ok(cp.clone()));
     let world = postcard::to_allocvec(&cp.world).unwrap();
     let mut h = Fnv64::new();
-    h.write(&world[..world.len() - 3]);
+    h.write(&world[..world.len() - 4]);
     assert_eq!(state_digest(&cp.world), h.finish());
     let w = sample().world;
     assert!(w.sky.is_some());
     let bytes = postcard::to_allocvec(&w).unwrap();
     let mut h = Fnv64::new();
-    h.write(&bytes[..bytes.len() - 2]);
+    h.write(&bytes[..bytes.len() - 3]);
     assert_eq!(state_digest(&w), h.finish());
 }
 
@@ -578,7 +579,7 @@ fn state_digest_is_stable_and_semantic() {
     assert!(a.rival_name.is_none() && a.box_names.is_empty());
     let bytes = postcard::to_allocvec(&a).unwrap();
     let mut fnv = Fnv64::new();
-    fnv.write(&bytes[..bytes.len() - 2]);
+    fnv.write(&bytes[..bytes.len() - 3]);
     assert_eq!(state_digest(&a), fnv.finish());
     let mut named = a.clone();
     named.rival_name = Some([0xBB, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
@@ -595,7 +596,7 @@ fn state_digest_is_stable_and_semantic() {
     let header = postcard::to_allocvec(&cp.header).unwrap();
     let encoded = encode(&cp);
     let mut fnv = Fnv64::new();
-    fnv.write(&encoded[header.len()..encoded.len() - 2]);
+    fnv.write(&encoded[header.len()..encoded.len() - 3]);
     assert_eq!(state_digest(&cp.world), fnv.finish());
 }
 
@@ -690,6 +691,7 @@ fn a_forged_length_cannot_preallocate() {
         w.sky,
         w.rival_name,
         &w.box_names,
+        &w.frontier,
     ))
     .unwrap();
     let party_at = bytes.len() - after.len() - 1;

@@ -92,6 +92,8 @@ struct Rec {
     queries: Vec<(Query, u16)>,
     /// The map's metatiles (`Query::Metatile`; 0 elsewhere), which `SetMetatile` changes.
     tiles: BTreeMap<(i16, i16), (u16, bool)>,
+    /// The Battle Tower record the frontier specials read.
+    frontier: engine::frontier::Frontier,
 }
 
 impl Rec {
@@ -147,6 +149,21 @@ impl Rec {
             }
             Request::Multichoice { .. } => Response::Value(content::MULTI_B_PRESSED),
             Request::ChoosePartyMon(_) => Response::Value(1),
+            Request::Frontier(call) => {
+                let mut rng = engine::rng::Rng::new(1);
+                let step =
+                    self.frontier
+                        .apply(call, &engine::mon::Party::default(), &[0; 4], &mut rng);
+                let v = match step {
+                    engine::frontier::Step::Value(v) => v,
+                    engine::frontier::Step::StartBattle => {
+                        self.frontier.note_outcome(BattleOutcome::Won as u16);
+                        BattleOutcome::Won as u16
+                    }
+                    _ => 0,
+                };
+                Response::Value(v)
+            }
             Request::BattleWild { .. }
             | Request::BattleTrainer { .. }
             | Request::BattleMulti { .. } => Response::Value(BattleOutcome::Won as u16),
@@ -703,15 +720,39 @@ fn native_specials_issue_their_requests_in_order() {
         );
     }
     covered.insert("SPECIAL_GameClear");
-    // `CallFrontierUtilFunc` with no frontier data: `GET_STATUS` answers no challenge (0xFF:
-    // a Battle Tent lobby's `ON_FRAME` table then stops), `GET_DATA` 0, the others report.
-    for (func, want) in [
-        (0, vec![set(VAR_TEMP_CHALLENGE_STATUS, 0xFF)]),
-        (
-            1,
-            vec![degraded("SPECIAL_CallFrontierUtilFunc"), set(VAR_RESULT, 0)],
-        ),
-        (2, vec![degraded("SPECIAL_CallFrontierUtilFunc")]),
+    // An empty tower record: `GET_STATUS` is 0xFF, `GET_DATA` is 0, `SET_DATA` stores,
+    // `RESULTS_WINDOW` still reports. A later read returns what was stored.
+    let util = |func, arg, value| {
+        Request::Frontier(engine::frontier::Call::Util(engine::frontier::Args {
+            func,
+            arg,
+            value,
+            facility: 0,
+            mode: 0,
+            result: 0,
+        }))
+    };
+    let mut facility_mode = Vec::new();
+    #[cfg(not(pkr_silice))]
+    {
+        facility_mode.push(Request::GetVar(VAR_FRONTIER_FACILITY));
+        facility_mode.push(Request::GetVar(VAR_FRONTIER_BATTLE_MODE));
+    }
+    for (func, mut want) in [
+        (0, vec![util(0, 0, 0), set(VAR_TEMP_CHALLENGE_STATUS, 0xFF)]),
+        (1, {
+            let mut v = vec![Request::GetVar(VAR_0x8005)];
+            v.extend(facility_mode.clone());
+            v.push(util(1, 0, 0));
+            v.push(set(VAR_RESULT, 0));
+            v
+        }),
+        (2, {
+            let mut v = vec![Request::GetVar(VAR_0x8005), Request::GetVar(VAR_0x8006)];
+            v.extend(facility_mode);
+            v.push(util(2, 0, 0));
+            v
+        }),
         (
             7,
             vec![Request::Report(Report::Unsupported(
@@ -723,10 +764,47 @@ fn native_specials_issue_their_requests_in_order() {
         h.vars.insert(VAR_0x8004.0, func);
         run_special(&mut h, "SPECIAL_CallFrontierUtilFunc");
         let mut log = vec![Request::GetVar(VAR_0x8004)];
-        log.extend(want);
+        log.append(&mut want);
         assert_eq!(h.log, log, "func {func}");
     }
+    let mut h = Rec::default();
+    h.vars.insert(VAR_0x8004.0, 2);
+    h.vars.insert(VAR_0x8005.0, 0);
+    h.vars.insert(VAR_0x8006.0, 3);
+    run_special(&mut h, "SPECIAL_CallFrontierUtilFunc");
+    h.log.clear();
+    h.vars.insert(VAR_0x8004.0, 0);
+    run_special(&mut h, "SPECIAL_CallFrontierUtilFunc");
+    assert_eq!(
+        h.vars[&VAR_TEMP_CHALLENGE_STATUS.0], 3,
+        "GET_STATUS reads the record"
+    );
+    h.log.clear();
+    h.vars.insert(VAR_0x8004.0, 1);
+    h.vars.insert(VAR_0x8005.0, 0);
+    run_special(&mut h, "SPECIAL_CallFrontierUtilFunc");
+    assert_eq!(h.vars[&VAR_RESULT.0], 3, "GET_DATA reads the record");
     covered.insert("SPECIAL_CallFrontierUtilFunc");
+    let mut h = Rec::default();
+    run_special(&mut h, "SPECIAL_CallBattleTowerFunc");
+    covered.insert("SPECIAL_CallBattleTowerFunc");
+    let mut h = Rec::default();
+    run_special(&mut h, "SPECIAL_ChoosePartyForBattleFrontier");
+    covered.insert("SPECIAL_ChoosePartyForBattleFrontier");
+    let mut h = Rec::default();
+    run_special(&mut h, "SPECIAL_BufferBattleTowerElevatorFloors");
+    assert_eq!(h.vars[&VAR_0x8005.0], 4);
+    assert_eq!(h.vars[&VAR_0x8006.0], 5);
+    covered.insert("SPECIAL_BufferBattleTowerElevatorFloors");
+    let mut h = Rec::default();
+    run_special(&mut h, "SPECIAL_TryHideBattleTowerReporter");
+    covered.insert("SPECIAL_TryHideBattleTowerReporter");
+    let mut h = Rec::default();
+    assert_eq!(
+        run_special(&mut h, "SPECIAL_GetBattleTowerSinglesStreak"),
+        0
+    );
+    covered.insert("SPECIAL_GetBattleTowerSinglesStreak");
     // The Petalburg gym's doors (`PetalburgGymSetDoorMetatiles`): room 2's two doors, both
     // halves impassable, the open frame (0x21C) at once, or the five frames 2 frames apart.
     let doors = |frame: u16| {
@@ -809,7 +887,12 @@ fn native_specials_issue_their_requests_in_order() {
     // `VAR_FRONTIER_FACILITY` 9 through the story module (Silice has none).
     let facility = (!cfg!(pkr_silice)).then(|| set(VarId(0x40CF), 9));
     let rest = [
-        Request::ChoosePartyMon(PartyMode::ChooseHalf { max: 3, min: 1 }),
+        Request::ChoosePartyMon(PartyMode::ChooseHalf {
+            max: 3,
+            min: 1,
+            level_cap: 100,
+            frontier: false,
+        }),
         set(VAR_RESULT, 1),
         Request::Fade(Fade::FromBlack),
     ];
