@@ -233,6 +233,9 @@ pub(crate) struct State {
     /// from `NewGame` at a new game; hashed last in `World::hash`. Texts, the starter screen and
     /// battles print this copy.
     pub(crate) player_name: PlayerName,
+    /// The rival's name after the naming screen (Gen3 `rivalName`). `None` keeps `{RIVAL}` on
+    /// the game's static name and leaves the hash alone.
+    pub(crate) rival_name: Option<PlayerName>,
     // ---- Milestone 8 ----
     /// The player's bag (Gen3 `gSaveBlock1Ptr->bagPocket_*`).
     pub(crate) bag: Bag,
@@ -509,6 +512,7 @@ impl World {
                 mode: Mode::Field,
                 answer: None,
                 player_name: player_name(ng.player_name),
+                rival_name: None,
                 bag: Bag::new(game.special_ids().pocket_slots),
                 money: 0,
                 str_vars: StrVars::new(),
@@ -1142,6 +1146,11 @@ impl World {
         self.s.player_name = player_name(name);
     }
 
+    /// The rival's name, once the naming screen has set one.
+    pub fn rival_name(&self) -> Option<&PlayerName> {
+        self.s.rival_name.as_ref()
+    }
+
     /// The options (Gen3 `OPTION` menu).
     pub fn options(&self) -> &Options {
         &self.s.options
@@ -1314,6 +1323,10 @@ impl World {
         s.save.hash(&mut h);
         // Wave G: a two-trainer sighting, while its scripts run.
         s.pair.hash(&mut h);
+        if let Some(name) = &s.rival_name {
+            h.write(&[0xB1]);
+            h.write(name);
+        }
         h.finish()
     }
 }

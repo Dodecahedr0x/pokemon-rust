@@ -431,14 +431,14 @@ fn expansion_keeps_at_most_gen3s_buffer() {
     w.s.str_vars.set(0, &long);
     w.s.str_vars.set(1, &long);
     w.s.str_vars.set(2, &long);
-    let out = crate::text::expand_vars(&HGame, &VARS_TEXT, &[A, EOS], Some(&w.s.str_vars));
+    let out = crate::text::expand_vars(&HGame, &VARS_TEXT, &[A, EOS], Some(&w.s.str_vars), None);
     assert_eq!(out.len(), 3 + 3 * (STR_VAR_LEN - 1) + 1);
     let mut huge = Vec::new();
     for _ in 0..5 {
         huge.extend_from_slice(&VARS_TEXT[..9]);
     }
     huge.push(EOS);
-    let out = crate::text::expand_vars(&HGame, &huge, &[A, EOS], Some(&w.s.str_vars));
+    let out = crate::text::expand_vars(&HGame, &huge, &[A, EOS], Some(&w.s.str_vars), None);
     assert_eq!(out.len(), crate::text::EXPANDED_MAX);
     assert_eq!(out.last(), Some(&EOS));
 }
@@ -452,7 +452,7 @@ fn a_full_expansion_stops_at_one_point() {
     let max = crate::text::EXPANDED_MAX;
     let mut text = vec![A; max - 2];
     text.extend_from_slice(&[SV1[0], SV1[1], B, EOS]);
-    let out = crate::text::expand_vars(&HGame, &text, &[A, EOS], Some(&w.s.str_vars));
+    let out = crate::text::expand_vars(&HGame, &text, &[A, EOS], Some(&w.s.str_vars), None);
     assert_eq!(out.len(), max - 1);
     assert_eq!(out[max - 3..], [A, EOS]);
 }

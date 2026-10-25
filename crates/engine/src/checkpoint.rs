@@ -23,15 +23,17 @@ use serde::{Deserialize, Serialize};
 /// Schema 3 appends [`WorldSnapshot::party_held`]; schema 4 appends the Milestone 9 state
 /// (options, Pokédex, PC, coins, registered item); schema 5 appends the berry trees (Wave E);
 /// schema 6 appends the current map's layout override (Wave F, Gen3 `setmaplayoutindex`);
-/// schema 7 appends the weather and the palette override (`crate::weather`, `crate::sky`).
-pub const SCHEMA: u16 = 7;
+/// schema 7 appends the weather and the palette override (`crate::weather`, `crate::sky`);
+/// schema 8 appends the rival's name and the PC box names (the naming screen).
+pub const SCHEMA: u16 = 8;
 /// The oldest schema [`decode`] still reads (see [`schema_readable`]).
 pub const OLDEST_READABLE: u16 = 2;
 
 /// Whether this build reads checkpoints (and trusts tree nodes) of schema `s`. Schema 2 is
 /// schema 3 without held items, schema 3 is schema 4 without the Milestone 9 state, and schema
-/// 4 is schema 5 without berry trees, schema 5 is schema 6 without a layout override, and
-/// schema 6 is schema 7 without a weather or palette override:
+/// 4 is schema 5 without berry trees, schema 5 is schema 6 without a layout override,
+/// schema 6 is schema 7 without a weather or palette override, and schema 7 is schema 8
+/// without a rival name or box names:
 /// [`decode`] reads the missing fields as empty (a new game's for the M9 state), and
 /// [`state_digest`] of such a snapshot is its older digest, so recorded nodes stay valid.
 pub const fn schema_readable(s: u16) -> bool {
@@ -223,6 +225,21 @@ pub struct WorldSnapshot {
     /// when neither.
     #[serde(default)]
     pub sky: Option<SkySnap>,
+    // Schema 8 (the naming screen). `None` and an empty list encode as two 0 bytes, which
+    // `decode` adds to an older checkpoint and `state_digest` leaves out.
+    /// The rival's name once the naming screen has set one.
+    #[serde(default)]
+    pub rival_name: Option<PlayerName>,
+    /// PC box names that are not the unset 0xFF fill, ascending by box.
+    #[serde(default, deserialize_with = "seq")]
+    pub box_names: Vec<BoxNameSnap>,
+}
+
+/// One PC box's name (Gen3 `boxNames`: `BOX_NAME_LENGTH` + EOS).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct BoxNameSnap {
+    pub index: u8,
+    pub name: [u8; crate::pc::BOX_NAME_SIZE],
 }
 
 /// The weather and the palette override of a snapshot (schema 7).
@@ -612,8 +629,9 @@ pub fn decode(bytes: &[u8]) -> Result<Checkpoint, CodecError> {
         // Schema 2 lacks the trailing `party_held` (an empty one is a 0 length byte), and
         // schemas 2 and 3 lack the Milestone 9 fields (a new game's are `M9_DEFAULT_TAIL`).
         // Schema 4 lacks the berry trees (none is a 0 length byte), schema 5 the layout
-        // override (`None` is a 0 byte), schema 6 the sky (`None` is a 0 byte).
-        let mut v = Vec::with_capacity(bytes.len() + 4 + M9_DEFAULT_TAIL.len());
+        // override (`None` is a 0 byte), schema 6 the sky (`None` is a 0 byte), schema 7 the
+        // rival name and the box names (two 0 bytes).
+        let mut v = Vec::with_capacity(bytes.len() + 6 + M9_DEFAULT_TAIL.len());
         v.extend_from_slice(bytes);
         if schema < 3 {
             v.push(0);
@@ -627,6 +645,10 @@ pub fn decode(bytes: &[u8]) -> Result<Checkpoint, CodecError> {
         if schema < 6 {
             v.push(0);
         }
+        if schema < 7 {
+            v.push(0);
+        }
+        v.push(0);
         v.push(0);
         upgraded = v;
         &upgraded[..]
@@ -644,23 +666,26 @@ pub fn decode(bytes: &[u8]) -> Result<Checkpoint, CodecError> {
 
 /// Semantic identity of a snapshot: Fnv64 over its postcard bytes (the tree's "content hash").
 /// The header (build, frame, world hash) is not part of it. Trailing fields at their older
-/// schema's defaults are left out: no sky (its single 0 byte), then no layout override (its
-/// single 0 byte), then no berry trees
+/// schema's defaults are left out: no rival name and no box names (two 0 bytes), then no sky
+/// (its single 0 byte), then no layout override (its single 0 byte), then no berry trees
 /// (their single 0 byte), then the Milestone 9 fields at a new game's values
 /// ([`M9_DEFAULT_TAIL`]), then an empty `party_held` (its single 0 byte), so such a snapshot
-/// keeps its schema 6, 5, 4, 3 (or 2) digest.
+/// keeps its schema 7, 6, 5, 4, 3 (or 2) digest.
 pub fn state_digest(w: &WorldSnapshot) -> u64 {
     let mut drop = 0;
-    if w.sky.is_none() {
-        drop = 1;
-        if w.map_layout.is_none() {
+    if w.rival_name.is_none() && w.box_names.is_empty() {
+        drop = 2;
+        if w.sky.is_none() {
             drop += 1;
-            if w.berry_trees.is_empty() {
+            if w.map_layout.is_none() {
                 drop += 1;
-                if w.m9_is_default() {
-                    drop += M9_DEFAULT_TAIL.len();
-                    if w.party_held.is_empty() {
-                        drop += 1;
+                if w.berry_trees.is_empty() {
+                    drop += 1;
+                    if w.m9_is_default() {
+                        drop += M9_DEFAULT_TAIL.len();
+                        if w.party_held.is_empty() {
+                            drop += 1;
+                        }
                     }
                 }
             }
@@ -675,7 +700,7 @@ pub fn state_digest(w: &WorldSnapshot) -> u64 {
     postcard::serialize_with_flavor(w, flavor).expect("postcard encoding of a snapshot")
 }
 
-const DIGEST_DROP_MAX: usize = M9_DEFAULT_TAIL.len() + 4;
+const DIGEST_DROP_MAX: usize = M9_DEFAULT_TAIL.len() + 6;
 
 /// A postcard output that hashes the bytes instead of storing them, `drop` bytes behind so
 /// that the last `drop` can be left out.

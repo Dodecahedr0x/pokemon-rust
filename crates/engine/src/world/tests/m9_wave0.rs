@@ -152,17 +152,11 @@ fn new_state_is_hashed_only_when_not_default() {
 /// world is not capturable then.
 #[test]
 fn a_stub_screen_closes_back_to_the_field() {
-    use crate::ui::{NamingKind, ScreenKind};
+    use crate::ui::ScreenKind;
     let mut w = started();
     let idle = w.hash();
     let mut f = Frame::default();
-    crate::world::screens::open(
-        &mut w.s,
-        &Game,
-        ScreenKind::Naming(NamingKind::Player),
-        false,
-        &mut f,
-    );
+    crate::world::screens::open(&mut w.s, &Game, ScreenKind::Options, false, &mut f);
     assert_eq!(w.screens_open(), 1);
     assert_ne!(w.hash(), idle, "an open screen is hashed");
     assert_eq!(
@@ -173,7 +167,7 @@ fn a_stub_screen_closes_back_to_the_field() {
     for _ in 0..200 {
         w.step(&Game, Buttons::NONE);
         let events = w.events();
-        reported |= events.contains(&Event::Report(Report::Unsupported("naming screen")));
+        reported |= events.contains(&Event::Report(Report::Unsupported("options menu")));
         closed |= events.contains(&Event::ScreenClosed);
         if w.screens_open() == 0 {
             break;

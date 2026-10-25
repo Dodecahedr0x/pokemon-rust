@@ -428,6 +428,7 @@ impl GameData for Game {
             multichoice_cancel: MULTI_B_PRESSED,
             pocket_slots: POCKET_SLOTS,
             var_daily_wilds: Some(VAR_DAILY_WILDS),
+            pc_boxes: 14,
             ..SpecialIds::default()
         }
     }
@@ -1156,6 +1157,7 @@ mod m9_s;
 mod m9_sm;
 mod m9_w;
 mod m9_wave0;
+mod naming;
 mod partners;
 mod pushes;
 mod rtc;
