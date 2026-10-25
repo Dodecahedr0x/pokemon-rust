@@ -302,6 +302,8 @@ pub(crate) struct State {
     pub(crate) clock_hours: u8,
     pub(crate) clock_minutes: u8,
     pub(crate) clock_seconds: u8,
+    /// The contest in progress (`contest.c` script RAM). Not hashed, not snapshotted.
+    pub(in crate::world) contest: crate::contest::Session,
 }
 
 /// Gen3 `gLocalTime` after `RtcCalcLocalTime` with a zero saved offset: the RTC in decimal,
@@ -550,6 +552,7 @@ impl World {
                 clock_hours: 0,
                 clock_minutes: 0,
                 clock_seconds: 0,
+                contest: crate::contest::Session::default(),
             },
             rtc: None,
             sound: crate::options::Sound::Mono,

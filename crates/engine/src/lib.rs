@@ -8,6 +8,7 @@ pub mod battle;
 pub mod berry;
 pub mod cable_car;
 pub mod checkpoint;
+pub mod contest;
 pub mod data;
 pub mod debug;
 pub mod field;

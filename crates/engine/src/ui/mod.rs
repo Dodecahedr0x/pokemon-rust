@@ -13,6 +13,7 @@
 //! `new` and [`Screen`] impl; the shared widgets go in [`kit`] (Task K).
 
 pub mod bag;
+pub mod contest;
 pub(crate) mod credits;
 mod credits_pages;
 pub mod easy_chat;
@@ -82,6 +83,8 @@ pub enum ScreenKind {
     EasyChat(u8),
     /// Power-on title (`title_screen.c`): copyright, press Start, the Pokémon flight.
     Title,
+    /// A contest page (`startcontest`, `showcontestresults`, `showcontestpainting`).
+    Contest(crate::contest::ContestView),
 }
 
 /// The question the save dialog asks after "Would you like to save the game?" yes (Gen3
@@ -180,6 +183,7 @@ pub enum ScreenKindTag {
     Credits,
     EasyChat,
     Title,
+    Contest,
 }
 
 impl ScreenKind {
@@ -201,6 +205,7 @@ impl ScreenKind {
             ScreenKind::EasyChat(_) => ScreenKindTag::EasyChat,
             ScreenKind::Credits => ScreenKindTag::Credits,
             ScreenKind::Title => ScreenKindTag::Title,
+            ScreenKind::Contest(_) => ScreenKindTag::Contest,
         }
     }
 
@@ -218,6 +223,15 @@ impl ScreenKind {
             | ScreenKind::HallOfFame
             | ScreenKind::Credits
             | ScreenKind::Title => {}
+            ScreenKind::Contest(v) => {
+                let page = match v.page {
+                    crate::contest::ContestPage::Appeals => 0,
+                    crate::contest::ContestPage::Results => 1,
+                    crate::contest::ContestPage::Painting(id) => 2 + id,
+                };
+                h.write(&[page, v.player, v.category]);
+                h.write(&v.place);
+            }
             ScreenKind::Party(m) => {
                 let (tag, v) = match m {
                     PartyMode::Field => (0, 0),
@@ -389,6 +403,7 @@ pub enum ScreenState {
     HallOfFame(hall_of_fame::HallOfFame),
     EasyChat(easy_chat::EasyChat),
     Title(title::Title),
+    Contest(contest::ContestScreen),
 }
 
 impl ScreenState {
@@ -416,6 +431,7 @@ impl ScreenState {
             ScreenKind::EasyChat(k) => ScreenState::EasyChat(easy_chat::EasyChat::new(k)),
             ScreenKind::Credits => ScreenState::HallOfFame(hall_of_fame::HallOfFame::credits()),
             ScreenKind::Title => ScreenState::Title(title::Title::new()),
+            ScreenKind::Contest(v) => ScreenState::Contest(contest::ContestScreen::new(v)),
         }
     }
 
@@ -436,6 +452,7 @@ impl ScreenState {
             ScreenState::HallOfFame(s) => s.step(cx, input),
             ScreenState::EasyChat(s) => s.step(cx, input),
             ScreenState::Title(s) => s.step(cx, input),
+            ScreenState::Contest(s) => s.step(cx, input),
         }
     }
 
@@ -457,6 +474,7 @@ impl ScreenState {
             ScreenState::HallOfFame(s) => s.hash(h),
             ScreenState::EasyChat(s) => s.hash(h),
             ScreenState::Title(s) => s.hash(h),
+            ScreenState::Contest(s) => s.hash(h),
         }
     }
 }

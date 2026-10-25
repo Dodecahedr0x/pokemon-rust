@@ -15,6 +15,7 @@ pub(in crate::world) use rotating_tiles::RotatingTiles;
 pub(in crate::world) use stash::Stash;
 
 mod buffers;
+mod contest;
 mod field;
 mod fx;
 mod items;
@@ -568,6 +569,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::EasyChat { .. }
             | Request::Credits
             | Request::Evolve { .. } => screens::begin(self, r),
+            Request::Contest(_) => contest::begin(self, r),
             Request::ScreenFlash { .. }
             | Request::ScreenShake { .. }
             | Request::SetTint { .. }
@@ -645,6 +647,9 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             } else {
                 None
             };
+        }
+        if let Request::Contest(_) = r {
+            return contest::resume(self, r);
         }
         if let Request::Mart { .. }
         | Request::ChoosePartyMon(_)
