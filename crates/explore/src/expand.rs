@@ -265,8 +265,19 @@ struct Driver<'a, G: GameData> {
     battle: Option<BattleTracker>,
     /// Frames stepped outside battles (`Limits::macro_frames`).
     nonbattle: u32,
+    /// Frames of the credits pages. They run longer than `macro_frames` and cannot be skipped.
+    credit_frames: u32,
     /// Frames of the current battle (`Limits::battle_frames`).
     battle_frames: u32,
+}
+
+/// The credits pages (`HallOfFame` stage Credits). THE END is not included: any key closes it.
+fn credits_open(w: &World) -> bool {
+    matches!(
+        w.screens().and_then(|s| s.top()),
+        Some((_, engine::ui::ScreenState::HallOfFame(h)))
+            if h.stage() == engine::ui::hall_of_fame::Stage::Credits
+    )
 }
 
 impl<'a, G: GameData> Driver<'a, G> {
@@ -309,6 +320,7 @@ impl<'a, G: GameData> Driver<'a, G> {
             log_start,
             battle: None,
             nonbattle: 0,
+            credit_frames: 0,
             battle_frames: 0,
         }
     }
@@ -426,6 +438,13 @@ impl<'a, G: GameData> Driver<'a, G> {
             self.battle_frames += 1;
             if self.battle_frames > self.limits.battle_frames {
                 return Err(ExpandError::Timeout("battle"));
+            }
+        } else if credits_open(self.w()) {
+            // The pages last about 8600 frames. Counting them as a macro would time out at
+            // `macro_frames` (3000) now that START cannot skip them.
+            self.credit_frames += 1;
+            if self.credit_frames > 20_000 {
+                return Err(ExpandError::Timeout("credits"));
             }
         } else {
             self.nonbattle += 1;

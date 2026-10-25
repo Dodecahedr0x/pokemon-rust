@@ -160,12 +160,6 @@ impl Policy {
             }
             _ => None,
         };
-        // `special GameClear`'s credits (Task S): START skips their pages.
-        let credits = matches!(
-            w.screens().and_then(|s| s.top()),
-            Some((_, ScreenState::HallOfFame(h)))
-                if h.stage() == engine::ui::hall_of_fame::Stage::Credits
-        );
         // The Easy Chat screen (Wave G): B to its quit prompt, then YES (it opens on NO).
         let easy_chat = match w.screens().and_then(|s| s.top()) {
             Some((_, ScreenState::EasyChat(e))) => {
@@ -184,10 +178,10 @@ impl Policy {
             }
             _ => None,
         };
+        // The credits pages ignore START (Gen3 has no skip). A is harmless there; THE END
+        // takes any key, so the driver waits the pages out.
         let k = if let Some(k) = half.or(easy_chat) {
             k
-        } else if credits {
-            Buttons::START
         } else if shop {
             // A clerk's mart (or its SELL bag): B leaves without buying (A would buy the
             // first item until the money runs out); `Step::Buy` drives a purchase.

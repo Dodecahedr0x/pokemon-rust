@@ -16,14 +16,13 @@
 //!   (`Task_Hof_WaitAndPrintPlayerInfo`: x 120 to 192).
 //! - The player's name and play time (`HallOfFame_PrintPlayerInfo`), until A is pressed
 //!   (`Task_Hof_ExitOnKeyPressed`).
-//! - The credits (`CB2_StartCreditsSequence`), degraded to a black screen of [`CREDITS_FRAMES`]
-//!   (`Task_UpdatePage`: 72 frames, then each of the 57 pages fades in, waits 115 frames and
-//!   fades out; the bike and Pokémon scenes between pages are left out), then THE END
-//!   (`Task_CreditsTheEnd6`: black too here) until a key is pressed or [`THE_END_FRAMES`] pass.
-//!   Deviation: START skips the credits pages to THE END (Gen3 cannot skip them), for tools.
+//! - The credits ([`super::credits`]: the 57 Gen3 pages, the bike scenes and the Pokémon
+//!   interludes). START does not skip a page. THE END (`Task_CreditsTheEnd6`) stays black here
+//!   until a key is pressed or [`THE_END_FRAMES`] pass: the letter graphic is not extracted.
 //!
 //! The screen answers `Bool(true)`; the `GameClear` script then warps to the player's room.
 
+use super::credits::Roll;
 use super::kit::widgets::{EOS, EXTRA_SYMBOL, Message, SYMBOL_LV, push, push_number};
 use super::kit::window::{FULL_BASE, MapBuf, Panel, TileAlloc, frame_kind};
 use super::kit::{FADE_FRAMES, Gfx};
@@ -50,8 +49,9 @@ pub const PLAYER_FRAMES: u16 = 120;
 pub const PLAYER_SLIDE_FRAMES: u16 = 192 - 120;
 /// Gen3 `PAGE_COUNT` (`src/data/credits.h`).
 pub const CREDITS_PAGES: u16 = 57;
-/// `Task_UpdatePage`: 72 frames, then per page a 16-step fade in (17 frames), 115 frames, a
-/// 16-step fade out (17 frames) and the frame that clears it.
+/// Gen3 `Task_UpdatePage`'s countdown: 72 frames, then per page a 17-frame fade in, 115 frames,
+/// a 17-frame fade out and the clear. [`super::credits`] plays the pages instead (16-frame
+/// fades, plus the scene changes), so this is not how long the screen waits.
 pub const CREDITS_FRAMES: u16 = 72 + CREDITS_PAGES * (17 + 115 + 17 + 1);
 /// `Task_CreditsTheEnd5`: `tDelay = 7200`.
 pub const THE_END_FRAMES: u16 = 7200;
@@ -71,7 +71,7 @@ pub enum Stage {
     Welcome,
     /// The player's info: waits for A.
     Champion,
-    /// The credits' pages (START skips).
+    /// The credits' pages. START does not skip them.
     Credits,
     /// THE END: any key.
     TheEnd,
@@ -86,6 +86,8 @@ pub struct HallOfFame {
     shown: u8,
     msg: Option<Box<Message>>,
     gfx: Gfx<Panel>,
+    /// The credits roll, once [`Stage::Credits`] starts.
+    credits: Roll,
 }
 
 impl Default for HallOfFame {
@@ -102,20 +104,30 @@ impl HallOfFame {
             shown: 0,
             msg: None,
             gfx: Gfx::none(),
+            credits: Roll::new(),
         }
     }
 
-    /// The credits alone (`ScreenKind::Credits`): the black pages, then THE END.
+    /// The credits alone (`ScreenKind::Credits`): the pages, then THE END.
     pub fn credits() -> Self {
         HallOfFame {
             stage: Stage::Credits,
-            left: CREDITS_FRAMES,
             ..HallOfFame::new()
         }
     }
 
     pub fn stage(&self) -> Stage {
         self.stage
+    }
+
+    /// The page on screen, while the credits run.
+    pub fn credits_page(&self) -> Option<u8> {
+        (self.stage == Stage::Credits).then_some(self.credits.page())
+    }
+
+    /// The picture behind the page, while the credits run.
+    pub fn credits_scene(&self) -> Option<super::credits::Scene> {
+        (self.stage == Stage::Credits).then_some(self.credits.scene())
     }
 
     fn list<G: GameData>(&self, cx: &mut ScreenCx<'_, G>) -> Panel {
@@ -198,21 +210,31 @@ impl HallOfFame {
         }
         self.gfx.0 = None;
     }
+
+    fn to_the_end(&mut self) {
+        self.stage = Stage::TheEnd;
+        self.left = THE_END_FRAMES;
+        self.gfx.0 = None;
+    }
 }
 
 impl Screen for HallOfFame {
     fn step<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>, input: ScreenInput) -> ScreenOut {
-        if self.msg.is_none() {
+        // The credits and THE END have no "SAVING…" line. The save is the World's, after the warp.
+        if self.msg.is_none() && !matches!(self.stage, Stage::Credits | Stage::TheEnd) {
             self.message(cx, Some(UiText::SaveSaving));
         }
-        let black = matches!(self.stage, Stage::Credits | Stage::TheEnd);
-        if self.gfx.0.is_none() && !black {
+        if self.gfx.0.is_none() && !matches!(self.stage, Stage::Credits | Stage::TheEnd) {
             self.redraw(cx);
         }
         let pressed = input.pressed;
         let mons = cx.party.len().min(6) as u8;
         let mut out = ScreenOut::Running;
-        self.left = self.left.saturating_sub(1);
+        // The roll counts its own frames. Decrementing here would eat THE END's first frame
+        // on the transition.
+        if self.stage != Stage::Credits {
+            self.left = self.left.saturating_sub(1);
+        }
         match self.stage {
             Stage::Saving if self.left == 0 => {
                 if mons == 0 {
@@ -233,24 +255,33 @@ impl Screen for HallOfFame {
             Stage::Welcome if self.left == 0 => self.enter(cx, Stage::Champion, 0),
             Stage::Champion if pressed.contains(Buttons::A) => {
                 self.stage = Stage::Credits;
-                self.left = CREDITS_FRAMES;
+                self.credits = Roll::new();
+                self.gfx.0 = None;
+                if let Some(m) = &mut self.msg {
+                    m.hide();
+                }
+                if self.credits.tick(cx, &mut self.gfx) {
+                    self.to_the_end();
+                }
             }
-            Stage::Credits if self.left == 0 || pressed.contains(Buttons::START) => {
-                self.stage = Stage::TheEnd;
-                self.left = THE_END_FRAMES;
+            Stage::Credits => {
+                // Gen3 cannot skip a page. START is ignored for the whole stage.
+                if self.credits.tick(cx, &mut self.gfx) {
+                    self.to_the_end();
+                }
             }
             Stage::TheEnd if self.left == 0 || pressed != Buttons::NONE => {
                 out = ScreenOut::Done(ScreenResult::Bool(true));
             }
             _ => {}
         }
-        if let Some(m) = &mut self.msg {
-            m.update(cx.game, pressed, input.held);
-        }
-        if matches!(self.stage, Stage::Credits | Stage::TheEnd) {
+        if self.stage == Stage::TheEnd {
             cx.f.brightness = FADE_FRAMES;
             cx.f.lighten = false;
-        } else {
+        } else if self.stage != Stage::Credits {
+            if let Some(m) = &mut self.msg {
+                m.update(cx.game, pressed, input.held);
+            }
             let mut budget = super::kit::frame_budget(cx.f);
             if let Some(m) = &mut self.msg {
                 m.flush_within(cx.f, &mut budget);
@@ -268,11 +299,16 @@ impl Screen for HallOfFame {
             Stage::Mon(i) => (1, i),
             Stage::Welcome => (2, 0),
             Stage::Champion => (3, 0),
-            Stage::Credits => (4, 0),
+            Stage::Credits => (4, self.credits.page()),
             Stage::TheEnd => (5, 0),
         };
         h.write(&[tag, i, self.shown]);
-        h.write_u16(self.left);
+        if self.stage == Stage::Credits {
+            h.write(&[self.credits.scene() as u8]);
+            h.write_u16(self.credits.frames_left());
+        } else {
+            h.write_u16(self.left);
+        }
         if let Some(m) = &self.msg {
             m.hash(h);
         }
