@@ -59,10 +59,6 @@ const CABLE_CAR_STATIONS: [MapId; 2] = [
 const CABLE_CAR_STATIONS: [MapId; 2] = [MapId(0xFFFF); 2];
 /// Both stations' arrival cell (`CableCarWarp`, `WARP_ID_NONE`).
 const CABLE_CAR_ARRIVAL: (i16, i16) = (6, 4);
-/// The ride between the fade to black and the warp (`cable_car.c`): `Task_CableCar` fades out
-/// at timer 570, and that fade (`BeginNormalPaletteFade(…, 3, 0, 16, …)`, 8 steps of 4 frames)
-/// takes 32 more.
-const CABLE_CAR_RIDE_FRAMES: u16 = 570 + 32;
 
 /// `Script_DoRayquazaScene`'s scenes on their black screen (`rayquaza_scene.c`, summed from
 /// the tasks' timers and palette fades, approximately): Groudon and Kyogre's fight
@@ -246,10 +242,11 @@ async fn cable_car_destination(ctx: &Ctx) -> MapId {
 /// - `CableCarWarp` (`field_specials.c`): Gen3 sets `gWarpDestination` to the other station's
 ///   (6, 4) by `VAR_0x8004` (0: up to Mt. Chimney); only the ride's end reads it, so this
 ///   reads the var and `CableCar` warps there.
-/// - `CableCar` (`cable_car.c`), degraded: no ride scene. The field fades to black as Gen3's
-///   `CableCar` does, stays black for the ride's frames, then warps to `CableCarWarp`'s
-///   destination (`CB2_EndCableCar`'s `WarpIntoMap`); the warp's map load ends the script, as
-///   `CB2_LoadMap` does in Gen3 (the script's `waitstate` is never reached).
+/// - `CableCar` (`cable_car.c`): the field fades to black as Gen3's `CableCar` does, then the
+///   ride scene (the car, the view, the arrival) plays for [`engine::cable_car::RIDE_FRAMES`]
+///   and warps to `CableCarWarp`'s destination (`CB2_EndCableCar`'s `WarpIntoMap`). The warp's
+///   map load ends the script, as `CB2_LoadMap` does in Gen3 (the script's `waitstate` is
+///   never reached).
 /// - `PetalburgGymUnlockRoomDoors`, `PetalburgGymSlideOpenRoomDoors` (`field_specials.c`): room
 ///   `VAR_0x8004`'s doors show the open frame at once, or slide through the five frames (2
 ///   frames apart, `Task_PetalburgGymSlideOpenRoomDoors`; the script's `waitstate` then
@@ -396,10 +393,11 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             cable_car_destination(ctx).await;
         }
         id if id == SPECIAL_CableCar => {
-            degraded(ctx, id).await;
-            let map = cable_car_destination(ctx).await;
+            let [up, down_map] = CABLE_CAR_STATIONS;
+            let down = ctx.var(VAR_0x8004).await != 0;
+            let map = if down { down_map } else { up };
             ctx.fade(Fade::ToBlack).await;
-            ctx.delay(CABLE_CAR_RIDE_FRAMES).await;
+            ctx.cable_car(down).await;
             let (x, y) = CABLE_CAR_ARRIVAL;
             ctx.warp(map, None, x, y).await;
         }

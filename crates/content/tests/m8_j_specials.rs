@@ -596,8 +596,7 @@ fn native_specials_issue_their_requests_in_order() {
     assert_eq!(h.log.len(), 4);
     covered.insert("SPECIAL_ChooseStarter");
     // The cable car (`CableCarWarp`, `CableCar`): `VAR_0x8004` picks the other station; the
-    // ride fades to black, waits 602 frames (`Task_CableCar`'s 570 and its fade out), then
-    // warps to (6, 4) with no warp id.
+    // field fades to black, the ride scene plays, then the warp to (6, 4) with no warp id.
     #[cfg(not(pkr_silice))]
     for (down, map) in [
         (0, MAP_MT_CHIMNEY_CABLE_CAR_STATION),
@@ -613,10 +612,9 @@ fn native_specials_issue_their_requests_in_order() {
         assert_eq!(
             h.log,
             [
-                degraded("SPECIAL_CableCar"),
                 Request::GetVar(VAR_0x8004),
                 Request::Fade(Fade::ToBlack),
-                Request::Delay(602),
+                Request::CableCar { down: down != 0 },
                 Request::Warp {
                     map,
                     warp: None,
