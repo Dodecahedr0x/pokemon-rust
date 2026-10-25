@@ -619,6 +619,20 @@ fn native_specials_issue_their_requests_in_order() {
             vec![Request::Link(LinkCall::Close)],
             0,
         ),
+        (
+            "SPECIAL_IsEnigmaBerryValid",
+            0,
+            vec![q(Query::EnigmaBerryValid)],
+            0,
+        ),
+        (
+            "SPECIAL_DoesPartyHaveEnigmaBerry",
+            0,
+            (0..engine::script::PARTY_SIZE)
+                .map(|slot| q(Query::PartySpecies(slot as u8)))
+                .collect(),
+            0,
+        ),
     ];
     let mut covered = BTreeSet::new();
     let cases = [cases, wave_c_cases(&mut covered)].concat();

@@ -1134,6 +1134,35 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
         id if id == SPECIAL_CloseLink => {
             ctx.link(engine::script::LinkCall::Close).await;
         }
+        id if id == SPECIAL_IsEnigmaBerryValid => {
+            // `IsEnigmaBerryValid`: the saved e-Reader berry's stage, yield and checksum.
+            return ctx.query(Query::EnigmaBerryValid).await;
+        }
+        id if id == SPECIAL_DoesPartyHaveEnigmaBerry => {
+            // `DoesPartyHaveEnigmaBerry` (`script_pokemon_util.c`): a non-empty party mon
+            // holding `ITEM_ENIGMA_BERRY`. The engine has no eggs, so species 0 is an empty
+            // slot. The name goes to `gStringVar1` (`GetBerryNameByBerryType`): the card's
+            // when the saved berry is valid, otherwise the ROM Enigma Berry name.
+            for slot in 0..PARTY_SIZE as u8 {
+                if ctx.query(Query::PartySpecies(slot)).await == 0 {
+                    continue;
+                }
+                if ctx.query(Query::PartyHeldItem(slot)).await != ITEM_ENIGMA_BERRY {
+                    continue;
+                }
+                if ctx.query(Query::EnigmaBerryValid).await != 0 {
+                    ctx.buffer(0, BufferSrc::EnigmaBerry).await;
+                } else if let Some(name) = crate::data::BERRIES
+                    .iter()
+                    .find(|berry| berry.0 == ITEM_ENIGMA_BERRY)
+                    .map(|berry| berry.1)
+                {
+                    ctx.buffer(0, BufferSrc::Bytes(name)).await;
+                }
+                return 1;
+            }
+            return 0;
+        }
         // Not a `Native` special: the lowering never passes one (it reports the `Unsupported`
         // ones itself); a hand-written call is only logged.
         _ => {}

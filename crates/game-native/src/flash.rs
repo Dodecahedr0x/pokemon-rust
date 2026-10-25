@@ -246,6 +246,7 @@ mod tests {
                 rival_name: None,
                 box_names: Vec::new(),
                 frontier: None,
+                enigma_berry: None,
             },
         }
     }

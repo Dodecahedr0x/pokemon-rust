@@ -634,6 +634,10 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 UNIT
             }
             Request::Frontier(call) => frontier_begin(self, call),
+            Request::SetEnigmaBerry(raw) => {
+                s.enigma_berry = Some(raw);
+                UNIT
+            }
             Request::Report(rep) => {
                 s.log(match rep {
                     crate::script::Report::Unsupported(what)

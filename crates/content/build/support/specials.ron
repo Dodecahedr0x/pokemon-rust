@@ -13,7 +13,7 @@
 // The 483 specials named by a `special`/`specialvar` line of the decomp (`data/**/*.inc` and
 // `data/*.s`, `data/specials.inc` excluded) are classified; the other 41 are Unsupported.
 //
-// Counts: 101 Native, 17 Ignore, 82 Default, 324 Unsupported.
+// Counts: 103 Native, 17 Ignore, 80 Default, 324 Unsupported.
 {
     "SPECIAL_AccessHallOfFamePC": Unsupported, // post-game; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_Bag_ChooseBerry": Native, // degraded: no bag screen, nothing chosen; fades back in
@@ -143,7 +143,7 @@
     "SPECIAL_DoWaldaNamingScreen": Native, // degraded: no naming screen; VAR_0x8004 = 2 (cancelled, no phrase before), so no phrase is saved and Walda's wallpaper is never given
     "SPECIAL_DoWateringBerryTreeAnim": Native, // degraded: no watering animation (prelude::berry)
     "SPECIAL_DoesContestCategoryHaveMuseumPainting": Unsupported,
-    "SPECIAL_DoesPartyHaveEnigmaBerry": Default(0), // no e-Reader Enigma Berry
+    "SPECIAL_DoesPartyHaveEnigmaBerry": Native, // a party mon holding the e-Reader Enigma Berry
     "SPECIAL_DoesPlayerHaveNoDecorations": Unsupported,
     "SPECIAL_DrawWholeMapView": Native, // redraws the map
     "SPECIAL_DrewSecretBaseBattle": Unsupported,
@@ -270,7 +270,7 @@
     "SPECIAL_IsCurSecretBaseOwnedByAnotherPlayer": Unsupported,
     "SPECIAL_IsDecorationCategoryFull": Unsupported,
     "SPECIAL_IsDodrioInParty": Unsupported,
-    "SPECIAL_IsEnigmaBerryValid": Default(0), // no e-Reader Enigma Berry
+    "SPECIAL_IsEnigmaBerryValid": Native, // the saved e-Reader berry; Petalburg Gym gives the item when this is true
     "SPECIAL_IsEnoughForCostInVar0x8005": Native, // Wave C: money >= VAR_0x8005
     "SPECIAL_IsFanClubMemberFanOfPlayer": Default(0), // the Trainer Fan Club is not modelled (M13): no member is a fan
     "SPECIAL_IsFavorLadyThresholdMet": Default(0), // the Lilycove ladies are M13

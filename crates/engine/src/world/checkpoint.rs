@@ -146,6 +146,7 @@ impl World {
                 },
             ),
             frontier: (!s.frontier.is_default()).then_some(s.frontier.clone()),
+            enigma_berry: s.enigma_berry,
         }
     }
 
@@ -298,6 +299,7 @@ impl World {
                 events_dropped: 0,
                 last_script: None,
                 save: super::save::SaveStatus::continued(),
+                enigma_berry: w.enigma_berry,
                 today: 0,
                 clock_hours: 0,
                 clock_minutes: 0,

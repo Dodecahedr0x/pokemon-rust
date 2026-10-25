@@ -95,6 +95,21 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
             game.decoration(id).map(|d| d.name),
             "bufferdecorationname: unknown decoration",
         ),
+        // The saved e-Reader berry's name (`GetBerryNameByBerryType` when it is valid).
+        BufferSrc::EnigmaBerry => {
+            match s.enigma_berry {
+                Some(raw) => s.str_vars.set(slot as usize, crate::ereader::name(&raw)),
+                None => {
+                    s.str_vars.set(slot as usize, &[]);
+                    report(s, Report::Degraded("buffer: no e-Reader berry"));
+                }
+            }
+            return UNIT;
+        }
+        BufferSrc::Bytes(text) => {
+            s.str_vars.set(slot as usize, text);
+            return UNIT;
+        }
     };
     match text {
         Some(t) => s.str_vars.set(slot as usize, t),

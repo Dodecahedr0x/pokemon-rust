@@ -121,6 +121,10 @@ pub enum BufferSrc {
     ContestName(u8),
     /// `bufferdecorationname`.
     Decoration(DecorId),
+    /// The saved e-Reader Enigma Berry's name (`GetBerryNameByBerryType` when it is valid).
+    EnigmaBerry,
+    /// Bytes already encoded (the ROM Enigma Berry name when the saved one is not valid).
+    Bytes(&'static [u8]),
 }
 
 /// A contest command (`choosecontestmon`, `startcontest`, `showcontestresults`,
@@ -670,6 +674,8 @@ pub enum Request {
     /// The credits alone (the Hall of Fame screen from its credits, no record, no save):
     /// answers `Unit` once THE END is dismissed.
     Credits,
+    /// Copies an e-Reader Enigma Berry (`SetEnigmaBerry`).
+    SetEnigmaBerry([u8; crate::ereader::ENIGMA_BERRY_LEN]),
     /// Reload the last save as if the game had been reset (Silice's alternate ending): raises
     /// `Event::ReloadLastSave` once; the shells replace the World (GBA: the flash slot, read,
     /// not written; native: the last save it persisted, else a new game). Never answered.
@@ -740,6 +746,8 @@ pub enum Query {
     /// The item held by party slot `slot` (Gen3 `MON_DATA_HELD_ITEM`), 0 for none or an empty
     /// slot.
     PartyHeldItem(u8),
+    /// 1 when the saved e-Reader Enigma Berry passes `IsEnigmaBerryValid`, else 0.
+    EnigmaBerryValid,
 }
 
 impl Query {
@@ -764,6 +772,7 @@ impl Query {
             Query::Metatile { x, y } => (10, x as u16, y as u16),
             Query::ObjectBerryTree(local_id) => (11, local_id as u16, 0),
             Query::PartyHeldItem(slot) => (12, slot as u16, 0),
+            Query::EnigmaBerryValid => (13, 0, 0),
         }
     }
 }
@@ -872,6 +881,12 @@ impl Request {
                     BufferSrc::Text(t) => (7, t.0 as u32),
                     BufferSrc::ContestName(c) => (8, c as u32),
                     BufferSrc::Decoration(d) => (9, d.0 as u32),
+                    BufferSrc::EnigmaBerry => (10, 0),
+                    BufferSrc::Bytes(text) => {
+                        let mut d = Fnv64::new();
+                        d.write(text);
+                        (11, d.finish() as u32)
+                    }
                 };
                 (50, slot as u16, kind, v as u16, (v >> 16) as u16)
             }
@@ -1106,6 +1121,19 @@ impl Request {
             // SIL Ch10–11: tags 210 and up.
             Request::SaveGame => (210, 0, 0, 0, 0),
             Request::Credits => (211, 0, 0, 0, 0),
+            // Tag 220: 213–219 and 225 and up are other requests.
+            Request::SetEnigmaBerry(raw) => {
+                let mut d = Fnv64::new();
+                d.write(&raw);
+                let digest = d.finish();
+                (
+                    220,
+                    digest as u16,
+                    (digest >> 16) as u16,
+                    (digest >> 32) as u16,
+                    (digest >> 48) as u16,
+                )
+            }
             Request::ReloadLastSave => (212, 0, 0, 0, 0),
             // The clock is a host input: the request carries no time (tag 213).
             Request::GetTime => (213, 0, 0, 0, 0),
@@ -2039,6 +2067,11 @@ impl Ctx {
     /// A read of the world ([`Query`]).
     pub fn query(&self, q: Query) -> Req<u16> {
         self.req(Request::Query(q), Response::value)
+    }
+
+    /// Copies an e-Reader Enigma Berry (`SetEnigmaBerry`).
+    pub fn set_enigma_berry(&self, raw: [u8; crate::ereader::ENIGMA_BERRY_LEN]) -> Req<()> {
+        self.req(Request::SetEnigmaBerry(raw), unit)
     }
 
     /// The party's backup (see [`PartyStash`]).
