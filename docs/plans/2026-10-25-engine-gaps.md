@@ -143,11 +143,9 @@ The opponent party and the wild encounter are rolled when the battle is requeste
 
 **Done when:** those draws happen after the transition, in Gen3's order, and a test shows an object that animates during the transition consumes the RNG before the party is built. Re-baseline checkpoints only if this item moves them, in its own commit.
 
-### `ui-pictures`
+### `ui-pictures` — closed
 
-Menus are frames and text. Item and Pokémon icons are not drawn (`crates/engine/src/ui/kit/mod.rs`). The party, summary, bag, and mart document the missing pictures (`party.rs`, `summary.rs`, `bag.rs`, `mart.rs`). The Hall of Fame has no mon pictures (`hall_of_fame.rs`).
-
-**Done when:** the party, summary, bag, mart, and Hall of Fame draw the Gen3 pictures and icons from extracted graphics. A test finds a non-empty sprite in the party menu and the Hall of Fame.
+Merged `7e79cfb3`. The party, summary, bag, mart, and Hall of Fame draw extracted Gen3 pictures and icons when the game provides them. A test finds a non-empty sprite in the party menu and the Hall of Fame. Checkpoints did not move. `a_stub_screen_closes_back_to_the_field` still expects the options menu to report `Unsupported("options menu")`, which it no longer does.
 
 ### `credits` — closed
 
