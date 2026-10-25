@@ -2,11 +2,8 @@
 //! answered by `game_data_tables!` for every flavour. Task C owns the file: it fills the tables
 //! from the extracted `ui/`, `icons/` and `tables/` files (blobs for pictures and icons).
 //!
-//! Wave 0: every table is empty, so each `GameData` UI method answers `None` (or its default)
-//! and the screens draw frames and text only. Tasks K/PT fill `TM_MOVES` and `TM_COMPAT` from
-//! `tables/tmhm.ron` (the teach flow). Task B (pulled forward from Task C) fills `ITEM_USE`
-//! (the decomp's item effects by `ITEM_*` name, [`item_use`]) and Emerald's `START_MENU`
-//! (`BuildNormalStartMenu`, its labels from `MULTI_FORCED_START_MENU`).
+//! Mon icons, item icons and the bag sprite are loaded when `icons/` and `ui/BagSprite*.ron`
+//! are in the extract. Without them the tables stay empty and the screens draw frames and text.
 
 use crate::input::World;
 use extract::names;
@@ -17,7 +14,7 @@ pub const START_LABEL_BASE: u16 = 0xFF00;
 /// The Rust source of `ui.rs`, `include!`d into `content::data`. `gen3_menu`: the flavour
 /// has Gen3's start menu (Emerald's; Silice's too until Task C writes its own from
 /// `game.ron` with the Mallette: without one a Silice player never opens the party or bag).
-pub fn generate(world: &World, gen3_menu: bool) -> String {
+pub fn generate(world: &World, gen3_menu: bool) -> (String, Vec<u8>) {
     let (tm_moves, tm_compat) = tmhm(world);
     let (start_menu, start_labels) = if gen3_menu {
         start_menu(world)
@@ -37,20 +34,20 @@ pub static START_MENU: &[::engine::data::StartItem] = &[{start_menu}];
 pub static ITEM_USE: &[::engine::data::ItemUse] = &[{item_use}];
 "
     );
+    let (pictures, bin) = menu_pictures(world);
     s.push_str(
         "\
 /// Item descriptions by item id (`gItems[].description`).
 pub static ITEM_DESCRIPTIONS: &[Option<&[u8]>] = &[];
 /// Move descriptions by move id (`gMoveDescriptionPointers`).
 pub static MOVE_DESCRIPTIONS: &[Option<&[u8]>] = &[];
-/// `(UiGfx tag, picture)`.
-pub static UI_GFX: &[(::engine::data::UiGfx, ::engine::data::UiPicture)] = &[];
+",
+    );
+    s.push_str(&pictures);
+    s.push_str(
+        "\
 /// The user window frames (`gUserFrames`).
 pub static WINDOW_FRAMES: &[::engine::data::WindowGfx] = &[];
-/// `(item id, icon)`, sorted by item id.
-pub static ITEM_ICONS: &[(u16, ::engine::data::Icon)] = &[];
-/// `(species id, icon)`, sorted by species id.
-pub static MON_ICONS: &[(u16, ::engine::data::Icon)] = &[];
 /// `sIngameTrades`.
 pub static IN_GAME_TRADES: &[::engine::data::InGameTrade] = &[];
 /// Nature names by nature (`gNatureNamePointers`).
@@ -63,7 +60,7 @@ pub static NATURE_NAMES: &[&[u8]] = &[];
          /// `(species, bitset over TM_MOVES)`, sorted by species id (`gTMHMLearnsets`).\n\
          pub static TM_COMPAT: &[(u16, u64)] = &[{tm_compat}];\n"
     ));
-    s
+    (s, bin)
 }
 
 /// `TM_MOVES` and `TM_COMPAT`'s entries from `tables/tmhm.ron` (decomp names to ids); a name
@@ -262,4 +259,136 @@ fn item_use(id: &str, tms: &std::collections::BTreeMap<&str, u32>) -> String {
         _ if id.ends_with("_BERRY") => plain("Berry"),
         _ => plain("None"),
     }
+}
+
+/// Mon icons, item icons and bag-sprite frames from the extract, or empty tables when those
+/// files are not there (a stub, or an extract from before this graphics was written).
+fn menu_pictures(world: &World) -> (String, Vec<u8>) {
+    let empty = "\
+/// `(UiGfx tag, picture)`.
+pub static UI_GFX: &[(::engine::data::UiGfx, ::engine::data::UiPicture)] = &[];
+/// `(item id, icon)`, sorted by item id.
+pub static ITEM_ICONS: &[(u16, ::engine::data::Icon)] = &[];
+/// `(species id, icon)`, sorted by species id.
+pub static MON_ICONS: &[(u16, ::engine::data::Icon)] = &[];
+";
+    let Some(dir) = &world.dir else {
+        return (empty.to_string(), Vec::new());
+    };
+    let have_icons = dir.join("icons").is_dir();
+    let have_bag = dir.join("ui/BagSprite0.ron").is_file();
+    if !have_icons && !have_bag {
+        return (empty.to_string(), Vec::new());
+    }
+    let mut blob = crate::blob_data::BlobOut::new("UI");
+    let mut gfx = String::new();
+    let mut items = String::new();
+    let mut mons = String::new();
+    if have_bag {
+        for i in 0..5u8 {
+            let stem = dir.join(format!("ui/BagSprite{i}"));
+            let ron = stem.with_extension("ron");
+            if !ron.is_file() {
+                continue;
+            }
+            let file: extract::schema::UiPictureFile = extract::export::read_ron(&ron)
+                .unwrap_or_else(|e| panic!("reading {}: {e:#}", ron.display()));
+            let png = stem.with_extension("png");
+            let tiles = png_4bpp(&png);
+            let pal = file.palettes.first().copied().unwrap_or([0; 16]);
+            let tiles_e = blob.bytes(&tiles);
+            let pal_e = blob.u16s(&pal);
+            gfx.push_str(&format!(
+                "(::engine::data::UiGfx::BagSprite({i}), ::engine::data::UiPicture {{ tiles: {tiles_e}, map: UI.bytes(0, 0), palette: {pal_e} }}),"
+            ));
+        }
+    }
+    if have_icons {
+        let items_dir = dir.join("icons/items");
+        if items_dir.is_dir() {
+            let mut rows: Vec<(u16, String)> = Vec::new();
+            for ent in std::fs::read_dir(&items_dir).unwrap_or_else(|e| panic!("{e}")) {
+                let ent = ent.unwrap_or_else(|e| panic!("{e}"));
+                let path = ent.path();
+                if path.extension().and_then(|s| s.to_str()) != Some("ron") {
+                    continue;
+                }
+                let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                let Some(id) = extract::names::ITEMS.value(name) else {
+                    continue;
+                };
+                let file: extract::schema::ItemIconFile = extract::export::read_ron(&path)
+                    .unwrap_or_else(|e| panic!("reading {}: {e:#}", path.display()));
+                let tiles = png_4bpp(&path.with_extension("png"));
+                let tiles_e = blob.bytes(&tiles);
+                let pal_e = blob.u16s(&file.palette);
+                rows.push((
+                    id as u16,
+                    format!(
+                        "({id}, ::engine::data::Icon {{ tiles: {tiles_e}, palette: {pal_e}, frames: 1 }}),"
+                    ),
+                ));
+            }
+            rows.sort_by_key(|(id, _)| *id);
+            rows.dedup_by_key(|(id, _)| *id);
+            for (_, row) in rows {
+                items.push_str(&row);
+            }
+        }
+        let pal_path = dir.join("icons/mons/palettes.ron");
+        if pal_path.is_file() {
+            let file: extract::schema::MonIconPalettesFile = extract::export::read_ron(&pal_path)
+                .unwrap_or_else(|e| panic!("reading {}: {e:#}", pal_path.display()));
+            let mut rows: Vec<(u16, String)> = Vec::new();
+            for (name, index) in &file.species {
+                let Some(id) = extract::names::SPECIES.value(name) else {
+                    continue;
+                };
+                let Some(pal) = file.palettes.get(*index as usize) else {
+                    continue;
+                };
+                let png = dir.join(format!("icons/mons/{name}.png"));
+                if !png.is_file() {
+                    continue;
+                }
+                let tiles = png_4bpp(&png);
+                let frames = (tiles.len() / 512).clamp(1, 2) as u8;
+                let tiles_e = blob.bytes(&tiles);
+                let pal_e = blob.u16s(pal);
+                rows.push((
+                    id as u16,
+                    format!(
+                        "({id}, ::engine::data::Icon {{ tiles: {tiles_e}, palette: {pal_e}, frames: {frames} }}),"
+                    ),
+                ));
+            }
+            rows.sort_by_key(|(id, _)| *id);
+            rows.dedup_by_key(|(id, _)| *id);
+            for (_, row) in rows {
+                mons.push_str(&row);
+            }
+        }
+    }
+    let decl = if blob.bytes.is_empty() {
+        String::new()
+    } else {
+        blob.static_decl("ui.bin")
+    };
+    let src = format!(
+        "{decl}\
+/// `(UiGfx tag, picture)`.
+pub static UI_GFX: &[(::engine::data::UiGfx, ::engine::data::UiPicture)] = &[{gfx}];
+/// `(item id, icon)`, sorted by item id.
+pub static ITEM_ICONS: &[(u16, ::engine::data::Icon)] = &[{items}];
+/// `(species id, icon)`, sorted by species id.
+pub static MON_ICONS: &[(u16, ::engine::data::Icon)] = &[{mons}];
+"
+    );
+    (src, blob.bytes)
+}
+
+fn png_4bpp(path: &std::path::Path) -> Vec<u8> {
+    let img = extract::gfx::read_png_indexed(path)
+        .unwrap_or_else(|e| panic!("reading {}: {e:#}", path.display()));
+    extract::gfx::image_to_tiles_4bpp(&img).unwrap_or_else(|e| panic!("{}: {e:#}", path.display()))
 }

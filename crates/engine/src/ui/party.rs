@@ -33,14 +33,18 @@
 //!   POKéMON for battle!"; CANCEL or B asks "Cancel the battle?". Answers the order
 //!   ([`pack_order`]) or `Cancel`.
 //!
-//! Deviations: no slot pictures, mon or item icons, HP bar colours or the switch slide
-//! animation (Gen3 `SlidePartyMenuBoxOneStep`): frames and text, the HP bar a plain line; FLY
+//! Deviations: no HP bar colours or the switch slide animation (Gen3
+//! `SlidePartyMenuBoxOneStep`): the HP bar is a plain line. Mon icons
+//! (`GameData::mon_icon`, Gen3 `sPartyMenuSpriteCoords`) and the party pictures
+//! (`GameData::ui_gfx`) are drawn when the game has them, and the nickname moves right of the
+//! icon; without them the slots stay frames and text. FLY
 //! opens the fly map (`ui::fly_map`), any other field move reports `Unsupported("field move")`
 //! (Milestone 10), and GIVE
 //! `Unsupported("bag")`; the move tutor accepts every mon (no `sTutorLearnsets` yet); no mail.
 
 use super::kit::Gfx;
 use super::kit::list::{MenuCursor, MenuInput};
+use super::kit::pictures::{self, Bg, Load};
 use super::kit::widgets::{
     CHAR_FEMALE, CHAR_MALE, CHAR_SLASH, EOS, EXTRA_SYMBOL, Message, SYMBOL_LV, YesNo, draw_menu,
     menu_step, push, push_number,
@@ -49,13 +53,14 @@ use super::kit::window::{MapBuf, Panel, TileAlloc, colors, frame_kind};
 use super::{
     PartyMode, Screen, ScreenCx, ScreenInput, ScreenKind, ScreenOut, ScreenResult, SummaryMode,
 };
-use crate::data::{FieldMove, FieldMoveGate, GameData, ItemId, MoveId, SpeciesId, UiText};
+use crate::data::{FieldMove, FieldMoveGate, GameData, ItemId, MoveId, SpeciesId, UiGfx, UiText};
 use crate::hash::Fnv64;
 use crate::input::Buttons;
 use crate::mon::{Gender, Learn, PARTY_SIZE, Pokemon};
 use crate::script::Report;
 use crate::str_vars::StrVars;
 use crate::text::{Colors, Window};
+use crate::video::layout;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
@@ -100,6 +105,16 @@ pub const ACTIONS_BOTTOM: u8 = 19;
 pub const ACTIONS_W: u8 = 10;
 /// `sItemGiveTakeWindowTemplate`.
 pub const ITEM_RECT: (u8, u8, u8, u8) = (23, 13, 6, 6);
+/// Mon-icon top-left. Gen3 `sPartyMenuSpriteCoords[PARTY_LAYOUT_SINGLE]` is the icon's centre;
+/// the OBJ anchor here is the corner (`centre - 16`).
+const PARTY_ICON: [(i16, i16); PARTY_SIZE] = [
+    (16 - 16, 40 - 16),
+    (104 - 16, 18 - 16),
+    (104 - 16, 42 - 16),
+    (104 - 16, 66 - 16),
+    (104 - 16, 90 - 16),
+    (104 - 16, 114 - 16),
+];
 /// Actions at most (SUMMARY, four field moves, SWITCH, ITEM, CANCEL).
 const MAX_ACTIONS: u8 = 8;
 
@@ -229,6 +244,8 @@ struct Render {
     hint: Panel,
     popup: Option<Panel>,
     popup_base: u16,
+    icons: [Load; PARTY_SIZE],
+    bg: [Bg; 2],
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -408,6 +425,8 @@ impl PartyMenu {
             hint,
             popup: None,
             popup_base,
+            icons: [Load::new(); PARTY_SIZE],
+            bg: [Bg::new(); 2],
         }
     }
 
@@ -426,6 +445,12 @@ impl PartyMenu {
             c
         };
         p.canvas.fill(cc.bg);
+        // The icon covers the left of the slot. Without one, the nickname stays at x = 2.
+        let name_x = if game.mon_icon(mon.species).is_some() {
+            26
+        } else {
+            2
+        };
         let mut name = Vec::with_capacity(12);
         push(&mut name, &mon.nickname);
         name.push(EOS);
@@ -470,8 +495,8 @@ impl PartyMenu {
                 .fill_rect(x, y, fill.max(if mon.hp > 0 { 1 } else { 0 }), 3, cc.fg);
         };
         if i == 0 {
-            p.text_colored(game, &name, 2, 1, cc);
-            p.text_colored(game, &lv, 2, 17, cc);
+            p.text_colored(game, &name, name_x, 1, cc);
+            p.text_colored(game, &lv, name_x, 17, cc);
             if let Some(g) = gender {
                 p.text_colored(game, &[g, EOS], 56, 17, cc);
             }
@@ -483,7 +508,7 @@ impl PartyMenu {
                 }
             }
         } else {
-            p.text_colored(game, &name, 2, 1, cc);
+            p.text_colored(game, &name, name_x, 1, cc);
             p.text_colored(game, &lv, 64, 1, cc);
             if let Some(g) = gender {
                 p.text_colored(game, &[g, EOS], 56, 1, cc);
@@ -1294,6 +1319,37 @@ const fn msg_tiles_base() -> u16 {
     n + CANCEL_RECT.2 as u16 * CANCEL_RECT.3 as u16 + HINT_RECT.2 as u16 * HINT_RECT.3 as u16
 }
 
+/// Mon icons (Gen3 `CreateMonIcon` at `sPartyMenuSpriteCoords`) and the party pictures.
+fn draw_pictures<G: GameData>(cx: &mut ScreenCx<'_, G>, r: &mut Render, budget: &mut usize) {
+    let game = cx.game;
+    for (i, mon) in cx.party.iter().enumerate().take(PARTY_SIZE) {
+        let Some(icon) = game.mon_icon(mon.species) else {
+            continue;
+        };
+        let (x, y) = PARTY_ICON[i];
+        let base = layout::menu::OBJ_MON_ICONS + i as u16 * 32;
+        r.icons[i].step(
+            cx.f,
+            budget,
+            &pictures::icon(icon, base, i as u8, x, y, u32::from(mon.species.0)),
+        );
+    }
+    r.bg[0].step(
+        cx.f,
+        budget,
+        game.ui_gfx(UiGfx::PartyBg),
+        layout::menu::BACKGROUND,
+        1,
+    );
+    r.bg[1].step(
+        cx.f,
+        budget,
+        game.ui_gfx(UiGfx::PartySlots),
+        layout::menu::FOREGROUND,
+        2,
+    );
+}
+
 impl Screen for PartyMenu {
     fn step<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>, input: ScreenInput) -> ScreenOut {
         if let Some(r) = cx.child.take() {
@@ -1497,6 +1553,7 @@ impl Screen for PartyMenu {
                 p.flush_within(cx.f, &mut budget);
             }
             r.hint.flush_within(cx.f, &mut budget);
+            draw_pictures(cx, r, &mut budget);
         }
         out
     }

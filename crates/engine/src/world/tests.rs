@@ -1166,6 +1166,7 @@ mod pushes;
 mod rtc;
 mod sil6_clock;
 mod sky;
+mod ui_pictures;
 // Wave C: one file per cluster.
 mod field_moves;
 mod warp_exits;

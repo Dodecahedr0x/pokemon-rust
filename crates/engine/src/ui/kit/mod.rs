@@ -4,14 +4,15 @@
 //! `world/screens.rs` keeps between frames.
 //!
 //! Deviations (Task K):
-//! - Screens draw on BG0 only (frames and text; pictures from `GameData::ui_gfx` are not drawn
-//!   yet, and every game answers `None` until Task X1). Full-screen screens turn BG1–BG3 off
-//!   and fill BG0 with the window background; the field's VRAM is never written, so closing a
-//!   screen re-enables it and reloads it spread (`Field::restore_spread`) as after a battle.
-//! - Item and mon icons are not drawn (no icon is extracted yet); the slots keep their place.
+//! - Full-screen screens turn BG1–BG3 off and fill BG0 with the window background; the field's
+//!   VRAM is never written, so closing a screen re-enables it and reloads it spread
+//!   (`Field::restore_spread`) as after a battle. A screen draws `GameData::ui_gfx` on the
+//!   picture layers, and mon and item icons ([`pictures`]), when the game provides them.
+//!   `None` leaves that screen as frames and text.
 //! - The d-pad does not repeat while held ([`list`]).
 
 pub mod list;
+pub mod pictures;
 pub mod widgets;
 pub mod window;
 
