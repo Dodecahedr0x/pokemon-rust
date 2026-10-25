@@ -33,6 +33,7 @@ pub(crate) mod friendship;
 mod host;
 mod maps;
 mod mode;
+mod mystery;
 mod puzzle;
 mod save;
 pub use save::MainMenuChoice;
@@ -43,6 +44,10 @@ mod templates;
 mod tests;
 
 pub use battle::{ENCOUNTER_IMMUNITY_STEPS, Origin, Stage, WHITEOUT_FRAMES};
+pub use mystery::{
+    MEVENT_STATUS_FAILURE, MEVENT_STATUS_LOAD_ERROR, MEVENT_STATUS_LOAD_OK, MEVENT_STATUS_SUCCESS,
+    WonderCard,
+};
 
 use crate::bag::Bag;
 use crate::battle::BattleOutcome;
@@ -304,6 +309,11 @@ pub(crate) struct State {
     pub(crate) clock_seconds: u8,
     /// The contest in progress (`contest.c` script RAM). Not hashed, not snapshotted.
     pub(in crate::world) contest: crate::contest::Session,
+    /// The saved Wonder Card and the script it points at. Not snapshotted, not hashed.
+    pub(crate) wonder_card: Option<mystery::SavedWonderCard>,
+    /// Gen3 `sMysteryEventScriptContext.mStatus` (`setmysteryeventstatus`). Not snapshotted,
+    /// not hashed (EWRAM, like the comparison register).
+    pub(crate) mystery_event_status: u8,
 }
 
 /// Gen3 `gLocalTime` after `RtcCalcLocalTime` with a zero saved offset: the RTC in decimal,
@@ -553,6 +563,8 @@ impl World {
                 clock_minutes: 0,
                 clock_seconds: 0,
                 contest: crate::contest::Session::default(),
+                wonder_card: None,
+                mystery_event_status: 0,
             },
             rtc: None,
             sound: crate::options::Sound::Mono,
@@ -1140,6 +1152,18 @@ impl World {
     /// The player's party.
     pub fn party(&self) -> &Party {
         &self.s.party
+    }
+
+    /// Gen3 `SaveWonderCard` plus the script the card points at (`InitRamScript_NoObjectEvent`).
+    /// False when `card` fails `ValidateWonderCard` or `script` is [`crate::script::NO_WONDER_CARD_SCRIPT`];
+    /// a card already saved stays.
+    pub fn deliver_wonder_card(&mut self, card: WonderCard, script: ScriptId) -> bool {
+        self.s.deliver_wonder_card(card, script)
+    }
+
+    /// Gen3 `sMysteryEventScriptContext.mStatus`.
+    pub fn mystery_event_status(&self) -> u8 {
+        self.s.mystery_event_status
     }
 
     /// The heal location the player whites out to.

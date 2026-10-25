@@ -960,6 +960,28 @@ impl<'a> Low<'a> {
                         .to_string(),
                 );
             }
+            ("setmysteryeventstatus", [b]) => {
+                let Some(b) = u8_lit(b) else {
+                    return Ok(false);
+                };
+                out.push(format!("ctx.set_mystery_event_status({b}).await;"));
+            }
+            ("setmodernfatefulencounter", [slot]) => {
+                let Some(slot) = u16_expr(slot, true) else {
+                    return Ok(false);
+                };
+                out.push(format!("ctx.set_modern_fateful_encounter({slot}).await;"));
+            }
+            ("trywondercardscript", []) => {
+                out.push("if let Some(id) = ctx.wonder_card_script().await {".into());
+                out.push(
+                    "    if crate::data::script_flow(id.0, ctx.clone()).await == Flow::End {"
+                        .into(),
+                );
+                out.push("        return Flow::End;".into());
+                out.push("    }".into());
+                out.push("}".into());
+            }
             _ => return Ok(false),
         }
         Ok(true)
@@ -1223,6 +1245,26 @@ impl<'a> Low<'a> {
             );
         }
         o.push_str("];\n");
+        let _ = write!(
+            o,
+            "/// One `Flow`-preserving thunk per `ScriptId` (`trywondercardscript`).\n\
+             pub static SCRIPT_FLOWS: [fn(engine::script::Ctx) -> core::pin::Pin<alloc::boxed::Box<dyn core::future::Future<Output = Flow>>>; {n}] = [\n"
+        );
+        for (name, module) in &names {
+            let _ = writeln!(
+                o,
+                "    |ctx| alloc::boxed::Box::pin({SCRIPTS}::{module}::{name}(ctx)),"
+            );
+        }
+        o.push_str("];\n");
+        o.push_str(
+            "/// Instantiates script `id` and keeps its `Flow` (`end` stops the caller).\n\
+             pub fn script_flow(id: u16, ctx: engine::script::Ctx) -> core::pin::Pin<alloc::boxed::Box<dyn core::future::Future<Output = Flow>>> {\n    \
+             match SCRIPT_FLOWS.get(usize::from(id)) {\n        \
+             Some(f) => f(ctx),\n        \
+             None => alloc::boxed::Box::pin(async move { ctx.log(\"unknown script id\").await; Flow::End }),\n    \
+             }\n}\n",
+        );
         o.push_str(
             "/// Instantiates script `id`.\npub fn script(id: u16, ctx: engine::script::Ctx) -> engine::script::Script {\n    match SCRIPTS.get(usize::from(id)) {\n        Some(f) => f(ctx),\n        None => alloc::boxed::Box::pin(async move { ctx.log(\"unknown script id\").await }),\n    }\n}\n",
         );

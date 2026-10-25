@@ -113,6 +113,7 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "callstd_if",
     "returnram",
     "endram",
+    "setmysteryeventstatus",
     "loadword",
     "setvar",
     "addvar",
@@ -229,6 +230,8 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "contestlinktransfer",
     "showcontestpainting",
     "buffercontestname",
+    "setmodernfatefulencounter",
+    "trywondercardscript",
 ];
 
 /// Commands after which execution never reaches the next instruction.
@@ -244,13 +247,14 @@ const TERMINATORS: [&str; 9] = [
     "vgoto",
 ];
 /// Commands whose lowering can return `Flow::End` (besides an undecodable block end).
-const END_OPS: [&str; 6] = [
+const END_OPS: [&str; 7] = [
     "end",
     "endram",
     "gotopostbattlescript",
     "gotobeatenscript",
     "vgoto",
     "trainerbattle",
+    "trywondercardscript",
 ];
 /// `gStdScripts` labels, by `STD_*`/`MSGBOX_*` index (`data/event_scripts.s`).
 const STD_LABELS: [&str; 11] = [

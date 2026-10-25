@@ -636,6 +636,22 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 s.event(Event::Report(rep));
                 UNIT
             }
+            Request::SetMysteryEventStatus(status) => {
+                s.mystery_event_status = status;
+                UNIT
+            }
+            Request::SetModernFatefulEncounter(slot) => {
+                if let Some(mon) = s.party.get_mut(slot as usize) {
+                    mon.modern_fateful = true;
+                }
+                UNIT
+            }
+            Request::WonderCardScript => Some(Response::Value(
+                s.wonder_card
+                    .as_ref()
+                    .map(|c| c.script.0)
+                    .unwrap_or(crate::script::NO_WONDER_CARD_SCRIPT),
+            )),
         }
     }
 

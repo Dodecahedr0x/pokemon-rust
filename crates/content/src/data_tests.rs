@@ -75,6 +75,8 @@ impl ScriptHost for Host {
             | Request::PcItemAdd { .. }
             | Request::MoneyCheck(_) => Response::Bool(true),
             Request::Multichoice { .. } | Request::ChoosePartyMon(_) => Response::Value(0),
+            // No saved Wonder Card (`trywondercardscript` is a no-op).
+            Request::WonderCardScript => Response::Value(engine::script::NO_WONDER_CARD_SCRIPT),
             _ => Response::Unit,
         })
     }

@@ -22,6 +22,7 @@ fn widest_mon() -> Pokemon {
         hp: 0xFFFF,
         stats: [0xFFFF; 6],
         held: Some(ItemId(0xFFFF)),
+        modern_fateful: false,
     }
 }
 

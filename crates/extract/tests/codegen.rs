@@ -1285,6 +1285,9 @@ mod lowering {
             i("contestlinktransfer", vec![]),
             i("showcontestpainting", vec![Byte(0)]),
             i("buffercontestname", vec![Byte(0), Half(0)]),
+            i("setmysteryeventstatus", vec![Byte(2)]),
+            i("setmodernfatefulencounter", vec![v("VAR_0x8004")]),
+            i("trywondercardscript", vec![]),
             i("goto_if", vec![Byte(5), s("N_Tail")]),
             i("gotostd_if", vec![Byte(0), c("STD_OBTAIN_ITEM")]),
             i("call", vec![s("N_Sub")]),
@@ -1420,6 +1423,9 @@ mod lowering {
             "ctx.show_contest_painting(0).await;",
             "buffer(&ctx, 0, BufferSrc::ContestName(0)).await;",
             "if let Some((s, l)) = wild { outcome = ctx.battle_wild(s, l, false).await as u16; }",
+            "ctx.set_mystery_event_status(2).await;",
+            "ctx.set_modern_fateful_encounter(ctx.var(VAR_0x8004).await).await;",
+            "if crate::data::script_flow(id.0, ctx.clone()).await == Flow::End {",
             "return Flow::Continue;",
         ] {
             assert!(src.contains(needle), "missing {needle:?} in:\n{src}");

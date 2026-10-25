@@ -1186,6 +1186,10 @@ pub struct Pokemon {
     /// Hashed only when `Some`.
     #[serde(skip)]
     pub held: Option<ItemId>,
+    /// Gen3 `modernFatefulEncounter` (`setmodernfatefulencounter`). Not in the checkpoint
+    /// encoding and not hashed: a restore clears it, and a party without the bit keeps its hash.
+    #[serde(default, skip)]
+    pub modern_fateful: bool,
 }
 
 /// `USE_RANDOM_IVS` / `fixedIV`.
@@ -1296,6 +1300,7 @@ impl Pokemon {
             hp: 0,
             stats: [0; 6],
             held: None,
+            modern_fateful: false,
         };
         p.give_initial_moveset(t);
         p.recalc_stats(t);

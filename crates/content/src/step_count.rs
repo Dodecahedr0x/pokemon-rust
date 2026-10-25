@@ -184,6 +184,7 @@ mod tests {
             hp: 2,
             stats: [20; 6],
             held: None,
+            modern_fateful: false,
         };
         let _ = party.push(mon);
         for _ in 0..3 {

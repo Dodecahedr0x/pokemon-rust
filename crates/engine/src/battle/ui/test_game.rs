@@ -194,6 +194,7 @@ pub fn party(nicknames: &[&str]) -> &'static Party {
             hp: 20,
             stats: [20; 6],
             held: None,
+            modern_fateful: false,
         });
     }
     Box::leak(Box::new(p))
