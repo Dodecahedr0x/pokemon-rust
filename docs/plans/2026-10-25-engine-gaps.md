@@ -53,11 +53,9 @@ Merged `90330e3f`. `pokemartdecoration`, `pokemartdecoration2`, and `bufferdecor
 
 Merged `b20b3e2b`. `setmysteryeventstatus`, `trywondercardscript`, and `setmodernfatefulencounter` are Native. A card that passes the Gen3 checks is stored with the script it points at, and `trywondercardscript` runs that script. The card, the mystery-event status, and the modern-fateful bit are session state: they are not in the checkpoint or the world hash. Tests: `a_delivered_wonder_card_runs_its_script`, `no_card_and_an_invalid_card_do_not_run_a_script`. Counts on that merge: 131 Native, 42 Unsupported.
 
-### `ereader`
+### `ereader` — closed
 
-e-Reader specials (`SPECIAL_DoesPartyHaveEnigmaBerry` is `Default(0)`; the other e-Reader specials are Unsupported) do not read a card.
-
-**Done when:** an e-Reader payload can grant the Enigma Berry and the special answers from that state. A test covers one payload.
+Merged `800f33cc`. `setenigmaberry` stores the 52-byte berry. When it is valid, `0x402D` is set so Petalburg Gym can give the item. The berry is not put in the bag. `SPECIAL_IsEnigmaBerryValid` and `SPECIAL_DoesPartyHaveEnigmaBerry` are Native and read that state. The other e-Reader specials stay Unsupported. The berry is checkpoint schema 10. Digests of saves with no berry are unchanged. Tests: `setenigmaberry_installs_a_valid_berry`, `payload_grants_the_enigma_berry_and_the_special_answers`.
 
 ### `braille`
 
