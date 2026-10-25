@@ -81,11 +81,9 @@ e-Reader specials (`SPECIAL_DoesPartyHaveEnigmaBerry` is `Default(0)`; the other
 
 **Done when:** the PokéNav opens from the start menu, shows the Match Call list, and places a call. A test opens it and reads one call. The tutorial special opens that screen.
 
-### `pokedex`
+### `pokedex` — closed
 
-Seen/caught flags and counts exist (`crates/engine/src/pokedex.rs`, `SPECIAL_ScriptGetPokedexInfo`, `SPECIAL_ShowPokedexRatingMessage`). There is no Pokédex screen.
-
-**Done when:** START → POKéDEX opens the list, the detail page, and the rating, for Hoenn and National mode. A test opens it and finds a caught species.
+Merged `0f5252bf`. START → POKéDEX opens the Hoenn and National lists, a species page, and the Birch rating. SELECT switches to National mode only when the national flag and `VAR_NATIONAL_DEX == 0x302` are both set. A test opens the list and finds a caught species. Checkpoints did not move.
 
 ### `pc` — closed
 
