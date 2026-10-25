@@ -68,8 +68,9 @@ impl<G: GameData> Session<G> {
     }
 
     /// Boots on a flash image as the ROM does (Milestone 9 Task S): an in-game save opens the
-    /// main menu (`World::main_menu`; CONTINUE restores it, NEW GAME starts over), another
-    /// valid slot is restored at once, anything else is a new game.
+    /// title (`World::main_menu`; Start opens the main menu, CONTINUE restores the save, NEW
+    /// GAME starts over, B on the menu returns to the title), another valid slot is restored at
+    /// once, anything else is a new game.
     pub fn boot_sav(game: G, sav: &[u8]) -> Self {
         match flash::decode_sav(sav) {
             Ok((meta, cp)) if meta.badges & flash::IN_GAME_SAVE != 0 => {
@@ -237,10 +238,43 @@ mod tests {
         assert!(distinct_colors(s.framebuffer()) > 3, "the map is visible");
     }
 
-    /// Milestone 9 Task S: an in-game save boots into the main menu, and CONTINUE gives the
-    /// saved World back (a restore of the save, hash for hash).
+    fn top_kind(s: &Session<impl GameData>) -> Option<engine::ui::ScreenKind> {
+        s.world().screens().and_then(|st| st.kinds().last())
+    }
+
+    fn running(s: &Session<impl GameData>, kind: engine::ui::ScreenKind) -> bool {
+        top_kind(s) == Some(kind)
+            && s.world()
+                .screens()
+                .is_some_and(|st| st.host.phase == engine::ui::kit::Phase::Running)
+    }
+
+    /// Steps until `kind` takes input. Presses Start once, when the title does, if `kind` is
+    /// the main menu.
+    fn until_screen(s: &mut Session<impl GameData>, kind: engine::ui::ScreenKind) {
+        let mut started = false;
+        for _ in 0..80 {
+            if running(s, kind) {
+                return;
+            }
+            let keys = if !started
+                && running(s, engine::ui::ScreenKind::Title)
+                && kind != engine::ui::ScreenKind::Title
+            {
+                started = true;
+                Buttons::START
+            } else {
+                Buttons::NONE
+            };
+            s.step(keys);
+        }
+        panic!("never reached {kind:?}, top is {:?}", top_kind(s));
+    }
+
+    /// An in-game save powers on at the title. Start opens the main menu, B returns to the
+    /// title, and CONTINUE restores the save.
     #[test]
-    fn an_in_game_save_continues_from_the_main_menu() {
+    fn an_in_game_save_boots_to_the_title_and_continues() {
         let game = content::Emerald::for_shells();
         let mut s = Session::new(content::Emerald::for_shells());
         for _ in 0..60 {
@@ -249,10 +283,33 @@ mod tests {
         let cp = s.world().save_snapshot(&game).expect("an idle save");
         let sav = flash::write_in_game_sav(&flash::blank_sav(), &cp, &game.special_ids()).unwrap();
         let mut b = Session::boot_sav(content::Emerald::for_shells(), &sav);
-        assert_eq!(b.world().screens_open(), 1, "the main menu");
-        for _ in 0..30 {
+        assert_eq!(
+            top_kind(&b),
+            Some(engine::ui::ScreenKind::Title),
+            "power-on"
+        );
+        until_screen(&mut b, engine::ui::ScreenKind::Title);
+        let title = match b.world().screens().and_then(|st| st.top()) {
+            Some((_, engine::ui::ScreenState::Title(t))) => t,
+            _ => panic!("title"),
+        };
+        assert!(title.shows_copyright(), "copyright");
+        assert!(title.shows_press_start(), "press Start");
+        let x = title.mon_x();
+        let before = b.framebuffer().to_vec();
+        for _ in 0..8 {
             b.step(Buttons::NONE);
         }
+        let title = match b.world().screens().and_then(|st| st.top()) {
+            Some((_, engine::ui::ScreenState::Title(t))) => t,
+            _ => panic!("title"),
+        };
+        assert_ne!(title.mon_x(), x, "the Pokémon moves");
+        assert_ne!(b.framebuffer(), before.as_slice(), "the picture animates");
+        until_screen(&mut b, engine::ui::ScreenKind::MainMenu);
+        b.step(Buttons::B);
+        until_screen(&mut b, engine::ui::ScreenKind::Title);
+        until_screen(&mut b, engine::ui::ScreenKind::MainMenu);
         b.step(Buttons::A);
         for _ in 0..300 {
             if b.world().screens_open() == 0 && b.world().hash() == cp.header.world_hash {

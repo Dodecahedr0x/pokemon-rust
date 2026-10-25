@@ -27,6 +27,7 @@ pub mod pc;
 pub mod save;
 pub mod start_menu;
 pub mod summary;
+pub mod title;
 
 use crate::bag::Bag;
 use crate::checkpoint::PlayerName;
@@ -77,6 +78,8 @@ pub enum ScreenKind {
     Credits,
     /// Gen3 `ShowEasyChatScreen` (`special ShowEasyChatScreen`) of `EASY_CHAT_TYPE_*` (Wave G).
     EasyChat(u8),
+    /// Power-on title (`title_screen.c`): copyright, press Start, the Pokémon flight.
+    Title,
 }
 
 /// The question the save dialog asks after "Would you like to save the game?" yes (Gen3
@@ -170,6 +173,7 @@ pub enum ScreenKindTag {
     HallOfFame,
     Credits,
     EasyChat,
+    Title,
 }
 
 impl ScreenKind {
@@ -190,6 +194,7 @@ impl ScreenKind {
             ScreenKind::HallOfFame => ScreenKindTag::HallOfFame,
             ScreenKind::EasyChat(_) => ScreenKindTag::EasyChat,
             ScreenKind::Credits => ScreenKindTag::Credits,
+            ScreenKind::Title => ScreenKindTag::Title,
         }
     }
 
@@ -205,7 +210,8 @@ impl ScreenKind {
             | ScreenKind::MainMenu
             | ScreenKind::FlyMap
             | ScreenKind::HallOfFame
-            | ScreenKind::Credits => {}
+            | ScreenKind::Credits
+            | ScreenKind::Title => {}
             ScreenKind::Party(m) => {
                 let (tag, v) = match m {
                     PartyMode::Field => (0, 0),
@@ -360,6 +366,7 @@ pub enum ScreenState {
     FlyMap(fly_map::FlyMap),
     HallOfFame(hall_of_fame::HallOfFame),
     EasyChat(easy_chat::EasyChat),
+    Title(title::Title),
 }
 
 impl ScreenState {
@@ -386,6 +393,7 @@ impl ScreenState {
             ScreenKind::HallOfFame => ScreenState::HallOfFame(hall_of_fame::HallOfFame::new()),
             ScreenKind::EasyChat(k) => ScreenState::EasyChat(easy_chat::EasyChat::new(k)),
             ScreenKind::Credits => ScreenState::HallOfFame(hall_of_fame::HallOfFame::credits()),
+            ScreenKind::Title => ScreenState::Title(title::Title::new()),
         }
     }
 
@@ -405,6 +413,7 @@ impl ScreenState {
             ScreenState::FlyMap(s) => s.step(cx, input),
             ScreenState::HallOfFame(s) => s.step(cx, input),
             ScreenState::EasyChat(s) => s.step(cx, input),
+            ScreenState::Title(s) => s.step(cx, input),
         }
     }
 
@@ -425,6 +434,7 @@ impl ScreenState {
             ScreenState::FlyMap(s) => s.hash(h),
             ScreenState::HallOfFame(s) => s.hash(h),
             ScreenState::EasyChat(s) => s.hash(h),
+            ScreenState::Title(s) => s.hash(h),
         }
     }
 }
