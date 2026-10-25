@@ -336,6 +336,8 @@ impl<G: GameData> Recorder<G> {
             Some(OpenMenu::StopAsk(_)) => Buttons::UP,
             // Doubles: the default target.
             Some(OpenMenu::Target(_)) => Buttons::A,
+            // SHIFT's "change Pokémon?": stay, the send the old path made on its own.
+            Some(OpenMenu::Shift(_)) => Buttons::B,
             None => Buttons::A,
         }
     }

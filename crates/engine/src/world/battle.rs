@@ -386,6 +386,7 @@ impl State {
             &*b
         };
         let mut scene = BattleScene::new(battle.setup(), self.player_name);
+        scene.set_animations(self.options.battle_scene);
         if let Some(b) = (self.bag.pocket(Pocket::PokeBalls).iter()).find(|b| b.qty > 0) {
             scene.set_balls(b.item, b.qty);
         }
@@ -401,6 +402,8 @@ impl State {
             (&raw mut (*p).started).write(false);
             run.assume_init()
         };
+        let mut run = run;
+        run.battle.set_battle_style(self.options.battle_style);
         // Gen3 `IncrementDailyWildBattles` in every wild battle's setup.
         if let BattleKind::Wild { .. } = kind
             && let Some(v) = game.special_ids().var_daily_wilds

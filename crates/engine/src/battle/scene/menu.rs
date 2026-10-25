@@ -28,6 +28,8 @@ pub(super) enum Menu {
         party: u8,
         mov: MoveId,
     },
+    /// SHIFT: "change Pokémon?" (`BattleScript_FaintedMonTryChoose`).
+    Shift,
     /// `HmMovesCantBeForgotten` prints, then the pick again.
     HmMsg {
         party: u8,
@@ -97,11 +99,30 @@ impl BattleScene {
                     debug_assert!(next.is_some(), "Need::Switch without a usable mon");
                     return next.map(Choice::Switch);
                 }
+                Need::Shift => {
+                    w.yes_no(game, f);
+                    self.menu = Menu::Shift;
+                }
                 Need::LearnMove { party, mov } => {
                     w.yes_no(game, f);
                     self.menu = Menu::LearnAsk { party, mov };
                 }
                 Need::Busy | Need::Ended(_) => {}
+            },
+            Menu::Shift => match w.yes_no_result() {
+                Some(yes) => {
+                    self.menu = Menu::None;
+                    let me = Side::Player;
+                    let next = yes
+                        .then(|| {
+                            battle
+                                .party_range(me)
+                                .find(|&i| battle.can_switch_to(me, i))
+                        })
+                        .flatten();
+                    return Some(next.map_or(Choice::Stay, Choice::Switch));
+                }
+                None => {}
             },
             Menu::Action => match w.action_result() {
                 Some(Action::Fight) => {

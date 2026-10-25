@@ -44,6 +44,7 @@ pub(super) fn hash_menu(m: Menu, h: &mut Fnv64) {
         Menu::Retry { party, mov, n } => (7, party, mov, n),
         Menu::HmMsg { party, mov } => (8, party, mov, 0),
         Menu::Target { slot, mega } => (9, slot, MoveId(0), mega as u8),
+        Menu::Shift => (10, 0, MoveId(0), 0),
     };
     h.write(&[tag, party, n]);
     h.write_u16(mov.0);

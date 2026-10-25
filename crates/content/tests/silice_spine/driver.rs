@@ -601,6 +601,8 @@ impl Run {
             Some(OpenMenu::StopAsk(_)) => Buttons::UP,
             // A doubles target cursor: onto the foe the move was picked for.
             Some(OpenMenu::Target(c)) => target_key(battle, Game.battle(), c),
+            // SHIFT's "change Pokémon?": stay, the send the old path made on its own.
+            Some(OpenMenu::Shift(_)) => Buttons::B,
             None => Buttons::A,
         }
     }
