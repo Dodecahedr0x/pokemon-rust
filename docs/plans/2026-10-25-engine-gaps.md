@@ -31,11 +31,9 @@ Merged `03f52ebd`. Two peers finish a Gen3 link battle and a Union Room exchange
 
 Merged `fc9d30db`. A script can choose a party mon, run five appeal rounds, and finish with Gen3 standings. `choosecontestmon`, `startcontest`, `showcontestresults`, `contestlinktransfer`, `showcontestpainting`, and `buffercontestname` are Native. Test: `a_script_enters_judges_and_finishes_a_normal_contest`. Checkpoints did not move. Contest specials such as `SPECIAL_GenerateContestRand` were not part of this merge.
 
-### `frontier`
+### `frontier` — closed
 
-`SPECIAL_CallFrontierUtilFunc` answers "no challenge" and does not store facility data. Battle Tower, Dome, Palace, Arena, Factory, Pyramid, and Pike specials are Unsupported. `DoSpecialTrainerBattle` stays Unsupported for the tents.
-
-**Done when:** one facility (Battle Tower) can be challenged, fought, and recorded, with `GET_STATUS` / `GET_DATA` / `SET_DATA` reading that record. A test clears one challenge. The Tower specials that challenge uses are Native.
+Merged `3cca9de2`. A level-50 Battle Tower singles challenge can be entered, fought, and saved. `GET_STATUS`, `GET_DATA`, and `SET_DATA` read that record, and the specials that challenge uses are Native. Dome, Palace, Arena, Factory, Pyramid, Pike, and the tents stay unsupported. Schema 9 is the Tower record; the golden postcard was updated in the same commit. Test: `one_singles_challenge_is_fought_and_recorded`.
 
 ### `secret-bases`
 
