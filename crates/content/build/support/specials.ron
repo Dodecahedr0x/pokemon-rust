@@ -450,7 +450,7 @@
     "SPECIAL_ShowDeptStoreElevatorFloorSelect": Unsupported,
     "SPECIAL_ShowDodrioBerryPickingRecords": Unsupported,
     "SPECIAL_ShowEasyChatProfile": Unsupported, // unreachable: ShowEasyChatScreen cancels
-    "SPECIAL_ShowEasyChatScreen": Native, // degraded: Wave G's Easy Chat screen without its keyboard (the phrase never changes: VAR_RESULT 0)
+    "SPECIAL_ShowEasyChatScreen": Native, // Easy Chat edits a phrase from the word list; leaving it (the recording host) keeps VAR_RESULT 0
     "SPECIAL_ShowFieldMessageStringVar4": Unsupported,
     "SPECIAL_ShowFrontierExchangeCornerItemIconWindow": Unsupported,
     "SPECIAL_ShowFrontierGamblerGoMessage": Unsupported,
