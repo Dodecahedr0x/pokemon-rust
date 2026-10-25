@@ -179,7 +179,8 @@ pub fn interact_target(
     match bg.kind {
         BgKind::Script { facing, .. } if facing.is_none_or(|f| f == dir) => Some(Target::Bg(i)),
         BgKind::HiddenItem { .. } => Some(Target::Bg(i)),
-        BgKind::Script { .. } => None,
+        BgKind::SecretBase { .. } if dir == Dir::Up => Some(Target::Bg(i)),
+        BgKind::Script { .. } | BgKind::SecretBase { .. } => None,
     }
 }
 

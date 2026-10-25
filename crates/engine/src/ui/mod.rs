@@ -641,7 +641,8 @@ impl ScreenStack {
 }
 
 /// The body every Wave 0 stub screen runs: `Report::Unsupported(name)` and `Done(Cancel)` on
-/// its first frame.
+/// its first frame. Kept for the next screen that is still a stub.
+#[allow(dead_code)]
 pub(crate) fn stub_step<G: GameData>(cx: &mut ScreenCx<'_, G>, name: &'static str) -> ScreenOut {
     cx.report(Report::Unsupported(name));
     ScreenOut::Done(ScreenResult::Cancel)

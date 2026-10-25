@@ -307,7 +307,19 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 UNIT
             }
             Request::Warp { map, warp, x, y } => {
-                if game.has_map(map) {
+                if map == crate::grid::MAP_DYNAMIC {
+                    match s.warp_slots.dynamic {
+                        Some(d) if game.has_map(d.map) => {
+                            s.transition.start(game, d.map, d.warp, d.x, d.y);
+                            s.objects.freeze_all();
+                            None
+                        }
+                        _ => {
+                            s.log("warp to a missing map ignored");
+                            UNIT
+                        }
+                    }
+                } else if game.has_map(map) {
                     s.transition.start(game, map, warp, x, y);
                     s.objects.freeze_all();
                     None
@@ -412,6 +424,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::BattleTrainer { .. }
             | Request::BattleMulti { .. }
             | Request::BattleWildDouble { .. }
+            | Request::SecretBaseBattle { .. }
                 if self.immediate =>
             {
                 s.log("battle in a map script answered Ran");
@@ -638,6 +651,12 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 s.enigma_berry = Some(raw);
                 UNIT
             }
+            Request::SecretBase(cmd) => Some(Response::Value(super::secret::command(
+                self.s, game, cmd, self.f,
+            ))),
+            Request::SecretBaseBattle { index } => {
+                super::secret::start_battle(self.s, game, index, self.f).map(Response::Value)
+            }
             Request::Report(rep) => {
                 s.log(match rep {
                     crate::script::Report::Unsupported(what)
@@ -676,7 +695,8 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
         | Request::BattleWild { .. }
         | Request::BattleTrainer { .. }
         | Request::BattleMulti { .. }
-        | Request::BattleWildDouble { .. } = r
+        | Request::BattleWildDouble { .. }
+        | Request::SecretBaseBattle { .. } = r
         {
             // Set once the starter screen or the battle has handed the screen back.
             return self.s.answer.take().map(Response::Value);

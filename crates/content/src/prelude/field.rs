@@ -1,8 +1,7 @@
 //! Field effects (`dofieldeffect`, Wave C): each `FLDEFF_*` a script starts, as the length of
 //! its Gen3 animation in frames, which `waitfieldeffect` waits out. The sprites are not drawn
-//! (the engine models the timing only); effects that change more than the screen (the field
-//! moves', the secret bases', Deoxys's rock) report `Unsupported` with their decomp name and
-//! start nothing, so a `waitfieldeffect` on them answers at once.
+//! (the engine models the timing only). Secret Power opens the entrance in front of the player
+//! and the secret-base PC lights; Deoxys's rock and the sand pillar still report `Unsupported`.
 
 use super::*;
 use engine::data::FieldMove;
@@ -25,17 +24,10 @@ pub const FLDEFF_PCTURN_ON: u16 = 61;
 pub const FLDEFF_HALL_OF_FAME_RECORD: u16 = 62;
 pub const FLDEFF_DESTROY_DEOXYS_ROCK: u16 = 65;
 
-/// The effects reported, by id: the secret bases are M13's, and Deoxys's rock (an event
-/// island) moves and removes an object.
-const UNSUPPORTED: [(u16, &str); 6] = [
-    (FLDEFF_USE_SECRET_POWER_CAVE, "FLDEFF_USE_SECRET_POWER_CAVE"),
-    (FLDEFF_USE_SECRET_POWER_TREE, "FLDEFF_USE_SECRET_POWER_TREE"),
-    (
-        FLDEFF_USE_SECRET_POWER_SHRUB,
-        "FLDEFF_USE_SECRET_POWER_SHRUB",
-    ),
+/// The effects reported, by id: Deoxys's rock (an event island) moves and removes an object,
+/// and the sand pillar is not modelled.
+const UNSUPPORTED: [(u16, &str); 2] = [
     (FLDEFF_SAND_PILLAR, "FLDEFF_SAND_PILLAR"),
-    (FLDEFF_PCTURN_ON, "FLDEFF_PCTURN_ON"),
     (FLDEFF_DESTROY_DEOXYS_ROCK, "FLDEFF_DESTROY_DEOXYS_ROCK"),
 ];
 
@@ -71,6 +63,12 @@ pub fn field_effect_frames(id: u16, mons: u16) -> Option<u16> {
         FLDEFF_HALL_OF_FAME_RECORD => START_END + balls + BALLS_SETTLE + FLASHES,
         FLDEFF_SPARKLE => 3 + 5 + 5 + 35,
         FLDEFF_NPCFLY_OUT => 0x80 / 4,
+        // Secret Power (`FldEff_UseSecretPower*`, sprite frame 40) and the PC flicker
+        // (`FldEff_SecretBasePCTurnOn`, state 20).
+        FLDEFF_USE_SECRET_POWER_CAVE
+        | FLDEFF_USE_SECRET_POWER_TREE
+        | FLDEFF_USE_SECRET_POWER_SHRUB => 40,
+        FLDEFF_PCTURN_ON => 21,
         _ => return None,
     })
 }
@@ -90,6 +88,15 @@ pub async fn field_effect(ctx: &Ctx, id: u16) {
     };
     if let Some(m) = field_move {
         return ctx.field_move_effect(m).await;
+    }
+    if matches!(
+        id,
+        FLDEFF_USE_SECRET_POWER_CAVE | FLDEFF_USE_SECRET_POWER_TREE | FLDEFF_USE_SECRET_POWER_SHRUB
+    ) {
+        super::secret::toggle_entrance(ctx).await;
+    }
+    if id == FLDEFF_PCTURN_ON {
+        super::secret::pc_on(ctx).await;
     }
     let mons = match id {
         FLDEFF_POKECENTER_HEAL | FLDEFF_HALL_OF_FAME_RECORD => ctx.party_size().await,

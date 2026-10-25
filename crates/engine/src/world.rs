@@ -38,6 +38,7 @@ mod puzzle;
 mod save;
 pub use save::MainMenuChoice;
 mod screens;
+mod secret;
 mod sight;
 mod templates;
 #[cfg(test)]
@@ -268,6 +269,8 @@ pub(crate) struct State {
     /// The e-Reader Enigma Berry (`gSaveBlock1Ptr->enigmaBerry`). `None` until a
     /// mystery-event `setenigmaberry` copies one. Hashed only while set.
     pub(crate) enigma_berry: Option<[u8; crate::ereader::ENIGMA_BERRY_LEN]>,
+    /// Secret bases and the decoration inventory (Gen3 `secretBases`).
+    pub(crate) secret_bases: secret::SecretBases,
     /// Screen flash, shake and tint (not snapshotted: a save or capture needs it clear).
     pub(crate) fx: ScreenFx,
     /// The field weather (`crate::weather`): hashed and snapshotted unless it is the map's
@@ -372,7 +375,7 @@ pub struct World {
 }
 
 /// The field blocks (with `setmetatile` edits and connections) and their behaviors.
-struct Ground<'a, G: GameData> {
+pub(super) struct Ground<'a, G: GameData> {
     game: &'a G,
     field: &'a Field,
 }
@@ -413,7 +416,7 @@ const fn camera_for(pixel: (i32, i32)) -> (i32, i32) {
 }
 
 impl State {
-    fn ground<'a, G: GameData>(&'a self, game: &'a G) -> Ground<'a, G> {
+    pub(super) fn ground<'a, G: GameData>(&'a self, game: &'a G) -> Ground<'a, G> {
         Ground {
             game,
             field: &self.field,
@@ -559,6 +562,7 @@ impl World {
                 registered_item: None,
                 berry_trees: crate::berry::BerryTrees::new(game.special_ids().berry_trees),
                 enigma_berry: None,
+                secret_bases: secret::SecretBases::default(),
                 fx: ScreenFx::default(),
                 weather: crate::weather::Weather::default(),
                 palette: None,
@@ -890,10 +894,20 @@ impl World {
             let (fx, fy) = (x + dx, y + dy);
             let front = block_behavior(game, map, s.field.block(game, fx, fy));
             let fe = facing_elevation(here, elevation);
-            if s.input.is_pressed(Buttons::A) {
+            // Gen3 `WarpIntoSecretBase`: pushing north into an open secret-base entrance.
+            let open_id = (pushing && facing == Dir::Up && front.open_secret_base())
+                .then(|| {
+                    map.bgs.iter().find_map(|b| match b.kind {
+                        BgKind::SecretBase { id } if b.x == fx && b.y == fy => Some(id),
+                        _ => None,
+                    })
+                })
+                .flatten();
+            // Read the A interaction before mutating: `s` borrows the state.
+            let a_pressed = s.input.is_pressed(Buttons::A);
+            let (object_script, hidden, secret_id, surf, waterfall) = if a_pressed {
                 // Gen3 `GetInteractionScript`: the object ahead (or across a counter), then,
                 // if it has no script, the bg event ahead.
-                let (dx, dy) = facing.delta();
                 let npc = |x, y| s.objects.at(x, y, fe);
                 let found = match npc(fx, fy) {
                     None if front == Behavior::Counter => npc(fx + dx, fy + dy),
@@ -913,6 +927,7 @@ impl World {
                     script.map(|sc| (sc, Some((id, facing, m))))
                 });
                 let mut hidden = None;
+                let mut secret_id = None;
                 let script = object_script.or_else(|| {
                     match interact_target(map, fx, fy, fe, facing, front, |_, _, _| None) {
                         Some(Target::Bg(i)) => match map.bgs[i].kind {
@@ -925,15 +940,49 @@ impl World {
                                 Some((script, None))
                             }
                             BgKind::HiddenItem { .. } => None,
+                            // Gen3 `TrySetCurSecretBase`: an unregistered entrance runs the
+                            // check script. A registered one is walked into once it is open.
+                            BgKind::SecretBase { id } => {
+                                secret_id = Some(id);
+                                None
+                            }
                         },
                         _ => None,
                     }
                 });
                 // Gen3 `GetInteractedWaterScript` after the bg events (Wave C): Surf, then
                 // Waterfall.
+                let surf = s.surf_prompt(game);
+                let waterfall = s.waterfall_prompt(game);
+                (script, hidden, secret_id, surf, waterfall)
+            } else {
+                (None, None, None, None, None)
+            };
+            if let Some(id) = open_id {
+                self.s.secret_bases.set_cur(id);
+                if let Some(var) = game.secret_base_var()
+                    && let Some(idx) = self.s.secret_bases.find(id)
+                {
+                    self.s.vars.set_var(var, idx);
+                }
+                if let Some(script) = game.secret_base_enter_script() {
+                    self.start_script(game, script, None);
+                    return false;
+                }
+            }
+            if a_pressed {
+                let script = object_script.or_else(|| {
+                    let id = secret_id?;
+                    self.s.secret_bases.set_cur(id);
+                    self.s.vars.set_var(VarId(0x8004), id);
+                    if self.s.secret_bases.find(id).is_some() {
+                        return None;
+                    }
+                    game.secret_base_check_script().map(|sc| (sc, None))
+                });
                 let script = script
-                    .or_else(|| s.surf_prompt(game).map(|id| (id, None)))
-                    .or_else(|| s.waterfall_prompt(game).map(|id| (id, None)));
+                    .or_else(|| surf.map(|id| (id, None)))
+                    .or_else(|| waterfall.map(|id| (id, None)));
                 if let Some((id, talked)) = script {
                     if let Some((flag, item)) = hidden {
                         self.s.vars.set_var(VarId(0x8004), flag.0);
@@ -1440,6 +1489,10 @@ impl World {
         if let Some(raw) = s.enigma_berry {
             h.write(&[0xAB]);
             h.write(&raw);
+        }
+        if !s.secret_bases.is_empty() {
+            h.write(&[0xB8]);
+            s.secret_bases.hash(&mut h);
         }
         h.finish()
     }

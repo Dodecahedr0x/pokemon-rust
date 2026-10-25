@@ -12,6 +12,7 @@ use engine::data::TrainerId;
 use engine::data::{FlagId, ItemId, TextId, VarId};
 use engine::script::{
     BufferSrc, Ctx, Fade, LinkCall, Query, Report, Request, Response, Runner, Script, ScriptHost,
+    SecretBaseCmd,
 };
 use engine::script::{PartyMode, PartyStash};
 use extract::codegen::Class;
@@ -88,6 +89,8 @@ struct Rec {
     rand: u16,
     /// The answer to `CurrentMap`.
     map: u16,
+    /// The entrance id `SecretBase` `Cur` and `Entered` answer.
+    secret: u16,
     /// The answers to `Query` (0 for the others).
     queries: Vec<(Query, u16)>,
     /// The map's metatiles (`Query::Metatile`; 0 elsewhere), which `SetMetatile` changes.
@@ -167,6 +170,14 @@ impl Rec {
             Request::BattleWild { .. }
             | Request::BattleTrainer { .. }
             | Request::BattleMulti { .. } => Response::Value(BattleOutcome::Won as u16),
+            Request::SecretBase(cmd) => Response::Value(match cmd {
+                SecretBaseCmd::Cur | SecretBaseCmd::Entered(_) => self.secret,
+                SecretBaseCmd::HasPlayer => u16::from(self.secret != 0),
+                SecretBaseCmd::PlaceFront(_) => u16::from(self.secret != 0) * 7,
+                SecretBaseCmd::GiveDecor(_) => 1,
+                _ => 0,
+            }),
+            Request::SecretBaseBattle { .. } => Response::Value(BattleOutcome::Won as u16),
             Request::ItemAdd { .. }
             | Request::ItemRemove { .. }
             | Request::ItemCheck { .. }
@@ -272,6 +283,45 @@ fn a_special_with_no_arm_is_only_logged() {
     let mut h = Rec::default();
     assert_eq!(run_special(&mut h, "SPECIAL_AccessHallOfFamePC"), 0);
     assert_eq!(h.log, []);
+}
+
+#[test]
+fn a_secret_base_is_entered_and_one_decoration_is_placed() {
+    let mut h = Rec {
+        secret: 1,
+        ..Rec::default()
+    };
+    run_special(&mut h, "SPECIAL_EnterSecretBase");
+    #[cfg(not(pkr_silice))]
+    assert!(
+        h.log.iter().any(|r| matches!(
+            r,
+            Request::Warp {
+                map: engine::data::MapId(0x1900),
+                warp: Some(0),
+                ..
+            }
+        )),
+        "{:?}",
+        h.log
+    );
+    let mut h = Rec {
+        secret: 1,
+        ..Rec::default()
+    };
+    run_special(&mut h, "SPECIAL_ShowSecretBaseDecorationMenu");
+    assert!(
+        h.log
+            .iter()
+            .any(|r| matches!(r, Request::SecretBase(SecretBaseCmd::PlaceFront(0))))
+    );
+    let mut h = Rec::default();
+    run_special(&mut h, "SPECIAL_CheckPlayerHasSecretBase");
+    assert!(
+        h.log
+            .iter()
+            .any(|r| matches!(r, Request::SecretBase(SecretBaseCmd::HasPlayer)))
+    );
 }
 
 fn degraded(name: &'static str) -> Request {
@@ -937,6 +987,33 @@ fn native_specials_issue_their_requests_in_order() {
     }
     let _ = won;
     covered.insert("SPECIAL_DoSpecialTrainerBattle");
+    for name in [
+        "SPECIAL_CheckPlayerHasSecretBase",
+        "SPECIAL_ClearAndLeaveSecretBase",
+        "SPECIAL_DeclinedSecretBaseBattle",
+        "SPECIAL_DoSecretBasePCTurnOffEffect",
+        "SPECIAL_DrewSecretBaseBattle",
+        "SPECIAL_EnterNewlyCreatedSecretBase",
+        "SPECIAL_EnterSecretBase",
+        "SPECIAL_GetSecretBaseOwnerAndState",
+        "SPECIAL_GetSecretBaseTypeInFrontOfPlayer",
+        "SPECIAL_InitSecretBaseVars",
+        "SPECIAL_IsCurSecretBaseOwnedByAnotherPlayer",
+        "SPECIAL_LostSecretBaseBattle",
+        "SPECIAL_MoveOutOfSecretBase",
+        "SPECIAL_PrepSecretBaseBattleFlags",
+        "SPECIAL_SetBattledOwnerFromResult",
+        "SPECIAL_SetDecoration",
+        "SPECIAL_SetPlayerSecretBase",
+        "SPECIAL_SetSecretBaseOwnerGfxId",
+        "SPECIAL_ShowSecretBaseDecorationMenu",
+        "SPECIAL_WonSecretBaseBattle",
+    ] {
+        let mut h = Rec::default();
+        run_special(&mut h, name);
+        assert!(unsupported(&h.log).is_empty(), "{name}: {:?}", h.log);
+        covered.insert(name);
+    }
     // Wave G: `GetMonsStateToDoubles` with two mons with HP: `PLAYER_HAS_TWO_USABLE_MONS`.
     let mut h = Rec::with_party(3);
     h.queries = vec![
@@ -1672,6 +1749,15 @@ fn callstd_routes_every_std() {
                 assert!(unsupported(&h.log).is_empty(), "{name}");
             }
             "STD_REGISTER_MATCH_CALL" => assert!(h.log.is_empty(), "{name}: {:?}", h.log),
+            "STD_OBTAIN_DECORATION" => assert_eq!(
+                h.log,
+                [
+                    Request::GetVar(VAR_0x8000),
+                    Request::SecretBase(SecretBaseCmd::GiveDecor(13)),
+                    Request::SetVar(VAR_RESULT, 1),
+                ],
+                "{name}"
+            ),
             _ => assert_eq!(
                 h.log,
                 [Request::Report(Report::Unsupported(name))],

@@ -402,11 +402,18 @@ async fn battle_tower_singles_streak(ctx: &Ctx) -> u16 {
     ctx.frontier(engine::frontier::Call::SinglesStreak).await
 }
 
-/// Gen3 `DoSpecialTrainerBattle` (`battle_tower.c`): `SPECIAL_BATTLE_TOWER` (singles) fights
-/// the opponent the tower record picked; `SPECIAL_BATTLE_STEVEN` is Steven's multi battle.
-/// The outcome is also in `VAR_RESULT`. Doubles, multis, link and the tents report.
+/// Gen3 `DoSpecialTrainerBattle` (`battle_tower.c`): `VAR_0x8004` = 1 fights the secret base
+/// being visited (no whiteout); `SPECIAL_BATTLE_TOWER` (singles) fights the opponent the tower
+/// record picked; `SPECIAL_BATTLE_STEVEN` is Steven's multi battle. The outcome is also in
+/// `VAR_RESULT`. Doubles, multis, link and the tents report.
 async fn do_special_trainer_battle(ctx: &Ctx) -> u16 {
     let kind = ctx.var(VAR_0x8004).await;
+    if kind == 1 {
+        let idx = ctx.var(VarId(0x4054)).await;
+        let outcome = ctx.secret_base_battle(idx).await;
+        ctx.set_var(VAR_RESULT, outcome).await;
+        return outcome;
+    }
     if kind == SPECIAL_BATTLE_TOWER {
         let mode = frontier_mode(ctx).await;
         if mode != engine::frontier::MODE_SINGLES {
@@ -531,6 +538,9 @@ async fn cable_car_destination(ctx: &Ctx) -> MapId {
 pub async fn special(ctx: &Ctx, id: u16) -> u16 {
     ctx.log(name_of(&crate::data::SPECIAL_NAMES, id).unwrap_or("SPECIAL_?"))
         .await;
+    if let Some(v) = super::secret::run(ctx, id).await {
+        return v;
+    }
     // Guards, not patterns: a mistyped constant would silently become a catch-all binding.
     match id {
         id if id == SPECIAL_ChooseStarter => {

@@ -743,6 +743,26 @@ impl GameData for Game {
     fn match_calls(&self) -> &'static [engine::data::MatchCall] {
         pokenav::CALLS
     }
+
+    fn secret_base_check_script(&self) -> Option<ScriptId> {
+        script_named("SecretBase_EventScript_CheckEntrance")
+    }
+
+    fn secret_base_enter_script(&self) -> Option<ScriptId> {
+        script_named("SecretBase_EventScript_Enter")
+    }
+
+    fn secret_base_var(&self) -> Option<engine::data::VarId> {
+        Some(consts::VAR_CURRENT_SECRET_BASE)
+    }
+}
+
+#[cfg(not(pkr_silice))]
+fn script_named(name: &str) -> Option<ScriptId> {
+    data::SCRIPT_NAMES
+        .iter()
+        .position(|&n| n == name)
+        .map(|i| ScriptId(i as u16))
 }
 
 /// The Emerald and stub tables and scripts (the Silice flavour's are `silice::tests`).

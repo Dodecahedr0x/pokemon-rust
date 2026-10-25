@@ -194,6 +194,59 @@ pub enum LinkCall {
     Close,
 }
 
+/// A secret-base record command ([`Request::SecretBase`]). Answers `Value`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SecretBaseCmd {
+    /// 1 when record 0 has an entrance id (`CheckPlayerHasSecretBase`).
+    HasPlayer,
+    /// The entrance the player is facing (`sCurSecretBaseId`), 0 if none.
+    Cur,
+    /// Record 0 becomes that entrance, copying the player's id (`SetPlayerSecretBase`).
+    Claim,
+    /// Increments `numTimesEntered` of record `index` and answers its entrance id.
+    Entered(u16),
+    /// Clears record 0 (`ClearAndLeaveSecretBase`, `MoveOutOfSecretBase`).
+    ClearPlayer,
+    /// 1 when record 0's entrance is not the one being faced.
+    OwnedByOther,
+    /// Adds decoration `u8` to the inventory. 1 if it fit.
+    GiveDecor(u8),
+    /// Places the first owned decoration on record `index` at the cell in front. The
+    /// decoration id, or 0.
+    PlaceFront(u16),
+    /// `trainerId[0] % 5 + gender * 5` of record `index`.
+    OwnerType(u16),
+    /// `battledOwnerToday` of record `index`. `set == 0xFFFF` reads it; otherwise stores it.
+    Battled { index: u16, set: u16 },
+    /// Copies the player's party species and levels into record 0.
+    SnapshotParty,
+    /// The entrance type in front of the player (1 red .. 6 shrub, else 0).
+    TypeInFront,
+    /// Clears `battledOwnerToday` on every record (the daily reset).
+    ClearBattled,
+}
+
+impl SecretBaseCmd {
+    /// Hash key `(discriminant, a, b)`.
+    pub const fn key(self) -> (u16, u16, u16) {
+        match self {
+            SecretBaseCmd::HasPlayer => (0, 0, 0),
+            SecretBaseCmd::Cur => (1, 0, 0),
+            SecretBaseCmd::Claim => (2, 0, 0),
+            SecretBaseCmd::Entered(i) => (3, i, 0),
+            SecretBaseCmd::ClearPlayer => (4, 0, 0),
+            SecretBaseCmd::OwnedByOther => (5, 0, 0),
+            SecretBaseCmd::GiveDecor(d) => (6, d as u16, 0),
+            SecretBaseCmd::PlaceFront(i) => (7, i, 0),
+            SecretBaseCmd::OwnerType(i) => (8, i, 0),
+            SecretBaseCmd::Battled { index, set } => (9, index, set),
+            SecretBaseCmd::SnapshotParty => (10, 0, 0),
+            SecretBaseCmd::TypeInFront => (11, 0, 0),
+            SecretBaseCmd::ClearBattled => (12, 0, 0),
+        }
+    }
+}
+
 /// Everything a script can ask of the world.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Request {
@@ -701,6 +754,13 @@ pub enum Request {
     /// Battle Tower challenge record (`frontier_util.c` / `battle_tower.c`). Answers `Value`.
     /// [`crate::frontier::Call::Battle`] waits until the fight ends.
     Frontier(crate::frontier::Call),
+    /// A secret-base record command. Answers `Value`.
+    SecretBase(SecretBaseCmd),
+    /// Fight the party stored on secret-base record `index` (Gen3 `BATTLE_TYPE_SECRET_BASE`).
+    /// No whiteout: a loss answers `Lost` and the script continues. Answers the outcome.
+    SecretBaseBattle {
+        index: u16,
+    },
 }
 
 /// Answer of [`Request::WonderCardScript`] when no valid Wonder Card is saved.
@@ -1164,11 +1224,15 @@ impl Request {
                 };
                 (237, which, 0, 0, 0)
             }
-            // Battle Tower challenge (tag 238).
             Request::Frontier(call) => {
                 let (k, a, b, c) = call.parts();
                 (238, k, a, b, c)
             }
+            Request::SecretBase(cmd) => {
+                let (k, a, b) = cmd.key();
+                (219, k, a, b, 0)
+            }
+            Request::SecretBaseBattle { index } => (220, index, 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -1812,6 +1876,16 @@ impl Ctx {
             },
             unit,
         )
+    }
+
+    /// A secret-base record command. Answers the `Value` the command documents.
+    pub fn secret_base(&self, cmd: SecretBaseCmd) -> Req<u16> {
+        self.req(Request::SecretBase(cmd), Response::value)
+    }
+
+    /// Fight secret-base record `index`. Answers the outcome; a loss does not white out.
+    pub fn secret_base_battle(&self, index: u16) -> Req<u16> {
+        self.req(Request::SecretBaseBattle { index }, Response::value)
     }
 
     pub fn report(&self, r: Report) -> Req<()> {

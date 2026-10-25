@@ -265,6 +265,7 @@ pub(super) fn behavior_code(b: Behavior) -> [u8; 2] {
         Behavior::Water(w) => [21, w.code()],
         Behavior::PadWarp => [22, 0],
         Behavior::PopOutWarp(d) => [23, d as u8],
+        Behavior::SecretBase(s) => [24, s as u8],
     }
 }
 

@@ -496,6 +496,12 @@ impl<'a> Low<'a> {
                 };
                 out.push(format!("{f}(&ctx, {i}, {q}).await;"));
             }
+            ("adddecoration", [i]) => {
+                let Some(i) = u16_expr(i, true) else {
+                    return Ok(false);
+                };
+                out.push(format!("add_decoration(&ctx, {i}).await;"));
+            }
             ("checkitemtype", [i]) => {
                 let Some(i) = u16_expr(i, true) else {
                     return Ok(false);

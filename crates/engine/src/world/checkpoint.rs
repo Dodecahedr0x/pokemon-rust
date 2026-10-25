@@ -147,6 +147,7 @@ impl World {
             ),
             frontier: (!s.frontier.is_default()).then_some(s.frontier.clone()),
             enigma_berry: s.enigma_berry,
+            secret_bases: s.secret_bases.to_snap(),
         }
     }
 
@@ -281,6 +282,7 @@ impl World {
                 coins: w.coins,
                 registered_item: w.registered_item,
                 berry_trees,
+                secret_bases: super::secret::SecretBases::from_snap(w.secret_bases.clone()),
                 fx: ScreenFx::default(),
                 weather: match &w.sky {
                     Some(k) => k.weather,
