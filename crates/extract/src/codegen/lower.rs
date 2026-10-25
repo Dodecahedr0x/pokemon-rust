@@ -128,6 +128,7 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "setflag",
     "clearflag",
     "checkflag",
+    "gettime",
     "warp",
     "warpsilent",
     "warpdoor",

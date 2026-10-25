@@ -10,7 +10,7 @@
 //   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
 // Only Unsupported commands report.
 //
-// Counts: 120 Native, 41 Ignore, 13 Default, 53 Unsupported.
+// Counts: 121 Native, 41 Ignore, 13 Default, 52 Unsupported.
 //
 // Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
 {
@@ -58,9 +58,9 @@
     "setflag": Native,
     "clearflag": Native,
     "checkflag": Native,
-    "initclock": Ignore,                            // sets the RTC; there is no clock until M10, time stays the M8 default
+    "initclock": Ignore,                            // sets the saved local-time offset; the offset stays 0, so gettime reads the local clock
     "dotimebasedevents": Ignore,                    // time-based events need the RTC (M10)
-    "gettime": Unsupported,                         // leaves VAR_0x8000..VAR_0x8002 (hours, minutes, seconds) stale: no RTC
+    "gettime": Native,
     "playse": Ignore,                               // audio (no sound until M12)
     "waitse": Ignore,                               // audio (no sound until M12)
     "playfanfare": Ignore,                          // audio (no sound until M12)
