@@ -104,8 +104,10 @@ fn tap(chat: &mut EasyChat, g: &Game, pressed: Buttons) -> (ScreenOut, Vec<Repor
     let mut pokedex = Pokedex::default();
     let mut registered = None;
     let mut vars = Vars::new();
-    let name = [0xFF; PLAYER_NAME_SIZE];
+    let mut name = [0xFF; PLAYER_NAME_SIZE];
+    let mut rival_name = None;
     let mut reports = Vec::new();
+    let mut notes = Vec::new();
     let mut cx = ScreenCx {
         game: g,
         f: &mut f,
@@ -119,13 +121,15 @@ fn tap(chat: &mut EasyChat, g: &Game, pressed: Buttons) -> (ScreenOut, Vec<Repor
         pokedex: &mut pokedex,
         registered_item: &mut registered,
         vars: &mut vars,
-        player_name: &name,
+        player_name: &mut name,
+        rival_name: &mut rival_name,
         map: MapId(0),
         frame: 0,
         saved: None,
         save_question: SaveQuestion::default(),
         child: None,
         reports: &mut reports,
+        notes: &mut notes,
     };
     let out = chat.step(
         &mut cx,
