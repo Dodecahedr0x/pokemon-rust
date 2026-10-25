@@ -1597,6 +1597,18 @@ impl Party {
         self.mons.iter().map_while(Option::as_ref)
     }
 
+    /// Removes slot `i` and shifts the later members down (Gen3 `CompactPartySlots`).
+    pub fn remove(&mut self, i: usize) -> Option<Pokemon> {
+        if i >= self.len() {
+            return None;
+        }
+        let mon = self.mons[i].take();
+        for j in i..PARTY_SIZE - 1 {
+            self.mons[j] = self.mons[j + 1].take();
+        }
+        mon
+    }
+
     /// Appends `p`; returns its slot, or gives it back when the party is full.
     pub fn push(&mut self, p: Pokemon) -> Result<u8, Pokemon> {
         let i = self.len();
