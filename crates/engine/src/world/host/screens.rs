@@ -23,6 +23,7 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
         Request::Mart { items } => ScreenKind::Mart { items },
         // `playslotmachine`: the script waits until the machine closes.
         Request::SlotMachine { machine } => ScreenKind::Slot { machine },
+        Request::DecorationMart { shop, items } => ScreenKind::DecorMart { shop, items },
         // `special SaveGame` (Task S): the save dialog over the field.
         Request::SaveDialog => ScreenKind::SaveDialog,
         // `special GameClear`'s record and credits (Task S); the save waits for the field.

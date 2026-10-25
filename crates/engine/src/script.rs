@@ -7,7 +7,8 @@
 use crate::battle::BattleOutcome;
 pub use crate::data::Emote;
 use crate::data::{
-    Dir, FlagId, ItemId, MapId, MoveId, MovementType, ScriptId, SpeciesId, TextId, TrainerId, VarId,
+    DecorId, DecorShop, Dir, FlagId, ItemId, MapId, MoveId, MovementType, ScriptId, SpeciesId,
+    TextId, TrainerId, VarId,
 };
 use crate::hash::Fnv64;
 pub use crate::ui::{PartyMode, PcMode};
@@ -118,6 +119,8 @@ pub enum BufferSrc {
     Text(TextId),
     /// `buffercontestname`: `sContestNames[category]` (`COOLNESS CONTEST` and the other four).
     ContestName(u8),
+    /// `bufferdecorationname`.
+    Decoration(DecorId),
 }
 
 /// A contest command (`choosecontestmon`, `startcontest`, `showcontestresults`,
@@ -414,6 +417,11 @@ pub enum Request {
     /// once it closes.
     SlotMachine {
         machine: u8,
+    },
+    /// Gen3 `pokemartdecoration` / `pokemartdecoration2`: buy-only, into the decoration PC.
+    DecorationMart {
+        shop: DecorShop,
+        items: &'static [DecorId],
     },
     /// `special ChoosePartyMon` / `ChooseMonForMoveTutor`: answers `Value` = the slot, or
     /// [`PARTY_NOTHING_CHOSEN`].
@@ -837,6 +845,7 @@ impl Request {
                     BufferSrc::LeadSpecies => (6, 0),
                     BufferSrc::Text(t) => (7, t.0 as u32),
                     BufferSrc::ContestName(c) => (8, c as u32),
+                    BufferSrc::Decoration(d) => (9, d.0 as u32),
                 };
                 (50, slot as u16, kind, v as u16, (v >> 16) as u16)
             }
@@ -918,6 +927,21 @@ impl Request {
                 )
             }
             Request::SlotMachine { machine } => (233, u16::from(machine), 0, 0, 0),
+            Request::DecorationMart { shop, items } => {
+                let mut dh = Fnv64::new();
+                dh.write(&[shop as u8]);
+                for i in items {
+                    dh.write_u16(i.0);
+                }
+                let d = dh.finish();
+                (
+                    219,
+                    items.len() as u16,
+                    d as u16,
+                    (d >> 16) as u16,
+                    (d >> 32) as u16,
+                )
+            }
             Request::ChoosePartyMon(m) => {
                 let (kind, v) = match m {
                     PartyMode::Field => (0, 0),
@@ -1793,6 +1817,11 @@ impl Ctx {
             },
             unit,
         )
+    }
+
+    /// Gen3 `pokemartdecoration` / `pokemartdecoration2`.
+    pub fn decoration_mart(&self, shop: DecorShop, items: &'static [DecorId]) -> Req<()> {
+        self.req(Request::DecorationMart { shop, items }, unit)
     }
 
     /// The chosen party slot, or [`PARTY_NOTHING_CHOSEN`].

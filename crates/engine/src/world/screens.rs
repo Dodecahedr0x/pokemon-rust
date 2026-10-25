@@ -140,6 +140,8 @@ impl World {
                     bag: &mut s.bag,
                     money: &mut s.money,
                     pc: &mut s.pc,
+                    decor: &mut s.decor,
+                    str_vars: &mut s.str_vars,
                     options: &mut s.options,
                     coins: &mut s.coins,
                     pokedex: &mut s.pokedex,

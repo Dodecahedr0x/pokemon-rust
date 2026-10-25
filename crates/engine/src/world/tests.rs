@@ -1163,6 +1163,7 @@ mod m8_i;
 mod m8_m;
 mod mystery_gift;
 // Milestone 9: one file per task.
+mod decor_mart;
 mod hidden_items;
 mod m9_b;
 mod m9_bm;

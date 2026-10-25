@@ -15,6 +15,14 @@ use extract::text::{Lang, encode_lang};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 
+#[path = "decor.rs"]
+mod decor_catalog;
+
+/// The French ROM, when the build can see one. Decoration shop lists are read from it.
+pub fn decoration_rom() -> Option<&'static [u8]> {
+    decor_catalog::bytes()
+}
+
 pub struct Generated {
     pub consts: String,
     pub data: String,
@@ -766,6 +774,7 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
     }
 
     tables(w, &mut blob, &mut o)?;
+    decor_catalog::emit(&mut blob, &mut o)?;
     let whiteout = s.names.iter().position(|n| n == "EventScript_WhiteOut");
     writeln!(
         o,

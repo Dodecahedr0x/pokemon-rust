@@ -90,6 +90,11 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
             s.str_vars.set(slot as usize, crate::contest::name(c));
             return UNIT;
         }
+        // Gen3 `bufferdecorationname`: `gDecorations[id].name`.
+        BufferSrc::Decoration(id) => (
+            game.decoration(id).map(|d| d.name),
+            "bufferdecorationname: unknown decoration",
+        ),
     };
     match text {
         Some(t) => s.str_vars.set(slot as usize, t),

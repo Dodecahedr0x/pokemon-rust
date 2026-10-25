@@ -288,6 +288,8 @@ pub(crate) struct State {
     /// `gTrainerBattleOpponent_B`): hashed while set, never captured (cleared when the script
     /// ends).
     pub(in crate::world) pair: sight::Pair,
+    /// Decoration PC (Gen3 `DecorationAdd`). Live only: not snapshotted, not hashed.
+    pub(crate) decor: crate::decor::DecorPc,
     // Tool-facing, neither hashed nor snapshotted:
     /// This step's events (cleared at the start of `step`, except the first step of a new
     /// world, which keeps `World::new`'s), at most [`EVENTS_MAX`].
@@ -554,6 +556,7 @@ impl World {
                 field_move: None,
                 stash: host::Stash::default(),
                 pair: sight::Pair::default(),
+                decor: crate::decor::DecorPc::new(),
                 events: Vec::with_capacity(EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,

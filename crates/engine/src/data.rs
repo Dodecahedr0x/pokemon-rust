@@ -101,6 +101,8 @@ id! {
     TrainerId,
     /// Gen3 `ITEM_*` number; `GameData::item` resolves it (Milestone 8).
     ItemId,
+    /// Gen3 `DECOR_*` number; `GameData::decoration` resolves it.
+    DecorId,
 }
 
 /// Gen3 bag pockets, in save-block order (`gSaveBlock1Ptr->bagPocket_*`).
@@ -133,6 +135,25 @@ pub struct ItemInfo {
     pub pocket: Pocket,
     pub price: u16,
     pub key: bool,
+}
+
+/// Which decoration clerk (`MART_TYPE_DECOR` / `MART_TYPE_DECOR2` in `shop.c`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum DecorShop {
+    /// `pokemartdecoration`.
+    Shop = 0,
+    /// `pokemartdecoration2` (the other clerk's confirm and thank-you lines).
+    Shop2 = 1,
+}
+
+/// One decoration (`gDecorations`): Gen3-encoded name and description, price, category.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct DecorationInfo {
+    pub name: &'static [u8],
+    pub price: u16,
+    /// `DECORCAT_*` (`decoration_inventory.c`): the PC list it is stored in.
+    pub category: u8,
+    pub description: &'static [u8],
 }
 
 /// Emote bubble shown above an object (Gen3 field effects `FLDEFF_EXCLAMATION_MARK_ICON`,
@@ -823,6 +844,18 @@ pub enum UiText {
     ShopThankYou,
     ShopPremierBonus,
     ShopAnythingElse,
+    /// `gText_Var1IsItThatllBeVar2` (`MART_TYPE_DECOR`).
+    ShopDecorConfirm,
+    /// `gText_YouWantedVar1ThatllBeVar2` (`MART_TYPE_DECOR2`).
+    ShopDecor2Confirm,
+    /// `gText_ThankYouIllSendItHome`.
+    ShopDecorThankYou,
+    /// `gText_ThanksIllSendItHome`.
+    ShopDecor2ThankYou,
+    /// `gText_SpaceForVar1Full`.
+    ShopDecorFull,
+    /// `gText_CanIHelpWithAnythingElse` (`MART_TYPE_DECOR2` leaving the list).
+    ShopDecor2AnythingElse,
     // PC (`player_pc.c`, `pokemon_storage_system.c`).
     PcItemStorage,
     PcMailbox,
@@ -1449,6 +1482,11 @@ pub trait GameData {
             jam: 0,
             category: 0,
         }
+    }
+    /// Gen3 `gDecorations[id]`. `None` for `DECOR_NONE` and unknown ids.
+    fn decoration(&self, id: DecorId) -> Option<&'static DecorationInfo> {
+        let _ = id;
+        None
     }
     /// The Gen3-encoded choices of multichoice list `list` (`MULTI_*`, `sMultichoiceLists`).
     fn multichoice(&self, list: u8) -> Option<&'static [&'static [u8]]> {

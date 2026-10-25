@@ -395,6 +395,13 @@ macro_rules! game_data_tables {
                 .flatten()
         }
 
+        fn decoration(
+            &self,
+            id: ::engine::data::DecorId,
+        ) -> Option<&'static ::engine::data::DecorationInfo> {
+            $crate::data::DECORATIONS.get(id.0 as usize)?.as_ref()
+        }
+
         fn move_description(&self, id: ::engine::data::MoveId) -> Option<&'static [u8]> {
             $crate::data::MOVE_DESCRIPTIONS
                 .get(id.0 as usize)

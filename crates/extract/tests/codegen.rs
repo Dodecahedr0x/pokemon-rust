@@ -1239,6 +1239,9 @@ mod lowering {
             i("random", vec![Half(3)]),
             i("pokemart", vec![Items("N_Mart_Items".into())]),
             i("playslotmachine", vec![Half(0)]),
+            i("pokemartdecoration", vec![Items("N_Decor_Items".into())]),
+            i("pokemartdecoration2", vec![Items("N_Decor2_Items".into())]),
+            i("bufferdecorationname", vec![Byte(0), Half(1)]),
             i("addmoney", vec![Word(300), Byte(0)]),
             i("removemoney", vec![Word(300), Byte(0)]),
             i("checkmoney", vec![Raw(300), Byte(0)]),
@@ -1331,6 +1334,16 @@ mod lowering {
             origin: NameOrigin::Decomp,
             items: vec!["ITEM_POTION".into(), "ITEM_POKE_BALL".into()],
         });
+        files[0].lists.push(IrList {
+            name: "N_Decor_Items".into(),
+            origin: NameOrigin::Positional,
+            items: vec!["1".into(), "2".into()],
+        });
+        files[0].lists.push(IrList {
+            name: "N_Decor2_Items".into(),
+            origin: NameOrigin::Positional,
+            items: vec!["3".into()],
+        });
         files
     }
 
@@ -1380,6 +1393,11 @@ mod lowering {
             "check_item_type(&ctx, ITEM_POTION).await;",
             "mart(&ctx, &crate::scripts::LittlerootTown::N_Mart_Items).await;",
             "pub static N_Mart_Items: [ItemId; 2] = [ItemId(ITEM_POTION), ItemId(ITEM_POKE_BALL)];",
+            "mart_decor(&ctx, DecorShop::Shop, &crate::scripts::LittlerootTown::N_Decor_Items).await;",
+            "mart_decor(&ctx, DecorShop::Shop2, &crate::scripts::LittlerootTown::N_Decor2_Items).await;",
+            "pub static N_Decor_Items: [DecorId; 2] = [DecorId(1), DecorId(2)];",
+            "pub static N_Decor2_Items: [DecorId; 1] = [DecorId(3)];",
+            "buffer(&ctx, 0, BufferSrc::Decoration(DecorId(1))).await;",
             "ctx.move_obj(PLAYER, &N_Movement_Walk).await;",
             "ctx.move_obj_at(2, MAP_LITTLEROOT_TOWN, &N_Movement_Walk).await;",
             "ctx.wait_move_at(2, MAP_LITTLEROOT_TOWN).await;",
@@ -1714,7 +1732,7 @@ mod lowering {
     /// ([`M8_HELPER_MODULES`]) and `set_warp` (appended by `compile_lowered`).
     const STUB_PRELUDE_M8: &str = r#"
 pub use engine::battle::BattleOutcome;
-pub use engine::data::{ItemId, MoveId, ScriptId};
+pub use engine::data::{DecorId, DecorShop, ItemId, MoveId, ScriptId};
 pub use engine::script::{BufferSrc, Report, WarpSlot};
 
 mod field;
