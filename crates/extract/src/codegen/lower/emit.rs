@@ -776,6 +776,12 @@ impl<'a> Low<'a> {
                 };
                 out.push(format!("mart(&ctx, &{SCRIPTS}::{m}::{l}).await;"));
             }
+            ("playslotmachine", [id]) => {
+                let Some(id) = u16_expr(id, true) else {
+                    return Ok(false);
+                };
+                out.push(format!("play_slot_machine(&ctx, {id}).await;"));
+            }
             ("random", [n]) => {
                 let Some(n) = u16_expr(n, true) else {
                     return Ok(false);

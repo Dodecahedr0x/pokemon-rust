@@ -29,6 +29,7 @@ pub mod party;
 pub mod pc;
 pub mod pokedex;
 pub mod save;
+pub mod slot;
 pub mod start_menu;
 pub mod summary;
 pub mod title;
@@ -88,6 +89,10 @@ pub enum ScreenKind {
     Contest(crate::contest::ContestView),
     /// The Pokédex (Gen3 `CB2_OpenPokedex`), from the start menu's POKéDEX.
     Pokedex,
+    /// Gen3 `playslotmachine`: machine id `SLOT_MACHINE_*`.
+    Slot {
+        machine: u8,
+    },
 }
 
 /// The question the save dialog asks after "Would you like to save the game?" yes (Gen3
@@ -188,6 +193,7 @@ pub enum ScreenKindTag {
     Title,
     Contest,
     Pokedex,
+    Slot,
 }
 
 impl ScreenKind {
@@ -211,6 +217,7 @@ impl ScreenKind {
             ScreenKind::Credits => ScreenKindTag::Credits,
             ScreenKind::Title => ScreenKindTag::Title,
             ScreenKind::Contest(_) => ScreenKindTag::Contest,
+            ScreenKind::Slot { .. } => ScreenKindTag::Slot,
         }
     }
 
@@ -261,6 +268,7 @@ impl ScreenKind {
             }
             ScreenKind::Bag(m) => h.write(&[m as u8]),
             ScreenKind::EasyChat(k) => h.write(&[k]),
+            ScreenKind::Slot { machine } => h.write(&[machine]),
             ScreenKind::Mart { items } => {
                 h.write_u16(items.len() as u16);
                 for i in items {
@@ -411,6 +419,7 @@ pub enum ScreenState {
     Title(title::Title),
     Contest(contest::ContestScreen),
     Pokedex(pokedex::PokedexScreen),
+    Slot(slot::SlotMachine),
 }
 
 impl ScreenState {
@@ -440,6 +449,7 @@ impl ScreenState {
             ScreenKind::Credits => ScreenState::HallOfFame(hall_of_fame::HallOfFame::credits()),
             ScreenKind::Title => ScreenState::Title(title::Title::new()),
             ScreenKind::Contest(v) => ScreenState::Contest(contest::ContestScreen::new(v)),
+            ScreenKind::Slot { machine } => ScreenState::Slot(slot::SlotMachine::new(machine)),
         }
     }
 
@@ -462,6 +472,7 @@ impl ScreenState {
             ScreenState::Title(s) => s.step(cx, input),
             ScreenState::Contest(s) => s.step(cx, input),
             ScreenState::Pokedex(s) => s.step(cx, input),
+            ScreenState::Slot(s) => s.step(cx, input),
         }
     }
 
@@ -485,6 +496,7 @@ impl ScreenState {
             ScreenState::Title(s) => s.hash(h),
             ScreenState::Contest(s) => s.hash(h),
             ScreenState::Pokedex(s) => s.hash(h),
+            ScreenState::Slot(s) => s.hash(h),
         }
     }
 }

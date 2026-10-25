@@ -572,6 +572,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             Request::TrainerPair { .. } => trainer::pair(self, r),
             // ---- Milestone 9 ----
             Request::Mart { .. }
+            | Request::SlotMachine { .. }
             | Request::ChoosePartyMon(_)
             | Request::PlayerPc(_)
             | Request::SaveDialog
@@ -662,6 +663,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             return contest::resume(self, r);
         }
         if let Request::Mart { .. }
+        | Request::SlotMachine { .. }
         | Request::ChoosePartyMon(_)
         | Request::PlayerPc(_)
         | Request::SaveDialog

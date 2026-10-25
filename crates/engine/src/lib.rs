@@ -28,6 +28,7 @@ pub mod pokedex;
 pub mod rng;
 pub mod script;
 pub mod sky;
+pub mod slot;
 pub mod starter;
 pub mod str_vars;
 pub mod text;

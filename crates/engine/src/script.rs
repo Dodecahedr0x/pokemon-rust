@@ -410,6 +410,11 @@ pub enum Request {
     Mart {
         items: &'static [ItemId],
     },
+    /// Gen3 `playslotmachine`: the Game Corner machine (`SLOT_MACHINE_*`). Answers `Unit`
+    /// once it closes.
+    SlotMachine {
+        machine: u8,
+    },
     /// `special ChoosePartyMon` / `ChooseMonForMoveTutor`: answers `Value` = the slot, or
     /// [`PARTY_NOTHING_CHOSEN`].
     ChoosePartyMon(PartyMode),
@@ -901,6 +906,7 @@ impl Request {
                     (d >> 32) as u16,
                 )
             }
+            Request::SlotMachine { machine } => (233, u16::from(machine), 0, 0, 0),
             Request::ChoosePartyMon(m) => {
                 let (kind, v) = match m {
                     PartyMode::Field => (0, 0),
@@ -1745,6 +1751,16 @@ impl Ctx {
     /// Gen3 `pokemart`.
     pub fn mart(&self, items: &'static [ItemId]) -> Req<()> {
         self.req(Request::Mart { items }, unit)
+    }
+
+    /// Gen3 `playslotmachine`. `machine` is the `VarGet` of the operand (`SLOT_MACHINE_*`).
+    pub fn slot_machine(&self, machine: u16) -> Req<()> {
+        self.req(
+            Request::SlotMachine {
+                machine: machine as u8,
+            },
+            unit,
+        )
     }
 
     /// The chosen party slot, or [`PARTY_NOTHING_CHOSEN`].
