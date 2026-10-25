@@ -12,6 +12,7 @@ pub mod contest;
 pub mod data;
 pub mod debug;
 pub mod decor;
+pub mod ereader;
 pub mod field;
 pub mod flow;
 pub mod frontier;

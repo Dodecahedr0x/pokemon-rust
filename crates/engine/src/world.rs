@@ -265,6 +265,9 @@ pub(crate) struct State {
     pub(crate) registered_item: Option<ItemId>,
     /// Wave E: Gen3 `berryTrees` (`SpecialIds::berry_trees` of them).
     pub(crate) berry_trees: crate::berry::BerryTrees,
+    /// The e-Reader Enigma Berry (`gSaveBlock1Ptr->enigmaBerry`). `None` until a
+    /// mystery-event `setenigmaberry` copies one. Hashed only while set.
+    pub(crate) enigma_berry: Option<[u8; crate::ereader::ENIGMA_BERRY_LEN]>,
     /// Screen flash, shake and tint (not snapshotted: a save or capture needs it clear).
     pub(crate) fx: ScreenFx,
     /// The field weather (`crate::weather`): hashed and snapshotted unless it is the map's
@@ -555,6 +558,7 @@ impl World {
                 coins: 0,
                 registered_item: None,
                 berry_trees: crate::berry::BerryTrees::new(game.special_ids().berry_trees),
+                enigma_berry: None,
                 fx: ScreenFx::default(),
                 weather: crate::weather::Weather::default(),
                 palette: None,
@@ -1149,6 +1153,29 @@ impl World {
         self.runner.is_running()
     }
 
+    /// Runs `make`'s script to completion, at most `max` runner steps. Instant requests are
+    /// answered in the step that posts them. `true` when the script ended. A script that is
+    /// already running is left alone.
+    pub fn run_script(
+        &mut self,
+        game: &impl GameData,
+        max: u32,
+        make: impl FnOnce(crate::script::Ctx) -> crate::script::Script,
+    ) -> bool {
+        if self.runner.is_running() {
+            return false;
+        }
+        let mut f = Frame::default();
+        self.runner.start(make(self.runner.ctx()));
+        for _ in 0..max {
+            if !self.runner.is_running() {
+                return true;
+            }
+            self.step_script(game, &mut f);
+        }
+        !self.runner.is_running()
+    }
+
     /// The request the running script waits on, if any (the sweep's diagnostics).
     pub fn script_waiting(&self) -> Option<&crate::script::Request> {
         self.runner.waiting_on()
@@ -1408,6 +1435,11 @@ impl World {
         }
         if !s.frontier.is_default() {
             s.frontier.hash(&mut h);
+        }
+        // An e-Reader Enigma Berry, only once a card copied one (a new game hashes as before).
+        if let Some(raw) = s.enigma_berry {
+            h.write(&[0xAB]);
+            h.write(&raw);
         }
         h.finish()
     }
