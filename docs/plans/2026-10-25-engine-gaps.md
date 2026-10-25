@@ -149,11 +149,9 @@ Bag USE on a bike or a rod reports `Unsupported` (`crates/engine/src/item_use.rs
 
 Verified 2026-10-25. Every `EFFECT_*` used by an Emerald move already dispatches (`move_effect_for` in `crates/content/build/classify/battle.rs`). 355 moves, 198 effects. `None` remains only for five unused slots no move uses (`EFFECT_UNUSED_60`, `EFFECT_UNUSED_6E`, `EFFECT_UNUSED_83`, `EFFECT_UNUSED_8D`, `EFFECT_UNUSED_A3`), so the content build does not write `MoveEffect::Unsupported`. No change merged.
 
-### `abilities`
+### `abilities` — closed, already present
 
-Abilities the classifier maps to `Ability::Other` do nothing. The early ledger had 36 missing of 78; the classifier is the source of truth.
-
-**Done when:** every Gen3 ability the Emerald species use has its battle (and overworld, where Gen3 has one) effect. `Ability::Other` is gone for those species. A test covers one ability that was `Other` at the start of this item.
+Verified 2026-10-25. Under Emerald rules every Gen3 `ABILITY_*` (`0x00`–`0x4d`) maps to a named `Ability`. All 76 abilities on Emerald species have a battle or overworld path. Cacophony is the only Gen3 ability no species has, and Gen3 does not implement it either. The content build reports `0 abilities left as Ability::Other`. The early ledger's 36 missing entries are stale. No change merged.
 
 ### `battle-timing`
 
