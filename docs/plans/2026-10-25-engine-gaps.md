@@ -23,11 +23,9 @@ No sound engine. The design defers m4a/Sappy (`docs/plans/2026-10-21-emerald-rus
 
 Merged `033ec277`. `gettime` is Native and writes hours, minutes, and seconds into `VAR_0x8000..VAR_0x8002` from the shell RTC, or from the frame clock when no RTC is set. Test: `gettime_writes_a_known_local_time` (15:42:07). The clock is not hashed, and no checkpoint moved.
 
-### `link`
+### `link` — closed
 
-No link play. `SPECIAL_BufferUnionRoomPlayerName` is `Default(0)` ("no Union Room partner"). `SPECIAL_CloseLink` is Ignore. Link-battle, record-mixing, and Union Room specials are Unsupported.
-
-**Done when:** two engines can complete a Gen3 link battle and a Union Room exchange, or the same flow against a scripted partner that speaks the real protocol. A test covers one full exchange. Unsupported link specials used by that flow are Native.
+Merged `03f52ebd`. Two peers finish a Gen3 link battle and a Union Room exchange against a scripted partner that speaks the cable command words and SendBlock bytes. `CloseLink`, `InitUnionRoom`, `RunUnionRoom`, `TryBattleLinkup`, and `TryBecomeLinkLeader` are Native. `SPECIAL_BufferUnionRoomPlayerName` stays `Default(0)` so the Pokémon Center nurse does not add a log request on the story route; the Union Room exchange copies the partner name itself. Tests: `two_peers_finish_a_single_link_battle`, `two_peers_finish_a_union_room_exchange`, `link_specials_the_battle_and_union_room_use_are_native`. Stub checkpoints were not rebaselined.
 
 ### `contests` — closed
 
