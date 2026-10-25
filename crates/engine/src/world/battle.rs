@@ -7,12 +7,13 @@
 //!    `BattleTransition_StartOnField`): objects frozen for a grass encounter only (Gen3
 //!    `DoStandardWildBattle`; scripted battles leave that to the script), the field (or, for
 //!    the first battle, the starter screen: `CB2_GiveStarter` → `CB2_StartFirstBattle`) keeps
-//!    being drawn under [`BattleTransition`], which ends black. The battle's start
-//!    ([`Battle::start`]: the intro events, the first turn and the trainer AI's choice) runs on
-//!    the transition's first frame, not on the frame that started the battle (Gen3 sets the
-//!    battle up in `CB2_InitBattle`, after the transition): only video is drawn in between, so
-//!    the start frame stays under the line budget. The RNG order stays the same unless an
-//!    unfrozen object draws on the start frame (see the deviations).
+//!    being drawn under [`BattleTransition`], which ends black. Objects keep animating under
+//!    it unless the battle froze them (`DoStandardWildBattle`); the first battle's transition
+//!    is the starter screen (`CB2_StartFirstBattle` does not run object events). The frame
+//!    after the transition, `CB2_InitBattle` draws `BattleAI_HandleItemUseBeforeAISetup`, then
+//!    builds the trainer party or the first battle's mon, then `SetWildMonHeldItem`.
+//!    [`Battle::start`] (the intro and the first turn) is the frame after that, so the setup
+//!    frame stays under the line budget.
 //! 2. **Loading**: [`BattleScene::load`] chunks, one per black frame (`CB2_InitBattle`).
 //! 3. **Running**: [`BattleScene::step`] each frame until [`BattleScene::finished`] (the scene
 //!    fades to black after `End`). The player's party is written back; on a win the prize
@@ -34,14 +35,6 @@
 //! [`Event::Report`](super::Event::Report)s (and log lines) each frame.
 //!
 //! Deviations from Gen3 (documented):
-//! - The opponent party and `Battle::new`'s draws happen when the battle starts, before the
-//!   transition (Gen3 creates trainer parties and the scripted wild mon in `CB2_InitBattle`,
-//!   after it). The order of draws within them is Gen3's.
-//! - The start frame runs `Battle::new`, then the objects' update, and `Battle::start` (the
-//!   first turn's and the AI's draws) one frame later. An idle object left unfrozen on the
-//!   start frame (a scripted battle whose script did not `lock` it) that draws then takes its
-//!   value between the two; in Gen3 every battle setup draw comes after the transition, after
-//!   any such object draws.
 //! - The field text box is closed when a battle starts: `trainerbattle`'s intro message stays
 //!   open into the battle in Gen3 and disappears under the transition, which overwrites BG0.
 //! - The environment is `Grass` on a tall-grass cell and `Plain` elsewhere
@@ -126,10 +119,111 @@ impl Stage {
     }
 }
 
+/// Who the battle is against, rolled when Gen3 rolls it.
+pub(super) enum Foes {
+    /// Already built: a field `CreateWildMon`, `setwildbattle`'s `CreateScriptedWildMon`, or a
+    /// cloned party. Those draws are before the transition.
+    Ready(Party),
+    /// `CreateNPCTrainerParty`, after the transition and after [`Battle::draws_before_party`].
+    Trainer {
+        id: crate::data::TrainerId,
+        second: Option<(crate::data::TrainerId, crate::data::TextId)>,
+    },
+    /// The first battle's `CreateMon` inside `SetUpBattleVarsAndBirchZigzagoon`, after the AI
+    /// draws and before `SetWildMonHeldItem`.
+    First { species: SpeciesId, level: u8 },
+}
+
+/// What [`State::open_pending`] needs once the transition has finished.
+struct Pending {
+    kind: BattleKind,
+    environment: Environment,
+    rules: crate::battle::BattleRules,
+    double: Option<crate::battle::Double>,
+    foes: Foes,
+}
+
+impl Pending {
+    fn hash(&self, h: &mut Fnv64) {
+        match self.kind {
+            BattleKind::Wild { first_battle } => h.write(&[0, first_battle as u8]),
+            BattleKind::Trainer { trainer, defeat } => {
+                h.write(&[1]);
+                h.write_u16(trainer.0);
+                h.write_u16(defeat.0);
+            }
+        }
+        h.write(&[self.environment as u8]);
+        match self.double {
+            None => h.write(&[0]),
+            Some(d) => {
+                h.write(&[1]);
+                h.write_u16(d.second.map_or(0xFFFF, |(t, _)| t.0));
+                h.write_u16(d.second.map_or(0xFFFF, |(_, x)| x.0));
+                h.write_u16(d.partner.map_or(0xFFFF, |t| t.0));
+                h.write(&d.split);
+            }
+        }
+        if self.rules == crate::battle::BattleRules::default() {
+            h.write(&[0]);
+        } else {
+            h.write(&[1]);
+            self.rules.hash(h);
+        }
+        match &self.foes {
+            Foes::Ready(p) => {
+                h.write(&[0]);
+                p.hash(h);
+            }
+            Foes::Trainer { id, second } => {
+                h.write(&[1]);
+                h.write_u16(id.0);
+                h.write_u16(second.map_or(0xFFFF, |(t, _)| t.0));
+                h.write_u16(second.map_or(0xFFFF, |(_, x)| x.0));
+            }
+            Foes::First { species, level } => {
+                h.write(&[2]);
+                h.write_u16(species.0);
+                h.write(&[*level]);
+            }
+        }
+    }
+}
+
+/// `base` is what the request knew (the partner, trainer A's half); `built` is what
+/// `CreateNPCTrainerParty` filled in (trainer B, the opponent split).
+fn merge_double(
+    base: Option<crate::battle::Double>,
+    built: Option<crate::battle::Double>,
+) -> Option<crate::battle::Double> {
+    use crate::battle::Double;
+    match (base, built) {
+        (None, built) => built,
+        (Some(base), None) => Some(base),
+        (Some(base), Some(built)) => Some(Double {
+            second: built.second.or(base.second),
+            partner: base.partner.or(built.partner),
+            split: [
+                if base.split[0] != 0 {
+                    base.split[0]
+                } else {
+                    built.split[0]
+                },
+                if built.split[1] != 0 {
+                    built.split[1]
+                } else {
+                    base.split[1]
+                },
+            ],
+        }),
+    }
+}
+
 pub(crate) struct BattleRun {
     pub stage: Stage,
     pub origin: Origin,
-    pub battle: Battle,
+    /// `None` until `CB2_InitBattle`, the frame after the transition.
+    pub battle: Option<Battle>,
     pub scene: BattleScene,
     pub transition: BattleTransition,
     /// The starter screen the first battle's transition runs over (`CB2_StartFirstBattle`).
@@ -137,8 +231,11 @@ pub(crate) struct BattleRun {
     pub outcome: Option<BattleOutcome>,
     /// The player whited out (no answer to the script, objects unfrozen).
     pub whiteout: bool,
-    /// [`Battle::start`] ran (on the transition's first frame).
+    /// [`Battle::start`] ran (the frame after the party was built).
     pub started: bool,
+    /// The transition has ended; the next frame builds the party (`CB2_InitBattle`).
+    primed: bool,
+    pending: Option<Pending>,
 }
 
 /// Feeds a behavior into a hash.
@@ -223,7 +320,18 @@ impl BattleRun {
             self.started as u8,
         ]);
         self.transition.hash(h);
-        self.battle.hash(h);
+        match &self.battle {
+            Some(b) => b.hash(h),
+            None => {
+                // Only while the transition is up: afterwards the battle hash above is the
+                // whole core, as before.
+                h.write(&[0xB1]);
+                self.pending.as_ref().unwrap().hash(h);
+            }
+        }
+        if self.stage == Stage::Transition {
+            h.write(&[self.primed as u8]);
+        }
         self.scene.hash(h);
         match &self.backdrop {
             None => h.write(&[0]),
@@ -271,9 +379,43 @@ impl State {
         self.party.first_usable().is_some()
     }
 
+    /// `CB2_InitBattle`: AI setup draws, then the trainer party or the first battle's mon,
+    /// then `SetWildMonHeldItem` and `gRandomTurnNumber` ([`Battle::after_party`]).
+    fn open_pending(&mut self, game: &impl GameData, pending: Pending) -> Battle {
+        Battle::draws_before_party(&mut self.rng, pending.double.is_some());
+        let (opponents, double) = match pending.foes {
+            Foes::Ready(p) => (p, pending.double),
+            Foes::First { species, level } => {
+                let mon = self.create_mon(game, species, level);
+                let mut party = Party::default();
+                let _ = party.push(mon);
+                (party, pending.double)
+            }
+            Foes::Trainer { id, second } => {
+                let (party, built) = trainer_party(game, &mut self.rng, id, second)
+                    .expect("the trainer party was checked before the transition");
+                (party, merge_double(pending.double, built))
+            }
+        };
+        let setup = BattleSetup {
+            kind: pending.kind,
+            opponents,
+            environment: pending.environment,
+            double,
+            rules: pending.rules,
+        };
+        let mut battle = Battle::after_party(game, setup, &self.party, &mut self.rng);
+        // The player's form changes need their flag (the Mega Ring). Emerald has no form
+        // changes: this returns at once. Battle style is the option at the request (Gen3
+        // reads `OPTION` while the battle is set up).
+        battle.set_battle_style(self.options.battle_style);
+        battle.enable_player_forms(game, |f| self.vars.flag(f));
+        battle
+    }
+
     /// Starts a battle against `opponents` (non-empty; the party must be able to battle):
-    /// the core and its intro events, the scene, the transition. Freezes objects and closes the
-    /// field text box.
+    /// the scene and the transition. The core is built after the transition. Freezes objects
+    /// for a field battle and closes the field text box.
     pub(super) fn start_battle(
         &mut self,
         game: &impl GameData,
@@ -282,14 +424,17 @@ impl State {
         origin: Origin,
         f: &mut Frame,
     ) {
-        self.start_battle_with(game, kind, opponents, None, Default::default(), origin, f);
+        self.start_battle_with(
+            game,
+            kind,
+            Foes::Ready(opponents),
+            None,
+            Default::default(),
+            origin,
+            f,
+        );
     }
 
-    /// [`World::start_battle`] with the double battle's setup (two trainers, the in-game
-    /// partner). A trainer whose data says double (`trainerbattle_double`, the twins) battles
-    /// in doubles without one. `rules`: Silice's per-battle rules (`battle::rules`; its
-    /// background replaces the cell's).
-    #[allow(clippy::too_many_arguments)]
     /// Puts an in-game partner's `mons` in the party after the player's first
     /// [`crate::battle::MULTI_PARTY_SIZE`] (`FillPartnerParty`), the others on the bench
     /// until the battle ends. Returns how many of the player's own fight.
@@ -314,12 +459,17 @@ impl State {
         own as u8
     }
 
+    /// [`World::start_battle`] with the double battle's setup (two trainers, the in-game
+    /// partner). A trainer whose data says double (`trainerbattle_double`, the twins) battles
+    /// in doubles without one. `rules`: Silice's per-battle rules (`battle::rules`; its
+    /// background replaces the cell's). The opponent party is not rolled here: `CB2_InitBattle`
+    /// rolls it after the transition.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn start_battle_with(
         &mut self,
         game: &impl GameData,
         kind: BattleKind,
-        opponents: Party,
+        foes: Foes,
         double: Option<crate::battle::Double>,
         rules: crate::battle::BattleRules,
         origin: Origin,
@@ -332,7 +482,7 @@ impl State {
             }
             _ => rules,
         };
-        let double = double.or_else(|| match kind {
+        let mut double = double.or_else(|| match kind {
             BattleKind::Trainer { trainer, .. }
                 if game.trainer(trainer).is_some_and(|t| t.double) =>
             {
@@ -340,19 +490,38 @@ impl State {
             }
             _ => None,
         });
+        // Two opponents are a double even when trainer A's data is not (`BATTLE_TYPE_TWO_OPPONENTS`).
+        if let Foes::Trainer {
+            second: Some(second),
+            ..
+        } = &foes
+        {
+            let mut d = double.unwrap_or_default();
+            d.second = Some(*second);
+            double = Some(d);
+        }
         // Gen3 `ABILITYEFFECT_SWITCH_IN_WEATHER` reads the field's current weather.
         let rules = crate::battle::BattleRules {
             weather: crate::weather::battle_weather(self.weather.current),
             ..rules
         };
-        let setup = BattleSetup {
+        let environment = rules.background.unwrap_or_else(|| self.environment(game));
+        // The scene only needs the kind and whether it is a double. The party is rolled later.
+        let scene_setup = BattleSetup {
             kind,
-            opponents,
-            environment: rules.background.unwrap_or_else(|| self.environment(game)),
+            opponents: Party::default(),
+            environment,
             double,
             rules,
         };
         let transition = BattleTransition::new(&kind);
+        let pending = Pending {
+            kind,
+            environment,
+            rules,
+            double,
+            foes,
+        };
         // The run (about 4 KiB) is built in its heap allocation: `Box::new` of a literal copies
         // it from the stack, 6 scanlines on the GBA's trainer-battle start, the route's worst
         // frame (Milestone 8 Wave 0).
@@ -370,40 +539,32 @@ impl State {
                                       outcome: _,
                                       whiteout: _,
                                       started: _,
+                                      primed: _,
+                                      pending: _,
                                   }| {};
         // SAFETY: `p` points to the allocation of an uninitialised `BattleRun`. Each field is
-        // written exactly once through a raw field pointer before `assume_init`, and only the
-        // `battle` field is borrowed before then, after it is written. The writes must cover
-        // the field list of the destructuring guard above, which the compiler keeps in sync
-        // with the struct.
-        let battle = unsafe {
-            let b = &raw mut (*p).battle;
-            b.write(Battle::new(game, setup, &self.party, &mut self.rng));
-            // The player's form changes need their flag (the Mega Ring). Their state lives in
-            // the `Battle`, so the field guard above is unchanged. Emerald has no form changes:
-            // this returns at once.
-            (*b).enable_player_forms(game, |f| self.vars.flag(f));
-            &*b
-        };
-        let mut scene = BattleScene::new(battle.setup(), self.player_name);
+        // written exactly once through a raw field pointer before `assume_init`. The writes
+        // must cover the field list of the destructuring guard above, which the compiler keeps
+        // in sync with the struct.
+        let mut scene = BattleScene::new(&scene_setup, self.player_name);
         scene.set_animations(self.options.battle_scene);
         if let Some(b) = (self.bag.pocket(Pocket::PokeBalls).iter()).find(|b| b.qty > 0) {
             scene.set_balls(b.item, b.qty);
         }
-        // SAFETY: as above; this writes every remaining field.
         let run = unsafe {
             (&raw mut (*p).scene).write(scene);
             (&raw mut (*p).stage).write(Stage::Transition);
             (&raw mut (*p).origin).write(origin);
+            (&raw mut (*p).battle).write(None);
             (&raw mut (*p).transition).write(transition);
             (&raw mut (*p).backdrop).write(None);
             (&raw mut (*p).outcome).write(None);
             (&raw mut (*p).whiteout).write(false);
             (&raw mut (*p).started).write(false);
+            (&raw mut (*p).primed).write(false);
+            (&raw mut (*p).pending).write(Some(pending));
             run.assume_init()
         };
-        let mut run = run;
-        run.battle.set_battle_style(self.options.battle_style);
         // Gen3 `IncrementDailyWildBattles` in every wild battle's setup.
         if let BattleKind::Wild { .. } = kind
             && let Some(v) = game.special_ids().var_daily_wilds
@@ -652,6 +813,12 @@ fn after_win(game: &impl GameData, s: &mut State, battle: &Battle) {
     }
 }
 
+/// Whether `id` has a party `CreateNPCTrainerParty` can fill. The mons themselves are rolled
+/// later, after the transition.
+pub(super) fn trainer_has_party(game: &impl GameData, id: crate::data::TrainerId) -> bool {
+    game.trainer(id).is_some_and(|t| !t.party.is_empty())
+}
+
 /// The opponents of a trainer battle (Gen3 `CreateNPCTrainerParty`): trainer A's party, or,
 /// with trainer B (`BATTLE_TYPE_TWO_OPPONENTS`, Wave G), at most three of A's
 /// (`gEnemyParty[0..]`) then at most three of B's (`gEnemyParty[3..]`), with the battle's
@@ -784,45 +951,65 @@ impl World {
         let s = &mut self.s;
         match run.stage {
             Stage::Transition => {
-                if !run.started {
+                if run.battle.is_some() {
+                    // The frame after the party: the intro and the first turn (`Battle::start`).
+                    let _ = run.transition.update(f);
                     let mut events = Vec::new();
-                    run.battle.start(game, &mut s.rng, &mut events);
+                    run.battle
+                        .as_mut()
+                        .unwrap()
+                        .start(game, &mut s.rng, &mut events);
                     run.scene.push(&mut events);
                     run.started = true;
                     // Gen3 `HandleSetPokedexFlag(.., FLAG_SET_SEEN, ..)` at the battle intro.
-                    see_opponent(s, &run.battle);
-                }
-                match &mut run.backdrop {
-                    Some(starter) => {
-                        starter.update(game, &Input::default(), f);
-                    }
-                    None => draw_field(game, s, f),
-                }
-                if run.transition.update(f) {
-                    run.backdrop = None;
+                    see_opponent(s, run.battle.as_ref().unwrap());
                     run.stage = Stage::Loading;
+                } else if run.primed {
+                    // `CB2_InitBattle`: no object events. The screen stays black.
+                    let _ = run.transition.update(f);
+                    let pending = run.pending.take().unwrap();
+                    run.battle = Some(s.open_pending(game, pending));
+                } else {
+                    match &mut run.backdrop {
+                        Some(starter) => {
+                            starter.update(game, &Input::default(), f);
+                        }
+                        None => {
+                            // Gen3's overworld keeps running under `Task_BattleStart`.
+                            let ground = Ground {
+                                game,
+                                field: &s.field,
+                            };
+                            s.objects.update(&ground, &mut s.rng, false);
+                            draw_field(game, s, f);
+                        }
+                    }
+                    if run.transition.update(f) {
+                        run.backdrop = None;
+                        run.primed = true;
+                    }
                 }
             }
             Stage::Loading => {
-                if run.scene.load(game, &run.battle, f) {
+                if run.scene.load(game, run.battle.as_ref().unwrap(), f) {
                     run.stage = Stage::Running;
                 }
             }
             Stage::Running => {
                 run.scene
-                    .step(game, &mut run.battle, &mut s.rng, &s.input, f);
+                    .step(game, run.battle.as_mut().unwrap(), &mut s.rng, &s.input, f);
                 // Each opponent switched in (Gen3 `Cmd_switchindataupdate`'s seen flag): the
                 // opponent out this frame, which every switch-in is for at least one frame.
-                see_opponent(s, &run.battle);
+                see_opponent(s, run.battle.as_ref().unwrap());
                 if let Some(outcome) = run.scene.finished() {
                     run.outcome = Some(outcome);
                     s.event(super::Event::BattleEnded(outcome));
-                    s.party = run.battle.party(Side::Player).clone();
+                    s.party = run.battle.as_ref().unwrap().party(Side::Player).clone();
                     // Wave G: the in-game partner's mons leave with it (Gen3's script loads
                     // the saved party back over `gPlayerParty`).
-                    if run.battle.has_partner() {
+                    if run.battle.as_ref().unwrap().has_partner() {
                         let mut own = Party::default();
-                        let n = run.battle.party_range(Side::Player).end as usize;
+                        let n = run.battle.as_ref().unwrap().party_range(Side::Player).end as usize;
                         let bench = core::mem::take(&mut s.stash.bench);
                         for m in s.party.iter().take(n).chain(bench.iter()) {
                             let _ = own.push(*m);
@@ -834,22 +1021,22 @@ impl World {
                         s.bag.remove(Pocket::PokeBalls, ball, n);
                     }
                     if outcome == BattleOutcome::Won {
-                        after_win(game, s, &run.battle);
+                        after_win(game, s, run.battle.as_ref().unwrap());
                     }
                     if outcome == BattleOutcome::Caught
-                        && let Some(species) = opponent_species(&run.battle)
+                        && let Some(species) = opponent_species(run.battle.as_ref().unwrap())
                     {
                         // Gen3 `Cmd_trysetcaughtmondexflags`.
                         s.pokedex.set_caught(species);
                     }
-                    if let Some(&mon) = run.battle.caught_without_room() {
+                    if let Some(&mon) = run.battle.as_ref().unwrap().caught_without_room() {
                         // Gen3 `GiveMonToPlayer` → `SendMonToPC` (Task M).
                         if super::caught::place_mon(game, s, mon) == super::caught::Placed::NoRoom {
                             s.log("caught a mon with a full party (no PC): released");
                         }
                     }
                     let first = matches!(
-                        run.battle.setup().kind,
+                        run.battle.as_ref().unwrap().setup().kind,
                         BattleKind::Wild { first_battle: true }
                     );
                     let lost = matches!(outcome, BattleOutcome::Lost | BattleOutcome::Drew);
@@ -866,7 +1053,7 @@ impl World {
                 // the evolution scenes run over the black screen before the field comes back
                 // (Task E opens them; their host restores the field when the last closes).
                 if run.outcome == Some(BattleOutcome::Won)
-                    && super::evolve::after_battle(game, s, &run.battle, f)
+                    && super::evolve::after_battle(game, s, run.battle.as_ref().unwrap(), f)
                 {
                     end_battle(s, &mut run);
                     return;

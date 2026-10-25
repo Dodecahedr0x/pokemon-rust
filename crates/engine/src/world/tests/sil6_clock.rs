@@ -180,8 +180,10 @@ fn a_scripted_wild_battle_takes_its_rules_into_the_battle() {
     });
     for _ in 0..200 {
         step(&mut w, 1);
-        if let Mode::Battle(run) = &w.s.mode {
-            assert!(run.battle.setup.rules.no_catch);
+        if let Mode::Battle(run) = &w.s.mode
+            && let Some(battle) = &run.battle
+        {
+            assert!(battle.setup.rules.no_catch);
             return;
         }
     }

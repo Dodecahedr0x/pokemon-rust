@@ -4,7 +4,9 @@
 use super::*;
 use crate::battle::scene::OpenMenu;
 use crate::battle::test_data::{NORMAL, WATER};
-use crate::battle::{BattleOutcome, Environment};
+use crate::battle::{Battle, BattleOutcome, Environment, Side};
+use crate::rng::Rng;
+use crate::trainer::create_trainer_party;
 
 /// Alternates A and nothing (a new A press every other frame: it picks FIGHT and move slot 0
 /// and dismisses messages) until `done`; returns the frames taken. Panics after `max`.
@@ -94,11 +96,14 @@ fn a_scripted_wild_battle_runs_and_answers_after_the_field_is_back() {
     give_and_battle(&mut w, WATER, 30, NORMAL, 2, BattleOutcome::Won);
     run(&mut w, Buttons::NONE, 1);
     assert!(w.in_battle());
-    assert_eq!(w.battle().unwrap().0, Stage::Transition);
+    assert!(
+        w.battle().is_none(),
+        "the core is built after the transition"
+    );
     // The transition ends black, the scene loads on black frames.
     let mut saw = (false, false);
     let mut frames = 0;
-    while w.battle().is_some_and(|b| b.0 != Stage::Running) {
+    while !w.battle().is_some_and(|b| b.0 == Stage::Running) {
         let f = run(&mut w, Buttons::NONE, 1);
         if w.battle().is_some_and(|b| b.0 == Stage::Loading) {
             saw.0 = true;
@@ -221,6 +226,7 @@ fn grass_steps_start_wild_battles_after_the_immunity_steps() {
     // Rate 255 caps at 2880: every check after the 60% new-cell gate passes, and both cells
     // are grass, so the first checked step battles.
     walk_grass_until_battle(&mut w);
+    until_core(&mut w);
     assert_eq!(
         w.battle().unwrap().1.setup().environment,
         Environment::Grass
@@ -287,11 +293,18 @@ fn the_starter_screen_answers_and_the_first_battle_runs_over_it() {
         n += 1;
         assert!(n < 2000);
     }
-    let (stage, battle, _) = w.battle().expect("the first battle starts at once");
-    assert_eq!(stage, Stage::Transition);
+    let mut kind = None;
+    for _ in 0..200 {
+        if let Some((_, battle, _)) = w.battle() {
+            kind = Some(battle.setup().kind);
+            break;
+        }
+        run(&mut w, Buttons::NONE, 1);
+    }
     assert_eq!(
-        battle.setup().kind,
-        crate::battle::BattleKind::Wild { first_battle: true }
+        kind,
+        Some(crate::battle::BattleKind::Wild { first_battle: true }),
+        "the first battle starts over the starter screen"
     );
     assert_eq!(w.party().len(), 1);
     mash(&mut w, 20_000, |w| !w.script_running());
@@ -354,4 +367,58 @@ fn a_no_whiteout_trainer_battle_answers_lost_and_keeps_the_script() {
     });
     assert!(w.flag(FLAG_DONE), "answered Lost to the script");
     assert_eq!((w.map(), pos(&w)), at, "stays where the battle was");
+}
+
+/// Gen3 `CB2_InitBattle` rolls the trainer party after the transition. NPC 1 wanders (unfrozen:
+/// the script never `lock`s) and its delay-32 roll lands during the transition, before
+/// `draws_before_party` and `CreateNPCTrainerParty`. Seed 2 makes that first delay 32.
+#[test]
+fn a_wandering_object_consumes_rng_during_the_transition_before_the_party() {
+    let mut w = started();
+    w.s.rng = Rng::new(2);
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.give_mon(WATER, 20).await;
+            ctx.set_movement_type(1, MovementType::Wander).await;
+            ctx.battle_trainer(TRAINER, TextId(0)).await;
+        })
+    });
+    run(&mut w, Buttons::NONE, 1);
+    assert!(
+        w.in_battle(),
+        "the transition starts when the battle is requested"
+    );
+    assert!(
+        w.battle().is_none(),
+        "the trainer party is not built until after the transition"
+    );
+
+    let mut drew = false;
+    let mut open_at = None;
+    for _ in 0..200 {
+        let before = w.s.rng.state();
+        run(&mut w, Buttons::NONE, 1);
+        if w.battle().is_some() {
+            open_at = Some(before);
+            break;
+        }
+        if w.s.rng.state() != before {
+            drew = true;
+        }
+    }
+    let open_at = open_at.expect("the battle opened");
+    assert!(
+        drew,
+        "the wanderer drew while the transition played, before the party"
+    );
+
+    let mut rng = Rng::from_state(open_at).unwrap();
+    Battle::draws_before_party(&mut rng, false);
+    let expect = create_trainer_party(Game.battle(), Game.trainer(TRAINER).unwrap(), &mut rng);
+    let foe = w.battle().unwrap().1.party(Side::Opponent).get(0).unwrap();
+    let want = expect.get(0).unwrap();
+    assert_eq!(
+        (foe.species, foe.level, foe.personality, foe.ot_id),
+        (want.species, want.level, want.personality, want.ot_id)
+    );
 }

@@ -263,6 +263,8 @@ struct Driver<'a, G: GameData> {
     map: MapId,
     log_start: u32,
     battle: Option<BattleTracker>,
+    /// The frame of `Event::BattleStarted`, before the core exists.
+    battle_at: Option<u32>,
     /// Frames stepped outside battles (`Limits::macro_frames`).
     nonbattle: u32,
     /// Frames of the credits pages. They run longer than `macro_frames` and cannot be skipped.
@@ -319,6 +321,7 @@ impl<'a, G: GameData> Driver<'a, G> {
             map,
             log_start,
             battle: None,
+            battle_at: None,
             nonbattle: 0,
             credit_frames: 0,
             battle_frames: 0,
@@ -539,17 +542,24 @@ impl<'a, G: GameData> Driver<'a, G> {
         if started {
             self.battle_frames = 0;
             self.ended = None;
-            if self.battle.is_none() {
-                self.battle = BattleTracker::start(w);
-                if self.battle.is_some() {
-                    sum.battle_maps.push(map);
+            self.battle_at = Some(w.frame());
+        }
+        if w.in_battle() {
+            // The core is built the frame after the transition, so the start event's frame
+            // has no battle to read yet.
+            if self.battle.is_none()
+                && let Some(mut t) = BattleTracker::start(w)
+            {
+                if let Some(at) = self.battle_at {
+                    t.rewind_start(at);
                 }
-            }
-        } else if w.in_battle() {
-            if let Some(t) = &mut self.battle {
+                self.battle = Some(t);
+                sum.battle_maps.push(map);
+            } else if let Some(t) = &mut self.battle {
                 t.observe(w);
             }
         } else if let Some(t) = self.battle.take() {
+            self.battle_at = None;
             sum.battles.push(t.finish(w, self.ended.take()));
         }
     }

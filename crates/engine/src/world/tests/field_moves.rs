@@ -341,6 +341,12 @@ fn surfing_meets_the_water_table_with_gen3_slots() {
             steps += 1;
             assert!(steps < 2000, "no water encounter");
         }
+        for _ in 0..400 {
+            if w.battle().is_some() {
+                break;
+            }
+            hold(&mut w, Buttons::NONE, 1);
+        }
         let (_, battle, _) = w.battle().unwrap();
         // `BattleSetup_GetEnvironmentId`: ocean water outdoors.
         assert_eq!(battle.setup().environment, Environment::Water);
