@@ -316,6 +316,12 @@ pub(crate) struct State {
     /// Gen3 `sMysteryEventScriptContext.mStatus` (`setmysteryeventstatus`). Not snapshotted,
     /// not hashed (EWRAM, like the comparison register).
     pub(crate) mystery_event_status: u8,
+    /// A cable partner (`link.c`). Hashed only while attached.
+    pub(crate) link_partner: Option<crate::link::LinkSide>,
+    /// `SPECIAL_TryBecomeLinkLeader` opened the link. Hashed only while set.
+    pub(crate) link_open: bool,
+    /// `SPECIAL_InitUnionRoom` armed the Union Room. Hashed only while set.
+    pub(crate) union_ready: bool,
 }
 
 /// Gen3 `gLocalTime` after `RtcCalcLocalTime` with a zero saved offset: the RTC in decimal,
@@ -568,6 +574,9 @@ impl World {
                 contest: crate::contest::Session::default(),
                 wonder_card: None,
                 mystery_event_status: 0,
+                link_partner: None,
+                link_open: false,
+                union_ready: false,
             },
             rtc: None,
             sound: crate::options::Sound::Mono,
@@ -1169,6 +1178,11 @@ impl World {
         self.s.mystery_event_status
     }
 
+    /// Attaches a scripted link partner that speaks the Gen3 block protocol.
+    pub fn attach_link_partner(&mut self, partner: crate::link::LinkSide) {
+        self.s.link_partner = Some(partner);
+    }
+
     /// The heal location the player whites out to.
     pub fn respawn(&self) -> u8 {
         self.s.respawn
@@ -1378,6 +1392,16 @@ impl World {
         if let Some(name) = &s.rival_name {
             h.write(&[0xB1]);
             h.write(name);
+        }
+        if s.link_open {
+            h.write(&[0xCE]);
+        }
+        if let Some(p) = &s.link_partner {
+            h.write(&[0xCF]);
+            p.hash(&mut h);
+        }
+        if s.union_ready {
+            h.write(&[0xD0]);
         }
         h.finish()
     }

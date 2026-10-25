@@ -13,7 +13,7 @@
 // The 483 specials named by a `special`/`specialvar` line of the decomp (`data/**/*.inc` and
 // `data/*.s`, `data/specials.inc` excluded) are classified; the other 41 are Unsupported.
 //
-// Counts: 76 Native, 17 Ignore, 82 Default, 349 Unsupported.
+// Counts: 81 Native, 15 Ignore, 82 Default, 346 Unsupported.
 {
     "SPECIAL_AccessHallOfFamePC": Unsupported, // post-game; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_Bag_ChooseBerry": Native, // degraded: no bag screen, nothing chosen; fades back in
@@ -99,7 +99,7 @@
     "SPECIAL_CloseBattlePointsWindow": Unsupported,
     "SPECIAL_CloseDeptStoreElevatorWindow": Unsupported,
     "SPECIAL_CloseFrontierExchangeCornerItemIconWindow": Unsupported,
-    "SPECIAL_CloseLink": Ignore, // no link is ever open: CloseLink only clears link state
+    "SPECIAL_CloseLink": Native, // link.c CloseLink: LINKCMD_READY_CLOSE_LINK, then the link is closed
     "SPECIAL_ColosseumPlayerSpotTriggered": Unsupported,
     "SPECIAL_CompareLotadSize": Unsupported,
     "SPECIAL_CompareSeedotSize": Unsupported,
@@ -260,7 +260,7 @@
     "SPECIAL_InitRoamer": Unsupported, // post-game (the roaming Lati)
     "SPECIAL_InitSecretBaseDecorationSprites": Ignore, // cosmetic: the bedroom decoration sprites (decorations are M9)
     "SPECIAL_InitSecretBaseVars": Unsupported,
-    "SPECIAL_InitUnionRoom": Ignore, // Union Room background state: no link
+    "SPECIAL_InitUnionRoom": Native, // union_room.c InitUnionRoom: arms the Union Room exchange
     "SPECIAL_InteractWithShieldOrTVDecoration": Unsupported,
     "SPECIAL_InterviewAfter": Unsupported,
     "SPECIAL_InterviewBefore": Unsupported,
@@ -363,7 +363,7 @@
     "SPECIAL_RockSmashWildEncounter": Native, // Request::RockSmashEncounter (the map's rock smash table, then a field wild battle)
     "SPECIAL_RotatingGate_InitPuzzle": Native, // Wave G: rotating_gate.c, the gates' starting orientations in the temp vars (GameData::rotating_gates)
     "SPECIAL_RotatingGate_InitPuzzleAndGraphics": Ignore, // Wave G: the gate sprites (not drawn); the puzzle comes from GameData::rotating_gates
-    "SPECIAL_RunUnionRoom": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
+    "SPECIAL_RunUnionRoom": Native, // union_room.c RunUnionRoom: activity blocks, then the partner name in gStringVar1
     "SPECIAL_SaveBardSongLyrics": Unsupported,
     "SPECIAL_SaveForBattleTowerLink": Unsupported,
     "SPECIAL_SaveGame": Default(0), // saving is a shell action until M9: "not saved", which every caller treats as a cancel
@@ -502,8 +502,8 @@
     "SPECIAL_TraderDoDecorationTrade": Unsupported,
     "SPECIAL_TraderMenuGetDecoration": Unsupported,
     "SPECIAL_TraderShowDecorationMenu": Unsupported,
-    "SPECIAL_TryBattleLinkup": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
-    "SPECIAL_TryBecomeLinkLeader": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
+    "SPECIAL_TryBattleLinkup": Native, // battle_main.c: one single link battle over the block protocol
+    "SPECIAL_TryBecomeLinkLeader": Native, // link.c: open the link as master when a partner is attached
     "SPECIAL_TryBerryBlenderLinkup": Unsupported,
     "SPECIAL_TryBufferWaldaPhrase": Default(0), // Walda has no phrase
     "SPECIAL_TryContestEModeLinkup": Unsupported,

@@ -866,6 +866,21 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             }
             mauville_gym_scan(ctx, mauville_gym::deactivate).await;
         }
+        id if id == SPECIAL_TryBecomeLinkLeader => {
+            return ctx.link(engine::script::LinkCall::BecomeLeader).await;
+        }
+        id if id == SPECIAL_TryBattleLinkup => {
+            return ctx.link(engine::script::LinkCall::Battle).await;
+        }
+        id if id == SPECIAL_RunUnionRoom => {
+            return ctx.link(engine::script::LinkCall::UnionRoom).await;
+        }
+        id if id == SPECIAL_InitUnionRoom => {
+            ctx.link(engine::script::LinkCall::InitUnion).await;
+        }
+        id if id == SPECIAL_CloseLink => {
+            ctx.link(engine::script::LinkCall::Close).await;
+        }
         // Not a `Native` special: the lowering never passes one (it reports the `Unsupported`
         // ones itself); a hand-written call is only logged.
         _ => {}

@@ -175,6 +175,21 @@ pub enum PartyStash {
     SaveSelected,
 }
 
+/// A Gen3 link special. The world answers it from the attached cable partner.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum LinkCall {
+    /// `SPECIAL_TryBecomeLinkLeader`: open the link as master when a partner is attached.
+    BecomeLeader,
+    /// `SPECIAL_TryBattleLinkup`: one single link battle.
+    Battle,
+    /// `SPECIAL_InitUnionRoom`.
+    InitUnion,
+    /// `SPECIAL_RunUnionRoom`: the activity exchange, then the partner's name.
+    UnionRoom,
+    /// `SPECIAL_CloseLink`: `LINKCMD_READY_CLOSE_LINK`, then the link is closed.
+    Close,
+}
+
 /// Everything a script can ask of the world.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Request {
@@ -674,6 +689,9 @@ pub enum Request {
     /// Gen3 `trywondercardscript` / `GetSavedRamScriptIfValid`: the saved Wonder Card's script.
     /// Answers `Value` ([`NO_WONDER_CARD_SCRIPT`] when there is no valid card).
     WonderCardScript,
+    /// A Gen3 link special ([`LinkCall`]): the cable block protocol, answered at once with
+    /// the special's result (`Value`).
+    Link(LinkCall),
 }
 
 /// Answer of [`Request::WonderCardScript`] when no valid Wonder Card is saved.
@@ -1096,6 +1114,16 @@ impl Request {
             Request::SetModernFatefulEncounter(slot) => (234, slot, 0, 0, 0),
             Request::WonderCardScript => (235, 0, 0, 0, 0),
             Request::Pokenav { tutorial } => (236, tutorial as u16, 0, 0, 0),
+            Request::Link(call) => {
+                let which = match call {
+                    LinkCall::BecomeLeader => 0,
+                    LinkCall::Battle => 1,
+                    LinkCall::InitUnion => 2,
+                    LinkCall::UnionRoom => 3,
+                    LinkCall::Close => 4,
+                };
+                (237, which, 0, 0, 0)
+            }
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -2070,6 +2098,11 @@ impl Ctx {
     /// `showcontestpainting`.
     pub fn show_contest_painting(&self, id: u8) -> Req<()> {
         self.req(Request::Contest(ContestOp::Painting(id)), unit)
+    }
+
+    /// A Gen3 link special (see [`Request::Link`]).
+    pub fn link(&self, call: LinkCall) -> Req<u16> {
+        self.req(Request::Link(call), Response::value)
     }
 
     /// Gen3 `RockSmashWildEncounter` (see [`Request::RockSmashEncounter`]): whether a wild
