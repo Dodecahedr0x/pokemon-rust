@@ -6,9 +6,9 @@
 //! (`AddStartMenuWindow`). Up/down move with wrap, A runs the entry, B and START close.
 //! POKéMON opens the party menu and BAG the bag (and the menu shows again when they close,
 //! Gen3 `CB2_ReturnToFieldWithOpenMenu`); EXIT closes; a game-defined `Script` entry closes the
-//! menu and runs its script. OPTION opens the options menu. Not yet: POKéDEX and the trainer
-//! card report `Unsupported` and keep the menu open. SAVE opens the save dialog (Task S,
-//! `ui/save.rs`):
+//! menu and runs its script. POKéDEX opens the Pokédex (`ui/pokedex.rs`). OPTION opens the
+//! options menu. Not yet: the trainer card reports `Unsupported` and keeps the menu open. SAVE
+//! opens the save dialog (Task S, `ui/save.rs`):
 //! saved or not saved closes the menu, cancelled shows it again (`SaveCallback`).
 //!
 //! Deviations: the cursor starts on the first entry at every opening (Gen3 keeps
@@ -112,12 +112,12 @@ impl Screen for StartMenu {
                     }
                     Some(StartAction::Exit) | None => ScreenOut::Done(ScreenResult::Cancel),
                     Some(StartAction::Script(id)) => ScreenOut::RunScript(id),
-                    Some(a) => {
-                        cx.report(Report::Unsupported(match a {
-                            StartAction::Pokedex => "pokedex",
-                            StartAction::PlayerCard => "trainer card",
-                            _ => "options",
-                        }));
+                    Some(StartAction::Pokedex) => {
+                        self.gfx.0 = None;
+                        ScreenOut::Push(ScreenKind::Pokedex)
+                    }
+                    Some(StartAction::PlayerCard) => {
+                        cx.report(Report::Unsupported("trainer card"));
                         ScreenOut::Running
                     }
                 },

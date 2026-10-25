@@ -1307,6 +1307,11 @@ pub struct SpecialIds {
     /// Cleared on the first map load of each new day of the clock (`World::days`; Gen3
     /// `ClearDailyFlags`, here a list).
     pub daily_flags: &'static [FlagId],
+    /// `FLAG_SYS_NATIONAL_DEX`. The Pokédex offers National mode when this flag is set and
+    /// [`var_national_dex`](Self::var_national_dex) equals [`crate::pokedex::NATIONAL_DEX_MAGIC`].
+    pub flag_national_dex: Option<FlagId>,
+    /// `VAR_NATIONAL_DEX`.
+    pub var_national_dex: Option<VarId>,
 }
 
 /// What [`GameData::step_count_script`] reads and may change, after a finished player step.
@@ -1349,6 +1354,8 @@ impl Default for SpecialIds {
             var_idle_frames: None,
             var_days: None,
             daily_flags: &[],
+            flag_national_dex: None,
+            var_national_dex: None,
         }
     }
 }
@@ -1524,6 +1531,18 @@ pub trait GameData {
     /// The start menu's entries in display order (Gen3 `sStartMenuItems`); empty: START opens
     /// nothing.
     fn start_menu(&self) -> &'static [StartItem] {
+        &[]
+    }
+    /// Species in Hoenn Pokédex order (Gen3 `sSpeciesToHoennPokedexNum`, `HOENN_DEX_TREECKO`
+    /// first). Empty: the Pokédex's Hoenn list is empty.
+    fn hoenn_dex(&self) -> &'static [SpeciesId] {
+        &[]
+    }
+    /// Species in National Pokédex order. Empty: the screen lists species ids `1..=251`
+    /// (Gen3 national number equals species id through Celebi) and then every
+    /// [`hoenn_dex`](Self::hoenn_dex) species whose id is past 251, in that order. The engine
+    /// has no `sSpeciesToNationalPokedexNum` table.
+    fn national_dex(&self) -> &'static [SpeciesId] {
         &[]
     }
     /// How field move `m` becomes usable.

@@ -27,6 +27,7 @@ pub mod naming;
 pub mod options;
 pub mod party;
 pub mod pc;
+pub mod pokedex;
 pub mod save;
 pub mod start_menu;
 pub mod summary;
@@ -85,6 +86,8 @@ pub enum ScreenKind {
     Title,
     /// A contest page (`startcontest`, `showcontestresults`, `showcontestpainting`).
     Contest(crate::contest::ContestView),
+    /// The Pokédex (Gen3 `CB2_OpenPokedex`), from the start menu's POKéDEX.
+    Pokedex,
 }
 
 /// The question the save dialog asks after "Would you like to save the game?" yes (Gen3
@@ -184,6 +187,7 @@ pub enum ScreenKindTag {
     EasyChat,
     Title,
     Contest,
+    Pokedex,
 }
 
 impl ScreenKind {
@@ -203,6 +207,7 @@ impl ScreenKind {
             ScreenKind::FlyMap => ScreenKindTag::FlyMap,
             ScreenKind::HallOfFame => ScreenKindTag::HallOfFame,
             ScreenKind::EasyChat(_) => ScreenKindTag::EasyChat,
+            ScreenKind::Pokedex => ScreenKindTag::Pokedex,
             ScreenKind::Credits => ScreenKindTag::Credits,
             ScreenKind::Title => ScreenKindTag::Title,
             ScreenKind::Contest(_) => ScreenKindTag::Contest,
@@ -222,7 +227,8 @@ impl ScreenKind {
             | ScreenKind::FlyMap
             | ScreenKind::HallOfFame
             | ScreenKind::Credits
-            | ScreenKind::Title => {}
+            | ScreenKind::Title
+            | ScreenKind::Pokedex => {}
             ScreenKind::Contest(v) => {
                 let page = match v.page {
                     crate::contest::ContestPage::Appeals => 0,
@@ -404,6 +410,7 @@ pub enum ScreenState {
     EasyChat(easy_chat::EasyChat),
     Title(title::Title),
     Contest(contest::ContestScreen),
+    Pokedex(pokedex::PokedexScreen),
 }
 
 impl ScreenState {
@@ -429,6 +436,7 @@ impl ScreenState {
             ScreenKind::FlyMap => ScreenState::FlyMap(fly_map::FlyMap::new()),
             ScreenKind::HallOfFame => ScreenState::HallOfFame(hall_of_fame::HallOfFame::new()),
             ScreenKind::EasyChat(k) => ScreenState::EasyChat(easy_chat::EasyChat::new(k)),
+            ScreenKind::Pokedex => ScreenState::Pokedex(pokedex::PokedexScreen::new()),
             ScreenKind::Credits => ScreenState::HallOfFame(hall_of_fame::HallOfFame::credits()),
             ScreenKind::Title => ScreenState::Title(title::Title::new()),
             ScreenKind::Contest(v) => ScreenState::Contest(contest::ContestScreen::new(v)),
@@ -453,6 +461,7 @@ impl ScreenState {
             ScreenState::EasyChat(s) => s.step(cx, input),
             ScreenState::Title(s) => s.step(cx, input),
             ScreenState::Contest(s) => s.step(cx, input),
+            ScreenState::Pokedex(s) => s.step(cx, input),
         }
     }
 
@@ -475,6 +484,7 @@ impl ScreenState {
             ScreenState::EasyChat(s) => s.hash(h),
             ScreenState::Title(s) => s.hash(h),
             ScreenState::Contest(s) => s.hash(h),
+            ScreenState::Pokedex(s) => s.hash(h),
         }
     }
 }

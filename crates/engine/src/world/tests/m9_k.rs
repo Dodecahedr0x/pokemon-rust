@@ -20,10 +20,33 @@ pub(super) const FLAG_POKEMON_MENU: FlagId = FlagId(0x30);
 pub(super) const FLY_MOVE: MoveId = crate::battle::test_data::SWIFT;
 pub(super) const FLAG_VISITED_TOWN: FlagId = FlagId(0x31);
 pub(super) const FLAG_VISITED_ROUTE: FlagId = FlagId(0x32);
+/// Shows the POKéDEX entry (`shown_if`). Off in the other menu tests.
+pub(super) const FLAG_POKEDEX_MENU: FlagId = FlagId(0x33);
+/// `FLAG_SYS_NATIONAL_DEX` / `VAR_NATIONAL_DEX` for this game.
+pub(super) const FLAG_NATIONAL_DEX: FlagId = FlagId(0x34);
+pub(super) const VAR_NATIONAL_DEX: VarId = VarId(0x4020);
 /// Species that cannot learn [`TM`].
 pub(super) const NO_TM: SpeciesId = crate::battle::test_data::WATER;
 
-static START: [StartItem; 3] = [
+static HOENN_DEX: [SpeciesId; 3] = [
+    crate::battle::test_data::FIRE,
+    crate::battle::test_data::WATER,
+    crate::battle::test_data::NORMAL,
+];
+static NATIONAL_DEX: [SpeciesId; 4] = [
+    crate::battle::test_data::WATER,
+    crate::battle::test_data::NORMAL,
+    crate::battle::test_data::FIRE,
+    crate::battle::test_data::BUG,
+];
+
+static START: [StartItem; 4] = [
+    StartItem {
+        label: TextId(0),
+        action: StartAction::Pokedex,
+        shown_if: Some(FLAG_POKEDEX_MENU),
+        description: None,
+    },
     StartItem {
         label: TextId(0),
         action: StartAction::Party,
@@ -59,7 +82,11 @@ impl GameData for UiGame {
         Game.map(id)
     }
     fn special_ids(&self) -> SpecialIds {
-        Game.special_ids()
+        SpecialIds {
+            flag_national_dex: Some(FLAG_NATIONAL_DEX),
+            var_national_dex: Some(VAR_NATIONAL_DEX),
+            ..Game.special_ids()
+        }
     }
     fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
         Game.sprite(gfx)
@@ -93,6 +120,12 @@ impl GameData for UiGame {
     }
     fn start_menu(&self) -> &'static [StartItem] {
         &START
+    }
+    fn hoenn_dex(&self) -> &'static [SpeciesId] {
+        &HOENN_DEX
+    }
+    fn national_dex(&self) -> &'static [SpeciesId] {
+        &NATIONAL_DEX
     }
     fn item(&self, id: ItemId) -> Option<&'static ItemInfo> {
         (id == TM || id == HM).then_some(&TM_INFO)
