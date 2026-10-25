@@ -532,6 +532,7 @@ impl<'a, G: GameData> Driver<'a, G> {
                 | Event::ScreenClosed
                 | Event::Saved { .. }
                 | Event::Evolved(_)
+                | Event::Cry(_)
                 | Event::ReloadLastSave => {}
             }
         }

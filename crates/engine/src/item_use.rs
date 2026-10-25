@@ -17,10 +17,11 @@
 //!
 //! Deviations: Ether and PP Up restore or raise the first move that can take it (Gen3 asks
 //! which move: `Report::Degraded("item move choice")`); Rare Candy learns its level's moves into
-//! free slots only (a full moveset reports `Degraded("rare candy move replace")`) and evolves
-//! without the scene (`Degraded("evolution scene")`), as stones do; the Escape Rope has no
-//! spin effect and is allowed on `map_type::UNDERGROUND` maps (Gen3 reads the header's
-//! `allowEscaping`, which `MapData` does not carry) holding an escape warp.
+//! free slots only (a full moveset reports `Degraded("rare candy move replace")`). A level-up,
+//! a stone or a trade that would evolve returns [`EvolutionPlay`] and leaves the species for
+//! the evolution scene. The Escape Rope has no spin effect and is allowed on
+//! `map_type::UNDERGROUND` maps (Gen3 reads the header's `allowEscaping`, which `MapData` does
+//! not carry) holding an escape warp.
 
 use crate::data::{
     EvoMethod, GameData, ItemId, ItemUse, KeyUse, MedicineEffect, ScriptId, SpeciesId, UiText,
@@ -116,14 +117,22 @@ pub(crate) fn escape_rope_dest(s: &State, game: &impl GameData) -> Option<crate:
     s.warp_slots.escape.filter(|d| game.has_map(d.map))
 }
 
+/// The evolution scene to open. The species has not changed yet.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct EvolutionPlay {
+    pub into: SpeciesId,
+    /// Gen3 `canStopEvo`: true for a level-up (Rare Candy), false for a stone or a trade.
+    pub can_cancel: bool,
+}
+
 /// The message after using an item on a mon, and what else happened.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct MonUse {
     pub text: UiText,
     /// `{STR_VAR_2}` (a number, a level, a stat name), Gen3-encoded and 0xFF-terminated.
     pub var2: Vec<u8>,
-    /// The species it evolved into (Rare Candy, stones; no scene).
-    pub evolved: Option<SpeciesId>,
+    /// Open the evolution scene for this. `None` when the item did not evolve anything.
+    pub scene: Option<EvolutionPlay>,
 }
 
 fn number(n: u32) -> Vec<u8> {
@@ -144,7 +153,7 @@ fn msg(text: UiText, var2: Vec<u8>) -> MonUse {
     MonUse {
         text,
         var2,
-        evolved: None,
+        scene: None,
     }
 }
 
@@ -295,9 +304,11 @@ pub fn use_on_mon(
                     != Some(crate::mon::HoldEffect::PreventEvolve)
                     && let Some((into, _)) = mon.evolution_target(game.evolutions(mon.species))
                 {
-                    mon.evolve(t, into);
-                    reports.push(Report::Degraded("evolution scene"));
-                    out.evolved = Some(into);
+                    // The scene changes the species. B can cancel a level-up (`canStopEvo`).
+                    out.scene = Some(EvolutionPlay {
+                        into,
+                        can_cancel: true,
+                    });
                 }
                 Some(out)
             }
@@ -330,17 +341,19 @@ pub fn use_on_mon(
                 .iter()
                 .find(|e| e.method == EvoMethod::Item && e.param == item.0)?
                 .target;
-            mon.evolve(t, into);
-            reports.push(Report::Degraded("evolution scene"));
+            // A stone cannot be cancelled (`EVO_MODE_ITEM_USE`).
             Some(MonUse {
                 text: UiText::ItemUsed,
                 var2: Vec::new(),
-                evolved: Some(into),
+                scene: Some(EvolutionPlay {
+                    into,
+                    can_cancel: false,
+                }),
             })
         }
         ItemUse::TradeEvolution => {
             // `EVO_TRADE` (param 0) or `EVO_TRADE_ITEM` (param: the item the mon must hold);
-            // an Everstone stops it as it stops a trade.
+            // an Everstone stops it as it stops a trade. A trade cannot be cancelled.
             if hold == Some(crate::mon::HoldEffect::PreventEvolve) {
                 return None;
             }
@@ -351,13 +364,13 @@ pub fn use_on_mon(
             if e.param != 0 {
                 mon.held = None;
             }
-            let into = e.target;
-            mon.evolve(t, into);
-            reports.push(Report::Degraded("evolution scene"));
             Some(MonUse {
                 text: UiText::ItemUsed,
                 var2: Vec::new(),
-                evolved: Some(into),
+                scene: Some(EvolutionPlay {
+                    into: e.target,
+                    can_cancel: false,
+                }),
             })
         }
         _ => None,

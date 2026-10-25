@@ -4,10 +4,10 @@
 //! A request opens its screen (`world/screens.rs::open`, marked waiting) and is answered once
 //! the last screen has closed, from `State::answer`. Only the screens that exist open: the
 //! party menu (`ChoosePartyMon` / `ChooseMonForMoveTutor`, Task PT) and the mart (Task M).
-//! The others (PC,
-//! save dialog, evolution scene) answer their default at once until their owners land, so a
-//! script never waits on a stub. A map script (immediate) never opens a screen: it gets the
-//! default and a log line, as M8 does for waiting requests there.
+//! The others (PC, save dialog) answer their default at once until their owners land, so a
+//! script never waits on a stub. The evolution scene opens and answers whether it evolved.
+//! A map script (immediate) never opens a screen: it gets the default and a log line, as M8
+//! does for waiting requests there.
 
 use super::Host;
 use crate::data::GameData;
@@ -27,17 +27,20 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
         Request::HallOfFame => ScreenKind::HallOfFame,
         Request::EasyChat { kind } => ScreenKind::EasyChat(kind),
         Request::Credits => ScreenKind::Credits,
-        // The evolution scene (Task E's screen): until it lands, the species change of the
-        // scene without it (`Pokemon::evolve`), reported as the bag's item evolutions are.
-        Request::Evolve { slot, into, .. } => {
-            let t = h.game.battle();
-            let Some(mon) = h.s.party.get_mut(slot as usize) else {
+        // `play_evolution`: the scene changes the species and answers whether it did.
+        Request::Evolve {
+            slot,
+            into,
+            can_cancel,
+        } => {
+            if h.s.party.get(slot as usize).is_none() {
                 return Some(Response::Bool(false));
-            };
-            mon.evolve(t, into);
-            h.s.pokedex.set_caught(into);
-            h.s.report(crate::script::Report::Degraded("evolution scene"));
-            return Some(Response::Bool(true));
+            }
+            ScreenKind::Evolution {
+                slot,
+                into,
+                can_cancel,
+            }
         }
         _ => return Some(default_answer(r)),
     };

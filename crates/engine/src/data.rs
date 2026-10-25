@@ -144,9 +144,9 @@ pub enum Emote {
     Heart,
 }
 
-/// How a species evolves (Gen3 `EVO_*`). Until Milestone 9 Task E classifies them exactly
-/// (`build/classify/evolution.rs`), content folds the exact kinds onto `Level`, `Friendship`,
-/// `Item`, `Trade` and `Other`, and the engine evaluates `Level` only.
+/// How a species evolves (Gen3 `EVO_*`). Content folds the exact kinds onto `Level`,
+/// `Friendship`, `Item`, `Trade` and `Other` (`build/battle.rs`). The engine evaluates
+/// `Level` and `Friendship` (friendship at least 220).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum EvoMethod {
     /// `EVO_LEVEL` (and, while folded, its stat/personality variants): `param` is the level.

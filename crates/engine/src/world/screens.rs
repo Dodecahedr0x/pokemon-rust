@@ -24,7 +24,8 @@ use crate::data::{GameData, ItemId};
 use crate::script::Fade;
 use crate::ui::kit::{self, FADE_FRAMES, Pending, Phase, window};
 use crate::ui::{
-    PartyMode, ScreenCx, ScreenInput, ScreenKind, ScreenOut, ScreenResult, ScreenStack, ScreenState,
+    PartyMode, ScreenCx, ScreenInput, ScreenKind, ScreenNote, ScreenOut, ScreenResult, ScreenStack,
+    ScreenState,
 };
 use crate::video::Frame;
 use alloc::boxed::Box;
@@ -126,6 +127,7 @@ impl World {
         let frame = self.frame;
         let s = &mut self.s;
         let mut reports = Vec::new();
+        let mut notes = Vec::new();
         let (saved, child) = (stack.saved.take(), stack.child.take());
         let out = match stack.top_mut() {
             None => ScreenOut::Done(ScreenResult::Cancel),
@@ -151,12 +153,19 @@ impl World {
                     save_question: s.save.question(),
                     child,
                     reports: &mut reports,
+                    notes: &mut notes,
                 };
                 top.step(&mut cx, input)
             }
         };
         for r in reports {
             super::battle::report(s, r);
+        }
+        for n in notes {
+            match n {
+                ScreenNote::Cry(species) => s.event(Event::Cry(species)),
+                ScreenNote::Evolved(species) => s.event(Event::Evolved(species)),
+            }
         }
         out
     }

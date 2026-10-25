@@ -1,30 +1,41 @@
-//! Evolution after a battle (Gen3 `TryEvolvePokemon` from `CB2_ReturnToField`; moved out of
-//! `world/battle.rs` by Milestone 9 Wave 0, unchanged; Task E owns the file and replaces the
-//! silent evolution with the scene).
+//! Evolution after a battle (Gen3 `TryEvolvePokemon` from `CB2_ReturnToField`).
 //!
-//! Two hooks, both called by `world/battle.rs`:
-//! - [`after_win`] when a battle is won, with the battle still open (Wave 0: the silent level
-//!   evolution of Milestone 8);
-//! - [`after_battle`] when a won battle leaves, over the black screen and before the field is
-//!   restored (Gen3 `FreeResetData_ReturnToOvOrDoEvolutions` → `TryEvolvePokemon`, for the
-//!   mons in `Battle::leveled_up`): Task E opens the evolution scene there.
+//! [`after_battle`] runs over the black screen a won battle leaves, before the field is
+//! restored (`FreeResetData_ReturnToOvOrDoEvolutions`). Each mon in `Battle::leveled_up`
+//! evolves when a level evolution is reached or its friendship is at least 220, unless it
+//! holds an Everstone. The evolution scene plays them one after another; B can cancel
+//! (`canStopEvo`).
 
 use super::State;
 use super::battle::report;
 use crate::battle::Battle;
-use crate::data::{EvoMethod, GameData};
+use crate::data::GameData;
 use crate::mon::HoldEffect;
 use crate::script::Report;
+use crate::ui::evolution::EvoJob;
+use crate::ui::{ScreenKind, ScreenState};
+use crate::video::Frame;
 
-/// After a win, each mon that gained a level evolves if a level evolution is reached (not with
-/// an Everstone), without the scene (`Report::Degraded("evolution scene")`).
-pub(super) fn after_win(game: &impl GameData, s: &mut State, battle: &Battle) {
-    let t = game.battle();
+/// Over the black screen a won battle leaves (Gen3 `TryEvolvePokemon`): `true` when it opened
+/// the evolution scene. The battle then ends without restoring the field, and the screen host
+/// restores it when the scene closes.
+pub(super) fn after_battle(
+    game: &impl GameData,
+    s: &mut State,
+    battle: &Battle,
+    f: &mut Frame,
+) -> bool {
+    let mut jobs = [EvoJob {
+        slot: 0,
+        into: crate::data::SpeciesId(0),
+        can_cancel: true,
+    }; 6];
+    let mut n = 0u8;
     for i in 0..6 {
         if battle.leveled_up() & (1 << i) == 0 {
             continue;
         }
-        let Some(mon) = s.party.get_mut(i) else {
+        let Some(mon) = s.party.get(i) else {
             continue;
         };
         // GetEvolutionTargetSpecies: an Everstone (`HOLD_EFFECT_PREVENT_EVOLVE`) stops it.
@@ -32,31 +43,39 @@ pub(super) fn after_win(game: &impl GameData, s: &mut State, battle: &Battle) {
             continue;
         }
         let evos = game.evolutions(mon.species);
-        let target = mon.evolution_target(evos);
-        if evos.iter().any(|e| e.method == EvoMethod::Friendship) {
-            // EVO_FRIENDSHIP* (`friendship >= 220`) is not evaluated (M9).
-            report(s, Report::Degraded("friendship evolution"));
-        }
-        let Some((target, ambiguous)) = target else {
+        let Some((target, ambiguous)) = mon.evolution_target(evos) else {
             continue;
         };
-        let Some(mon) = s.party.get_mut(i) else {
-            continue;
-        };
-        mon.evolve(t, target);
         if ambiguous {
+            // `EvoMethod::Level` still folds Gen3's stat and personality methods.
             report(s, Report::Degraded("evolution branch"));
         }
-        report(s, Report::Degraded("evolution scene"));
+        jobs[n as usize] = EvoJob {
+            slot: i as u8,
+            into: target,
+            can_cancel: true,
+        };
+        n += 1;
     }
-}
-
-/// Over the black screen a won battle leaves (Gen3 `TryEvolvePokemon`): `true` when it opened
-/// the evolution scene (`world/screens.rs::open`, which sets `Mode::Screens`); the battle then
-/// ends without restoring the field, and the screens' host restores it when the last screen
-/// closes. `false` returns to the field as before. Wave 0: `false` (the evolution happened in
-/// [`after_win`]).
-pub(super) fn after_battle(game: &impl GameData, s: &mut State, battle: &Battle) -> bool {
-    let _ = (game, s, battle);
-    false
+    if n == 0 {
+        return false;
+    }
+    let first = jobs[0];
+    super::screens::open(
+        s,
+        game,
+        ScreenKind::Evolution {
+            slot: first.slot,
+            into: first.into,
+            can_cancel: first.can_cancel,
+        },
+        false,
+        f,
+    );
+    if let super::mode::Mode::Screens(stack) = &mut s.mode
+        && let Some(ScreenState::Evolution(scene)) = stack.top_mut()
+    {
+        scene.set_jobs(&jobs[..n as usize]);
+    }
+    true
 }

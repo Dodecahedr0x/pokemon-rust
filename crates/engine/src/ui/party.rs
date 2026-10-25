@@ -14,7 +14,9 @@
 //! - `Choose` (`ChoosePartyMon`, `PARTY_ACTION_CHOOSE_AND_CLOSE`): A answers the slot.
 //! - `UseItem(item)` on anything but a TM or HM (the bag's USE on medicine, Rare Candy, a
 //!   vitamin or a stone): `item_use::use_on_mon` on the slot chosen, one item used up, Gen3's
-//!   message, then the menu closes with the slot (`Cancel` when it had no effect).
+//!   message, then the menu closes with the slot (`Cancel` when it had no effect). A level-up,
+//!   a stone or a trade opens the evolution scene after the message; the slot is the answer
+//!   once the scene closes.
 //! - `UseItem(tm)` (the bag's USE on a TM or HM, `ItemUseCB_TMHM`) and `MoveTutor(move)`
 //!   (`ChooseMonForMoveTutor`): Gen3's teach flow: not compatible / already knows, learned
 //!   into a free slot, else "delete a move?" → the summary's move pick (HM moves refused
@@ -47,7 +49,7 @@ use super::kit::window::{MapBuf, Panel, TileAlloc, colors, frame_kind};
 use super::{
     PartyMode, Screen, ScreenCx, ScreenInput, ScreenKind, ScreenOut, ScreenResult, SummaryMode,
 };
-use crate::data::{FieldMove, FieldMoveGate, GameData, ItemId, MoveId, UiText};
+use crate::data::{FieldMove, FieldMoveGate, GameData, ItemId, MoveId, SpeciesId, UiText};
 use crate::hash::Fnv64;
 use crate::input::Buttons;
 use crate::mon::{Gender, Learn, PARTY_SIZE, Pokemon};
@@ -165,6 +167,12 @@ enum Next {
     Learn(u8),
     /// "Cancel the battle?" (choose-half).
     AskCancel,
+    /// The evolution scene for the mon the item would evolve.
+    Evolve {
+        slot: u8,
+        into: SpeciesId,
+        can_cancel: bool,
+    },
 }
 
 /// After a yes/no.
@@ -179,12 +187,29 @@ enum Question {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum St {
     Slots,
-    Actions { slot: u8, cursor: MenuCursor },
-    Item { slot: u8, cursor: MenuCursor },
-    Switch { from: u8 },
+    Actions {
+        slot: u8,
+        cursor: MenuCursor,
+    },
+    Item {
+        slot: u8,
+        cursor: MenuCursor,
+    },
+    Switch {
+        from: u8,
+    },
     Msg(Next),
-    Ask { q: Question, cursor: u8 },
+    Ask {
+        q: Question,
+        cursor: u8,
+    },
     Summary,
+    /// The evolution scene has the screen.
+    Evolving {
+        slot: u8,
+    },
+    /// The scene closed; the next running frame answers `r` (a Done during the fade is dropped).
+    Finished(ScreenResult),
 }
 
 /// The teach in progress (`gPartyMenu.data1`, `slotId`).
@@ -252,7 +277,8 @@ impl PartyMenu {
             St::Switch { from } => Prompt::Switch { from },
             St::Msg(_) => Prompt::Message,
             St::Ask { cursor, .. } => Prompt::YesNo { cursor },
-            St::Summary => Prompt::Child,
+            St::Summary | St::Evolving { .. } => Prompt::Child,
+            St::Finished(_) => Prompt::Message,
         }
     }
 
@@ -811,13 +837,15 @@ impl PartyMenu {
                 }
                 let v = vars(&name, &u.var2);
                 self.redraw_slots(cx);
-                self.show_msg(
-                    cx,
-                    u.text,
-                    Some(&v),
-                    true,
-                    Next::Close(ScreenResult::Value(slot as u16)),
-                );
+                let next = match u.scene {
+                    Some(scene) => Next::Evolve {
+                        slot,
+                        into: scene.into,
+                        can_cancel: scene.can_cancel,
+                    },
+                    None => Next::Close(ScreenResult::Value(slot as u16)),
+                };
+                self.show_msg(cx, u.text, Some(&v), true, next);
             }
         }
     }
@@ -957,6 +985,19 @@ impl PartyMenu {
                 }
                 self.learned(cx);
             }
+            Next::Evolve {
+                slot,
+                into,
+                can_cancel,
+            } => {
+                self.st = St::Evolving { slot };
+                self.gfx.0 = None;
+                return ScreenOut::Push(ScreenKind::Evolution {
+                    slot,
+                    into,
+                    can_cancel,
+                });
+            }
         }
         ScreenOut::Running
     }
@@ -1012,6 +1053,11 @@ impl PartyMenu {
 
     /// The summary closed (`Value(slot)` viewing, `Value(move slot)` / 4 picking a move).
     fn child_closed<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>, r: ScreenResult) {
+        if let St::Evolving { slot } = self.st {
+            let _ = r;
+            self.st = St::Finished(ScreenResult::Value(u16::from(slot)));
+            return;
+        }
         match (self.teaching, r) {
             (Some(t), ScreenResult::Value(n)) if n < 4 && self.st == St::Summary => {
                 let old = cx
@@ -1431,6 +1477,8 @@ impl Screen for PartyMenu {
                 }
             }
             St::Summary => ScreenOut::Running,
+            St::Evolving { .. } => ScreenOut::Running,
+            St::Finished(r) => ScreenOut::Done(r),
         };
         // The message and the popup first: they answer the last press.
         let mut budget = super::kit::frame_budget(cx.f);
@@ -1469,11 +1517,14 @@ impl Screen for PartyMenu {
                     Next::ForgetSummary => 4,
                     Next::Learn(k) => 5 + k,
                     Next::AskCancel => 20,
+                    Next::Evolve { slot, .. } => 21 + slot,
                 },
                 0,
             ),
             St::Ask { q, cursor } => (5, q as u8, cursor),
             St::Summary => (6, 0, 0),
+            St::Evolving { slot } => (7, slot, 0),
+            St::Finished(_) => (8, 0, 0),
         };
         h.write(&[self.cursor, tag, a, b, self.actions.len() as u8]);
         if matches!(self.mode, PartyMode::ChooseHalf { .. }) {
