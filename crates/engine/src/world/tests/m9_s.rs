@@ -377,10 +377,39 @@ fn meta() -> SaveMeta {
     cp.save_meta(&Game.special_ids())
 }
 
+fn boot_screen(w: &World) -> Option<ScreenKind> {
+    w.screens().and_then(|s| s.kinds().last())
+}
+
+fn screen_running(w: &World, kind: ScreenKind) -> bool {
+    boot_screen(w) == Some(kind)
+        && w.screens()
+            .is_some_and(|s| s.host.phase == crate::ui::kit::Phase::Running)
+}
+
+/// Steps until `kind` is the top screen and it takes input. Presses Start once the title does.
+fn through_title(w: &mut World, kind: ScreenKind) {
+    let mut started = false;
+    for _ in 0..80 {
+        if screen_running(w, kind) {
+            return;
+        }
+        let keys = if !started && screen_running(w, ScreenKind::Title) && kind != ScreenKind::Title
+        {
+            started = true;
+            Buttons::START
+        } else {
+            Buttons::NONE
+        };
+        w.step(&Game, keys).validate().unwrap();
+    }
+    panic!("never reached {kind:?}");
+}
+
 fn menu_choice(keys: &[Buttons]) -> MainMenuChoice {
     let mut w = World::main_menu(&Game, meta());
     let _ = w.initial_frame();
-    run(&mut w, Buttons::NONE, 20);
+    through_title(&mut w, ScreenKind::MainMenu);
     for &k in keys {
         tap(&mut w, k, 2);
     }
@@ -391,6 +420,52 @@ fn menu_choice(keys: &[Buttons]) -> MainMenuChoice {
         run(&mut w, Buttons::NONE, 1);
     }
     panic!("no choice");
+}
+
+/// Power-on with a save is the title (copyright, press Start, the Pokémon sliding across).
+/// Start opens the main menu; B there returns to the title; Continue still answers.
+#[test]
+fn power_on_shows_the_title_and_b_returns_to_it() {
+    let mut w = World::main_menu(&Game, meta());
+    let _ = w.initial_frame();
+    assert_eq!(
+        boot_screen(&w),
+        Some(ScreenKind::Title),
+        "power-on is the title, not the main menu"
+    );
+    through_title(&mut w, ScreenKind::Title);
+    let t = match w.screens().and_then(|s| s.top()) {
+        Some((_, ScreenState::Title(t))) => t,
+        _ => panic!("title"),
+    };
+    assert!(t.shows_copyright(), "copyright");
+    assert!(t.shows_press_start(), "press Start");
+    let x = t.mon_x();
+    let frame = run(&mut w, Buttons::NONE, 4);
+    let t = match w.screens().and_then(|s| s.top()) {
+        Some((_, ScreenState::Title(t))) => t,
+        _ => panic!("title"),
+    };
+    assert_ne!(t.mon_x(), x, "the Pokémon moves");
+    assert!(
+        frame
+            .objs
+            .iter()
+            .any(|o| o.tile == crate::ui::title::MON_TILE),
+        "the Pokémon is on the screen"
+    );
+    through_title(&mut w, ScreenKind::MainMenu);
+    tap(&mut w, Buttons::B, 2);
+    through_title(&mut w, ScreenKind::Title);
+    through_title(&mut w, ScreenKind::MainMenu);
+    tap(&mut w, Buttons::A, 2);
+    for _ in 0..80 {
+        if w.main_menu_choice() == Some(MainMenuChoice::Continue) {
+            return;
+        }
+        run(&mut w, Buttons::NONE, 1);
+    }
+    panic!("CONTINUE did not answer");
 }
 
 #[test]

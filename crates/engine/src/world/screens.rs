@@ -24,7 +24,7 @@ use crate::data::{GameData, ItemId};
 use crate::script::Fade;
 use crate::ui::kit::{self, FADE_FRAMES, Pending, Phase, window};
 use crate::ui::{
-    PartyMode, ScreenCx, ScreenInput, ScreenKind, ScreenOut, ScreenResult, ScreenStack,
+    PartyMode, ScreenCx, ScreenInput, ScreenKind, ScreenOut, ScreenResult, ScreenStack, ScreenState,
 };
 use crate::video::Frame;
 use alloc::boxed::Box;
@@ -310,6 +310,9 @@ impl World {
         // Black: what was waiting for it.
         match stack.host.pending {
             Pending::Enter => self.enter_top(game, stack, f),
+            Pending::Pop(r) if self.boot_screen_swap(&stack, r) => {
+                self.swap_boot_screen(game, stack, r, f);
+            }
             Pending::Pop(r) if stack.len() > 1 => {
                 stack.pop();
                 stack.child = Some(r);
@@ -327,6 +330,44 @@ impl World {
                 self.show(game, stack, f, ScreenInput::default());
             }
         }
+    }
+
+    /// Title Start opens the main menu, and B on that menu returns to the title, without
+    /// leaving for the field (`ui/title.rs`).
+    fn boot_screen_swap(&self, stack: &ScreenStack, r: ScreenResult) -> bool {
+        if !self.s.save.main_menu || stack.len() != 1 {
+            return false;
+        }
+        match (stack.kinds().next(), r) {
+            (Some(ScreenKind::Title), ScreenResult::Value(v)) if v == crate::ui::title::TO_MENU => {
+                true
+            }
+            (Some(ScreenKind::MainMenu), ScreenResult::Cancel) => true,
+            _ => false,
+        }
+    }
+
+    fn swap_boot_screen(
+        &mut self,
+        game: &impl GameData,
+        mut stack: Box<ScreenStack>,
+        r: ScreenResult,
+        f: &mut Frame,
+    ) {
+        let kind = match r {
+            ScreenResult::Cancel => ScreenKind::Title,
+            _ => ScreenKind::MainMenu,
+        };
+        stack.pop();
+        stack.child = None;
+        stack.push(kind);
+        if let (Some(ScreenState::MainMenu(m)), Some(meta)) =
+            (stack.top_mut(), self.s.save.boot_meta)
+        {
+            m.set_meta(meta);
+        }
+        self.s.event(Event::ScreenOpened(kind.tag()));
+        self.enter_top(game, stack, f);
     }
 
     /// On a black frame: the top (full-screen) screen takes BG0 and draws.

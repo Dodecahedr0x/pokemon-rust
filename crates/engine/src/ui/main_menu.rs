@@ -1,6 +1,7 @@
 //! The boot main menu: CONTINUE, NEW GAME, OPTION (Gen3 `main_menu.c`, `HAS_SAVED_GAME`;
-//! Milestone 9 Task S). The shells boot into it when flash holds a valid save
-//! (`World::main_menu`), and swap the World for the choice (`World::main_menu_choice`).
+//! Milestone 9 Task S). Power-on with a save opens the title (`ui/title.rs`, `World::main_menu`);
+//! Start there opens this menu, and the shells swap the World for the choice
+//! (`World::main_menu_choice`).
 //!
 //! - Windows (`sWindowTemplates_MainMenu`): CONTINUE at (2, 1), 26 x 6 tiles, with the save's
 //!   player (name right-aligned at 100), time (from 0x6C, right-aligned at 0xD0), Pokédex
@@ -8,7 +9,7 @@
 //!   (`MainMenu_FormatSavegameText`); NEW GAME at (2, 9) and OPTION at (2, 13), 26 x 2.
 //! - Up and down move without wrap (`HandleMainMenuInput`); A chooses: CONTINUE and NEW GAME
 //!   close the menu with [`CONTINUE`] or [`NEW_GAME`], OPTION opens the options and comes back.
-//!   B does nothing (Gen3 goes back to the title screen, which the engine has not).
+//!   B returns to the title (`Task_HandleMainMenuInput`).
 //!
 //! Deviations: the selection is a `▶` cursor before the entry rather than Gen3's highlighted
 //! window (`HighlightSelectedMainMenuItem`); the Pokédex row shows when anything was caught
@@ -144,6 +145,8 @@ impl Screen for MainMenu {
                 }
                 c => ScreenOut::Done(ScreenResult::Value(u16::from(c))),
             }
+        } else if pressed.contains(Buttons::B) {
+            ScreenOut::Done(ScreenResult::Cancel)
         } else {
             if to != self.cursor {
                 self.cursor = to;

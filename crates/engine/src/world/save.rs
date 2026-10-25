@@ -51,8 +51,11 @@ pub(crate) struct SaveStatus {
     /// The Hall of Fame asked for a save: raised on the first capturable frame.
     pub(crate) pending: bool,
     /// The World is the boot main menu's (`World::main_menu`): only then does
-    /// `World::main_menu_choice` read the answer.
+    /// `World::main_menu_choice` read the answer, and B on the menu returns to the title.
     pub(crate) main_menu: bool,
+    /// The save the title's main menu describes. Not hashed and not saved: the boot world
+    /// is not capturable.
+    pub(crate) boot_meta: Option<crate::checkpoint::SaveMeta>,
 }
 
 impl SaveStatus {
@@ -63,6 +66,7 @@ impl SaveStatus {
             different: true,
             pending: false,
             main_menu: false,
+            boot_meta: None,
         }
     }
 
@@ -73,6 +77,7 @@ impl SaveStatus {
             different: false,
             pending: false,
             main_menu: false,
+            boot_meta: None,
         }
     }
 
@@ -208,27 +213,20 @@ pub enum MainMenuChoice {
 }
 
 impl World {
-    /// The boot main menu over a valid save (Gen3 `CB2_InitMainMenu` with `HAS_SAVED_GAME`;
-    /// `ui/main_menu.rs`): a new game's World with the menu open on a black screen. The shells
-    /// step it until [`World::main_menu_choice`] answers, then swap it for the chosen World.
+    /// Power-on over a valid save (Gen3 `CB2_InitTitleScreen`, then `CB2_InitMainMenu` with
+    /// `HAS_SAVED_GAME`): a new game's World with the title open on a black screen. Start opens
+    /// the main menu (`ui/main_menu.rs`); B there returns to the title. The shells step it until
+    /// [`World::main_menu_choice`] answers, then swap it for the chosen World.
     pub fn main_menu(game: &impl GameData, meta: crate::checkpoint::SaveMeta) -> World {
         let mut w = World::new(game);
         w.s.save.present = true;
         w.s.save.main_menu = true;
+        w.s.save.boot_meta = Some(meta);
         let mut f = crate::video::Frame::default();
-        super::screens::open(
-            &mut w.s,
-            game,
-            crate::ui::ScreenKind::MainMenu,
-            true,
-            &mut f,
-        );
+        super::screens::open(&mut w.s, game, crate::ui::ScreenKind::Title, true, &mut f);
         if let Mode::Screens(stack) = &mut w.s.mode {
-            // Already black (the boot frame): the menu enters on the first step.
+            // Already black (the boot frame): the title enters on the first step.
             stack.host.level = crate::ui::kit::FADE_FRAMES;
-            if let Some(crate::ui::ScreenState::MainMenu(m)) = stack.top_mut() {
-                m.set_meta(meta);
-            }
         }
         w
     }
