@@ -171,11 +171,9 @@ Menus are frames and text. Item and Pokémon icons are not drawn (`crates/engine
 
 **Done when:** the cable car scene plays (the car, the view, the arrival) for those 602 frames and then warps. A test starts the ride and asserts the scene is up before the warp.
 
-### `easy-chat`
+### `easy-chat` — closed
 
-`crates/engine/src/ui/easy_chat.rs` has no keyboard and no word lists, so the phrase never changes.
-
-**Done when:** Easy Chat edits a phrase from Gen3's word list and confirms it. A test builds a phrase and reads it back. Interview and apprentice modes that Gen3 forbids quitting still forbid it.
+Merged `1baeea8c`. Easy Chat builds a phrase from Gen3's new-game word groups (Trainer through Adjectives), confirms a changed phrase, and still refuses to quit a contest interview or an apprentice. `ShowEasyChatScreen` no longer reports a degradation. Pokémon names, moves, Events, trendy sayings, and the alphabet keyboard are still absent. Checkpoints did not move.
 
 ## Rules for the agent that owns an item
 
