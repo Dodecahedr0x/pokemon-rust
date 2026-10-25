@@ -45,11 +45,9 @@ Secret-base specials are Unsupported (`SPECIAL_EnterSecretBase`, `SPECIAL_CheckP
 
 **Done when:** the player can enter a secret base, decorate it, and fight its trainer. A test covers enter and one decoration. Those specials are Native.
 
-### `slot-machine`
+### `slot-machine` — closed
 
-`playslotmachine` is Unsupported.
-
-**Done when:** the Game Corner slot machine plays, pays, and updates coins. A test covers one winning spin and one losing spin.
+Merged `4acc3483`. `playslotmachine` is Native. The machine takes a 1–3 coin bet, pays the center line and the extra lines the bet covers, and writes the coins back. A replay with no forced stop respins. Reels do not animate. Test: `a_winning_spin_pays_and_a_losing_spin_costs_the_bet` (three red 7s pay 300; a mismatched center line pays 0). Checkpoints did not move. Counts on that merge: 128 Native, 45 Unsupported.
 
 ### `decoration-mart`
 
