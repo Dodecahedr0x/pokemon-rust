@@ -13,6 +13,8 @@
 //! `new` and [`Screen`] impl; the shared widgets go in [`kit`] (Task K).
 
 pub mod bag;
+pub(crate) mod credits;
+mod credits_pages;
 pub mod easy_chat;
 pub mod evolution;
 pub mod fly_map;

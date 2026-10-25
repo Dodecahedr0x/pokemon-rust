@@ -6,10 +6,15 @@ use super::*;
 use crate::checkpoint::{Checkpoint, MAX_ENCODED, NotCapturable, SaveError, SaveMeta, encoded_len};
 use crate::data::{StartAction, StartItem};
 use crate::script::Speed;
-use crate::ui::hall_of_fame::{CREDITS_FRAMES, Stage};
+use crate::text::{Canvas, Window};
+use crate::ui::credits::{self, Scene};
+use crate::ui::hall_of_fame::{HallOfFame, Stage};
+use crate::ui::kit::window::{CHAR_BLOCK, FULL_BASE};
 use crate::ui::save::{Prompt, SAVE_TIMER};
 use crate::ui::{ScreenKind, ScreenState};
+use crate::video::{Cmd, Frame};
 use crate::world::MainMenuChoice;
+use std::sync::OnceLock;
 
 static START: [StartItem; 2] = [
     StartItem {
@@ -483,9 +488,104 @@ fn the_main_menu_continues_or_starts_over() {
 }
 
 fn hof_stage(w: &World) -> Option<Stage> {
+    hof(w).map(|h| h.stage())
+}
+
+fn hof(w: &World) -> Option<&HallOfFame> {
     match w.screens().and_then(|s| s.top()) {
-        Some((_, ScreenState::HallOfFame(h))) => Some(h.stage()),
+        Some((_, ScreenState::HallOfFame(h))) => Some(h),
         _ => None,
+    }
+}
+
+/// Holds START until the pages finish. Returns how many frames the pages took.
+fn play_credits(w: &mut World) -> u32 {
+    let mut n = 0u32;
+    loop {
+        w.step(&Game, Buttons::START).validate().unwrap();
+        n += 1;
+        match hof_stage(w) {
+            Some(Stage::Credits) => assert!(n < 20_000, "credits did not finish"),
+            Some(Stage::TheEnd) => {
+                tap(w, Buttons::B, 2);
+                return n;
+            }
+            other => panic!("credits ended as {other:?} after {n}"),
+        }
+    }
+}
+
+/// A 256-glyph font, so the credits' Gen3 bytes actually draw.
+fn credit_font() -> &'static Font {
+    static FONT: OnceLock<Font> = OnceLock::new();
+    FONT.get_or_init(|| {
+        let glyphs: Vec<[u8; 64]> = (0..256u16)
+            .map(|i| {
+                let mut g = [0u8; 64];
+                g[0] = 0x11;
+                g[1] = i as u8;
+                g[2] = (i >> 4) as u8;
+                g
+            })
+            .collect();
+        Font {
+            glyphs: Box::leak(glyphs.into_boxed_slice()),
+            widths: Box::leak(vec![6u8; 256].into_boxed_slice()),
+        }
+    })
+}
+
+/// [`Game`] whose font has a glyph for every credits byte.
+struct CreditsGame;
+
+impl GameData for CreditsGame {
+    fn map(&self, id: MapId) -> &'static MapData {
+        Game.map(id)
+    }
+    fn special_ids(&self) -> SpecialIds {
+        Game.special_ids()
+    }
+    fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
+        Game.sprite(gfx)
+    }
+    fn player_sprite(&self) -> &'static SpriteData {
+        Game.player_sprite()
+    }
+    fn font(&self) -> &'static Font {
+        credit_font()
+    }
+    fn window(&self) -> &'static WindowGfx {
+        Game.window()
+    }
+    fn text(&self, id: TextId) -> &'static [u8] {
+        Game.text(id)
+    }
+    fn ui_text(&self, t: UiText) -> &'static [u8] {
+        Game.ui_text(t)
+    }
+    fn behavior(&self, raw: u8) -> Behavior {
+        Game.behavior(raw)
+    }
+    fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
+        Game.script(id, ctx)
+    }
+    fn battle(&self) -> &'static crate::mon::BattleTables {
+        Game.battle()
+    }
+    fn wild_encounters(&self, map: MapId, set: u16) -> Option<&'static crate::mon::LandEncounters> {
+        Game.wild_encounters(map, set)
+    }
+    fn trainer(&self, id: TrainerId) -> Option<&'static crate::mon::TrainerData> {
+        Game.trainer(id)
+    }
+    fn partner(&self) -> Option<&'static crate::mon::PartnerData> {
+        Game.partner()
+    }
+    fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
+        Game.heal_location(id)
+    }
+    fn new_game(&self) -> NewGame {
+        Game.new_game()
     }
 }
 
@@ -506,11 +606,9 @@ fn the_hall_of_fame_shows_the_record_then_the_credits_then_saves_in_the_room() {
     assert_eq!(hof_stage(&w), Some(Stage::Champion), "waits for A");
     tap(&mut w, Buttons::A, 2);
     assert_eq!(hof_stage(&w), Some(Stage::Credits));
-    // START skips the credits' pages (they would last `CREDITS_FRAMES`).
-    const { assert!(CREDITS_FRAMES > 8_000) };
-    tap(&mut w, Buttons::START, 2);
-    assert_eq!(hof_stage(&w), Some(Stage::TheEnd));
-    tap(&mut w, Buttons::B, 2);
+    // START does not skip. The pages run out, then THE END.
+    let frames = play_credits(&mut w);
+    assert!(frames > 8_000, "credits played out ({frames})");
     let mut saved = None;
     for _ in 0..600 {
         if let Some(ok) = saved_event(&mut w, &Game, Buttons::NONE) {
@@ -556,6 +654,95 @@ fn a_scripted_save_saves_without_the_dialog() {
     assert!(!back.script_running());
 }
 
+/// The first page's text is on a visible frame, the bike scene is scrolling behind it, and
+/// START never leaves the pages. The next picture (the Pokémon interlude) then replaces it.
+#[test]
+fn the_credits_show_the_first_page_then_the_pokemon_scene() {
+    assert_eq!(
+        credits::FIRST_PAGE_LINE,
+        &[
+            0xCA, 0xC9, 0xC5, 0x1B, 0xC7, 0xC9, 0xC8, 0x00, 0xBF, 0xC7, 0xBF, 0xCC, 0xBB, 0xC6,
+            0xBE, 0x00, 0xD0, 0xBF, 0xCC, 0xCD, 0xC3, 0xC9, 0xC8, 0xFF,
+        ]
+    );
+    let mut canvas = Canvas::new(Window::new(0, 9, 30, 12, FULL_BASE), CHAR_BLOCK);
+    credits::paint_page(&mut canvas, credit_font(), CreditsGame.window(), 0);
+    let mut expected = Frame::default();
+    canvas.flush(&mut expected);
+    let want: Vec<_> = expected
+        .cmds
+        .iter()
+        .filter_map(|c| match c {
+            Cmd::BgTile { index, tile, .. } if tile.iter().any(|w| *w != 0) => {
+                Some((*index, *tile))
+            }
+            _ => None,
+        })
+        .collect();
+    assert!(!want.is_empty(), "the first page draws");
+
+    let mut w = World::new(&CreditsGame);
+    run_g(&mut w, &CreditsGame, Buttons::NONE, 16);
+    start(&mut w, |ctx| Box::pin(async move { ctx.credits().await }));
+    until_g(&mut w, &CreditsGame, 100, |w| hof_stage(w).is_some());
+
+    let mut got = std::collections::BTreeMap::<u16, crate::video::Tile>::new();
+    let mut ocean = None;
+    let mut scrolling = false;
+    let mut scenery = false;
+    let mut mons = false;
+    for i in 0..3_000 {
+        let f = w.step(&CreditsGame, Buttons::START);
+        f.validate().unwrap();
+        assert_eq!(hof_stage(&w), Some(Stage::Credits), "START skipped at {i}");
+        let h = hof(&w).unwrap();
+        if f.brightness != 0 {
+            continue;
+        }
+        if h.credits_page() == Some(0) {
+            for c in &f.cmds {
+                if let Cmd::BgTile { index, tile, .. } = c {
+                    got.insert(*index, *tile);
+                }
+            }
+            scrolling |= f.scroll[1].0 != 0;
+            scenery |= f
+                .cmds
+                .iter()
+                .any(|c| matches!(c, Cmd::Bg { layer: 1, control } if control.enabled));
+            if ocean.is_none() {
+                ocean = scene_palette(&f);
+            }
+        }
+        if h.credits_scene() == Some(Scene::Mons)
+            && f.scroll[1].0 == 0
+            && scene_palette(&f).is_some_and(|p| Some(p) != ocean)
+        {
+            mons = true;
+            break;
+        }
+    }
+    for (index, tile) in &want {
+        assert_eq!(got.get(index), Some(tile), "page tile {index}");
+    }
+    assert!(scrolling, "the bike backdrop scrolls");
+    assert!(scenery, "the scene layer is on");
+    assert!(mons, "the Pokémon scene follows the first pages");
+}
+
+fn scene_palette(f: &Frame) -> Option<[u16; 16]> {
+    f.cmds.iter().find_map(|c| match c {
+        Cmd::BgPalette { bank: 1, colors } => Some(*colors),
+        _ => None,
+    })
+}
+
+fn run_g(w: &mut World, game: &impl GameData, keys: Buttons, frames: u32) {
+    for _ in 0..frames {
+        w.step(game, keys).validate().unwrap();
+    }
+}
+
 /// The credits alone: from the credits' pages, no record and no save afterwards.
 #[test]
 fn the_credits_alone_end_without_saving() {
@@ -570,9 +757,8 @@ fn the_credits_alone_end_without_saving() {
     assert_eq!(hof_stage(&w), Some(Stage::Credits));
     // The field's fade-out and the screen's fade-in first.
     run(&mut w, Buttons::NONE, 60);
-    tap(&mut w, Buttons::START, 2);
-    assert_eq!(hof_stage(&w), Some(Stage::TheEnd));
-    tap(&mut w, Buttons::B, 2);
+    let frames = play_credits(&mut w);
+    assert!(frames > 8_000, "credits played out ({frames})");
     for _ in 0..600 {
         assert_eq!(saved_event(&mut w, &Game, Buttons::NONE), None, "no save");
     }
