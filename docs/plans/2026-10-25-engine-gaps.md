@@ -109,11 +109,9 @@ Seen/caught flags and counts exist (`crates/engine/src/pokedex.rs`, `SPECIAL_Scr
 
 **Done when:** the player, a rival, a nickname, and a box can be named, with Gen3's character set and length limits. A test names a Pokémon and the party stores that nickname.
 
-### `title`
+### `title` — closed
 
-`crates/engine/src/ui/main_menu.rs`: B does nothing because the engine has no title screen. The shells boot straight into the main menu when a save exists.
-
-**Done when:** power-on shows the title (copyright, press Start, the Pokémon animation) and B from the main menu returns to it. A test boots to the title and continues a save.
+Merged `10253afd`. Power-on with a save shows the title (copyright, blinking PRESS START, a flying Pokémon). Start opens the main menu, and B there returns to the title. Continue still restores the save. Tests: `power_on_shows_the_title_and_b_returns_to_it` and `an_in_game_save_boots_to_the_title_and_continues`. Checkpoints did not move.
 
 ### `move-anims`
 
