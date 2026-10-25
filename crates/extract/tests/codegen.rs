@@ -1238,6 +1238,7 @@ mod lowering {
             i("bufferstring", vec![Byte(0), t("N_Text_Hello")]),
             i("random", vec![Half(3)]),
             i("pokemart", vec![Items("N_Mart_Items".into())]),
+            i("playslotmachine", vec![Half(0)]),
             i("addmoney", vec![Word(300), Byte(0)]),
             i("removemoney", vec![Word(300), Byte(0)]),
             i("checkmoney", vec![Raw(300), Byte(0)]),
@@ -1729,6 +1730,8 @@ pub fn text_named(_: &str) -> Option<engine::data::TextId> { None }
 pub fn item_pocket(_: u16) -> Option<engine::data::Pocket> { None }
 // `content::prelude::puzzle`'s entry (the puzzle tables are the flavour's): a stand-in.
 pub async fn rotating_tile_puzzle(_: &Ctx, _: u16) {}
+// `content::prelude::slot`'s entry.
+pub async fn play_slot_machine(_: &Ctx, _: u16) {}
 
 
 "#;

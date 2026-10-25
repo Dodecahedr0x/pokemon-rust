@@ -187,6 +187,7 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "bufferstring",
     "bufferitemnameplural",
     "pokemart",
+    "playslotmachine",
     "random",
     "addmoney",
     "removemoney",
