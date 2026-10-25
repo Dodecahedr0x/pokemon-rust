@@ -616,6 +616,10 @@ pub enum Request {
     /// `Event::ReloadLastSave` once; the shells replace the World (GBA: the flash slot, read,
     /// not written; native: the last save it persisted, else a new game). Never answered.
     ReloadLastSave,
+    /// Gen3 `gettime` (`ScrCmd_gettime`): writes the local clock's hours, minutes and seconds
+    /// to `VAR_0x8000`..`VAR_0x8002`. Answers at once. The clock is a host input, so the
+    /// request itself carries no time.
+    GetTime,
 }
 
 /// Gen3 `PARTY_SIZE`: [`Query::PartyMoveSlot`]'s answer when no party mon knows the move.
@@ -998,6 +1002,8 @@ impl Request {
             Request::SaveGame => (210, 0, 0, 0, 0),
             Request::Credits => (211, 0, 0, 0, 0),
             Request::ReloadLastSave => (212, 0, 0, 0, 0),
+            // The clock is a host input: the request carries no time (tag 213).
+            Request::GetTime => (213, 0, 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -1896,6 +1902,13 @@ impl Ctx {
     /// Reloads the last save (see [`Request::ReloadLastSave`]): never answered.
     pub fn reload_last_save(&self) -> Req<()> {
         self.req(Request::ReloadLastSave, unit)
+    }
+
+    /// Gen3 `gettime` (`ScrCmd_gettime`): `VAR_0x8000` hours, `VAR_0x8001` minutes,
+    /// `VAR_0x8002` seconds, from the local clock (`RtcCalcLocalTime`'s `gLocalTime` when the
+    /// saved offset is 0).
+    pub fn gettime(&self) -> Req<()> {
+        self.req(Request::GetTime, unit)
     }
 
     /// Gen3 `RockSmashWildEncounter` (see [`Request::RockSmashEncounter`]): whether a wild

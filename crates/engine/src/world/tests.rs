@@ -1157,6 +1157,7 @@ mod m9_w;
 mod m9_wave0;
 mod partners;
 mod pushes;
+mod rtc;
 mod sil6_clock;
 mod sky;
 // Wave C: one file per cluster.

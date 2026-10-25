@@ -481,6 +481,8 @@ impl<'a> Low<'a> {
             ("getpartysize", _) => {
                 out.push(format!("ctx.set_var({r}, ctx.party_size().await).await;"))
             }
+            // Gen3 `ScrCmd_gettime`: VAR_0x8000 hours, VAR_0x8001 minutes, VAR_0x8002 seconds.
+            ("gettime", _) => out.push("ctx.gettime().await;".to_string()),
             ("additem" | "removeitem" | "checkitemspace" | "checkitem", [i, q]) => {
                 let (Some(i), Some(q)) = (u16_expr(i, true), u16_expr(q, true)) else {
                     return Ok(false);

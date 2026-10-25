@@ -291,14 +291,45 @@ pub(crate) struct State {
     /// The clock's day ([`World::days`]), copied at each step's start for the map loads'
     /// daily reset ([`State::update_per_day`]); derived, not state.
     pub(crate) today: u16,
+    /// Time of day of the local clock, sampled with [`State::today`] (Gen3
+    /// `gLocalTime.hours` / `minutes` / `seconds`). Derived, not hashed.
+    pub(crate) clock_hours: u8,
+    pub(crate) clock_minutes: u8,
+    pub(crate) clock_seconds: u8,
+}
+
+/// Gen3 `gLocalTime` after `RtcCalcLocalTime` with a zero saved offset: the RTC in decimal,
+/// which is the local time until `initclock` (still ignored) stores an offset.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct Rtc {
+    /// `gLocalTime.days`.
+    pub days: u16,
+    /// `gLocalTime.hours`, 0–23.
+    pub hours: u8,
+    /// `gLocalTime.minutes`, 0–59.
+    pub minutes: u8,
+    /// `gLocalTime.seconds`, 0–59.
+    pub seconds: u8,
+}
+
+/// The deterministic clock at `frame` (60 frames a second, [`FRAMES_PER_DAY`] frames a day).
+fn frame_rtc(frame: u32) -> Rtc {
+    let days = (frame / FRAMES_PER_DAY).min(u16::MAX as u32) as u16;
+    let secs = (frame % FRAMES_PER_DAY) / 60;
+    Rtc {
+        days,
+        hours: (secs / 3600) as u8,
+        minutes: ((secs % 3600) / 60) as u8,
+        seconds: (secs % 60) as u8,
+    }
 }
 
 /// All mutable game state. Deterministic: the same state and input give the same next state.
 pub struct World {
     frame: u32,
-    /// The hardware clock's day (an RTC read by the shell), or `None`: the deterministic
-    /// clock, [`FRAMES_PER_DAY`] frames a day. A host input: neither hashed nor snapshotted.
-    rtc_days: Option<u16>,
+    /// The shell's RTC ([`World::set_rtc`]), or `None`: the deterministic clock
+    /// ([`frame_rtc`]). A host input: neither hashed nor snapshotted.
+    rtc: Option<Rtc>,
     runner: Runner,
     s: State,
     /// The first frame's uploads, built by `new` and taken by `initial_frame` (not state).
@@ -505,8 +536,11 @@ impl World {
                 last_script: None,
                 save: save::SaveStatus::new_game(),
                 today: 0,
+                clock_hours: 0,
+                clock_minutes: 0,
+                clock_seconds: 0,
             },
-            rtc_days: None,
+            rtc: None,
             boot: None,
         };
         let mut f = Frame::default();
@@ -524,19 +558,52 @@ impl World {
         w
     }
 
-    /// The clock's day: the hardware clock's ([`World::set_rtc_days`]) when the shell has one,
-    /// else the deterministic clock's, `frame / FRAMES_PER_DAY` (the Silice post-game's daily
-    /// flags, `SpecialIds::daily_flags`).
+    /// The clock's day: the shell RTC's ([`World::set_rtc`] / [`World::set_rtc_days`]) when one
+    /// is set, else the deterministic clock's, `frame / FRAMES_PER_DAY` (the Silice post-game's
+    /// daily flags, `SpecialIds::daily_flags`).
     pub fn days(&self) -> u16 {
-        self.rtc_days
-            .unwrap_or((self.frame / FRAMES_PER_DAY).min(u16::MAX as u32) as u16)
+        self.local_time().days
     }
 
-    /// The hardware clock's day (Gen3 `gLocalTime.days`), read by the shell from the cartridge
-    /// RTC; `None` goes back to the deterministic clock. Taken at the next step; the daily
-    /// reset runs on the next map load.
+    /// The local clock Gen3 `gettime` reads: the shell's RTC, or the deterministic clock.
+    pub fn local_time(&self) -> Rtc {
+        self.rtc.unwrap_or_else(|| frame_rtc(self.frame))
+    }
+
+    /// The shell's RTC (Gen3's cartridge clock, decimal, offset 0). `None` goes back to the
+    /// deterministic clock. `gettime` sees it at once; the daily reset still runs on the next
+    /// map load.
+    pub fn set_rtc(&mut self, time: Option<Rtc>) {
+        self.rtc = time;
+        self.sync_clock();
+    }
+
+    /// The shell RTC's day (Gen3 `gLocalTime.days`). `None` clears the shell clock. A day set
+    /// on its own leaves the time of day at midnight, or at whatever [`World::set_rtc`] last
+    /// stored. Taken into `gettime` at once; the daily reset runs on the next map load.
     pub fn set_rtc_days(&mut self, days: Option<u16>) {
-        self.rtc_days = days;
+        self.rtc = match days {
+            None => None,
+            Some(days) => {
+                let prev = self.rtc.unwrap_or_default();
+                Some(Rtc {
+                    days,
+                    hours: prev.hours,
+                    minutes: prev.minutes,
+                    seconds: prev.seconds,
+                })
+            }
+        };
+        self.sync_clock();
+    }
+
+    /// Copies [`World::local_time`] onto the state `gettime` and the daily reset read.
+    fn sync_clock(&mut self) {
+        let t = self.local_time();
+        self.s.today = t.days;
+        self.s.clock_hours = t.hours;
+        self.s.clock_minutes = t.minutes;
+        self.s.clock_seconds = t.seconds;
     }
 
     /// Frame 0: every upload of the start map, objects and registers. Shells apply it before
@@ -554,7 +621,7 @@ impl World {
             self.s.events.clear();
         }
         self.frame = self.frame.wrapping_add(1);
-        self.s.today = self.days();
+        self.sync_clock();
         self.s.input.update_mode(keys, self.s.options.button_mode);
         let reserved =
             crate::sky::reserved_banks(game, &self.s.weather, self.s.fx.overlay.as_ref());

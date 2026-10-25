@@ -33,7 +33,7 @@ use super::mode::Mode;
 use super::{DOOR_FRAMES, Event, State};
 use crate::Buttons;
 use crate::battle::{BattleKind, BattleOutcome};
-use crate::data::{BLOCK_COLLISION_SHIFT, BLOCK_METATILE_MASK, GameData, PLAYER};
+use crate::data::{BLOCK_COLLISION_SHIFT, BLOCK_METATILE_MASK, GameData, PLAYER, VarId};
 use crate::mon::Party;
 use crate::script::{Request, Response, ScriptHost};
 use crate::starter::StarterChoice;
@@ -130,6 +130,13 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             Request::GetVar(v) => Some(Response::Value(s.vars.var(v))),
             Request::SetVar(v, x) => {
                 s.vars.set_var(v, x);
+                UNIT
+            }
+            // Gen3 `ScrCmd_gettime`: `gSpecialVar_0x8000/1/2` = hours, minutes, seconds.
+            Request::GetTime => {
+                s.vars.set_var(VarId(0x8000), u16::from(s.clock_hours));
+                s.vars.set_var(VarId(0x8001), u16::from(s.clock_minutes));
+                s.vars.set_var(VarId(0x8002), u16::from(s.clock_seconds));
                 UNIT
             }
             Request::Random(n) => {

@@ -284,11 +284,17 @@ impl World {
                 last_script: None,
                 save: super::save::SaveStatus::continued(),
                 today: 0,
+                clock_hours: 0,
+                clock_minutes: 0,
+                clock_seconds: 0,
             },
-            rtc_days: None,
+            rtc: None,
             boot: None,
         };
         world.boot = Some(world.restore_frame(game));
+        // The clock is not part of the snapshot. Sample it for this frame before anything
+        // reads `gettime` (the hash leaves it out).
+        world.sync_clock();
         if cp.header.build == build_hash(game) {
             let got = world.hash();
             if got != cp.header.world_hash {
