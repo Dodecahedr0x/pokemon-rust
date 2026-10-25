@@ -145,11 +145,9 @@ Bag USE on a bike or a rod reports `Unsupported` (`crates/engine/src/item_use.rs
 
 **Done when:** the Mach Bike and Acro Bike change the player's movement (including the muddy slope and the Acro tricks the overworld checks), and a rod starts a fishing encounter. A test rides the Mach Bike up a muddy slope and hooks one fish.
 
-### `move-effects`
+### `move-effects` — closed, already present
 
-`move_effect` in `crates/content/build/classify/battle.rs` returns `None` for effects the engine does not implement. The content build writes `MoveEffect::Unsupported(n)` and lists them in `content::REPORT`.
-
-**Done when:** every `EFFECT_*` used by an Emerald move dispatches to a real effect, and `content::REPORT` lists no unsupported move effect. A test executes one effect that was unsupported at the start of this item (confirm which, in the commit message).
+Verified 2026-10-25. Every `EFFECT_*` used by an Emerald move already dispatches (`move_effect_for` in `crates/content/build/classify/battle.rs`). 355 moves, 198 effects. `None` remains only for five unused slots no move uses (`EFFECT_UNUSED_60`, `EFFECT_UNUSED_6E`, `EFFECT_UNUSED_83`, `EFFECT_UNUSED_8D`, `EFFECT_UNUSED_A3`), so the content build does not write `MoveEffect::Unsupported`. No change merged.
 
 ### `abilities`
 
