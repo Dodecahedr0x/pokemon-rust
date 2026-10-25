@@ -1345,6 +1345,7 @@ pub fn mon(species: SpeciesId, level: u8, stats: [u16; 6], moves: &[MoveId]) -> 
         hp: stats[0],
         stats,
         held: None,
+        modern_fateful: false,
     }
 }
 

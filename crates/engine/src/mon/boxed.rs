@@ -30,6 +30,9 @@ pub struct BoxedMon {
     pub friendship: u8,
     pub ability_slot: u8,
     pub held: Option<ItemId>,
+    /// Gen3 `modernFatefulEncounter`. Not in the checkpoint encoding.
+    #[serde(default, skip)]
+    pub modern_fateful: bool,
 }
 
 impl Pokemon {
@@ -54,6 +57,7 @@ impl Pokemon {
             friendship: self.friendship,
             ability_slot: self.ability_slot,
             held: self.held,
+            modern_fateful: self.modern_fateful,
         }
     }
 
@@ -78,6 +82,7 @@ impl Pokemon {
             hp: 0,
             stats: [0; 6],
             held: b.held,
+            modern_fateful: b.modern_fateful,
         };
         // Both 0: `recalc_stats` starts a new mon at full HP.
         p.recalc_stats(t);

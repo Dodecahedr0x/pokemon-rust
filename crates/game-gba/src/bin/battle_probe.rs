@@ -233,6 +233,7 @@ fn mon(species: SpeciesId, held: Option<ItemId>) -> Pokemon {
         hp: 0,
         stats: [0; 6],
         held,
+        modern_fateful: false,
     };
     p.recalc_stats(&TABLES);
     p.hp = p.stats[0];

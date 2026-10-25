@@ -7,7 +7,7 @@
 use crate::battle::BattleOutcome;
 pub use crate::data::Emote;
 use crate::data::{
-    Dir, FlagId, ItemId, MapId, MoveId, MovementType, SpeciesId, TextId, TrainerId, VarId,
+    Dir, FlagId, ItemId, MapId, MoveId, MovementType, ScriptId, SpeciesId, TextId, TrainerId, VarId,
 };
 use crate::hash::Fnv64;
 pub use crate::ui::{PartyMode, PcMode};
@@ -653,7 +653,18 @@ pub enum Request {
     /// A contest command (see [`ContestOp`]). `ChooseMon` answers `Value`; the scenes answer
     /// `Unit` when they close; `LinkTransfer` answers `Unit` at once.
     Contest(ContestOp),
+    /// Gen3 `setmysteryeventstatus`: `sMysteryEventScriptContext.mStatus`.
+    SetMysteryEventStatus(u8),
+    /// Gen3 `setmodernfatefulencounter`: sets `modernFatefulEncounter` on that party slot
+    /// (`VarGet` of the operand). An empty or out-of-range slot is left alone.
+    SetModernFatefulEncounter(u16),
+    /// Gen3 `trywondercardscript` / `GetSavedRamScriptIfValid`: the saved Wonder Card's script.
+    /// Answers `Value` ([`NO_WONDER_CARD_SCRIPT`] when there is no valid card).
+    WonderCardScript,
 }
+
+/// Answer of [`Request::WonderCardScript`] when no valid Wonder Card is saved.
+pub const NO_WONDER_CARD_SCRIPT: u16 = 0xFFFF;
 
 /// Gen3 `PARTY_SIZE`: [`Query::PartyMoveSlot`]'s answer when no party mon knows the move.
 pub const PARTY_SIZE: u16 = 6;
@@ -1052,6 +1063,9 @@ impl Request {
                 };
                 (215, kind, id, 0, 0)
             }
+            Request::SetMysteryEventStatus(status) => (233, status as u16, 0, 0, 0),
+            Request::SetModernFatefulEncounter(slot) => (234, slot, 0, 0, 0),
+            Request::WonderCardScript => (235, 0, 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -1469,6 +1483,24 @@ impl Ctx {
 
     pub fn wait_state(&self) -> Req<()> {
         self.req(Request::WaitState, unit)
+    }
+
+    /// Gen3 `setmysteryeventstatus`.
+    pub fn set_mystery_event_status(&self, status: u8) -> Req<()> {
+        self.req(Request::SetMysteryEventStatus(status), unit)
+    }
+
+    /// Gen3 `setmodernfatefulencounter`.
+    pub fn set_modern_fateful_encounter(&self, slot: u16) -> Req<()> {
+        self.req(Request::SetModernFatefulEncounter(slot), unit)
+    }
+
+    /// Gen3 `GetSavedRamScriptIfValid`: the script the saved Wonder Card points at.
+    pub fn wonder_card_script(&self) -> Req<Option<ScriptId>> {
+        self.req(Request::WonderCardScript, |r| {
+            let id = r.value();
+            (id != NO_WONDER_CARD_SCRIPT).then_some(ScriptId(id))
+        })
     }
 
     /// Gen3 `givemon`: `MON_GIVEN_TO_PARTY` (0), `MON_GIVEN_TO_PC` (1) or `MON_CANT_GIVE` (2).

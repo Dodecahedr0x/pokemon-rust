@@ -10,7 +10,7 @@
 //   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
 // Only Unsupported commands report.
 //
-// Counts: 128 Native, 41 Ignore, 13 Default, 45 Unsupported.
+// Counts: 131 Native, 41 Ignore, 13 Default, 42 Unsupported.
 //
 // Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
 {
@@ -28,7 +28,7 @@
     "callstd_if": Native,
     "returnram": Native,
     "endram": Native,
-    "setmysteryeventstatus": Unsupported,
+    "setmysteryeventstatus": Native,
     "loadword": Native,
     "loadbyte": Unsupported,
     "setptr": Unsupported,
@@ -219,9 +219,9 @@
     "signmsg": Ignore,                              // ScrCmd_nop1 in Emerald
     "normalmsg": Ignore,                            // ScrCmd_nop1 in Emerald
     "comparehiddenvar": Ignore,                     // ScrCmd_nop1 in Emerald
-    "setmodernfatefulencounter": Unsupported,
+    "setmodernfatefulencounter": Native,
     "checkmodernfatefulencounter": Default(0),      // VAR_RESULT: not a fateful encounter
-    "trywondercardscript": Unsupported,
+    "trywondercardscript": Native,
     "setworldmapflag": Ignore,                      // ScrCmd_nop1 in Emerald
     "warpspinenter": Native,
     "setmonmetlocation": Unsupported,

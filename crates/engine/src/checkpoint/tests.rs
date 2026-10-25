@@ -68,6 +68,7 @@ fn mon() -> Pokemon {
         hp: 19,
         stats: [20, 12, 11, 10, 9, 8],
         held: None,
+        modern_fateful: false,
     }
 }
 

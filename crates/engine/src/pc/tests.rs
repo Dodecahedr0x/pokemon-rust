@@ -16,6 +16,7 @@ fn mon(species: u16) -> BoxedMon {
         friendship: 70,
         ability_slot: 0,
         held: None,
+        modern_fateful: false,
     }
 }
 
