@@ -116,10 +116,10 @@ fn options_menu_changes_the_other_settings_and_they_apply() {
         })
     });
     for _ in 0..160 {
+        run(&mut scene, Buttons::NONE, 1);
         if scene.battle().is_some() {
             break;
         }
-        run(&mut scene, Buttons::NONE, 1);
     }
     let (_, battle, view) = scene.battle().expect("battle");
     assert!(!view.animations(), "battle scene off skips move animations");
@@ -132,10 +132,10 @@ fn options_menu_changes_the_other_settings_and_they_apply() {
         })
     });
     for _ in 0..160 {
+        run(&mut style, Buttons::NONE, 1);
         if style.battle().is_some() {
             break;
         }
-        run(&mut style, Buttons::NONE, 1);
     }
     let (_, battle, view) = style.battle().expect("battle");
     assert!(view.animations());

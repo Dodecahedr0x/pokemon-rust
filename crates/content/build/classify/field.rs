@@ -3,6 +3,26 @@
 
 use extract::names;
 
+fn secret_spot(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "MB_SECRET_BASE_SPOT_RED_CAVE" => "RedCave",
+        "MB_SECRET_BASE_SPOT_RED_CAVE_OPEN" => "RedCaveOpen",
+        "MB_SECRET_BASE_SPOT_BROWN_CAVE" => "BrownCave",
+        "MB_SECRET_BASE_SPOT_BROWN_CAVE_OPEN" => "BrownCaveOpen",
+        "MB_SECRET_BASE_SPOT_YELLOW_CAVE" => "YellowCave",
+        "MB_SECRET_BASE_SPOT_YELLOW_CAVE_OPEN" => "YellowCaveOpen",
+        "MB_SECRET_BASE_SPOT_TREE_LEFT" => "TreeLeft",
+        "MB_SECRET_BASE_SPOT_TREE_LEFT_OPEN" => "TreeLeftOpen",
+        "MB_SECRET_BASE_SPOT_SHRUB" => "Shrub",
+        "MB_SECRET_BASE_SPOT_SHRUB_OPEN" => "ShrubOpen",
+        "MB_SECRET_BASE_SPOT_BLUE_CAVE" => "BlueCave",
+        "MB_SECRET_BASE_SPOT_BLUE_CAVE_OPEN" => "BlueCaveOpen",
+        "MB_SECRET_BASE_SPOT_TREE_RIGHT" => "TreeRight",
+        "MB_SECRET_BASE_SPOT_TREE_RIGHT_OPEN" => "TreeRightOpen",
+        _ => return None,
+    })
+}
+
 /// Surfable water (Gen3 `TILE_FLAG_SURFABLE`), as `Water(..)` variants: on foot the water's
 /// elevation blocks it, surfing walks it (Wave C).
 fn water(name: &str) -> Option<&'static str> {
@@ -87,6 +107,9 @@ fn compass(s: &str) -> Option<&'static str> {
 pub fn behavior(name: &str) -> String {
     if BLOCKED.contains(&name) {
         return "Blocked".into();
+    }
+    if let Some(spot) = secret_spot(name) {
+        return format!("SecretBase(SecretBaseSpot::{spot})");
     }
     if let Some(w) = water(name) {
         return format!("Water(Water::{w})");
@@ -182,9 +205,10 @@ pub fn map_type(raw: u8, map_name: &str) -> &'static str {
 /// doors, warps, arrow warps, counters, ice, walk and slide arrows, which the engine
 /// implements as Gen3 does, and surfable water (Wave C; waterfalls, Dive's water and the water
 /// warps since Wave F). Every other named behavior is an approximation: its Gen3 effect (bikes,
-/// puddles, hot springs, secret bases, the currents' speed, …) is missing, so it is `Normal`,
+/// puddles, hot springs, the currents' speed, …) is missing, so it is `Normal`,
 /// `Blocked` or plain `Water`. The directional walls are exact, except the
-/// secret base's breakable door (walls only; breaking it is missing). The muddy slope is
+/// secret base's breakable door (walls only; breaking it is missing). The secret-base
+/// entrances are exact. The muddy slope is
 /// approximate (no Mach Bike climb, no metatile animation), and so are thin and cracked ice,
 /// cracked floors and their holes: the engine implements them, but they act only on maps whose
 /// per-step callback, hole warp and fall script content answers. The build lists the

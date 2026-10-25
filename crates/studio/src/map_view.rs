@@ -269,6 +269,7 @@ pub fn overlays(game: &impl GameData, map: MapId) -> Vec<Overlay> {
         script: match b.kind {
             BgKind::Script { script, .. } => Some(script_name(script)),
             BgKind::HiddenItem { .. } => None,
+            BgKind::SecretBase { .. } => None,
         },
     });
     let connections = m.connections.iter().map(|c| Overlay::Connection {
@@ -468,6 +469,7 @@ pub fn describe(o: &Overlay) -> String {
             BgKind::HiddenItem { item, flag } => {
                 format!("bg: hidden item {item} (flag {:#x})", flag.0)
             }
+            BgKind::SecretBase { id } => format!("bg: secret base {id}"),
         },
         Overlay::Connection {
             dir, offset, name, ..

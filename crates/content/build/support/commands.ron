@@ -10,7 +10,7 @@
 //   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
 // Only Unsupported commands report.
 //
-// Counts: 134 Native, 41 Ignore, 13 Default, 39 Unsupported.
+// Counts: 135 Native, 41 Ignore, 12 Default, 39 Unsupported.
 //
 // Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
 {
@@ -89,7 +89,7 @@
     "checkitemtype": Native,                        // VAR_RESULT = the item's POCKET_* (Task H)
     "addpcitem": Default(0),                        // VAR_RESULT: the PC has no room (no PC storage until M9)
     "checkpcitem": Default(0),                      // VAR_RESULT: not in the PC
-    "adddecoration": Default(0),                    // VAR_RESULT: not added (no decorations)
+    "adddecoration": Native, // the decoration id goes into the secret-base inventory
     "removedecoration": Default(0),                 // VAR_RESULT: not removed
     "checkdecor": Default(0),                       // VAR_RESULT: not owned
     "checkdecorspace": Default(0),                  // VAR_RESULT: no space

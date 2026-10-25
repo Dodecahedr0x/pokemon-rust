@@ -12,8 +12,7 @@ use super::*;
 /// - `MSGBOX_*`: the `msgbox` macro is lowered to [`msgbox`] with its text. A bare
 ///   `callstd MSGBOX_*` prints the text last loaded into script word 0 (`message NULL`), which
 ///   the lowering does not track: reported `Unsupported` (by kind name).
-/// - `STD_OBTAIN_DECORATION`: no decorations yet (Milestone 9): reported `Unsupported`;
-///   `VAR_RESULT` is unchanged.
+/// - `STD_OBTAIN_DECORATION`: adds the decoration in `VAR_0x8000` to the inventory;
 /// - `STD_REGISTER_MATCH_CALL` (`Std_RegisteredInMatchCall`): ignored. It only shows the
 ///   "registered in the PokéNav" message after `SetMatchCallRegisteredFlag` (also ignored); the
 ///   Match Call is Milestone 9.
@@ -30,6 +29,10 @@ pub async fn callstd(ctx: &Ctx, std: u8) {
         STD_FIND_ITEM => {
             let (i, q) = item().await;
             find_item(ctx, i, q).await;
+        }
+        STD_OBTAIN_DECORATION => {
+            let id = ctx.var(VAR_0x8000).await;
+            super::add_decoration(ctx, id).await;
         }
         STD_REGISTER_MATCH_CALL => {}
         _ => ctx.report(Report::Unsupported(name)).await,

@@ -278,6 +278,57 @@ pub struct Tileset {
     pub attributes: &'static [u16],
 }
 
+/// A secret-base entrance (`MB_SECRET_BASE_SPOT_*`). Append-only (postcard, inside
+/// [`Behavior::SecretBase`]).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+pub enum SecretBaseSpot {
+    RedCave,
+    RedCaveOpen,
+    BrownCave,
+    BrownCaveOpen,
+    YellowCave,
+    YellowCaveOpen,
+    TreeLeft,
+    TreeLeftOpen,
+    Shrub,
+    ShrubOpen,
+    BlueCave,
+    BlueCaveOpen,
+    TreeRight,
+    TreeRightOpen,
+}
+
+impl SecretBaseSpot {
+    /// The open entrances a player walks north into (`MetatileBehavior_IsOpenSecretBaseDoor`).
+    pub const fn is_open(self) -> bool {
+        matches!(
+            self,
+            SecretBaseSpot::RedCaveOpen
+                | SecretBaseSpot::BrownCaveOpen
+                | SecretBaseSpot::YellowCaveOpen
+                | SecretBaseSpot::BlueCaveOpen
+                | SecretBaseSpot::TreeLeftOpen
+                | SecretBaseSpot::TreeRightOpen
+                | SecretBaseSpot::ShrubOpen
+        )
+    }
+
+    /// Gen3 `GetSecretBaseTypeInFrontOfPlayer`: red 1, brown 2, blue 3, yellow 4, tree 5, shrub 6.
+    pub const fn entrance_type(self) -> u16 {
+        match self {
+            SecretBaseSpot::RedCave | SecretBaseSpot::RedCaveOpen => 1,
+            SecretBaseSpot::BrownCave | SecretBaseSpot::BrownCaveOpen => 2,
+            SecretBaseSpot::BlueCave | SecretBaseSpot::BlueCaveOpen => 3,
+            SecretBaseSpot::YellowCave | SecretBaseSpot::YellowCaveOpen => 4,
+            SecretBaseSpot::TreeLeft
+            | SecretBaseSpot::TreeLeftOpen
+            | SecretBaseSpot::TreeRight
+            | SecretBaseSpot::TreeRightOpen => 5,
+            SecretBaseSpot::Shrub | SecretBaseSpot::ShrubOpen => 6,
+        }
+    }
+}
+
 /// What the engine needs to know about a metatile behavior. Content classifies Gen3's raw
 /// `MB_*` values (`GameData::behavior`), so the engine never sees game constants.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
@@ -366,6 +417,9 @@ pub enum Behavior {
     ///
     /// Appended after [`Behavior::PadWarp`] (postcard index 23, hash code 23; Wave E2).
     PopOutWarp(Dir),
+    /// A secret-base entrance. Closed spots are walked up to and pressed; open spots are
+    /// walked into (`WarpIntoSecretBase`). Appended (postcard index 24, hash code 24).
+    SecretBase(SecretBaseSpot),
 }
 
 /// The raw Gen3 surfable behaviours behind [`Behavior::Water`], one variant each (the
@@ -573,6 +627,11 @@ impl Behavior {
         matches!(self, Behavior::Water(_))
     }
 
+    /// An open secret-base entrance (walk north into it).
+    pub const fn open_secret_base(self) -> bool {
+        matches!(self, Behavior::SecretBase(s) if s.is_open())
+    }
+
     /// Gen3 `MetatileBehavior_IsWaterWildEncounter`: surfing onto one draws the water-encounter
     /// rolls (`wild::try_water_encounter`).
     pub const fn water_encounter(self) -> bool {
@@ -712,6 +771,12 @@ pub enum BgKind {
     HiddenItem {
         item: u16,
         flag: FlagId,
+    },
+    /// Gen3 `BG_EVENT_SECRET_BASE`. A, facing north, on an unregistered entrance starts
+    /// [`GameData::secret_base_check_script`]; walking north into an open one starts
+    /// [`GameData::secret_base_enter_script`].
+    SecretBase {
+        id: u16,
     },
 }
 
@@ -1856,6 +1921,22 @@ pub trait GameData {
     /// `GetInteractedBackgroundEventScript`), with `VAR_0x8004` the item's flag and
     /// `VAR_0x8005` the item. `None`: hidden items are not picked up.
     fn hidden_item_script(&self) -> Option<ScriptId> {
+        None
+    }
+
+    /// A facing north into an unregistered secret-base entrance (Gen3
+    /// `SecretBase_EventScript_CheckEntrance`). `None`: the entrance does nothing.
+    fn secret_base_check_script(&self) -> Option<ScriptId> {
+        None
+    }
+
+    /// Walking north into an open secret-base entrance (Gen3 `SecretBase_EventScript_Enter`).
+    fn secret_base_enter_script(&self) -> Option<ScriptId> {
+        None
+    }
+
+    /// `VAR_CURRENT_SECRET_BASE`, written with the record index when an open entrance is known.
+    fn secret_base_var(&self) -> Option<VarId> {
         None
     }
 

@@ -1184,6 +1184,7 @@ mod pokedex_screen;
 mod pokenav;
 mod pushes;
 mod rtc;
+mod secret_base;
 mod sil6_clock;
 mod sky;
 mod ui_pictures;

@@ -499,6 +499,7 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
                     table_value(&names::ITEMS, item)?,
                     table_value(&names::FLAGS, flag)?
                 ),
+                BgKind::SecretBase { id } => format!("BgKind::SecretBase {{ id: {id} }}"),
                 _ => continue,
             };
             write!(

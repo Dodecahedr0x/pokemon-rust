@@ -143,6 +143,7 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "getplayerxy",
     "getpartysize",
     "additem",
+    "adddecoration",
     "removeitem",
     "checkitemspace",
     "checkitem",

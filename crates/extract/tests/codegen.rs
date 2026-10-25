@@ -1146,6 +1146,7 @@ mod lowering {
             i("getpartysize", vec![]),
             i("gettime", vec![]),
             i("additem", vec![c("ITEM_POTION"), Half(1)]),
+            i("adddecoration", vec![Half(7)]),
             i("removeitem", vec![v("VAR_0x8004"), Half(1)]),
             i("checkitemspace", vec![c("ITEM_POTION"), Half(2)]),
             i("checkitem", vec![c("ITEM_POTION"), v("VAR_0x8005")]),
@@ -1726,7 +1727,9 @@ mod lowering {
     }
 
     /// The `content::prelude` modules holding Wave 0's Milestone 8 helpers, copied as they are.
-    const M8_HELPER_MODULES: [&str; 6] = ["field", "items", "mart", "menu", "text", "trainer"];
+    const M8_HELPER_MODULES: [&str; 7] = [
+        "field", "items", "mart", "menu", "secret", "text", "trainer",
+    ];
 
     /// The Milestone 8 prelude over the engine: its types, and Wave 0's helper modules
     /// ([`M8_HELPER_MODULES`]) and `set_warp` (appended by `compile_lowered`).
@@ -1739,6 +1742,8 @@ mod field;
 mod items;
 mod mart;
 mod menu;
+#[allow(dead_code, unexpected_cfgs)]
+mod secret;
 mod text;
 mod trainer;
 
@@ -1746,6 +1751,7 @@ pub use field::*;
 pub use items::*;
 pub use mart::*;
 pub use menu::*;
+pub use secret::add_decoration;
 pub use text::*;
 pub use trainer::*;
 
