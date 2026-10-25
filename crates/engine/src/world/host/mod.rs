@@ -580,7 +580,8 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::HallOfFame
             | Request::EasyChat { .. }
             | Request::Credits
-            | Request::Evolve { .. } => screens::begin(self, r),
+            | Request::Evolve { .. }
+            | Request::Pokenav { .. } => screens::begin(self, r),
             Request::Contest(_) => contest::begin(self, r),
             Request::ScreenFlash { .. }
             | Request::ScreenShake { .. }
@@ -688,7 +689,8 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
         | Request::HallOfFame
         | Request::EasyChat { .. }
         | Request::Credits
-        | Request::Evolve { .. } = r
+        | Request::Evolve { .. }
+        | Request::Pokenav { .. } = r
         {
             return screens::resume(self, r);
         }

@@ -580,15 +580,10 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             ctx.field_whiteout().await;
         }
         id if id == SPECIAL_OpenPokenavForTutorial => {
-            // `OpenPokenavForTutorial` (`pokenav.c`, `POKENAV_MODE_FORCE_CALL_READY`): the
-            // tutorial forces the call to Mr. Stone, whose first text
-            // (`sMrStoneTextScripts[0]`, `pokenav_match_call_data.c`) sets the flavour's
-            // `story::MR_STONE_POKENAV`. No PokéNav screen: the flag only.
-            degraded(ctx, id).await;
-            let Some(flag) = story::MR_STONE_POKENAV else {
-                return not_in_game(ctx, id).await;
-            };
-            ctx.set_flag(flag, true).await;
+            // `OpenPokenavForTutorial` (`pokenav.c`, `POKENAV_MODE_FORCE_CALL_READY`): MATCH
+            // CALL until a call is placed, then SWITCH OFF leaves. Mr. Stone's first line
+            // sets his match-call flag (`story::MR_STONE_POKENAV`) when the call is spoken.
+            ctx.pokenav(true).await;
         }
         // ---- Wave C: specials that read the player's state (`Request::Query`) ----
         id if id == SPECIAL_ScriptGetPokedexInfo => {
