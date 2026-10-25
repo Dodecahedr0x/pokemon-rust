@@ -145,6 +145,7 @@ impl World {
                     palette: s.palette,
                 },
             ),
+            frontier: (!s.frontier.is_default()).then_some(s.frontier.clone()),
         }
     }
 
@@ -307,6 +308,7 @@ impl World {
                 link_partner: None,
                 link_open: false,
                 union_ready: false,
+                frontier: w.frontier.clone().unwrap_or_default(),
             },
             rtc: None,
             sound: w.options.unwrap_or_default().sound,

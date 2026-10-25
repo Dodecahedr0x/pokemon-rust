@@ -13,7 +13,7 @@
 // The 483 specials named by a `special`/`specialvar` line of the decomp (`data/**/*.inc` and
 // `data/*.s`, `data/specials.inc` excluded) are classified; the other 41 are Unsupported.
 //
-// Counts: 81 Native, 15 Ignore, 82 Default, 346 Unsupported.
+// Counts: 101 Native, 17 Ignore, 82 Default, 324 Unsupported.
 {
     "SPECIAL_AccessHallOfFamePC": Unsupported, // post-game; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_Bag_ChooseBerry": Native, // degraded: no bag screen, nothing chosen; fades back in
@@ -24,7 +24,7 @@
     "SPECIAL_BattleTowerReconnectLink": Unsupported,
     "SPECIAL_BedroomPC": Unsupported, // the PC menus are M9; the script goes on (tested)
     "SPECIAL_BufferBattleFrontierTutorMoveName": Unsupported,
-    "SPECIAL_BufferBattleTowerElevatorFloors": Unsupported,
+    "SPECIAL_BufferBattleTowerElevatorFloors": Native, // floors from the tower win streak (4/5 on a new streak)
     "SPECIAL_BufferContestTrainerAndMonNames": Unsupported,
     "SPECIAL_BufferContestWinnerMonName": Unsupported,
     "SPECIAL_BufferContestWinnerTrainerName": Unsupported,
@@ -56,9 +56,9 @@
     "SPECIAL_CallBattlePalaceFunction": Unsupported,
     "SPECIAL_CallBattlePikeFunction": Unsupported,
     "SPECIAL_CallBattlePyramidFunction": Unsupported,
-    "SPECIAL_CallBattleTowerFunc": Unsupported,
+    "SPECIAL_CallBattleTowerFunc": Native, // singles tower record: init, get/set, opponent, win, ribbons, save, intro, nops, non-link load (result 6), interview; link and partner funcs report
     "SPECIAL_CallFallarborTentFunction": Unsupported,
-    "SPECIAL_CallFrontierUtilFunc": Native, // no frontier data (M13): GET_STATUS answers "no challenge" (0xFF), GET_DATA 0, SET_DATA stores nothing, the others report
+    "SPECIAL_CallFrontierUtilFunc": Native, // tower record: GET_STATUS/GET_DATA/SET_DATA, party order, ineligible, streak, brain, BP, air record, held items, sketch; other facilities and the rest report
     "SPECIAL_CallSlateportTentFunction": Unsupported,
     "SPECIAL_CallTrainerHillFunction": Unsupported,
     "SPECIAL_CallVerdanturfTentFunction": Unsupported,
@@ -85,7 +85,7 @@
     "SPECIAL_ChooseMonForMoveRelearner": Unsupported,
     "SPECIAL_ChooseMonForMoveTutor": Unsupported,
     "SPECIAL_ChooseMonForWirelessMinigame": Unsupported,
-    "SPECIAL_ChoosePartyForBattleFrontier": Unsupported,
+    "SPECIAL_ChoosePartyForBattleFrontier": Native, // choose-half at the tower level cap; VAR_RESULT = a mon was chosen
     "SPECIAL_ChoosePartyMon": Native, // degraded: no party menu, nothing chosen
     "SPECIAL_ChooseSendDaycareMon": Unsupported,
     "SPECIAL_ChooseStarter": Native, // the starter screen, the starter, the first battle
@@ -136,7 +136,7 @@
     "SPECIAL_DoSealedChamberShakingEffect_Short": Unsupported,
     "SPECIAL_DoSecretBasePCTurnOffEffect": Unsupported,
     "SPECIAL_DoSoftReset": Unsupported,
-    "SPECIAL_DoSpecialTrainerBattle": Native, // Wave G: SPECIAL_BATTLE_STEVEN is the multi battle with Steven (FillPartnerParty) against Maxie and Tabitha; the other battle types report
+    "SPECIAL_DoSpecialTrainerBattle": Native, // SPECIAL_BATTLE_TOWER singles fights the recorded opponent (no whiteout); SPECIAL_BATTLE_STEVEN is Steven's multi battle; doubles, link and the tents report
     "SPECIAL_DoTVShow": Default(1), // TV shows are not modelled: ends the show loop (unreachable: no active show)
     "SPECIAL_DoTVShowInSearchOfTrainers": Default(1), // TV shows are not modelled: ends the show loop (unreachable: Gabby and Ty are off the air)
     "SPECIAL_DoTrainerApproach": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
@@ -176,7 +176,7 @@
     "SPECIAL_GetBattleFrontierTutorMoveIndex": Unsupported,
     "SPECIAL_GetBattleOutcome": Native, // Wave C: the function's dowildbattle outcome (lowering); else degraded, 0
     "SPECIAL_GetBattlePyramidHint": Unsupported,
-    "SPECIAL_GetBattleTowerSinglesStreak": Unsupported,
+    "SPECIAL_GetBattleTowerSinglesStreak": Native, // the singles streak IncrementWinStreak stores
     "SPECIAL_GetContestLadyCategory": Default(0), // the Lilycove ladies are M13
     "SPECIAL_GetContestLadyMonSpecies": Unsupported,
     "SPECIAL_GetContestMonCondition": Unsupported,
@@ -511,7 +511,7 @@
     "SPECIAL_TryEnterContestMon": Unsupported,
     "SPECIAL_TryFieldPoisonWhiteOut": Native, // degraded: FaintFromFieldPoison runs with the step (step_count), no "fainted" message; FLDPSN_WHITEOUT when every mon fainted
     "SPECIAL_TryGetWallpaperWithWaldaPhrase": Default(0), // FALSE, no wallpaper; unreachable: DoWaldaNamingScreen gives no phrase
-    "SPECIAL_TryHideBattleTowerReporter": Unsupported,
+    "SPECIAL_TryHideBattleTowerReporter": Native, // hides the lobby reporter while a challenge is saving or was cancelled
     "SPECIAL_TryInitBattleTowerAwardManObjectEvent": Unsupported,
     "SPECIAL_TryJoinLinkGroup": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_TryLoseFansFromPlayTime": Unsupported,

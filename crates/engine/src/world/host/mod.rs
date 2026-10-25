@@ -35,7 +35,9 @@ use super::mode::Mode;
 use super::{DOOR_FRAMES, Event, State};
 use crate::Buttons;
 use crate::battle::{BattleKind, BattleOutcome};
-use crate::data::{BLOCK_COLLISION_SHIFT, BLOCK_METATILE_MASK, GameData, PLAYER, VarId};
+use crate::data::{
+    BLOCK_COLLISION_SHIFT, BLOCK_METATILE_MASK, GameData, PLAYER, TextId, TrainerId, VarId,
+};
 use crate::mon::Party;
 use crate::script::{Request, Response, ScriptHost};
 use crate::starter::StarterChoice;
@@ -631,6 +633,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 self.s.berry_trees.set(id, tree);
                 UNIT
             }
+            Request::Frontier(call) => frontier_begin(self, call),
             Request::Report(rep) => {
                 s.log(match rep {
                     crate::script::Report::Unsupported(what)
@@ -660,6 +663,11 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
     }
 
     fn resume(&mut self, r: &Request) -> Option<Response> {
+        if let Request::Frontier(crate::frontier::Call::Battle) = r {
+            let outcome = self.s.answer.take()?;
+            self.s.frontier.note_outcome(outcome);
+            return Some(Response::Value(outcome));
+        }
         if let Request::ChooseStarter(_)
         | Request::BattleWild { .. }
         | Request::BattleTrainer { .. }
@@ -743,5 +751,65 @@ impl<G: GameData> Host<'_, G> {
         }
         let _ = r;
         None
+    }
+}
+
+fn frontier_begin<G: GameData>(
+    h: &mut Host<'_, G>,
+    call: crate::frontier::Call,
+) -> Option<Response> {
+    let s = &mut *h.s;
+    let step = s.frontier.apply(call, &s.party, &s.stash.order, &mut s.rng);
+    match step {
+        crate::frontier::Step::Value(v) => Some(Response::Value(v)),
+        crate::frontier::Step::Reduce { count } => {
+            let mut order = [0u8; stash::MAX_ORDER];
+            let n = (count as usize).min(order.len());
+            order[..n].copy_from_slice(&s.frontier.selected()[..n]);
+            s.stash.order = order;
+            s.stash.run(&mut s.party, crate::script::PartyStash::Reduce);
+            Some(Response::Value(0))
+        }
+        crate::frontier::Step::RestoreHeld => {
+            if let Some(saved) = s.stash.saved.clone() {
+                let selected = s.frontier.selected();
+                for (i, &slot) in selected.iter().enumerate() {
+                    if slot != 0
+                        && let (Some(src), Some(dst)) =
+                            (saved.get(slot as usize - 1), s.party.get_mut(i))
+                    {
+                        dst.held = src.held;
+                    }
+                }
+            }
+            Some(Response::Value(0))
+        }
+        crate::frontier::Step::StartBattle => {
+            if !s.can_battle() {
+                let won = BattleOutcome::Won as u16;
+                s.frontier.note_outcome(won);
+                return Some(Response::Value(won));
+            }
+            let opponents = s.frontier.opponent_party(h.game.battle(), &mut s.rng);
+            if opponents.is_empty() {
+                let won = BattleOutcome::Won as u16;
+                s.frontier.note_outcome(won);
+                return Some(Response::Value(won));
+            }
+            let kind = BattleKind::Trainer {
+                trainer: TrainerId(s.frontier.opponent()),
+                defeat: TextId(0),
+            };
+            s.start_battle_with(
+                h.game,
+                kind,
+                super::battle::Foes::Ready(opponents),
+                None,
+                Default::default(),
+                Origin::Script,
+                h.f,
+            );
+            None
+        }
     }
 }

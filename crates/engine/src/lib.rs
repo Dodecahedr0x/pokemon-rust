@@ -14,6 +14,7 @@ pub mod debug;
 pub mod decor;
 pub mod field;
 pub mod flow;
+pub mod frontier;
 pub mod fx;
 pub mod gates;
 pub mod grid;

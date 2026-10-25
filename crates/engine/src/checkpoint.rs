@@ -24,16 +24,18 @@ use serde::{Deserialize, Serialize};
 /// (options, Pokédex, PC, coins, registered item); schema 5 appends the berry trees (Wave E);
 /// schema 6 appends the current map's layout override (Wave F, Gen3 `setmaplayoutindex`);
 /// schema 7 appends the weather and the palette override (`crate::weather`, `crate::sky`);
-/// schema 8 appends the rival's name and the PC box names (the naming screen).
-pub const SCHEMA: u16 = 8;
+/// schema 8 appends the rival's name and the PC box names (the naming screen);
+/// schema 9 appends the Battle Tower challenge record (`None` until one is stored).
+pub const SCHEMA: u16 = 9;
 /// The oldest schema [`decode`] still reads (see [`schema_readable`]).
 pub const OLDEST_READABLE: u16 = 2;
 
 /// Whether this build reads checkpoints (and trusts tree nodes) of schema `s`. Schema 2 is
 /// schema 3 without held items, schema 3 is schema 4 without the Milestone 9 state, and schema
 /// 4 is schema 5 without berry trees, schema 5 is schema 6 without a layout override,
-/// schema 6 is schema 7 without a weather or palette override, and schema 7 is schema 8
-/// without a rival name or box names:
+/// schema 6 is schema 7 without a weather or palette override, schema 7 is schema 8
+/// without a rival name or box names, and schema 8 is schema 9 without a Battle Tower
+/// record:
 /// [`decode`] reads the missing fields as empty (a new game's for the M9 state), and
 /// [`state_digest`] of such a snapshot is its older digest, so recorded nodes stay valid.
 pub const fn schema_readable(s: u16) -> bool {
@@ -233,6 +235,11 @@ pub struct WorldSnapshot {
     /// PC box names that are not the unset 0xFF fill, ascending by box.
     #[serde(default, deserialize_with = "seq")]
     pub box_names: Vec<BoxNameSnap>,
+    // Schema 9. `None` encodes as one 0 byte, which `decode` adds to an older checkpoint and
+    // `state_digest` leaves out, so a save with no Tower challenge keeps its schema 8 digest.
+    /// The Battle Tower record, when a challenge has been stored.
+    #[serde(default)]
+    pub frontier: Option<crate::frontier::Frontier>,
 }
 
 /// One PC box's name (Gen3 `boxNames`: `BOX_NAME_LENGTH` + EOS).
@@ -630,8 +637,9 @@ pub fn decode(bytes: &[u8]) -> Result<Checkpoint, CodecError> {
         // schemas 2 and 3 lack the Milestone 9 fields (a new game's are `M9_DEFAULT_TAIL`).
         // Schema 4 lacks the berry trees (none is a 0 length byte), schema 5 the layout
         // override (`None` is a 0 byte), schema 6 the sky (`None` is a 0 byte), schema 7 the
-        // rival name and the box names (two 0 bytes).
-        let mut v = Vec::with_capacity(bytes.len() + 6 + M9_DEFAULT_TAIL.len());
+        // rival name and the box names (two 0 bytes), schema 8 the Battle Tower record
+        // (`None` is a 0 byte).
+        let mut v = Vec::with_capacity(bytes.len() + 7 + M9_DEFAULT_TAIL.len());
         v.extend_from_slice(bytes);
         if schema < 3 {
             v.push(0);
@@ -648,7 +656,10 @@ pub fn decode(bytes: &[u8]) -> Result<Checkpoint, CodecError> {
         if schema < 7 {
             v.push(0);
         }
-        v.push(0);
+        if schema < 8 {
+            v.push(0);
+            v.push(0);
+        }
         v.push(0);
         upgraded = v;
         &upgraded[..]
@@ -666,25 +677,29 @@ pub fn decode(bytes: &[u8]) -> Result<Checkpoint, CodecError> {
 
 /// Semantic identity of a snapshot: Fnv64 over its postcard bytes (the tree's "content hash").
 /// The header (build, frame, world hash) is not part of it. Trailing fields at their older
-/// schema's defaults are left out: no rival name and no box names (two 0 bytes), then no sky
+/// schema's defaults are left out: no Battle Tower record (its single 0 byte), then no rival
+/// name and no box names (two 0 bytes), then no sky
 /// (its single 0 byte), then no layout override (its single 0 byte), then no berry trees
 /// (their single 0 byte), then the Milestone 9 fields at a new game's values
 /// ([`M9_DEFAULT_TAIL`]), then an empty `party_held` (its single 0 byte), so such a snapshot
-/// keeps its schema 7, 6, 5, 4, 3 (or 2) digest.
+/// keeps its schema 8, 7, 6, 5, 4, 3 (or 2) digest.
 pub fn state_digest(w: &WorldSnapshot) -> u64 {
     let mut drop = 0;
-    if w.rival_name.is_none() && w.box_names.is_empty() {
-        drop = 2;
-        if w.sky.is_none() {
-            drop += 1;
-            if w.map_layout.is_none() {
+    if w.frontier.is_none() {
+        drop = 1;
+        if w.rival_name.is_none() && w.box_names.is_empty() {
+            drop += 2;
+            if w.sky.is_none() {
                 drop += 1;
-                if w.berry_trees.is_empty() {
+                if w.map_layout.is_none() {
                     drop += 1;
-                    if w.m9_is_default() {
-                        drop += M9_DEFAULT_TAIL.len();
-                        if w.party_held.is_empty() {
-                            drop += 1;
+                    if w.berry_trees.is_empty() {
+                        drop += 1;
+                        if w.m9_is_default() {
+                            drop += M9_DEFAULT_TAIL.len();
+                            if w.party_held.is_empty() {
+                                drop += 1;
+                            }
                         }
                     }
                 }
@@ -700,7 +715,7 @@ pub fn state_digest(w: &WorldSnapshot) -> u64 {
     postcard::serialize_with_flavor(w, flavor).expect("postcard encoding of a snapshot")
 }
 
-const DIGEST_DROP_MAX: usize = M9_DEFAULT_TAIL.len() + 6;
+const DIGEST_DROP_MAX: usize = M9_DEFAULT_TAIL.len() + 7;
 
 /// A postcard output that hashes the bytes instead of storing them, `drop` bytes behind so
 /// that the last `drop` can be left out.

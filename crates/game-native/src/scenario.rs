@@ -255,7 +255,7 @@ impl<G: GameData> Recorder<G> {
     fn press(&mut self, keys: Buttons) {
         let before = (
             self.world().transition_active(),
-            self.world().in_battle(),
+            self.world().battle().is_some(),
             self.world().starter().is_some(),
         );
         self.rec.keys.push(keys);

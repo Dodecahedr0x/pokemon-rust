@@ -322,6 +322,8 @@ pub(crate) struct State {
     pub(crate) link_open: bool,
     /// `SPECIAL_InitUnionRoom` armed the Union Room. Hashed only while set.
     pub(crate) union_ready: bool,
+    /// Battle Tower challenge record. A new game's is left out of the hash and the snapshot.
+    pub(crate) frontier: crate::frontier::Frontier,
 }
 
 /// Gen3 `gLocalTime` after `RtcCalcLocalTime` with a zero saved offset: the RTC in decimal,
@@ -577,6 +579,7 @@ impl World {
                 link_partner: None,
                 link_open: false,
                 union_ready: false,
+                frontier: crate::frontier::Frontier::default(),
             },
             rtc: None,
             sound: crate::options::Sound::Mono,
@@ -1402,6 +1405,9 @@ impl World {
         }
         if s.union_ready {
             h.write(&[0xD0]);
+        }
+        if !s.frontier.is_default() {
+            s.frontier.hash(&mut h);
         }
         h.finish()
     }

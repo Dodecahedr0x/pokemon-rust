@@ -171,6 +171,6 @@ pub(in crate::world) fn whiteout_allowed(waiting: Option<&Request>) -> bool {
         Some(Request::BattleTrainer {
             no_whiteout: true,
             ..
-        })
+        }) | Some(Request::Frontier(crate::frontier::Call::Battle))
     )
 }
