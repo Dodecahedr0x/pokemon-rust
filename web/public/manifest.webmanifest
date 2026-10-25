@@ -1,0 +1,8 @@
+{
+  "name": "Silice",
+  "short_name": "Silice",
+  "display": "fullscreen",
+  "background_color": "#0c0f14",
+  "theme_color": "#0c0f14",
+  "start_url": "/"
+}

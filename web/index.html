@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no"
+    />
+    <meta name="theme-color" content="#0c0f14" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Silice</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <h1 class="sr">Silice</h1>
+    <div id="app">
+      <div id="stage">
+        <canvas id="screen" width="240" height="160"></canvas>
+        <p id="status">Loading Silice…</p>
+      </div>
+
+      <div id="hud">
+        <p id="speed-chip" hidden>×1</p>
+        <button type="button" id="open-menu">Menu</button>
+      </div>
+
+      <div id="controls" hidden>
+        <button type="button" class="shoulder" data-key="l">L</button>
+        <button type="button" class="shoulder right" data-key="r">R</button>
+        <div class="cluster">
+          <div class="dpad" role="group" aria-label="Direction">
+            <button type="button" data-key="up" aria-label="Up"><i></i></button>
+            <button type="button" data-key="left" aria-label="Left"><i></i></button>
+            <button type="button" data-key="right" aria-label="Right"><i></i></button>
+            <button type="button" data-key="down" aria-label="Down"><i></i></button>
+          </div>
+          <div class="system">
+            <button type="button" data-key="select">Select</button>
+            <button type="button" data-key="start">Start</button>
+          </div>
+          <div class="ab" role="group" aria-label="Buttons">
+            <button type="button" class="b" data-key="b">B</button>
+            <button type="button" class="a" data-key="a">A</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <dialog id="menu">
+      <form method="dialog">
+        <header>
+          <h2>Silice</h2>
+          <button type="submit" id="close-menu" value="close">Close</button>
+        </header>
+
+        <section>
+          <h3>Speed</h3>
+          <div class="speeds" id="speeds" role="group" aria-label="Speed"></div>
+        </section>
+
+        <section>
+          <h3>Volume</h3>
+          <label class="volume">
+            <input id="volume" type="range" min="0" max="100" value="100" />
+            <span id="volume-readout">100%</span>
+          </label>
+        </section>
+
+        <section>
+          <h3>Save points</h3>
+          <p class="hint" id="battery-line">In-game saves are kept in this browser.</p>
+          <div class="save-row">
+            <input id="point-name" type="text" maxlength="48" placeholder="Name this point" autocomplete="off" />
+            <button type="button" id="save-point">Save point</button>
+          </div>
+          <ul id="points"></ul>
+          <p class="keys">
+            F5 saves a point. F9 loads the newest. 1–4 set the speed. F toggles fullscreen. F8 rewinds while held.
+          </p>
+        </section>
+
+        <section>
+          <h3>Play</h3>
+          <label class="choice">
+            Touch controls
+            <select id="touch-mode">
+              <option value="auto">On phones</option>
+              <option value="on">Always</option>
+              <option value="off">Hidden</option>
+            </select>
+          </label>
+          <div class="row">
+            <button type="button" id="fullscreen">Full screen</button>
+            <button type="button" id="reload-rom">Reload</button>
+            <button type="button" id="erase-save">Erase in-game save</button>
+          </div>
+          <p class="keys">
+            Desktop keys match the native player: arrows, X is A, Z is B, A is L, S is R, Enter is Start, Backspace is Select.
+          </p>
+        </section>
+      </form>
+    </dialog>
+
+    <p id="toast" role="status"></p>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
