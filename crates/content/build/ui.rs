@@ -109,9 +109,9 @@ fn tmhm(world: &World) -> (String, String) {
 }
 
 /// Emerald's start menu (Gen3 `BuildNormalStartMenu`): POKéDEX (`FLAG_SYS_POKEDEX_GET`),
-/// POKéMON (`FLAG_SYS_POKEMON_GET`), BAG, the player, SAVE, OPTION, EXIT. The PokéNav entry is
-/// left out (no engine action yet). The labels are `MULTI_FORCED_START_MENU`'s (the player's
-/// is empty there: Gen3 prints the player's name). Without that list: no start menu.
+/// POKéMON (`FLAG_SYS_POKEMON_GET`), BAG, POKéNAV (`FLAG_SYS_POKENAV_GET`), the player, SAVE,
+/// OPTION, EXIT. The labels are `MULTI_FORCED_START_MENU`'s (the player's is empty there: Gen3
+/// prints the player's name). Without that list: no start menu.
 fn start_menu(world: &World) -> (String, String) {
     let Some(list) = world
         .tables
@@ -127,10 +127,11 @@ fn start_menu(world: &World) -> (String, String) {
         })
     };
     // (label index in the list, action, shown_if)
-    let rows: [(usize, &str, String); 7] = [
+    let rows: [(usize, &str, String); 8] = [
         (0, "Pokedex", flag("FLAG_SYS_POKEDEX_GET")),
         (1, "Party", flag("FLAG_SYS_POKEMON_GET")),
         (2, "Bag", "None".into()),
+        (3, "Pokenav", flag("FLAG_SYS_POKENAV_GET")),
         (4, "PlayerCard", "None".into()),
         (5, "Save", "None".into()),
         (6, "Options", "None".into()),

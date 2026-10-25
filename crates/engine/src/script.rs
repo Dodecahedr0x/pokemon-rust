@@ -445,6 +445,11 @@ pub enum Request {
     EasyChat {
         kind: u8,
     },
+    /// `special OpenPokenavForTutorial` (`tutorial`) or the start menu's POKéNAV. Answers
+    /// `Unit` when the screen closes.
+    Pokenav {
+        tutorial: bool,
+    },
     /// The evolution scene (Silice `play_evolution`): answers `Bool` (evolved).
     Evolve {
         slot: u8,
@@ -1090,6 +1095,7 @@ impl Request {
             Request::SetMysteryEventStatus(status) => (233, status as u16, 0, 0, 0),
             Request::SetModernFatefulEncounter(slot) => (234, slot, 0, 0, 0),
             Request::WonderCardScript => (235, 0, 0, 0, 0),
+            Request::Pokenav { tutorial } => (236, tutorial as u16, 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -1847,6 +1853,11 @@ impl Ctx {
     /// Gen3 `CableCar`: the ride scene. `down` is the ride toward the lower station.
     pub fn cable_car(&self, down: bool) -> Req<()> {
         self.req(Request::CableCar { down }, unit)
+    }
+
+    /// The PokéNav. `tutorial` is `POKENAV_MODE_FORCE_CALL_READY`.
+    pub fn pokenav(&self, tutorial: bool) -> Req<()> {
+        self.req(Request::Pokenav { tutorial }, unit)
     }
 
     /// The Easy Chat screen of `EASY_CHAT_TYPE_*` `kind`: whether the words were confirmed.

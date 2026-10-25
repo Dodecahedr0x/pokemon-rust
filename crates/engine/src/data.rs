@@ -1043,12 +1043,34 @@ pub struct StartItem {
     pub description: Option<TextId>,
 }
 
+/// One line of a Match Call (`MatchCall_BufferCallMessageText`'s table entry).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct MatchCallLine {
+    pub text: &'static [u8],
+    /// Spoken only while this flag is set (`0xFFFF` is [`None`]: always available).
+    pub requires: Option<FlagId>,
+    /// Set when the line is spoken (`0xFFFF` is [`None`]).
+    pub sets: Option<FlagId>,
+}
+
+/// A Match Call contact (`MatchCallHeader`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct MatchCall {
+    pub name: &'static [u8],
+    pub desc: &'static [u8],
+    /// Listed only while this flag is set (`0xFFFF` is [`None`]: always listed).
+    pub shown_if: Option<FlagId>,
+    pub lines: &'static [MatchCallLine],
+}
+
 /// What a [`StartItem`] does.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum StartAction {
     Pokedex,
     Party,
     Bag,
+    /// The PokéNav (Gen3 `StartMenuPokenavCallback`).
+    Pokenav,
     PlayerCard,
     Save,
     Options,
@@ -1591,6 +1613,10 @@ pub trait GameData {
     /// [`hoenn_dex`](Self::hoenn_dex) species whose id is past 251, in that order. The engine
     /// has no `sSpeciesToNationalPokedexNum` table.
     fn national_dex(&self) -> &'static [SpeciesId] {
+        &[]
+    }
+    /// Match Call contacts (Gen3 `sMatchCallHeaders`); empty: the list has nobody.
+    fn match_calls(&self) -> &'static [MatchCall] {
         &[]
     }
     /// How field move `m` becomes usable.

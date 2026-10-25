@@ -29,6 +29,8 @@ mod emerald_story;
 #[cfg(not(pkr_silice))]
 mod new_game;
 #[cfg(not(pkr_silice))]
+mod pokenav;
+#[cfg(not(pkr_silice))]
 mod step_count;
 /// Hand-written script overrides (Milestone 8): a script the lowering cannot express as Gen3
 /// does, replaced by hand. The build digests each override's source into the script's
@@ -736,6 +738,10 @@ impl GameData for Game {
 
     fn step_count_script(&self, step: engine::data::StepCount<'_>) -> Option<ScriptId> {
         step_count::step_count_script(self, step)
+    }
+
+    fn match_calls(&self) -> &'static [engine::data::MatchCall] {
+        pokenav::CALLS
     }
 }
 

@@ -1155,14 +1155,11 @@ fn wave_c_cases(covered: &mut BTreeSet<&'static str>) -> Vec<Case> {
     #[cfg(not(pkr_silice))]
     {
         cases.extend([
-            // The tutorial's forced call to Mr. Stone sets his PokéNav flag.
+            // The tutorial opens the PokéNav. Mr. Stone's call sets his flag from the screen.
             (
                 "SPECIAL_OpenPokenavForTutorial",
                 1,
-                vec![
-                    degraded("SPECIAL_OpenPokenavForTutorial"),
-                    Request::SetFlag(FLAG_ENABLE_MR_STONE_POKENAV, true),
-                ],
+                vec![Request::Pokenav { tutorial: true }],
                 0,
             ),
             (

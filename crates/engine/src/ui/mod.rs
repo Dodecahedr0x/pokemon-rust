@@ -28,6 +28,7 @@ pub mod options;
 pub mod party;
 pub mod pc;
 pub mod pokedex;
+pub mod pokenav;
 pub mod save;
 pub mod slot;
 pub mod start_menu;
@@ -99,6 +100,10 @@ pub enum ScreenKind {
     /// Gen3 `playslotmachine`: machine id `SLOT_MACHINE_*`.
     Slot {
         machine: u8,
+    },
+    /// The PokéNav (Gen3 `CB2_Pokenav`). `tutorial` is `POKENAV_MODE_FORCE_CALL_READY`.
+    Pokenav {
+        tutorial: bool,
     },
 }
 
@@ -202,6 +207,7 @@ pub enum ScreenKindTag {
     Pokedex,
     Slot,
     DecorMart,
+    Pokenav,
 }
 
 impl ScreenKind {
@@ -227,6 +233,7 @@ impl ScreenKind {
             ScreenKind::Title => ScreenKindTag::Title,
             ScreenKind::Contest(_) => ScreenKindTag::Contest,
             ScreenKind::Slot { .. } => ScreenKindTag::Slot,
+            ScreenKind::Pokenav { .. } => ScreenKindTag::Pokenav,
         }
     }
 
@@ -278,6 +285,7 @@ impl ScreenKind {
             ScreenKind::Bag(m) => h.write(&[m as u8]),
             ScreenKind::EasyChat(k) => h.write(&[k]),
             ScreenKind::Slot { machine } => h.write(&[machine]),
+            ScreenKind::Pokenav { tutorial } => h.write(&[tutorial as u8]),
             ScreenKind::Mart { items } => {
                 h.write_u16(items.len() as u16);
                 for i in items {
@@ -440,6 +448,7 @@ pub enum ScreenState {
     Contest(contest::ContestScreen),
     Pokedex(pokedex::PokedexScreen),
     Slot(slot::SlotMachine),
+    Pokenav(pokenav::Pokenav),
 }
 
 impl ScreenState {
@@ -469,6 +478,9 @@ impl ScreenState {
             ScreenKind::HallOfFame => ScreenState::HallOfFame(hall_of_fame::HallOfFame::new()),
             ScreenKind::EasyChat(k) => ScreenState::EasyChat(easy_chat::EasyChat::new(k)),
             ScreenKind::Pokedex => ScreenState::Pokedex(pokedex::PokedexScreen::new()),
+            ScreenKind::Pokenav { tutorial } => {
+                ScreenState::Pokenav(pokenav::Pokenav::new(tutorial))
+            }
             ScreenKind::Credits => ScreenState::HallOfFame(hall_of_fame::HallOfFame::credits()),
             ScreenKind::Title => ScreenState::Title(title::Title::new()),
             ScreenKind::Contest(v) => ScreenState::Contest(contest::ContestScreen::new(v)),
@@ -496,6 +508,7 @@ impl ScreenState {
             ScreenState::Contest(s) => s.step(cx, input),
             ScreenState::Pokedex(s) => s.step(cx, input),
             ScreenState::Slot(s) => s.step(cx, input),
+            ScreenState::Pokenav(s) => s.step(cx, input),
         }
     }
 
@@ -520,6 +533,7 @@ impl ScreenState {
             ScreenState::Contest(s) => s.hash(h),
             ScreenState::Pokedex(s) => s.hash(h),
             ScreenState::Slot(s) => s.hash(h),
+            ScreenState::Pokenav(s) => s.hash(h),
         }
     }
 }

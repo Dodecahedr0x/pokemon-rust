@@ -323,7 +323,7 @@
     "SPECIAL_OffsetCameraForBattle": Unsupported,
     "SPECIAL_OpenPokeblockCaseForContestLady": Unsupported,
     "SPECIAL_OpenPokeblockCaseOnFeeder": Unsupported,
-    "SPECIAL_OpenPokenavForTutorial": Native, // degraded: no PokeNav screen; the forced Mr. Stone call's FLAG_ENABLE_MR_STONE_POKENAV
+    "SPECIAL_OpenPokenavForTutorial": Native, // the tutorial PokéNav (FORCE_CALL_READY); Mr. Stone's first call sets FLAG_ENABLE_MR_STONE_POKENAV
     "SPECIAL_Overworld_PlaySpecialMapMusic": Unsupported,
     "SPECIAL_PetalburgGymSlideOpenRoomDoors": Native, // room VAR_0x8004's doors slide open (5 metatile frames, 2 frames apart)
     "SPECIAL_PetalburgGymUnlockRoomDoors": Native, // room VAR_0x8004's doors show the open frame
