@@ -29,11 +29,9 @@ No link play. `SPECIAL_BufferUnionRoomPlayerName` is `Default(0)` ("no Union Roo
 
 **Done when:** two engines can complete a Gen3 link battle and a Union Room exchange, or the same flow against a scripted partner that speaks the real protocol. A test covers one full exchange. Unsupported link specials used by that flow are Native.
 
-### `contests`
+### `contests` — closed
 
-Contest commands are Unsupported: `choosecontestmon`, `startcontest`, `showcontestresults`, `contestlinktransfer`, `showcontestpainting`, `buffercontestname`. Contest specials (`SPECIAL_GenerateContestRand`, the contest-lady and contest-hall specials) are Unsupported or Default.
-
-**Done when:** a contest can be entered, judged, and finished with results, matching Gen3's ranking rules. A test runs one contest from a script. Those commands are Native.
+Merged `fc9d30db`. A script can choose a party mon, run five appeal rounds, and finish with Gen3 standings. `choosecontestmon`, `startcontest`, `showcontestresults`, `contestlinktransfer`, `showcontestpainting`, and `buffercontestname` are Native. Test: `a_script_enters_judges_and_finishes_a_normal_contest`. Checkpoints did not move. Contest specials such as `SPECIAL_GenerateContestRand` were not part of this merge.
 
 ### `frontier`
 
