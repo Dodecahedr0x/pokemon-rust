@@ -652,6 +652,11 @@ impl World {
         crate::fx::apply(&mut self.s.fx, &mut f);
         // Task S: the Hall of Fame's save, on the first capturable frame after it.
         save::after_step(self, game);
+        // The cable-car ride owns the picture while the script waits on it (the field keeps
+        // stepping underneath, so a checkpoint after the warp still matches the old wait).
+        if let Some(crate::script::Request::CableCar { down }) = self.runner.waiting_on() {
+            crate::cable_car::paint(&mut f, *down, self.s.delay);
+        }
         f
     }
 

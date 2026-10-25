@@ -86,7 +86,7 @@ impl<G: GameData> Host<'_, G> {
                 let id = self.mover(obj);
                 self.s.objects.moves_done_on(id, map)
             }
-            Request::Delay(_) => {
+            Request::Delay(_) | Request::CableCar { .. } => {
                 s.delay = s.delay.saturating_sub(1);
                 s.delay == 0
             }
@@ -280,6 +280,14 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             Request::Delay(0) => UNIT,
             Request::Delay(n) => {
                 s.delay = n;
+                self.wait(r)
+            }
+            Request::CableCar { .. } if self.immediate => {
+                s.log("cable car in a map script ignored");
+                UNIT
+            }
+            Request::CableCar { .. } => {
+                s.delay = crate::cable_car::RIDE_FRAMES;
                 self.wait(r)
             }
             Request::Fade(_) if self.immediate => {

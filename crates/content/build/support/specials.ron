@@ -45,7 +45,7 @@
     "SPECIAL_BufferTrendyPhraseString": Unsupported,
     "SPECIAL_BufferUnionRoomPlayerName": Default(0), // no Union Room partner (no link)
     "SPECIAL_BufferVarsForIVRater": Unsupported,
-    "SPECIAL_CableCar": Native, // degraded: no ride scene; fades to black, waits the ride's frames, warps to the other station
+    "SPECIAL_CableCar": Native, // the ride scene (the car, the view, the arrival), then the warp to the other station
     "SPECIAL_CableCarWarp": Native, // the destination by VAR_0x8004 (CableCar warps there: only the ride's end reads gWarpDestination)
     "SPECIAL_CableClubSaveGame": Unsupported,
     "SPECIAL_CalculatePlayerPartyCount": Native, // the party size (no eggs yet)

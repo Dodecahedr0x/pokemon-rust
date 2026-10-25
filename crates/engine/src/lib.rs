@@ -6,6 +6,7 @@ extern crate alloc;
 pub mod bag;
 pub mod battle;
 pub mod berry;
+pub mod cable_car;
 pub mod checkpoint;
 pub mod data;
 pub mod debug;

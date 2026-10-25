@@ -402,6 +402,12 @@ pub enum Request {
     /// Task S): answers `Unit` once they end; the game is saved on the first capturable
     /// frame after it (`world/save.rs`).
     HallOfFame,
+    /// Gen3 `CableCar` (`cable_car.c`): the ride (the car, the view, the arrival) for
+    /// [`crate::cable_car::RIDE_FRAMES`], then the script warps. `down` is `VAR_0x8004`
+    /// (false rides up).
+    CableCar {
+        down: bool,
+    },
     /// `special ShowEasyChatScreen` of `EASY_CHAT_TYPE_*` `kind` (Wave G): answers `Bool`
     /// (the words were confirmed; false when quit).
     EasyChat {
@@ -1004,6 +1010,8 @@ impl Request {
             Request::ReloadLastSave => (212, 0, 0, 0, 0),
             // The clock is a host input: the request carries no time (tag 213).
             Request::GetTime => (213, 0, 0, 0, 0),
+            // The cable-car ride scene (tag 214).
+            Request::CableCar { down } => (214, down as u16, 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -1723,6 +1731,11 @@ impl Ctx {
     /// field is idle again.
     pub fn hall_of_fame(&self) -> Req<()> {
         self.req(Request::HallOfFame, unit)
+    }
+
+    /// Gen3 `CableCar`: the ride scene. `down` is the ride toward the lower station.
+    pub fn cable_car(&self, down: bool) -> Req<()> {
+        self.req(Request::CableCar { down }, unit)
     }
 
     /// The Easy Chat screen of `EASY_CHAT_TYPE_*` `kind`: whether the words were confirmed.
