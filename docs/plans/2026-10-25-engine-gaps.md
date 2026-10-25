@@ -69,11 +69,9 @@ e-Reader specials (`SPECIAL_DoesPartyHaveEnigmaBerry` is `Default(0)`; the other
 
 **Done when:** a braille message is drawn and waits for input the way Gen3 does. A test covers one message.
 
-### `pokenav`
+### `pokenav` — closed
 
-`SPECIAL_OpenPokenavForTutorial` is degraded: no PokéNav screen. Match Call text is printed in the field box (`pokenavcall` is Native as text only).
-
-**Done when:** the PokéNav opens from the start menu, shows the Match Call list, and places a call. A test opens it and reads one call. The tutorial special opens that screen.
+Merged `2745f123`. The start-menu row is gated by `FLAG_SYS_POKENAV_GET` and opens the PokéNav. The screen lists Match Call, and placing CALL speaks the latest line and sets its flag. `SPECIAL_OpenPokenavForTutorial` opens that screen in force-call-ready mode. Mr. Stone is first, and his first line sets `story::MR_STONE_POKENAV`. The tutorial start-menu special is still the existing degraded path. Tests: `start_menu_opens_the_pokenav_and_a_call_is_read`, `the_tutorial_opens_the_pokenav_and_the_call_sets_the_flag`. The stub checkpoint tree stayed valid.
 
 ### `pokedex` — closed
 
