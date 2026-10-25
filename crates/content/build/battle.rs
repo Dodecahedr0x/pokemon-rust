@@ -101,6 +101,9 @@ pub struct BattleIn {
     pub rematches: RematchesFile,
     /// `sStevenMons` (format 5.13; empty before).
     pub partners: PartnersFile,
+    /// Move anim scripts and sprite sheets (`battle/move_anims.ron`; empty when the extract
+    /// predates them). The engine lunges when a script is missing.
+    pub move_anims: extract::move_anim::File,
     pub player_back: PicIn,
     pub ui: UiGfx,
     pub small_glyphs: Vec<Glyph>,
@@ -114,6 +117,47 @@ pub struct BattleIn {
 }
 
 // ---- generation ----
+
+fn cmd_lit(c: &extract::move_anim::Cmd) -> String {
+    use extract::move_anim::Cmd::*;
+    match *c {
+        LoadGfx(t) => format!("Cmd::LoadGfx({t})"),
+        UnloadGfx(t) => format!("Cmd::UnloadGfx({t})"),
+        MonBg(b) => format!("Cmd::MonBg({b})"),
+        ClearMonBg(b) => format!("Cmd::ClearMonBg({b})"),
+        SetAlpha(a, b) => format!("Cmd::SetAlpha({a}, {b})"),
+        BlendOff => "Cmd::BlendOff".into(),
+        Delay(n) => format!("Cmd::Delay({n})"),
+        Wait => "Cmd::Wait".into(),
+        End => "Cmd::End".into(),
+        PlaySe { se, pan } => format!("Cmd::PlaySe {{ se: {se}, pan: {pan} }}"),
+        Lunge { frames, delta } => {
+            format!("Cmd::Lunge {{ frames: {frames}, delta: {delta} }}")
+        }
+        HitSplat {
+            tag,
+            x,
+            y,
+            relative,
+            anim,
+        } => format!(
+            "Cmd::HitSplat {{ tag: {tag}, x: {x}, y: {y}, relative: {relative}, anim: {anim} }}"
+        ),
+        Shake {
+            who,
+            x,
+            y,
+            times,
+            delay,
+        } => format!("Cmd::Shake {{ who: {who}, x: {x}, y: {y}, times: {times}, delay: {delay} }}"),
+        Show {
+            tag,
+            x,
+            y,
+            relative,
+        } => format!("Cmd::Show {{ tag: {tag}, x: {x}, y: {y}, relative: {relative} }}"),
+    }
+}
 
 /// A `GfxImage` expression, its data in the blob.
 fn image(blob: &mut BlobOut, g: &GfxIn) -> String {
@@ -1061,6 +1105,60 @@ pub static PARTNER: Option<PartnerData> = {partner};"
         Ok(r)
     }
 
+    /// `move_anim` / `anim_gfx`. Empty extracts keep the engine's lunge.
+    fn gen_anims(&mut self) -> Result<()> {
+        let file = &self.b.move_anims;
+        let scripts: Vec<(usize, &Vec<extract::move_anim::Cmd>)> = file
+            .scripts
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| !s.is_empty())
+            .collect();
+        if scripts.is_empty() {
+            writeln!(
+                self.o,
+                "pub fn move_anim(_: u16) -> Option<&'static [engine::battle::anim::Cmd]> {{ None }}"
+            )?;
+        } else {
+            writeln!(self.o, "use engine::battle::anim::Cmd;")?;
+            let mut arms = String::new();
+            for (id, cmds) in &scripts {
+                let body = cmds.iter().map(cmd_lit).collect::<Vec<_>>().join(", ");
+                writeln!(self.o, "static ANIM_SCRIPT_{id}: &[Cmd] = &[{body}];")?;
+                writeln!(arms, "        {id} => ANIM_SCRIPT_{id},")?;
+            }
+            writeln!(
+                self.o,
+                "pub fn move_anim(id: u16) -> Option<&'static [Cmd]> {{\n    Some(match id {{\n{arms}        _ => return None,\n    }})\n}}"
+            )?;
+        }
+        if file.gfx.is_empty() {
+            writeln!(
+                self.o,
+                "pub fn anim_gfx(_: u16) -> Option<&'static GfxImage> {{ None }}"
+            )?;
+            return Ok(());
+        }
+        let mut arms = String::new();
+        for g in &file.gfx {
+            let expr = image(
+                &mut self.blob,
+                &GfxIn {
+                    tiles: g.tiles.clone(),
+                    palettes: vec![g.palette],
+                    tilemap: vec![],
+                },
+            );
+            writeln!(self.o, "static ANIM_GFX_{}: GfxImage = {expr};", g.tag)?;
+            writeln!(arms, "        {} => &ANIM_GFX_{},", g.tag, g.tag)?;
+        }
+        writeln!(
+            self.o,
+            "pub fn anim_gfx(tag: u16) -> Option<&'static GfxImage> {{\n    Some(match tag {{\n{arms}        _ => return None,\n    }})\n}}"
+        )?;
+        Ok(())
+    }
+
     /// `SPECIES_*` / `MOVE_*` / `TRAINER_*` / `HEAL_LOCATION_*`.
     fn consts(&self) -> Vec<(String, &'static str, String)> {
         let mut consts = Vec::new();
@@ -1123,6 +1221,7 @@ pub fn generate(b: &BattleIn, w: &World) -> Result<Out> {
     g.gen_trainers()?;
     g.gen_strings()?;
     g.gen_gfx()?;
+    g.gen_anims()?;
     let report = g.gen_summary()?;
     let decl = g.blob.static_decl("battle.bin");
     g.o.push_str(&decl);

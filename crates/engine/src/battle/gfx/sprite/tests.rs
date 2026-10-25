@@ -127,8 +127,6 @@ fn send_out_ball_then_mon() {
         p.update(&mut f);
         frames.push(f);
     }
-    // 25 ball frames + 4 pop frames.
-    assert_eq!(frames.len(), 29);
     let ball = |f: &Frame| {
         f.objs
             .iter()
@@ -137,17 +135,44 @@ fn send_out_ball_then_mon() {
     };
     // Lands at (72, min(80 + 8, 104) + 24) = (72, 112): top-left (64, 104).
     assert_eq!(ball(&frames[24]), Some((64, 104)));
-    assert!(frames[..28].iter().all(|f| f.objs.len() == 1));
-    assert_eq!(frames[28].objs.len(), 1);
-    assert_eq!(frames[28].objs[0].tile, obj::PLAYER_PIC);
+    assert!(
+        frames[..25]
+            .iter()
+            .all(|f| f.objs.iter().all(|o| o.tile == obj::BALL))
+    );
+    // `sAffineAnim_Battler_Emerge`: 0x28, then +0x12 until 0x100, then a regular sprite.
+    // First drawn mon is also the first `HandleBallAnimEnd` drop: y2 = (0x1000 - 288) >> 8.
+    let scales: Vec<u16> = frames
+        .iter()
+        .filter_map(|f| {
+            f.objs
+                .iter()
+                .find(|o| o.tile == obj::PLAYER_PIC)
+                .map(|o| o.scale)
+        })
+        .collect();
+    let zoom: Vec<u16> = scales.iter().copied().take_while(|&s| s != 0).collect();
+    assert_eq!(zoom.first().copied(), Some(0x28));
+    for w in zoom.windows(2) {
+        assert_eq!(w[1], w[0] + 0x12, "{zoom:?}");
+    }
+    assert_eq!(zoom.last().copied(), Some(0x100));
+    assert_eq!(scales.last().copied(), Some(0));
+    let first = frames
+        .iter()
+        .find(|f| f.objs.iter().any(|o| o.tile == obj::PLAYER_PIC))
+        .unwrap();
+    assert_eq!(first.objs[0].scale, 0x28);
+    assert_eq!(first.objs[0].y, 80 + 14 - 32);
     // The arc goes above the straight line.
     assert!(ball(&frames[12]).unwrap().1 < 68 - 8);
     let mut o = MonSprite::new(Side::Opponent, game.gfx);
     o.load(&game, SpeciesId(1), false, &mut Frame::default());
     o.send_out();
     let (n, last) = run(&mut o);
-    assert_eq!(n, 16 + 4);
+    assert!(n > 16 + 4, "emerge is longer than the old 4-frame pop");
     assert_eq!(last.objs.len(), 1);
+    assert_eq!(last.objs[0].scale, 0);
     assert!(o.visible());
     o.recall();
     let (n, _) = run(&mut o);

@@ -231,11 +231,16 @@ impl Ppu {
                 continue;
             }
             let o = &s.obj;
+            let prio = o.priority & 3;
+            if o.scale != 0 {
+                self.sprite_affine(s, y, prio, line);
+                cycles -= s.cycles;
+                continue;
+            }
             let mut in_y = y - s.y;
             if o.vflip {
                 in_y = s.h - 1 - in_y;
             }
-            let prio = o.priority & 3;
             let pal = (o.palette & 15) as usize * 16;
             let row_base = (o.tile & 0x3FF) as usize * TILE_BYTES
                 + (in_y as usize / 8) * (s.w as usize / 8) * TILE_BYTES
@@ -258,6 +263,49 @@ impl Ppu {
                 }
             }
             cycles -= s.cycles;
+        }
+    }
+
+    /// Gen3 affine: matrix `pa = pd = 0x10000 / scale` (8.8), around the sprite centre.
+    /// Texels outside the sheet are transparent. Not double-size.
+    fn sprite_affine(
+        &self,
+        s: &Sprite,
+        y: i32,
+        prio: u8,
+        line: &mut [Option<(u8, u16)>; SCREEN_W],
+    ) {
+        let scale = s.obj.scale as i32;
+        if scale <= 0 {
+            return;
+        }
+        let pa = 0x10000 / scale;
+        let (cx, cy) = (s.w / 2, s.h / 2);
+        let pal = (s.obj.palette & 15) as usize * 16;
+        let tile = (s.obj.tile & 0x3FF) as i32;
+        for out_x in s.x.max(0)..(s.x + s.w).min(SCREEN_W as i32) {
+            let dx = out_x - s.x - cx;
+            let dy = y - s.y - cy;
+            let tx = cx + ((pa * dx) >> 8);
+            let ty = cy + ((pa * dy) >> 8);
+            let idx = if tx < 0 || ty < 0 || tx >= s.w || ty >= s.h {
+                0
+            } else {
+                let row_base = tile * TILE_BYTES as i32
+                    + (ty / 8) * (s.w / 8) * TILE_BYTES as i32
+                    + (ty % 8) * 4;
+                let addr = (row_base + (tx / 8) * TILE_BYTES as i32 + (tx % 8) / 2) as usize
+                    & (OBJ_VRAM - 1);
+                nibble(self.vram[BG_VRAM + addr], tx as usize)
+            };
+            let px = &mut line[out_x as usize];
+            if px.is_none_or(|(p, _)| p > prio) {
+                if idx != 0 {
+                    *px = Some((prio, self.obj_palette[pal + idx as usize]));
+                } else if let Some((p, _)) = px {
+                    *p = prio;
+                }
+            }
         }
     }
 }
@@ -718,6 +766,26 @@ mod tests {
             ..Frame::default()
         };
         assert_eq!(px(&render(&p, &f), 0, 0), GREEN);
+    }
+
+    #[test]
+    fn affine_scale_shrinks_around_the_center() {
+        let p = base();
+        // Half size (`0x80`): the 16×16 box's corner is outside the sheet, the centre is not.
+        let o = Obj {
+            size: 1,
+            scale: 0x80,
+            ..obj(0, 0, RED_BLOCK, 0)
+        };
+        let fb = render(
+            &p,
+            &Frame {
+                objs: vec![o],
+                ..Frame::default()
+            },
+        );
+        assert_eq!(px(&fb, 0, 0), WHITE);
+        assert_eq!(px(&fb, 8, 8), RED);
     }
 
     #[test]

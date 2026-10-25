@@ -151,6 +151,7 @@ fn writes_current_format_tree() {
         "dex",
         "rematches",
         "partners",
+        "move_anims",
     ] {
         want.insert(format!("battle/{f}.ron"));
     }

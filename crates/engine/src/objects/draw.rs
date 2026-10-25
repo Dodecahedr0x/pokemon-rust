@@ -96,6 +96,7 @@ impl Objects {
                     hflip,
                     vflip: false,
                     priority: layout::OBJ_PRIORITY, // TODO: priority from elevation (Gen3 `sElevationToPriority`).
+                    scale: 0,
                 },
             ));
         }
@@ -179,6 +180,7 @@ impl Objects {
                 hflip: false,
                 vflip: false,
                 priority: EMOTE_PRIORITY,
+                scale: 0,
             });
         }
         out
@@ -247,6 +249,7 @@ impl Objects {
                     hflip,
                     vflip: false,
                     priority: layout::OBJ_PRIORITY,
+                    scale: 0,
                 },
             ));
         }

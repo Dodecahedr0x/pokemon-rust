@@ -9,10 +9,11 @@
 //! tile row) and `SpriteCB_FaintSlideAnim` (5 px/frame until below the screen), hit blink
 //! `DoHitAnimBlinkSpriteEffect` (visibility toggled every 4 frames for 32 frames; a hidden
 //! sprite stays hidden). Tint palettes are uploaded only when the coefficient changes.
-//! Approximations: the ball arc is a parabola, the ball pops after 4 frames and the mon appears
-//! at full size (no affine "emerge"), recall shows the ball for 8 frames, the lunge is 8 px out
-//! and back in 8 frames, and the tint blends the pic palette toward a color (coefficient up to
-//! 8/16 over 16 frames, then back over 16).
+//! Approximations: the ball arc is a parabola, recall shows the ball for 8 frames, the fallback
+//! lunge (no move script) is 8 px out and back in 8 frames, and the tint blends the pic palette
+//! toward a color (coefficient up to 8/16 over 16 frames, then back over 16). Send-out zooms
+//! with `sAffineAnim_Battler_Emerge`: displayed scale `0x28`, then twelve steps of `+0x12` to
+//! `0x100`, while `y2` falls from `0x1000` by 288 per frame (`HandleBallAnimEnd`).
 
 use super::super::{BattleGfx, Side};
 use super::{Linear, hash_i16, obj, side_tag};
@@ -57,7 +58,11 @@ const BALL_FRAMES: u8 = 25;
 const BALL_ARC: i32 = 30;
 /// `SpriteCB_OpponentMonSendOut`: the ball waits until its counter passes 15.
 const BALL_WAIT: u8 = 16;
-const BALL_POP: u8 = 4;
+/// `sAffineAnim_Battler_Emerge`: absolute `0x28`, then twelve relative `+0x12`.
+const EMERGE_SCALE: u16 = 0x28;
+const EMERGE_STEP: u16 = 0x12;
+const EMERGE_Y: i32 = 0x1000;
+const EMERGE_DROP: i32 = 288;
 const RECALL_FRAMES: u8 = 8;
 const BLINK_FRAMES: u8 = 32;
 const LUNGE_FRAMES: u8 = 8;
@@ -152,6 +157,14 @@ pub struct MonSprite {
     blink_off: bool,
     /// Ball OBJ centre while it shows.
     ball: Option<(i16, i16)>,
+    /// Displayed affine scale while emerging (`0` = a regular sprite).
+    scale: u16,
+    /// `data[1]` of the emerge drop.
+    emerge_y: i32,
+    /// `0` on the first zoom frame (scale already `0x28`), then `1`.
+    emerge_phase: u8,
+    /// Relative `+0x12` steps still to apply.
+    emerge_left: u8,
     /// A `load_step` in progress: (species, shiny, tiles uploaded).
     loading: Option<(SpeciesId, bool, u8)>,
 }
@@ -178,6 +191,10 @@ impl MonSprite {
             tint_coeff: None,
             blink_off: false,
             ball: None,
+            scale: 0,
+            emerge_y: 0,
+            emerge_phase: 0,
+            emerge_left: 0,
             loading: None,
         }
     }
@@ -329,6 +346,10 @@ impl MonSprite {
         self.tint = None;
         self.tint_coeff = None;
         self.ball = None;
+        self.scale = 0;
+        self.emerge_y = 0;
+        self.emerge_phase = 0;
+        self.emerge_left = 0;
         self.loading = None;
         let (cx, cy) = coords(self.side, self.double);
         let Some(g) = gfx else {
@@ -354,12 +375,14 @@ impl MonSprite {
         self.visible = true;
         self.off = (0, 0);
         self.anim = MonAnim::Idle;
+        self.scale = 0;
     }
 
     pub fn hide(&mut self) {
         self.visible = false;
         self.anim = MonAnim::Idle;
         self.ball = None;
+        self.scale = 0;
     }
 
     /// Wild intro: slides in from 240 px to the left at 2 px/frame, tinted gray, which fades
@@ -376,10 +399,12 @@ impl MonSprite {
         });
     }
 
-    /// Send-out: the ball travels (player) or waits (opponent), pops, and the mon appears.
+    /// Send-out: the ball travels (player) or waits (opponent), then the mon zooms in
+    /// (`sAffineAnim_Battler_Emerge`).
     pub fn send_out(&mut self) {
         self.visible = false;
         self.off = (0, 0);
+        self.scale = 0;
         self.anim = MonAnim::Ball { t: 0 };
         self.ball = Some(self.ball_start());
     }
@@ -446,12 +471,59 @@ impl MonSprite {
         self.species
     }
 
+    /// Resting sprite centre. Move-anim particles use this, not the shake offset.
+    pub fn center(&self) -> (i16, i16) {
+        self.home
+    }
+
+    pub fn offset(&self) -> (i16, i16) {
+        self.off
+    }
+
+    /// Move-anim offset (`x2` / `y2`).
+    pub fn set_anim_offset(&mut self, off: (i16, i16)) {
+        self.off = off;
+    }
+
     /// OBJ top-left this frame.
     pub fn pos(&self) -> (i16, i16) {
         (
             self.home.0 + self.off.0 - HALF,
             self.home.1 + self.off.1 - HALF,
         )
+    }
+
+    /// The ball frame is still drawn; the next `Pop` frame shows the mon at scale `0x28`.
+    fn begin_emerge(&mut self) -> MonAnim {
+        self.scale = EMERGE_SCALE;
+        self.emerge_y = EMERGE_Y;
+        self.emerge_phase = 0;
+        self.emerge_left = 0;
+        MonAnim::Pop { t: 0 }
+    }
+
+    /// `HandleBallAnimEnd` plus `sAffineAnim_Battler_Emerge`.
+    fn step_emerge(&mut self) -> MonAnim {
+        self.ball = None;
+        self.visible = true;
+        if self.emerge_phase == 0 {
+            self.emerge_y -= EMERGE_DROP;
+            self.off.1 = (self.emerge_y >> 8) as i16;
+            self.emerge_phase = 1;
+            self.emerge_left = 12;
+            MonAnim::Pop { t: 0 }
+        } else if self.emerge_left > 0 {
+            self.scale = self.scale.wrapping_add(EMERGE_STEP);
+            self.emerge_y -= EMERGE_DROP;
+            self.off.1 = (self.emerge_y >> 8) as i16;
+            self.emerge_left -= 1;
+            MonAnim::Pop { t: 0 }
+        } else {
+            self.scale = 0;
+            self.off.1 = 0;
+            self.emerge_y = 0;
+            MonAnim::Idle
+        }
     }
 
     /// Ball centre at send-out start.
@@ -501,6 +573,7 @@ impl MonSprite {
                 shape: ObjShape::Square,
                 size: 3,
                 priority: OBJ_PRIORITY_MON,
+                scale: self.scale,
                 ..Obj::default()
             });
         }
@@ -533,29 +606,21 @@ impl MonSprite {
                         let arc = (BALL_ARC * 4 * k * (n - k) / (n * n)) as i16;
                         self.ball = Some((lerp(sx, tx), lerp(sy, ty) - arc));
                         if t >= BALL_FRAMES {
-                            MonAnim::Pop { t: 0 }
+                            self.begin_emerge()
                         } else {
                             MonAnim::Ball { t }
                         }
                     }
                     _ => {
                         if t >= BALL_WAIT {
-                            MonAnim::Pop { t: 0 }
+                            self.begin_emerge()
                         } else {
                             MonAnim::Ball { t }
                         }
                     }
                 }
             }
-            MonAnim::Pop { t } => {
-                if t + 1 >= BALL_POP {
-                    self.ball = None;
-                    self.visible = true;
-                    MonAnim::Idle
-                } else {
-                    MonAnim::Pop { t: t + 1 }
-                }
-            }
+            MonAnim::Pop { .. } => self.step_emerge(),
             MonAnim::Recall { t } => {
                 if t + 1 >= RECALL_FRAMES {
                     self.ball = None;
@@ -698,6 +763,9 @@ impl MonSprite {
             MonAnim::Lunge { t } => (8, t, 0),
         };
         h.write(&[tag, a, b]);
+        if self.scale != 0 {
+            h.write_u16(self.scale);
+        }
         match self.tint {
             None => h.write(&[0xFF]),
             Some(t) => {

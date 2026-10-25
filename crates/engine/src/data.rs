@@ -1459,6 +1459,16 @@ pub trait GameData {
     fn battle_gfx(&self) -> &'static BattleGfx {
         &battle::EMPTY_GFX
     }
+    /// The move's Gen3 battle-anim script (`gBattleAnims_Moves`). `None` lunges instead.
+    fn move_anim(&self, id: MoveId) -> Option<&'static battle::anim::Script> {
+        let _ = id;
+        None
+    }
+    /// Tiles and palette of battle-anim sprite tag `tag` (`ANIM_TAG_*`, 10000 + index).
+    fn anim_gfx(&self, tag: u16) -> Option<&'static battle::GfxImage> {
+        let _ = tag;
+        None
+    }
     /// Gen3 heal location `id` (`setrespawn`, whiteout): map and player cell.
     fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
         let _ = id;
