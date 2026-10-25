@@ -262,6 +262,8 @@ pub(crate) fn gen3_special_ids() -> engine::data::SpecialIds {
         var_friendship_steps: Some(consts::VAR_FRIENDSHIP_STEP_COUNTER),
         script_repel_wore_off: data::SCRIPT_REPEL_WORE_OFF,
         flag_pokedex: Some(consts::FLAG_SYS_POKEDEX_GET),
+        flag_national_dex: Some(consts::FLAG_SYS_NATIONAL_DEX),
+        var_national_dex: Some(consts::VAR_NATIONAL_DEX),
         var_pc_box_to_send_mon: Some(consts::VAR_PC_BOX_TO_SEND_MON),
         var_mon_box_id: Some(consts::VAR_MON_BOX_ID),
         var_mon_box_pos: Some(consts::VAR_MON_BOX_POS),
@@ -474,6 +476,10 @@ macro_rules! game_data_tables {
 
         fn battle(&self) -> &'static ::engine::mon::BattleTables {
             &$crate::battle::TABLES
+        }
+
+        fn hoenn_dex(&self) -> &'static [::engine::data::SpeciesId] {
+            &$crate::battle::HOENN_DEX
         }
 
         fn wild_encounters(
@@ -731,6 +737,20 @@ mod build_id_tests {
         assert_ne!(BUILD_ID, 0);
         assert_eq!(Game::for_shells().build_id(), BUILD_ID);
         assert_eq!(Emerald::default().build_id(), BUILD_ID);
+    }
+
+    /// The Pokédex screen reads Hoenn order from the battle tables. National order is built
+    /// in the engine when `national_dex` is empty.
+    #[test]
+    fn hoenn_dex_is_the_pokedex_screen_order() {
+        use engine::data::GameData;
+        assert_eq!(Game::for_shells().hoenn_dex(), &battle::HOENN_DEX[..]);
+        assert!(Game::for_shells().national_dex().is_empty());
+        // A stub, a stale extract, or the script fixture (`tests/build_modes.rs`, flavor
+        // Emerald with no dex table) has an empty list. The full Hoenn dex is 202.
+        if !battle::HOENN_DEX.is_empty() {
+            assert_eq!(battle::HOENN_DEX.len(), 202);
+        }
     }
 
     #[test]

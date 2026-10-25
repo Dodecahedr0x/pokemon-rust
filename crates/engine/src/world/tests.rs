@@ -1161,6 +1161,7 @@ mod m9_w;
 mod m9_wave0;
 mod naming;
 mod partners;
+mod pokedex_screen;
 mod pushes;
 mod rtc;
 mod sil6_clock;

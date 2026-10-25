@@ -1036,8 +1036,8 @@ const MAX_TOTAL_EVS: u16 = 510;
 /// Gen3 `NUM_FRONTIER_FACILITIES`.
 const NUM_FRONTIER_FACILITIES: u16 = 7;
 /// What `EnableNationalPokedex` writes to `VAR_NATIONAL_DEX` (and `IsNationalPokedexEnabled`
-/// checks).
-const NATIONAL_DEX_MAGIC_VAR: u16 = 0x302;
+/// checks). The Pokédex screen reads the same value.
+const NATIONAL_DEX_MAGIC_VAR: u16 = engine::pokedex::NATIONAL_DEX_MAGIC;
 /// Gen3 `TRAINER_REGISTERED_FLAGS_START` (`include/constants/flags.h`): flag `+ i` is set when
 /// the trainer of `gRematchTable[i]` is registered in Match Call.
 pub const TRAINER_REGISTERED_FLAGS_START: u16 = 0x15C;

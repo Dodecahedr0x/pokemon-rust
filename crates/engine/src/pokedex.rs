@@ -17,6 +17,10 @@ use alloc::vec::Vec;
 /// Species ids at or past this are ignored (a 256-byte bitset each at most).
 pub const MAX_SPECIES: u16 = 2048;
 
+/// What Gen3 `EnableNationalPokedex` writes to `VAR_NATIONAL_DEX`. `IsNationalPokedexEnabled`
+/// is this value together with `FLAG_SYS_NATIONAL_DEX`.
+pub const NATIONAL_DEX_MAGIC: u16 = 0x302;
+
 /// Which flag.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum DexFlag {
