@@ -99,11 +99,9 @@ Merged `4bffb579`. Someone's PC and the bedroom PC withdraw, deposit, and move i
 
 **Done when:** the options menu changes text speed, battle scene, battle style, sound, and button mode, and those values affect play. A test changes text speed and reads it back.
 
-### `naming`
+### `naming` — closed
 
-`crates/engine/src/ui/naming.rs` is a stub.
-
-**Done when:** the player, a rival, a nickname, and a box can be named, with Gen3's character set and length limits. A test names a Pokémon and the party stores that nickname.
+Merged `847b43e5`. The player, a rival, a nickname, and a box can be named on Gen3's keyboard. Lengths are 7, 7, 10, and 8. A blank confirm keeps the existing name. Schema is 8. The stub checkpoint tree still verifies; the Emerald and Silice trees were not replayed in that worktree.
 
 ### `title` — closed
 
@@ -115,11 +113,9 @@ Battle pictures lunge, blink, and tint (`crates/engine/src/battle/gfx.rs`). Ther
 
 **Done when:** a move plays its Gen3 animation (the ROM's anim script and sprites), and send-out zooms. A test plays Tackle and asserts the anim runs.
 
-### `evolution`
+### `evolution` — closed
 
-Level-up evolution changes the species with no scene and reports `evolution scene` (`crates/engine/src/world/evolve.rs`). Friendship evolutions are not evaluated. `crates/engine/src/ui/evolution.rs` is a stub that answers "not evolved". Stones and Rare Candy report the same.
-
-**Done when:** the evolution scene plays (picture, cry hook, B cancels when Gen3 allows it) and friendship evolutions happen at 220. A test evolves a level-up species through the scene and a friendship species.
+Merged `81eac8cf`. The scene shows the front picture, queues a cry, and lets B cancel during the picture swap only for level-up and friendship (not a stone or a trade). Friendship evolves at 220. The species changes when the scene commits. Playing the cry is still the audio gap. Checkpoints were not re-baselined.
 
 ### `trainer-held-items`
 
@@ -159,17 +155,13 @@ Menus are frames and text. Item and Pokémon icons are not drawn (`crates/engine
 
 **Done when:** the party, summary, bag, mart, and Hall of Fame draw the Gen3 pictures and icons from extracted graphics. A test finds a non-empty sprite in the party menu and the Hall of Fame.
 
-### `credits`
+### `credits` — closed
 
-`GameClear` opens the Hall of Fame, then the credits are a timed black screen (`crates/engine/src/ui/hall_of_fame.rs`). The bike and Pokémon scenes between pages are left out. START skips pages.
+Merged `4feaf93f`. The 57 Gen3 pages scroll, with a scene change every 6 pages (bike rides and Pokémon interludes). START is ignored until THE END. The original ocean, forest, and city tiles are not in the extract, so each scene is its palette, the player sprite as the riders, and front pics when the game has them. Checkpoints did not move.
 
-**Done when:** the credits scroll the Gen3 pages (text and the scenes between them) and cannot be skipped with START. A test watches the first page's text appear.
+### `cable-car` — closed
 
-### `cable-car`
-
-`SPECIAL_CableCar` fades, waits 602 frames, and warps. There is no ride scene (`specials.ron`).
-
-**Done when:** the cable car scene plays (the car, the view, the arrival) for those 602 frames and then warps. A test starts the ride and asserts the scene is up before the warp.
+Merged `deb81e08`. `SPECIAL_CableCar` draws the car, the scrolling view, and the arrival fade for 602 frames, then warps. Test: `cable_car_scene_is_up_before_the_warp`. No checkpoint re-baseline.
 
 ### `easy-chat` — closed
 
