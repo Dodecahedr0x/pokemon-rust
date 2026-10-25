@@ -89,11 +89,9 @@ Seen/caught flags and counts exist (`crates/engine/src/pokedex.rs`, `SPECIAL_Scr
 
 **Done when:** START → POKéDEX opens the list, the detail page, and the rating, for Hoenn and National mode. A test opens it and finds a caught species.
 
-### `pc`
+### `pc` — closed
 
-`crates/engine/src/ui/pc.rs` is a stub (`stub_step`). Box storage data exists.
-
-**Done when:** the Pokémon storage system and the item PC withdraw, deposit, and move, including the party. A test deposits a Pokémon and withdraws it.
+Merged `4bffb579`. Someone's PC and the bedroom PC withdraw, deposit, and move items and Pokémon, including between the party and a box. A full box, party, or bag is refused, and the last party Pokémon cannot be deposited. Test: `depositing_a_mon_and_withdrawing_it_round_trips_the_party`. Checkpoints did not move.
 
 ### `options`
 
