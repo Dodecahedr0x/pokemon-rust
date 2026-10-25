@@ -99,6 +99,8 @@ fn tap(chat: &mut EasyChat, g: &Game, pressed: Buttons) -> (ScreenOut, Vec<Repor
     let mut bag = Bag::new([1, 1, 1, 1, 1]);
     let mut money = 0u32;
     let mut pc = PcStorage::new(1, 1);
+    let mut decor = crate::decor::DecorPc::new();
+    let mut str_vars = crate::str_vars::StrVars::new();
     let mut options = Options::default();
     let mut coins = 0u16;
     let mut pokedex = Pokedex::default();
@@ -116,6 +118,8 @@ fn tap(chat: &mut EasyChat, g: &Game, pressed: Buttons) -> (ScreenOut, Vec<Repor
         bag: &mut bag,
         money: &mut money,
         pc: &mut pc,
+        decor: &mut decor,
+        str_vars: &mut str_vars,
         options: &mut options,
         coins: &mut coins,
         pokedex: &mut pokedex,

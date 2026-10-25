@@ -10,7 +10,7 @@
 //   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
 // Only Unsupported commands report.
 //
-// Counts: 131 Native, 41 Ignore, 13 Default, 42 Unsupported.
+// Counts: 134 Native, 41 Ignore, 13 Default, 39 Unsupported.
 //
 // Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
 {
@@ -143,14 +143,14 @@
     "bufferleadmonspeciesname": Native,
     "bufferpartymonnick": Native,
     "bufferitemname": Native,
-    "bufferdecorationname": Unsupported,
+    "bufferdecorationname": Native, // buffer(&ctx, slot, BufferSrc::Decoration(DecorId(<id>)))
     "buffermovename": Native,
     "buffernumberstring": Native,
     "bufferstdstring": Native,
     "bufferstring": Native,
     "pokemart": Native, // `mart(&ctx, &<list>)` when the extract names the list (minor 10), else reported
-    "pokemartdecoration": Unsupported,
-    "pokemartdecoration2": Unsupported,
+    "pokemartdecoration": Native, // mart_decor(&ctx, DecorShop::Shop, &<list>) when the ROM names the list, else reported
+    "pokemartdecoration2": Native, // DecorShop::Shop2
     "playslotmachine": Native, // Game Corner: bet, spin, pay out, update coins
     "setberrytree": Unsupported,
     "choosecontestmon": Native,

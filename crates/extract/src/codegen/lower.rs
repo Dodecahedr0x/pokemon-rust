@@ -182,6 +182,7 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "bufferleadmonspeciesname",
     "bufferpartymonnick",
     "bufferitemname",
+    "bufferdecorationname",
     "buffermovename",
     "buffernumberstring",
     "bufferstdstring",
@@ -189,6 +190,8 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "bufferitemnameplural",
     "pokemart",
     "playslotmachine",
+    "pokemartdecoration",
+    "pokemartdecoration2",
     "random",
     "addmoney",
     "removemoney",
@@ -436,12 +439,27 @@ pub fn lower(
             }
         }
         for l in &file.lists {
+            let numeric = !l.items.is_empty()
+                && l.items
+                    .iter()
+                    .all(|i| !i.is_empty() && i.bytes().all(|b| b.is_ascii_digit()));
+            body.push('\n');
+            if numeric {
+                let items: Vec<String> = l.items.iter().map(|i| format!("DecorId({i})")).collect();
+                writeln!(
+                    body,
+                    "pub static {}: [DecorId; {}] = [{}];",
+                    l.name,
+                    items.len(),
+                    items.join(", ")
+                )?;
+                continue;
+            }
             // `pokemart`'s list: `ITEM_*` names that are not identifiers are left out.
             let items: Vec<String> = (l.items.iter())
                 .filter(|i| is_ident(i))
                 .map(|i| format!("ItemId({i})"))
                 .collect();
-            body.push('\n');
             writeln!(
                 body,
                 "pub static {}: [ItemId; {}] = [{}];",

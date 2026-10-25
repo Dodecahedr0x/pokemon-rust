@@ -36,7 +36,8 @@ pub mod title;
 
 use crate::bag::Bag;
 use crate::checkpoint::PlayerName;
-use crate::data::{GameData, ItemId, MapId, MoveId, ScriptId, SpeciesId};
+use crate::data::{DecorId, DecorShop, GameData, ItemId, MapId, MoveId, ScriptId, SpeciesId};
+use crate::decor::DecorPc;
 use crate::flow::Vars;
 use crate::hash::Fnv64;
 use crate::input::Buttons;
@@ -46,6 +47,7 @@ use crate::pc::PcStorage;
 use crate::pokedex::Pokedex;
 use crate::rng::Rng;
 use crate::script::Report;
+use crate::str_vars::StrVars;
 use crate::video::Frame;
 use alloc::vec::Vec;
 
@@ -64,6 +66,11 @@ pub enum ScreenKind {
     Bag(BagMode),
     Mart {
         items: &'static [ItemId],
+    },
+    /// Gen3 `pokemartdecoration` / `pokemartdecoration2` (buy / quit, into the decoration PC).
+    DecorMart {
+        shop: DecorShop,
+        items: &'static [DecorId],
     },
     Pc(PcMode),
     Options,
@@ -194,6 +201,7 @@ pub enum ScreenKindTag {
     Contest,
     Pokedex,
     Slot,
+    DecorMart,
 }
 
 impl ScreenKind {
@@ -204,6 +212,7 @@ impl ScreenKind {
             ScreenKind::Summary { .. } => ScreenKindTag::Summary,
             ScreenKind::Bag(_) => ScreenKindTag::Bag,
             ScreenKind::Mart { .. } => ScreenKindTag::Mart,
+            ScreenKind::DecorMart { .. } => ScreenKindTag::DecorMart,
             ScreenKind::Pc(_) => ScreenKindTag::Pc,
             ScreenKind::Options => ScreenKindTag::Options,
             ScreenKind::SaveDialog => ScreenKindTag::SaveDialog,
@@ -270,6 +279,13 @@ impl ScreenKind {
             ScreenKind::EasyChat(k) => h.write(&[k]),
             ScreenKind::Slot { machine } => h.write(&[machine]),
             ScreenKind::Mart { items } => {
+                h.write_u16(items.len() as u16);
+                for i in items {
+                    h.write_u16(i.0);
+                }
+            }
+            ScreenKind::DecorMart { shop, items } => {
+                h.write(&[shop as u8]);
                 h.write_u16(items.len() as u16);
                 for i in items {
                     h.write_u16(i.0);
@@ -351,6 +367,10 @@ pub struct ScreenCx<'a, G: GameData> {
     pub bag: &'a mut Bag,
     pub money: &'a mut u32,
     pub pc: &'a mut PcStorage,
+    /// Decoration PC (`DecorationAdd`).
+    pub decor: &'a mut DecorPc,
+    /// `gStringVar1..3` (a decoration confirm copies the name into the first).
+    pub str_vars: &'a mut StrVars,
     pub options: &'a mut Options,
     pub coins: &'a mut u16,
     pub pokedex: &'a mut Pokedex,
@@ -432,6 +452,9 @@ impl ScreenState {
             }
             ScreenKind::Bag(m) => ScreenState::Bag(bag::BagMenu::new(m)),
             ScreenKind::Mart { items } => ScreenState::Mart(mart::Mart::new(items)),
+            ScreenKind::DecorMart { shop, items } => {
+                ScreenState::Mart(mart::Mart::decorations(shop, items))
+            }
             ScreenKind::Pc(m) => ScreenState::Pc(pc::PcMenu::new(m)),
             ScreenKind::Options => ScreenState::Options(options::OptionsMenu::new()),
             ScreenKind::SaveDialog => ScreenState::SaveDialog(save::SaveDialog::new()),

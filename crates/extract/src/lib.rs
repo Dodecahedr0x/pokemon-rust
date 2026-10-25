@@ -5,6 +5,7 @@ pub mod battle_data;
 pub mod battle_gfx;
 pub mod berries;
 pub mod codegen;
+pub mod decorations;
 pub mod export;
 pub mod fixtures;
 pub mod font;

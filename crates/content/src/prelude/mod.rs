@@ -12,8 +12,8 @@ pub use alloc::boxed::Box;
 pub use core::cmp::Ordering;
 pub use engine::battle::BattleOutcome;
 pub use engine::data::{
-    Dir, FlagId, ItemId, MapId, MoveId, MovementType, PLAYER, ScriptId, SpeciesId, TextId,
-    TrainerId, VarId,
+    DecorId, DecorShop, Dir, FlagId, ItemId, MapId, MoveId, MovementType, PLAYER, ScriptId,
+    SpeciesId, TextId, TrainerId, VarId,
 };
 pub use engine::script::{BufferSrc, Ctx, Emote, Fade, Query, Report, Speed, Step, WarpSlot};
 

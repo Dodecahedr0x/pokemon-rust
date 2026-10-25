@@ -761,6 +761,17 @@ impl<'a> Low<'a> {
                     as_u8(&cat)
                 ));
             }
+            ("bufferdecorationname", [slot, v]) => {
+                let Some(slot) = u8_lit(slot) else {
+                    return Ok(false);
+                };
+                let Some(id) = u16_expr(v, true) else {
+                    return Ok(false);
+                };
+                out.push(format!(
+                    "buffer(&ctx, {slot}, BufferSrc::Decoration(DecorId({id}))).await;"
+                ));
+            }
             ("bufferleadmonspeciesname", [slot]) => {
                 let Some(slot) = u8_lit(slot) else {
                     return Ok(false);
@@ -781,6 +792,19 @@ impl<'a> Low<'a> {
                     return Ok(false);
                 };
                 out.push(format!("play_slot_machine(&ctx, {id}).await;"));
+            }
+            ("pokemartdecoration" | "pokemartdecoration2", [Items(l)]) => {
+                let Some(m) = self.lists.get(l.as_str()) else {
+                    return Ok(false);
+                };
+                let shop = if op == "pokemartdecoration2" {
+                    "Shop2"
+                } else {
+                    "Shop"
+                };
+                out.push(format!(
+                    "mart_decor(&ctx, DecorShop::{shop}, &{SCRIPTS}::{m}::{l}).await;"
+                ));
             }
             ("random", [n]) => {
                 let Some(n) = u16_expr(n, true) else {

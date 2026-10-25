@@ -292,6 +292,7 @@ impl World {
                 field_move: None,
                 stash: super::host::Stash::default(),
                 pair: super::sight::Pair::default(),
+                decor: crate::decor::DecorPc::new(),
                 events: Vec::with_capacity(super::EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,

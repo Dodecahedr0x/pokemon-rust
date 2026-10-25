@@ -573,6 +573,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             // ---- Milestone 9 ----
             Request::Mart { .. }
             | Request::SlotMachine { .. }
+            | Request::DecorationMart { .. }
             | Request::ChoosePartyMon(_)
             | Request::PlayerPc(_)
             | Request::SaveDialog
@@ -680,6 +681,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
         }
         if let Request::Mart { .. }
         | Request::SlotMachine { .. }
+        | Request::DecorationMart { .. }
         | Request::ChoosePartyMon(_)
         | Request::PlayerPc(_)
         | Request::SaveDialog
