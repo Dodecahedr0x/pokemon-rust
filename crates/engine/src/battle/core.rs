@@ -614,6 +614,9 @@ pub struct Battle {
     battle_style: crate::options::BattleStyle,
     /// The opponent replacement waiting on [`Need::Shift`]: side and party slot.
     shift_send: Option<(Side, u8)>,
+    /// `BATTLE_TYPE_LINK`: the opponent's action arrives over the link
+    /// ([`Battle::supply_link_action`]) instead of the trainer AI. Hashed only when set.
+    link: bool,
 }
 
 /// Gen3 `GetTrainerMoneyToGive` (`moneyMultiplier` 1: no Amulet Coin without held items):
@@ -842,6 +845,7 @@ impl Battle {
             fx: FieldFx::default(),
             battle_style: crate::options::BattleStyle::Shift,
             shift_send: None,
+            link: false,
         };
         rules::setup(&mut b, game);
         b.find_forms(game, Side::Player, |_| false);
@@ -1070,6 +1074,44 @@ impl Battle {
         self.stamp(&mut env);
     }
 
+    /// `BATTLE_TYPE_LINK`: the opponent does not use the AI. Call before [`Battle::start`].
+    pub fn set_link(&mut self) {
+        self.link = true;
+    }
+
+    /// The partner's `CONTROLLER_TWORETURNVALUES` for this [`Need::Action`]. When the player
+    /// has already chosen, the turn starts.
+    pub fn supply_link_action(
+        &mut self,
+        game: &impl GameData,
+        rng: &mut Rng,
+        c: Choice,
+        out: &mut Vec<BattleEvent>,
+    ) -> bool {
+        if !self.link || self.need != Need::Action {
+            return false;
+        }
+        let saved = self.choosing;
+        self.choosing = Side::Opponent;
+        let mut env = Env::new(game.battle(), rng, out);
+        let action = self.player_action(&mut env, c);
+        self.choosing = saved;
+        let Some(action) = action else {
+            self.stamp(&mut env);
+            return false;
+        };
+        let foe = Side::Opponent;
+        self.actions[foe.i()] = Some(action);
+        self.targets[foe.i()] = self.default_target(env.t, foe, action_slot(action));
+        if self.actions[Side::Player.i()].is_some() && self.next_chooser().is_none() {
+            self.need = Need::Busy;
+            self.queue_turn(&mut env);
+            self.run(&mut env);
+        }
+        self.stamp(&mut env);
+        true
+    }
+
     fn answer(&mut self, env: &mut Env, c: Choice) {
         let me = self.choosing;
         match (self.need, c) {
@@ -1096,6 +1138,13 @@ impl Battle {
                     // HandleTurnActionSelectionState: the right battler is asked once the left
                     // one confirmed.
                     self.choosing = next;
+                    return;
+                }
+                // A link battle waits for the partner's CONTROLLER_TWORETURNVALUES
+                // (`supply_link_action`) before the turn. The opponent is not an AI.
+                if self.link && self.actions[Side::Opponent.i()].is_none() {
+                    self.choosing = Side::Player;
+                    self.need = Need::Action;
                     return;
                 }
                 self.choosing = Side::Player;
@@ -1338,6 +1387,9 @@ impl Battle {
         if let Some((side, party)) = self.shift_send {
             h.write(&[0xB8, side.code(), party]);
         }
+        if self.link {
+            h.write(&[0xCC]);
+        }
     }
 
     /// The battle-style option this battle was started with.
@@ -1527,7 +1579,9 @@ impl Battle {
         self.random_turn = env.rng.random();
         self.actions = [None; 4];
         for side in self.sides() {
-            let ai = !side.is_player() || (side == Side::PlayerRight && self.has_partner());
+            // The partner's controller sends the choice (`supply_link_action`).
+            let ai = !self.link
+                && (!side.is_player() || (side == Side::PlayerRight && self.has_partner()));
             if !ai || !self.is_present(side) || self.battler(side).mon.hp == 0 {
                 continue;
             }

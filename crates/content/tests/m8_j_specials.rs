@@ -11,7 +11,7 @@ use engine::berry::BerryTree;
 use engine::data::TrainerId;
 use engine::data::{FlagId, ItemId, TextId, VarId};
 use engine::script::{
-    BufferSrc, Ctx, Fade, Query, Report, Request, Response, Runner, Script, ScriptHost,
+    BufferSrc, Ctx, Fade, LinkCall, Query, Report, Request, Response, Runner, Script, ScriptHost,
 };
 use engine::script::{PartyMode, PartyStash};
 use extract::codegen::Class;
@@ -155,6 +155,7 @@ impl Rec {
             | Request::ItemCheck { .. }
             | Request::ItemSpace { .. }
             | Request::MoneyCheck(_) => Response::Bool(true),
+            Request::Link(_) => Response::Value(0),
             _ => Response::Unit,
         }
     }
@@ -569,6 +570,36 @@ fn native_specials_issue_their_requests_in_order() {
                 degraded("SPECIAL_FieldShowRegionMap"),
                 Request::Fade(Fade::FromBlack),
             ],
+            0,
+        ),
+        (
+            "SPECIAL_TryBecomeLinkLeader",
+            0,
+            vec![Request::Link(LinkCall::BecomeLeader)],
+            0,
+        ),
+        (
+            "SPECIAL_TryBattleLinkup",
+            0,
+            vec![Request::Link(LinkCall::Battle)],
+            0,
+        ),
+        (
+            "SPECIAL_InitUnionRoom",
+            0,
+            vec![Request::Link(LinkCall::InitUnion)],
+            0,
+        ),
+        (
+            "SPECIAL_RunUnionRoom",
+            0,
+            vec![Request::Link(LinkCall::UnionRoom)],
+            0,
+        ),
+        (
+            "SPECIAL_CloseLink",
+            0,
+            vec![Request::Link(LinkCall::Close)],
             0,
         ),
     ];
@@ -1466,6 +1497,26 @@ fn spec_named_classes() {
     for n in ["PlayerPC", "BedroomPC"] {
         assert_eq!(class(n), Class::Unsupported, "{n}");
     }
+}
+
+#[test]
+fn link_specials_the_battle_and_union_room_use_are_native() {
+    let c = classes();
+    let class = |n: &str| c[&format!("SPECIAL_{n}")];
+    let why = reasons();
+    for n in [
+        "TryBecomeLinkLeader",
+        "TryBattleLinkup",
+        "InitUnionRoom",
+        "RunUnionRoom",
+        "CloseLink",
+    ] {
+        assert_eq!(class(n), Class::Native, "{n}");
+        assert!(!why[&format!("SPECIAL_{n}")].is_empty(), "{n}");
+    }
+    // The Pokémon Center nurse still takes the "no partner" answer. The Union Room
+    // exchange copies the partner name itself.
+    assert_eq!(class("BufferUnionRoomPlayerName"), Class::Default(0));
 }
 
 // ---- callstd and msgbox ----

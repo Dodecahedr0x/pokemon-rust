@@ -20,6 +20,7 @@ pub mod grid;
 pub mod hash;
 pub mod input;
 pub mod item_use;
+pub mod link;
 pub mod menu;
 pub mod mon;
 pub mod objects;

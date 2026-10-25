@@ -19,6 +19,7 @@ mod contest;
 mod field;
 mod fx;
 mod items;
+mod link_play;
 mod menu;
 mod party;
 mod query;
@@ -654,6 +655,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                     .map(|c| c.script.0)
                     .unwrap_or(crate::script::NO_WONDER_CARD_SCRIPT),
             )),
+            Request::Link(call) => Some(Response::Value(link_play::answer(self, call))),
         }
     }
 
