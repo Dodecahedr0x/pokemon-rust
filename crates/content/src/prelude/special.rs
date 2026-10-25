@@ -279,13 +279,14 @@ async fn cable_car_destination(ctx: &Ctx) -> MapId {
 ///     Maxie and Tabitha; `VAR_RESULT` = the outcome (`HandleSpecialTrainerBattleEnd`). A loss whites out at once (the engine restores the
 ///     party first, as the script's `frontier_saveparty` and `LoadPlayerParty` would before
 ///     `SetCB2WhiteOut`). The other battle types report `Unsupported`.
+///   - `ShowEasyChatScreen`: the Easy Chat screen (`ui::easy_chat`). `VAR_RESULT` is
+///     `GetEasyChatCompleted` (1 when a changed phrase is confirmed, 0 when it is left or the
+///     phrase did not change). The questionnaire's confirm also writes `VAR_0x8004` = 0.
 /// - Degraded (reported), as if cancelled:
 ///   - `StartWallyTutorialBattle`: no battle; the script goes on as after Wally's catch;
 ///   - `ChoosePartyMon`: `VAR_0x8004` = `PARTY_NOTHING_CHOSEN`;
 ///   - `DoWaldaNamingScreen`: `VAR_0x8004` = cancelled with no phrase before, so no phrase is
 ///     saved (and `TryGetWallpaperWithWaldaPhrase` is never reached);
-///   - `ShowEasyChatScreen`: the Easy Chat screen without its keyboard (`ui::easy_chat`):
-///     `VAR_RESULT` = 0;
 ///   - `Bag_ChooseBerry`: `VAR_ITEM_ID` = 0, then the field fades back in;
 ///   - `FieldShowRegionMap`: the field fades back in;
 ///   - `ScriptMenu_CreatePCMultichoice`: `VAR_RESULT` = `MULTI_B_PRESSED` (the PC turns off);
@@ -459,17 +460,17 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             ctx.set_var(VAR_0x8004, WALDA_CANCEL_FIRST_PHRASE).await;
         }
         id if id == SPECIAL_ShowEasyChatScreen => {
-            // `easy_chat.c`: the screen of `EASY_CHAT_TYPE_*` `VAR_0x8004` (Wave G). Without
-            // its keyboard the phrase never changes, so `GetEasyChatCompleted`
-            // (`DidPhraseChange`) is FALSE: `VAR_RESULT` = 0 whether the player confirmed or
-            // quit. The questionnaire's confirm (`SetSpecialEasyChatResult`) also writes
-            // `VAR_0x8004` = 0 (not the Mystery Event phrase).
-            degraded(ctx, id).await;
+            // `easy_chat.c`: the screen of `EASY_CHAT_TYPE_*` `VAR_0x8004`. Confirming writes
+            // `gSpecialVar_Result` = `GetEasyChatCompleted` (the phrase changed). Quitting, or
+            // confirming an unchanged phrase, leaves 0. The questionnaire's confirm
+            // (`SetSpecialEasyChatResult`) also writes `VAR_0x8004` = 0 (not the Mystery Event
+            // phrase).
             let kind = ctx.var(VAR_0x8004).await as u8;
-            if ctx.easy_chat(kind).await && kind == EASY_CHAT_TYPE_QUESTIONNAIRE {
+            let completed = ctx.easy_chat(kind).await;
+            if completed && kind == EASY_CHAT_TYPE_QUESTIONNAIRE {
                 ctx.set_var(VAR_0x8004, 0).await;
             }
-            ctx.set_var(VAR_RESULT, 0).await;
+            ctx.set_var(VAR_RESULT, u16::from(completed)).await;
         }
         id if id == SPECIAL_Bag_ChooseBerry => {
             degraded(ctx, id).await;

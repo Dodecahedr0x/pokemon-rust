@@ -415,9 +415,8 @@ fn native_specials_issue_their_requests_in_order() {
         (
             "SPECIAL_ShowEasyChatScreen",
             1,
-            // Wave G: the Easy Chat screen of `VAR_0x8004`'s type, left without confirming.
+            // The Easy Chat screen of `VAR_0x8004`'s type, left without confirming.
             vec![
-                degraded("SPECIAL_ShowEasyChatScreen"),
                 Request::GetVar(VAR_0x8004),
                 Request::EasyChat { kind: 0 },
                 set(VAR_RESULT, 0),

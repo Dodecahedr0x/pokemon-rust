@@ -171,8 +171,14 @@ impl Policy {
             Some((_, ScreenState::EasyChat(e))) => {
                 use engine::ui::easy_chat::Prompt;
                 Some(match e.prompt() {
-                    Prompt::Quit { cursor: 0 } | Prompt::Confirm { cursor: 0 } => Buttons::A,
-                    Prompt::Quit { .. } | Prompt::Confirm { .. } => Buttons::UP,
+                    Prompt::Quit { cursor: 0 }
+                    | Prompt::Confirm { cursor: 0 }
+                    | Prompt::Delete { cursor: 0 } => Buttons::A,
+                    Prompt::Quit { .. } | Prompt::Confirm { .. } | Prompt::Delete { .. } => {
+                        Buttons::UP
+                    }
+                    Prompt::CannotQuit { .. } => Buttons::A,
+                    Prompt::Keyboard { .. } | Prompt::Words { .. } => Buttons::B,
                     Prompt::Phrase { .. } | Prompt::Buttons { .. } => Buttons::B,
                 })
             }
