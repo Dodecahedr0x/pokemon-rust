@@ -138,22 +138,24 @@ pub(crate) fn unit_len(text: &[u8], i: usize) -> usize {
 /// 0xFF) and `{RIVAL}`; other placeholders, string vars included, expand to nothing. The result
 /// always ends with 0xFF. See [`expand_vars`].
 pub fn expand(game: &impl GameData, text: &[u8], player: &[u8]) -> Vec<u8> {
-    expand_vars(game, text, player, None)
+    expand_vars(game, text, player, None, None)
 }
 
 /// Gen3 `StringExpandPlaceholders`: copies `text` up to its 0xFF, expanding `{PLAYER}` to
-/// `player`, `{RIVAL}`, and `{STR_VAR_1}`..`{STR_VAR_3}` to the string vars (when given), each
-/// expansion itself expanded (up to `EXPAND_DEPTH` deep). Other placeholders expand to nothing
-/// (`{KUN}` is empty in Emerald). The result keeps whole code units, at most [`EXPANDED_MAX`]
-/// bytes, and always ends with 0xFF.
+/// `player`, `{RIVAL}` to `rival` (or the game's static rival name when `rival` is `None`),
+/// and `{STR_VAR_1}`..`{STR_VAR_3}` to the string vars (when given), each expansion itself
+/// expanded (up to `EXPAND_DEPTH` deep). Other placeholders expand to nothing (`{KUN}` is
+/// empty in Emerald). The result keeps whole code units, at most [`EXPANDED_MAX`] bytes, and
+/// always ends with 0xFF.
 pub fn expand_vars(
     game: &impl GameData,
     text: &[u8],
     player: &[u8],
     vars: Option<&StrVars>,
+    rival: Option<&[u8]>,
 ) -> Vec<u8> {
     let mut out = Vec::with_capacity(text.len() + 8);
-    expand_into(game, text, player, vars, 0, &mut out);
+    expand_into(game, text, player, vars, rival, 0, &mut out);
     out.push(EOS);
     out
 }
@@ -166,6 +168,7 @@ fn expand_into(
     text: &[u8],
     player: &[u8],
     vars: Option<&StrVars>,
+    rival: Option<&[u8]>,
     depth: u8,
     out: &mut Vec<u8>,
 ) -> bool {
@@ -175,13 +178,13 @@ fn expand_into(
         if text[i] == PLACEHOLDER {
             let sub: &[u8] = match text.get(i + 1).copied() {
                 Some(PLACEHOLDER_PLAYER) => player,
-                Some(PLACEHOLDER_RIVAL) => game.ui_text(UiText::RivalName),
+                Some(PLACEHOLDER_RIVAL) => rival.unwrap_or_else(|| game.ui_text(UiText::RivalName)),
                 Some(v @ PLACEHOLDER_STR_VAR_1..=PLACEHOLDER_STR_VAR_3) => {
                     vars.map_or(&[], |s| &s.get((v - PLACEHOLDER_STR_VAR_1) as usize)[..])
                 }
                 _ => &[],
             };
-            if depth < EXPAND_DEPTH && expand_into(game, sub, player, vars, depth + 1, out) {
+            if depth < EXPAND_DEPTH && expand_into(game, sub, player, vars, rival, depth + 1, out) {
                 return true;
             }
         } else {
@@ -399,7 +402,7 @@ impl TextBox {
         player: &[u8],
         f: &mut Frame,
     ) {
-        self.print_vars(game, text, player, None, f);
+        self.print_vars(game, text, player, None, None, f);
     }
 
     /// [`TextBox::print`], with `{STR_VAR_1}`..`{STR_VAR_3}` printing `vars` (Gen3
@@ -410,6 +413,7 @@ impl TextBox {
         text: &'static [u8],
         player: &[u8],
         vars: Option<&StrVars>,
+        rival: Option<&[u8]>,
         f: &mut Frame,
     ) {
         // Opening clears the canvas with the default colours already; it is flushed once below.
@@ -418,8 +422,11 @@ impl TextBox {
             self.open_unflushed(game, f);
         }
         let colors = Colors::of(game.window());
-        self.printer
-            .start(expand_vars(game, text, player, vars), colors, !cleared);
+        self.printer.start(
+            expand_vars(game, text, player, vars, rival),
+            colors,
+            !cleared,
+        );
         self.printer.flush(f);
     }
 

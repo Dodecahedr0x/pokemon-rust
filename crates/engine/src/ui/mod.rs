@@ -149,9 +149,13 @@ pub enum PcMode {
 /// What the naming screen names.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum NamingKind {
+    /// `NAMING_SCREEN_PLAYER` (`PLAYER_NAME_LENGTH`, 7).
     Player,
-    /// Party slot.
+    /// The rival (`rivalName`, the same 7 characters as the player).
+    Rival,
+    /// Party slot (`POKEMON_NAME_LENGTH`, 10).
     Mon(u8),
+    /// PC box (`BOX_NAME_LENGTH`, 8).
     Box(u8),
 }
 
@@ -255,6 +259,7 @@ impl ScreenKind {
                     NamingKind::Player => (0, 0),
                     NamingKind::Mon(s) => (1, s),
                     NamingKind::Box(b) => (2, b),
+                    NamingKind::Rival => (3, 0),
                 };
                 h.write(&[tag, v]);
             }
@@ -313,7 +318,10 @@ pub struct ScreenCx<'a, G: GameData> {
     /// Flags and vars: read by most screens, written by item use (Gen3 `VAR_REPEL_STEP_COUNT`)
     /// and the PC (`VAR_PC_BOX_TO_SEND_MON`).
     pub vars: &'a mut Vars,
-    pub player_name: &'a PlayerName,
+    pub player_name: &'a mut PlayerName,
+    /// The rival's name once the naming screen has set one. `None` leaves `{RIVAL}` on the
+    /// game's static name.
+    pub rival_name: &'a mut Option<PlayerName>,
     /// The current map (the save dialog's location line).
     pub map: MapId,
     /// The World's frame count (the save dialog's and CONTINUE window's play time).

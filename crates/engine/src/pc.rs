@@ -2,8 +2,8 @@
 //! `gPokemonStoragePtr`; Milestone 9). Wave 0 declares the state (with its digest, hash and
 //! snapshot); Task M adds the storage logic (Gen3 `SendMonToPC`, box order, withdraw).
 //!
-//! Box names and wallpapers are not kept (the list UI shows "BOX n"). The boxes are allocated
-//! as they are first written, so a game that never uses the PC keeps its heap.
+//! Wallpapers are not kept (the list UI shows "BOX n" until a box is named). The boxes are
+//! allocated as they are first written, so a game that never uses the PC keeps its heap.
 //!
 //! As the bag, the storage keeps a digest of its contents on every write, so [`PcStorage::hash`]
 //! is O(1).
@@ -17,6 +17,8 @@ use alloc::vec::Vec;
 
 /// Mons per box (Gen3 `IN_BOX_COUNT`).
 pub const BOX_SLOTS: usize = 30;
+/// `BOX_NAME_LENGTH` (8) + EOS.
+pub const BOX_NAME_SIZE: usize = 9;
 
 /// One box.
 pub type PcBox = [Option<BoxedMon>; BOX_SLOTS];
@@ -26,6 +28,8 @@ pub struct PcStorage {
     items: Vec<Slot>,
     /// Boxes `0..boxes.len()`; the others are empty.
     boxes: Vec<PcBox>,
+    /// Box names (`boxNames`), 0xFF-filled until set. Absent entries are unset.
+    names: Vec<[u8; BOX_NAME_SIZE]>,
     /// The game's box count (`SpecialIds::pc_boxes`).
     box_count: u8,
     current_box: u8,
@@ -37,6 +41,17 @@ const fn item_term(i: usize, s: Slot) -> u64 {
         0
     } else {
         splitmix64(5 << 48 | (i as u64) << 32 | (s.item.0 as u64) << 16 | s.qty as u64)
+    }
+}
+
+fn name_term(b: usize, name: &[u8; BOX_NAME_SIZE]) -> u64 {
+    if name.iter().all(|&c| c == 0xFF) {
+        0
+    } else {
+        let mut h = Fnv64::new();
+        h.write(&[7, b as u8]);
+        h.write(name);
+        splitmix64(h.finish())
     }
 }
 
@@ -59,6 +74,7 @@ impl PcStorage {
         PcStorage {
             items: vec![Slot::default(); item_slots as usize],
             boxes: Vec::new(),
+            names: Vec::new(),
             box_count: boxes,
             current_box: 0,
             digest: 0,
@@ -151,6 +167,44 @@ impl PcStorage {
     /// Gen3 `StorageGetCurrentBox`.
     pub fn current_box(&self) -> u8 {
         self.current_box
+    }
+
+    /// Box `b`'s name: 0xFF-terminated, 0xFF-padded. Unset boxes are all 0xFF.
+    pub fn box_name(&self, b: usize) -> [u8; BOX_NAME_SIZE] {
+        self.names.get(b).copied().unwrap_or([0xFF; BOX_NAME_SIZE])
+    }
+
+    /// Sets box `b`'s name from Gen3 bytes (at most [`BOX_NAME_SIZE`] - 1 characters). Panics
+    /// past the box count.
+    pub fn set_box_name(&mut self, b: usize, name: &[u8]) {
+        assert!(b < self.box_count as usize, "pc box out of range");
+        let mut fitted = [0xFF; BOX_NAME_SIZE];
+        for (o, &c) in fitted[..BOX_NAME_SIZE - 1]
+            .iter_mut()
+            .zip(name.iter().take_while(|&&c| c != 0xFF))
+        {
+            *o = c;
+        }
+        if self.names.len() <= b {
+            if fitted.iter().all(|&c| c == 0xFF) {
+                return;
+            }
+            self.names.resize(b + 1, [0xFF; BOX_NAME_SIZE]);
+        }
+        let old = self.names[b];
+        self.digest = self
+            .digest
+            .wrapping_sub(name_term(b, &old))
+            .wrapping_add(name_term(b, &fitted));
+        self.names[b] = fitted;
+    }
+
+    /// Boxes whose name has been set, ascending: `(box, name)`.
+    pub fn named_boxes(&self) -> impl Iterator<Item = (u8, [u8; BOX_NAME_SIZE])> + '_ {
+        self.names
+            .iter()
+            .enumerate()
+            .filter_map(|(i, n)| n.iter().any(|&c| c != 0xFF).then_some((i as u8, *n)))
     }
 
     pub fn set_current_box(&mut self, b: u8) {

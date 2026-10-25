@@ -159,7 +159,14 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 // Gen3 `GetPlayerTextSpeedDelay`: the option, read when the message starts.
                 s.text.set_speed(s.options.text_speed);
                 let vars = Some(&s.str_vars);
-                (s.text).print_vars(game, game.text(t), &s.player_name, vars, self.f);
+                (s.text).print_vars(
+                    game,
+                    game.text(t),
+                    &s.player_name,
+                    vars,
+                    s.rival_name.as_ref().map(|n| &n[..]),
+                    self.f,
+                );
                 UNIT
             }
             Request::CloseMessage => {

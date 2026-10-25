@@ -88,6 +88,12 @@ impl World {
             input: s.input.snapshot(),
             runner_issued: self.runner.issued(),
             player_name: s.player_name,
+            rival_name: s.rival_name,
+            box_names: s
+                .pc
+                .named_boxes()
+                .map(|(index, name)| crate::checkpoint::BoxNameSnap { index, name })
+                .collect(),
             player_id: s.player_id,
             field: s.field.snapshot(),
             objects: s.objects.snapshot(),
@@ -212,8 +218,14 @@ impl World {
         }
         let pokedex =
             Pokedex::from_raw(&w.pokedex.seen, &w.pokedex.caught).map_err(RestoreError::Invalid)?;
-        let pc =
+        let mut pc =
             pc_from_snap(&w.pc, ids.pc_item_slots, ids.pc_boxes).map_err(RestoreError::Invalid)?;
+        for n in &w.box_names {
+            if n.index as usize >= pc.box_count() as usize {
+                return Err(RestoreError::Invalid("box name past the game's boxes"));
+            }
+            pc.set_box_name(usize::from(n.index), &n.name);
+        }
         if w.coins > ids.max_coins {
             return Err(RestoreError::Invalid("coins over the game's max_coins"));
         }
@@ -253,6 +265,7 @@ impl World {
                 mode: Mode::Field,
                 answer: None,
                 player_name: w.player_name,
+                rival_name: w.rival_name,
                 bag,
                 money: w.money,
                 str_vars,

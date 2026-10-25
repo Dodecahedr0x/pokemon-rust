@@ -119,8 +119,11 @@ impl Message {
         wait_press: bool,
     ) {
         let colors = colors(game);
-        self.printer
-            .start(text::expand_vars(game, text, player, vars), colors, true);
+        self.printer.start(
+            text::expand_vars(game, text, player, vars, None),
+            colors,
+            true,
+        );
         self.wait_press = wait_press;
         self.shown = true;
     }
