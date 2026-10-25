@@ -23,21 +23,17 @@ No sound engine. The design defers m4a/Sappy (`docs/plans/2026-10-21-emerald-rus
 
 Merged `033ec277`. `gettime` is Native and writes hours, minutes, and seconds into `VAR_0x8000..VAR_0x8002` from the shell RTC, or from the frame clock when no RTC is set. Test: `gettime_writes_a_known_local_time` (15:42:07). The clock is not hashed, and no checkpoint moved.
 
-### `link`
+### `link` — closed
 
-No link play. `SPECIAL_BufferUnionRoomPlayerName` is `Default(0)` ("no Union Room partner"). `SPECIAL_CloseLink` is Ignore. Link-battle, record-mixing, and Union Room specials are Unsupported.
-
-**Done when:** two engines can complete a Gen3 link battle and a Union Room exchange, or the same flow against a scripted partner that speaks the real protocol. A test covers one full exchange. Unsupported link specials used by that flow are Native.
+Merged `03f52ebd`. Two peers finish a Gen3 link battle and a Union Room exchange against a scripted partner that speaks the cable command words and SendBlock bytes. `CloseLink`, `InitUnionRoom`, `RunUnionRoom`, `TryBattleLinkup`, and `TryBecomeLinkLeader` are Native. `SPECIAL_BufferUnionRoomPlayerName` stays `Default(0)` so the Pokémon Center nurse does not add a log request on the story route; the Union Room exchange copies the partner name itself. Tests: `two_peers_finish_a_single_link_battle`, `two_peers_finish_a_union_room_exchange`, `link_specials_the_battle_and_union_room_use_are_native`. Stub checkpoints were not rebaselined.
 
 ### `contests` — closed
 
 Merged `fc9d30db`. A script can choose a party mon, run five appeal rounds, and finish with Gen3 standings. `choosecontestmon`, `startcontest`, `showcontestresults`, `contestlinktransfer`, `showcontestpainting`, and `buffercontestname` are Native. Test: `a_script_enters_judges_and_finishes_a_normal_contest`. Checkpoints did not move. Contest specials such as `SPECIAL_GenerateContestRand` were not part of this merge.
 
-### `frontier`
+### `frontier` — closed
 
-`SPECIAL_CallFrontierUtilFunc` answers "no challenge" and does not store facility data. Battle Tower, Dome, Palace, Arena, Factory, Pyramid, and Pike specials are Unsupported. `DoSpecialTrainerBattle` stays Unsupported for the tents.
-
-**Done when:** one facility (Battle Tower) can be challenged, fought, and recorded, with `GET_STATUS` / `GET_DATA` / `SET_DATA` reading that record. A test clears one challenge. The Tower specials that challenge uses are Native.
+Merged `3cca9de2`. A level-50 Battle Tower singles challenge can be entered, fought, and saved. `GET_STATUS`, `GET_DATA`, and `SET_DATA` read that record, and the specials that challenge uses are Native. Dome, Palace, Arena, Factory, Pyramid, Pike, and the tents stay unsupported. Schema 9 is the Tower record; the golden postcard was updated in the same commit. Test: `one_singles_challenge_is_fought_and_recorded`.
 
 ### `secret-bases`
 
@@ -49,21 +45,17 @@ Secret-base specials are Unsupported (`SPECIAL_EnterSecretBase`, `SPECIAL_CheckP
 
 Merged `4acc3483`. `playslotmachine` is Native. The machine takes a 1–3 coin bet, pays the center line and the extra lines the bet covers, and writes the coins back. A replay with no forced stop respins. Reels do not animate. Test: `a_winning_spin_pays_and_a_losing_spin_costs_the_bet` (three red 7s pay 300; a mismatched center line pays 0). Checkpoints did not move. Counts on that merge: 128 Native, 45 Unsupported.
 
-### `decoration-mart`
+### `decoration-mart` — closed
 
-`pokemartdecoration`, `pokemartdecoration2`, and `bufferdecorationname` are Unsupported.
-
-**Done when:** a decoration mart buys a decoration into the PC and the name buffer is filled. A test covers one purchase.
+Merged `90330e3f`. `pokemartdecoration`, `pokemartdecoration2`, and `bufferdecorationname` are Native. The shop is buy-only: buying SMALL DESK (3000) puts it in the first empty desk slot, subtracts the money, and copies `SMALL DESK` into string var 0. A full category takes no money. Decorations are live on the world and are not hashed or snapshotted, so checkpoints were not re-baselined. Test: `buying_a_decoration_puts_it_in_the_pc_and_buffers_its_name`.
 
 ### `mystery-gift` — closed
 
 Merged `b20b3e2b`. `setmysteryeventstatus`, `trywondercardscript`, and `setmodernfatefulencounter` are Native. A card that passes the Gen3 checks is stored with the script it points at, and `trywondercardscript` runs that script. The card, the mystery-event status, and the modern-fateful bit are session state: they are not in the checkpoint or the world hash. Tests: `a_delivered_wonder_card_runs_its_script`, `no_card_and_an_invalid_card_do_not_run_a_script`. Counts on that merge: 131 Native, 42 Unsupported.
 
-### `ereader`
+### `ereader` — closed
 
-e-Reader specials (`SPECIAL_DoesPartyHaveEnigmaBerry` is `Default(0)`; the other e-Reader specials are Unsupported) do not read a card.
-
-**Done when:** an e-Reader payload can grant the Enigma Berry and the special answers from that state. A test covers one payload.
+Merged `800f33cc`. `setenigmaberry` stores the 52-byte berry. When it is valid, `0x402D` is set so Petalburg Gym can give the item. The berry is not put in the bag. `SPECIAL_IsEnigmaBerryValid` and `SPECIAL_DoesPartyHaveEnigmaBerry` are Native and read that state. The other e-Reader specials stay Unsupported. The berry is checkpoint schema 10. Digests of saves with no berry are unchanged. Tests: `setenigmaberry_installs_a_valid_berry`, `payload_grants_the_enigma_berry_and_the_special_answers`.
 
 ### `braille`
 
@@ -71,11 +63,9 @@ e-Reader specials (`SPECIAL_DoesPartyHaveEnigmaBerry` is `Default(0)`; the other
 
 **Done when:** a braille message is drawn and waits for input the way Gen3 does. A test covers one message.
 
-### `pokenav`
+### `pokenav` — closed
 
-`SPECIAL_OpenPokenavForTutorial` is degraded: no PokéNav screen. Match Call text is printed in the field box (`pokenavcall` is Native as text only).
-
-**Done when:** the PokéNav opens from the start menu, shows the Match Call list, and places a call. A test opens it and reads one call. The tutorial special opens that screen.
+Merged `2745f123`. The start-menu row is gated by `FLAG_SYS_POKENAV_GET` and opens the PokéNav. The screen lists Match Call, and placing CALL speaks the latest line and sets its flag. `SPECIAL_OpenPokenavForTutorial` opens that screen in force-call-ready mode. Mr. Stone is first, and his first line sets `story::MR_STONE_POKENAV`. The tutorial start-menu special is still the existing degraded path. Tests: `start_menu_opens_the_pokenav_and_a_call_is_read`, `the_tutorial_opens_the_pokenav_and_the_call_sets_the_flag`. The stub checkpoint tree stayed valid.
 
 ### `pokedex` — closed
 
@@ -97,11 +87,9 @@ Merged `847b43e5`. The player, a rival, a nickname, and a box can be named on Ge
 
 Merged `10253afd`. Power-on with a save shows the title (copyright, blinking PRESS START, a flying Pokémon). Start opens the main menu, and B there returns to the title. Continue still restores the save. Tests: `power_on_shows_the_title_and_b_returns_to_it` and `an_in_game_save_boots_to_the_title_and_continues`. Checkpoints did not move.
 
-### `move-anims`
+### `move-anims` — closed
 
-Battle pictures lunge, blink, and tint (`crates/engine/src/battle/gfx.rs`). There is no per-move animation. Send-out has no affine zoom.
-
-**Done when:** a move plays its Gen3 animation (the ROM's anim script and sprites), and send-out zooms. A test plays Tackle and asserts the anim runs.
+Merged `3bc3ba89`. A move with extracted data plays that move's Gen3 anim script and sprites. With no script, it still lunges. Send-out uses the emerge zoom (`0x28`, then `+0x12` up to `0x100`) instead of the 4-frame pop. Battle-scene-off still skips the anim. Tests: `tackle_runs_the_gen3_anim`, `send_out_ball_then_mon`. The stub route's after-battle node moved from frame 1211 to 1221. The start node's digest is unchanged. Emerald checkpoints were not re-seeded.
 
 ### `evolution` — closed
 

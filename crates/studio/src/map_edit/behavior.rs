@@ -20,6 +20,7 @@
 //! | `F` | forced movement (walkable; pushes the player on) | `MB_WALK_*`, `MB_SLIDE_*`, `MB_MUDDY_SLOPE` |
 //! | `K` | ice (walkable; slides, or cracks under a map's ice puzzle) | `MB_ICE`, `MB_THIN_ICE`, `MB_CRACKED_ICE` |
 //! | `H` | cracked floor or hole (walkable; a hole drops to the map's hole warp) | `MB_CRACKED_FLOOR`, `MB_CRACKED_FLOOR_HOLE` |
+//! | `Q` | secret-base entrance (closed is solid; open is walked into) | `MB_SECRET_BASE_SPOT_*` |
 //!
 //! Normal metatiles (and the other behaviours the engine treats as normal, and the sand and
 //! mountain tops only the battle background reads) have no code.
@@ -36,7 +37,8 @@
 //!    counters are solid (Gen3 jumps a ledge before it checks collision, and every Emerald
 //!    ledge cell is solid); warp cells and arrow warps are walkable when a warp event is on the
 //!    cell, and have no usual collision without one; doors have none (Emerald's are walkable
-//!    or solid: the door opens when the player pushes against it);
+//!    or solid: the door opens when the player pushes against it); a closed secret-base
+//!    entrance is solid and an open one is walkable;
 //! 3. otherwise none: no warning, and `AutoCollision` leaves the cell alone.
 //!
 //! The checks ([`issues`]) are warnings, never errors: a cell walkable against solid (or the
@@ -103,6 +105,7 @@ impl MetatileBehavior {
             Behavior::ForcedWalk(_) | Behavior::Slide(_) | Behavior::MuddySlope => 'F',
             Behavior::Ice | Behavior::ThinIce | Behavior::CrackedIce => 'K',
             Behavior::CrackedFloor | Behavior::CrackedFloorHole => 'H',
+            Behavior::SecretBase(_) => 'Q',
             Behavior::Normal | Behavior::Floor(_) => return None,
         })
     }
@@ -151,6 +154,7 @@ impl MetatileBehavior {
             Behavior::CrackedIce => "cracked ice",
             Behavior::CrackedFloor => "cracked floor",
             Behavior::CrackedFloorHole => "hole",
+            Behavior::SecretBase(_) => "secret base",
             Behavior::Normal => "normal",
         }
     }
@@ -183,6 +187,9 @@ impl MetatileBehavior {
             Behavior::Water(_) => Some(0),
             Behavior::Blocked if self.is_water() => Some(0),
             Behavior::Counter => Some(1),
+            // A closed entrance is solid; an open one is walked into.
+            Behavior::SecretBase(spot) if spot.is_open() => Some(0),
+            Behavior::SecretBase(_) => Some(1),
             // Walkable cells whose sides block: either collision can be right.
             // The other floors: no rule (the extract decides, rule 1).
             Behavior::Blocked | Behavior::Impassable(_) | Behavior::Normal | Behavior::Floor(_) => {
@@ -193,7 +200,7 @@ impl MetatileBehavior {
 }
 
 /// The legend of the codes, one line each.
-pub const LEGEND: [(char, &str); 13] = [
+pub const LEGEND: [(char, &str); 14] = [
     (
         'D',
         "door: entering warps (needs a warp event; a decorative door is solid)",
@@ -219,6 +226,10 @@ pub const LEGEND: [(char, &str); 13] = [
         "ice (slides; thin and cracked ice crack under an ice puzzle)",
     ),
     ('H', "cracked floor or hole (drops to the map's hole warp)"),
+    (
+        'Q',
+        "secret-base entrance (closed is solid; open is walked into)",
+    ),
 ];
 
 /// The tileset owning `metatile` (by name) and its index in it.

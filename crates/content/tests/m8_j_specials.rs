@@ -11,7 +11,8 @@ use engine::berry::BerryTree;
 use engine::data::TrainerId;
 use engine::data::{FlagId, ItemId, TextId, VarId};
 use engine::script::{
-    BufferSrc, Ctx, Fade, Query, Report, Request, Response, Runner, Script, ScriptHost,
+    BufferSrc, Ctx, Fade, LinkCall, Query, Report, Request, Response, Runner, Script, ScriptHost,
+    SecretBaseCmd,
 };
 use engine::script::{PartyMode, PartyStash};
 use extract::codegen::Class;
@@ -88,10 +89,14 @@ struct Rec {
     rand: u16,
     /// The answer to `CurrentMap`.
     map: u16,
+    /// The entrance id `SecretBase` `Cur` and `Entered` answer.
+    secret: u16,
     /// The answers to `Query` (0 for the others).
     queries: Vec<(Query, u16)>,
     /// The map's metatiles (`Query::Metatile`; 0 elsewhere), which `SetMetatile` changes.
     tiles: BTreeMap<(i16, i16), (u16, bool)>,
+    /// The Battle Tower record the frontier specials read.
+    frontier: engine::frontier::Frontier,
 }
 
 impl Rec {
@@ -147,14 +152,38 @@ impl Rec {
             }
             Request::Multichoice { .. } => Response::Value(content::MULTI_B_PRESSED),
             Request::ChoosePartyMon(_) => Response::Value(1),
+            Request::Frontier(call) => {
+                let mut rng = engine::rng::Rng::new(1);
+                let step =
+                    self.frontier
+                        .apply(call, &engine::mon::Party::default(), &[0; 4], &mut rng);
+                let v = match step {
+                    engine::frontier::Step::Value(v) => v,
+                    engine::frontier::Step::StartBattle => {
+                        self.frontier.note_outcome(BattleOutcome::Won as u16);
+                        BattleOutcome::Won as u16
+                    }
+                    _ => 0,
+                };
+                Response::Value(v)
+            }
             Request::BattleWild { .. }
             | Request::BattleTrainer { .. }
             | Request::BattleMulti { .. } => Response::Value(BattleOutcome::Won as u16),
+            Request::SecretBase(cmd) => Response::Value(match cmd {
+                SecretBaseCmd::Cur | SecretBaseCmd::Entered(_) => self.secret,
+                SecretBaseCmd::HasPlayer => u16::from(self.secret != 0),
+                SecretBaseCmd::PlaceFront(_) => u16::from(self.secret != 0) * 7,
+                SecretBaseCmd::GiveDecor(_) => 1,
+                _ => 0,
+            }),
+            Request::SecretBaseBattle { .. } => Response::Value(BattleOutcome::Won as u16),
             Request::ItemAdd { .. }
             | Request::ItemRemove { .. }
             | Request::ItemCheck { .. }
             | Request::ItemSpace { .. }
             | Request::MoneyCheck(_) => Response::Bool(true),
+            Request::Link(_) => Response::Value(0),
             _ => Response::Unit,
         }
     }
@@ -254,6 +283,45 @@ fn a_special_with_no_arm_is_only_logged() {
     let mut h = Rec::default();
     assert_eq!(run_special(&mut h, "SPECIAL_AccessHallOfFamePC"), 0);
     assert_eq!(h.log, []);
+}
+
+#[test]
+fn a_secret_base_is_entered_and_one_decoration_is_placed() {
+    let mut h = Rec {
+        secret: 1,
+        ..Rec::default()
+    };
+    run_special(&mut h, "SPECIAL_EnterSecretBase");
+    #[cfg(not(pkr_silice))]
+    assert!(
+        h.log.iter().any(|r| matches!(
+            r,
+            Request::Warp {
+                map: engine::data::MapId(0x1900),
+                warp: Some(0),
+                ..
+            }
+        )),
+        "{:?}",
+        h.log
+    );
+    let mut h = Rec {
+        secret: 1,
+        ..Rec::default()
+    };
+    run_special(&mut h, "SPECIAL_ShowSecretBaseDecorationMenu");
+    assert!(
+        h.log
+            .iter()
+            .any(|r| matches!(r, Request::SecretBase(SecretBaseCmd::PlaceFront(0))))
+    );
+    let mut h = Rec::default();
+    run_special(&mut h, "SPECIAL_CheckPlayerHasSecretBase");
+    assert!(
+        h.log
+            .iter()
+            .any(|r| matches!(r, Request::SecretBase(SecretBaseCmd::HasPlayer)))
+    );
 }
 
 fn degraded(name: &'static str) -> Request {
@@ -571,6 +639,50 @@ fn native_specials_issue_their_requests_in_order() {
             ],
             0,
         ),
+        (
+            "SPECIAL_TryBecomeLinkLeader",
+            0,
+            vec![Request::Link(LinkCall::BecomeLeader)],
+            0,
+        ),
+        (
+            "SPECIAL_TryBattleLinkup",
+            0,
+            vec![Request::Link(LinkCall::Battle)],
+            0,
+        ),
+        (
+            "SPECIAL_InitUnionRoom",
+            0,
+            vec![Request::Link(LinkCall::InitUnion)],
+            0,
+        ),
+        (
+            "SPECIAL_RunUnionRoom",
+            0,
+            vec![Request::Link(LinkCall::UnionRoom)],
+            0,
+        ),
+        (
+            "SPECIAL_CloseLink",
+            0,
+            vec![Request::Link(LinkCall::Close)],
+            0,
+        ),
+        (
+            "SPECIAL_IsEnigmaBerryValid",
+            0,
+            vec![q(Query::EnigmaBerryValid)],
+            0,
+        ),
+        (
+            "SPECIAL_DoesPartyHaveEnigmaBerry",
+            0,
+            (0..engine::script::PARTY_SIZE)
+                .map(|slot| q(Query::PartySpecies(slot as u8)))
+                .collect(),
+            0,
+        ),
     ];
     let mut covered = BTreeSet::new();
     let cases = [cases, wave_c_cases(&mut covered)].concat();
@@ -672,15 +784,39 @@ fn native_specials_issue_their_requests_in_order() {
         );
     }
     covered.insert("SPECIAL_GameClear");
-    // `CallFrontierUtilFunc` with no frontier data: `GET_STATUS` answers no challenge (0xFF:
-    // a Battle Tent lobby's `ON_FRAME` table then stops), `GET_DATA` 0, the others report.
-    for (func, want) in [
-        (0, vec![set(VAR_TEMP_CHALLENGE_STATUS, 0xFF)]),
-        (
-            1,
-            vec![degraded("SPECIAL_CallFrontierUtilFunc"), set(VAR_RESULT, 0)],
-        ),
-        (2, vec![degraded("SPECIAL_CallFrontierUtilFunc")]),
+    // An empty tower record: `GET_STATUS` is 0xFF, `GET_DATA` is 0, `SET_DATA` stores,
+    // `RESULTS_WINDOW` still reports. A later read returns what was stored.
+    let util = |func, arg, value| {
+        Request::Frontier(engine::frontier::Call::Util(engine::frontier::Args {
+            func,
+            arg,
+            value,
+            facility: 0,
+            mode: 0,
+            result: 0,
+        }))
+    };
+    let mut facility_mode = Vec::new();
+    #[cfg(not(pkr_silice))]
+    {
+        facility_mode.push(Request::GetVar(VAR_FRONTIER_FACILITY));
+        facility_mode.push(Request::GetVar(VAR_FRONTIER_BATTLE_MODE));
+    }
+    for (func, mut want) in [
+        (0, vec![util(0, 0, 0), set(VAR_TEMP_CHALLENGE_STATUS, 0xFF)]),
+        (1, {
+            let mut v = vec![Request::GetVar(VAR_0x8005)];
+            v.extend(facility_mode.clone());
+            v.push(util(1, 0, 0));
+            v.push(set(VAR_RESULT, 0));
+            v
+        }),
+        (2, {
+            let mut v = vec![Request::GetVar(VAR_0x8005), Request::GetVar(VAR_0x8006)];
+            v.extend(facility_mode);
+            v.push(util(2, 0, 0));
+            v
+        }),
         (
             7,
             vec![Request::Report(Report::Unsupported(
@@ -692,10 +828,47 @@ fn native_specials_issue_their_requests_in_order() {
         h.vars.insert(VAR_0x8004.0, func);
         run_special(&mut h, "SPECIAL_CallFrontierUtilFunc");
         let mut log = vec![Request::GetVar(VAR_0x8004)];
-        log.extend(want);
+        log.append(&mut want);
         assert_eq!(h.log, log, "func {func}");
     }
+    let mut h = Rec::default();
+    h.vars.insert(VAR_0x8004.0, 2);
+    h.vars.insert(VAR_0x8005.0, 0);
+    h.vars.insert(VAR_0x8006.0, 3);
+    run_special(&mut h, "SPECIAL_CallFrontierUtilFunc");
+    h.log.clear();
+    h.vars.insert(VAR_0x8004.0, 0);
+    run_special(&mut h, "SPECIAL_CallFrontierUtilFunc");
+    assert_eq!(
+        h.vars[&VAR_TEMP_CHALLENGE_STATUS.0], 3,
+        "GET_STATUS reads the record"
+    );
+    h.log.clear();
+    h.vars.insert(VAR_0x8004.0, 1);
+    h.vars.insert(VAR_0x8005.0, 0);
+    run_special(&mut h, "SPECIAL_CallFrontierUtilFunc");
+    assert_eq!(h.vars[&VAR_RESULT.0], 3, "GET_DATA reads the record");
     covered.insert("SPECIAL_CallFrontierUtilFunc");
+    let mut h = Rec::default();
+    run_special(&mut h, "SPECIAL_CallBattleTowerFunc");
+    covered.insert("SPECIAL_CallBattleTowerFunc");
+    let mut h = Rec::default();
+    run_special(&mut h, "SPECIAL_ChoosePartyForBattleFrontier");
+    covered.insert("SPECIAL_ChoosePartyForBattleFrontier");
+    let mut h = Rec::default();
+    run_special(&mut h, "SPECIAL_BufferBattleTowerElevatorFloors");
+    assert_eq!(h.vars[&VAR_0x8005.0], 4);
+    assert_eq!(h.vars[&VAR_0x8006.0], 5);
+    covered.insert("SPECIAL_BufferBattleTowerElevatorFloors");
+    let mut h = Rec::default();
+    run_special(&mut h, "SPECIAL_TryHideBattleTowerReporter");
+    covered.insert("SPECIAL_TryHideBattleTowerReporter");
+    let mut h = Rec::default();
+    assert_eq!(
+        run_special(&mut h, "SPECIAL_GetBattleTowerSinglesStreak"),
+        0
+    );
+    covered.insert("SPECIAL_GetBattleTowerSinglesStreak");
     // The Petalburg gym's doors (`PetalburgGymSetDoorMetatiles`): room 2's two doors, both
     // halves impassable, the open frame (0x21C) at once, or the five frames 2 frames apart.
     let doors = |frame: u16| {
@@ -778,7 +951,12 @@ fn native_specials_issue_their_requests_in_order() {
     // `VAR_FRONTIER_FACILITY` 9 through the story module (Silice has none).
     let facility = (!cfg!(pkr_silice)).then(|| set(VarId(0x40CF), 9));
     let rest = [
-        Request::ChoosePartyMon(PartyMode::ChooseHalf { max: 3, min: 1 }),
+        Request::ChoosePartyMon(PartyMode::ChooseHalf {
+            max: 3,
+            min: 1,
+            level_cap: 100,
+            frontier: false,
+        }),
         set(VAR_RESULT, 1),
         Request::Fade(Fade::FromBlack),
     ];
@@ -809,6 +987,33 @@ fn native_specials_issue_their_requests_in_order() {
     }
     let _ = won;
     covered.insert("SPECIAL_DoSpecialTrainerBattle");
+    for name in [
+        "SPECIAL_CheckPlayerHasSecretBase",
+        "SPECIAL_ClearAndLeaveSecretBase",
+        "SPECIAL_DeclinedSecretBaseBattle",
+        "SPECIAL_DoSecretBasePCTurnOffEffect",
+        "SPECIAL_DrewSecretBaseBattle",
+        "SPECIAL_EnterNewlyCreatedSecretBase",
+        "SPECIAL_EnterSecretBase",
+        "SPECIAL_GetSecretBaseOwnerAndState",
+        "SPECIAL_GetSecretBaseTypeInFrontOfPlayer",
+        "SPECIAL_InitSecretBaseVars",
+        "SPECIAL_IsCurSecretBaseOwnedByAnotherPlayer",
+        "SPECIAL_LostSecretBaseBattle",
+        "SPECIAL_MoveOutOfSecretBase",
+        "SPECIAL_PrepSecretBaseBattleFlags",
+        "SPECIAL_SetBattledOwnerFromResult",
+        "SPECIAL_SetDecoration",
+        "SPECIAL_SetPlayerSecretBase",
+        "SPECIAL_SetSecretBaseOwnerGfxId",
+        "SPECIAL_ShowSecretBaseDecorationMenu",
+        "SPECIAL_WonSecretBaseBattle",
+    ] {
+        let mut h = Rec::default();
+        run_special(&mut h, name);
+        assert!(unsupported(&h.log).is_empty(), "{name}: {:?}", h.log);
+        covered.insert(name);
+    }
     // Wave G: `GetMonsStateToDoubles` with two mons with HP: `PLAYER_HAS_TWO_USABLE_MONS`.
     let mut h = Rec::with_party(3);
     h.queries = vec![
@@ -1155,14 +1360,11 @@ fn wave_c_cases(covered: &mut BTreeSet<&'static str>) -> Vec<Case> {
     #[cfg(not(pkr_silice))]
     {
         cases.extend([
-            // The tutorial's forced call to Mr. Stone sets his PokéNav flag.
+            // The tutorial opens the PokéNav. Mr. Stone's call sets his flag from the screen.
             (
                 "SPECIAL_OpenPokenavForTutorial",
                 1,
-                vec![
-                    degraded("SPECIAL_OpenPokenavForTutorial"),
-                    Request::SetFlag(FLAG_ENABLE_MR_STONE_POKENAV, true),
-                ],
+                vec![Request::Pokenav { tutorial: true }],
                 0,
             ),
             (
@@ -1471,6 +1673,26 @@ fn spec_named_classes() {
     }
 }
 
+#[test]
+fn link_specials_the_battle_and_union_room_use_are_native() {
+    let c = classes();
+    let class = |n: &str| c[&format!("SPECIAL_{n}")];
+    let why = reasons();
+    for n in [
+        "TryBecomeLinkLeader",
+        "TryBattleLinkup",
+        "InitUnionRoom",
+        "RunUnionRoom",
+        "CloseLink",
+    ] {
+        assert_eq!(class(n), Class::Native, "{n}");
+        assert!(!why[&format!("SPECIAL_{n}")].is_empty(), "{n}");
+    }
+    // The Pokémon Center nurse still takes the "no partner" answer. The Union Room
+    // exchange copies the partner name itself.
+    assert_eq!(class("BufferUnionRoomPlayerName"), Class::Default(0));
+}
+
 // ---- callstd and msgbox ----
 
 fn run_std(host: &mut Rec, std: u8) {
@@ -1527,6 +1749,15 @@ fn callstd_routes_every_std() {
                 assert!(unsupported(&h.log).is_empty(), "{name}");
             }
             "STD_REGISTER_MATCH_CALL" => assert!(h.log.is_empty(), "{name}: {:?}", h.log),
+            "STD_OBTAIN_DECORATION" => assert_eq!(
+                h.log,
+                [
+                    Request::GetVar(VAR_0x8000),
+                    Request::SecretBase(SecretBaseCmd::GiveDecor(13)),
+                    Request::SetVar(VAR_RESULT, 1),
+                ],
+                "{name}"
+            ),
             _ => assert_eq!(
                 h.log,
                 [Request::Report(Report::Unsupported(name))],

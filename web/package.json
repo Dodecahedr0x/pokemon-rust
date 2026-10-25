@@ -1,0 +1,19 @@
+{
+  "name": "silice-player",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/copy-vendor.mjs",
+    "dev": "vite",
+    "prebuild": "node scripts/copy-vendor.mjs",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@thenick775/mgba-wasm": "2.6.0"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5"
+  }
+}

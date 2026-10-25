@@ -119,18 +119,20 @@ fn bgcnt(c: BgControl) -> u16 {
     (c.priority & 3) as u16 | ((c.char_block & 3) as u16) << 2 | ((c.screen_block & 31) as u16) << 8
 }
 
-fn oam_entry(o: &Obj) -> [u16; 4] {
+fn oam_entry(o: &Obj, matrix: Option<u8>) -> [u16; 4] {
     let shape = match o.shape {
         ObjShape::Square => 0,
         ObjShape::Wide => 1,
         ObjShape::Tall => 2,
     };
+    // Affine (not double-size): attr0 bit 8. The matrix number replaces the flip bits.
+    let attr1_extra = match matrix {
+        Some(m) => u16::from(m & 31) << 9,
+        None => (o.hflip as u16) << 12 | (o.vflip as u16) << 13,
+    };
     [
-        (o.y as u16 & 0xFF) | shape << 14,
-        (o.x as u16 & 0x1FF)
-            | (o.hflip as u16) << 12
-            | (o.vflip as u16) << 13
-            | ((o.size & 3) as u16) << 14,
+        (o.y as u16 & 0xFF) | u16::from(matrix.is_some()) << 8 | shape << 14,
+        (o.x as u16 & 0x1FF) | attr1_extra | ((o.size & 3) as u16) << 14,
         (o.tile & 0x3FF) | ((o.priority & 3) as u16) << 10 | ((o.palette & 15) as u16) << 12,
         0,
     ]
@@ -173,11 +175,30 @@ impl Video {
     }
 
     fn write_registers(&mut self, frame: &Frame) {
+        let mut matrix = 0u8;
+        let mut params = [(0u8, 0u16); 32];
+        let mut n_mat = 0usize;
         for (i, entry) in self.oam.0.chunks_exact_mut(4).enumerate() {
             match frame.objs.get(i) {
-                Some(o) => entry.copy_from_slice(&oam_entry(o)),
+                // `0x10000 / scale` must fit a signed OAM matrix entry. Emerge starts at `0x28`.
+                Some(o) if o.scale >= 0x28 && matrix < 32 => {
+                    let pa = (0x10000u32 / u32::from(o.scale)) as u16;
+                    entry.copy_from_slice(&oam_entry(o, Some(matrix)));
+                    params[n_mat] = (matrix, pa);
+                    n_mat += 1;
+                    matrix += 1;
+                }
+                Some(o) => entry.copy_from_slice(&oam_entry(o, None)),
                 None => entry[0] = OAM_HIDDEN,
             }
+        }
+        // pa, pb, pc, pd live in attr3 of OAM entries 4N..4N+3.
+        for &(m, pa) in &params[..n_mat] {
+            let base = usize::from(m) * 4;
+            self.oam.0[base * 4 + 3] = pa;
+            self.oam.0[(base + 1) * 4 + 3] = 0;
+            self.oam.0[(base + 2) * 4 + 3] = 0;
+            self.oam.0[(base + 3) * 4 + 3] = pa;
         }
         unsafe {
             dma3(

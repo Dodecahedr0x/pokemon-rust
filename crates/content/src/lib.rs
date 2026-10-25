@@ -29,6 +29,8 @@ mod emerald_story;
 #[cfg(not(pkr_silice))]
 mod new_game;
 #[cfg(not(pkr_silice))]
+mod pokenav;
+#[cfg(not(pkr_silice))]
 mod step_count;
 /// Hand-written script overrides (Milestone 8): a script the lowering cannot express as Gen3
 /// does, replaced by hand. The build digests each override's source into the script's
@@ -438,6 +440,13 @@ macro_rules! game_data_tables {
                 .flatten()
         }
 
+        fn decoration(
+            &self,
+            id: ::engine::data::DecorId,
+        ) -> Option<&'static ::engine::data::DecorationInfo> {
+            $crate::data::DECORATIONS.get(id.0 as usize)?.as_ref()
+        }
+
         fn move_description(&self, id: ::engine::data::MoveId) -> Option<&'static [u8]> {
             $crate::data::MOVE_DESCRIPTIONS
                 .get(id.0 as usize)
@@ -566,6 +575,17 @@ macro_rules! game_data_tables {
 
         fn battle_gfx(&self) -> &'static ::engine::battle::BattleGfx {
             &$crate::battle::GFX
+        }
+
+        fn move_anim(
+            &self,
+            id: ::engine::data::MoveId,
+        ) -> Option<&'static ::engine::battle::anim::Script> {
+            $crate::battle::move_anim(id.0)
+        }
+
+        fn anim_gfx(&self, tag: u16) -> Option<&'static ::engine::battle::GfxImage> {
+            $crate::battle::anim_gfx(tag)
         }
 
         fn build_id(&self) -> u64 {
@@ -762,6 +782,30 @@ impl GameData for Game {
     fn step_count_script(&self, step: engine::data::StepCount<'_>) -> Option<ScriptId> {
         step_count::step_count_script(self, step)
     }
+
+    fn match_calls(&self) -> &'static [engine::data::MatchCall] {
+        pokenav::CALLS
+    }
+
+    fn secret_base_check_script(&self) -> Option<ScriptId> {
+        script_named("SecretBase_EventScript_CheckEntrance")
+    }
+
+    fn secret_base_enter_script(&self) -> Option<ScriptId> {
+        script_named("SecretBase_EventScript_Enter")
+    }
+
+    fn secret_base_var(&self) -> Option<engine::data::VarId> {
+        Some(consts::VAR_CURRENT_SECRET_BASE)
+    }
+}
+
+#[cfg(not(pkr_silice))]
+fn script_named(name: &str) -> Option<ScriptId> {
+    data::SCRIPT_NAMES
+        .iter()
+        .position(|&n| n == name)
+        .map(|i| ScriptId(i as u16))
 }
 
 /// The Emerald and stub tables and scripts (the Silice flavour's are `silice::tests`).

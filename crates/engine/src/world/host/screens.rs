@@ -23,12 +23,14 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
         Request::Mart { items } => ScreenKind::Mart { items },
         // `playslotmachine`: the script waits until the machine closes.
         Request::SlotMachine { machine } => ScreenKind::Slot { machine },
+        Request::DecorationMart { shop, items } => ScreenKind::DecorMart { shop, items },
         // `special SaveGame` (Task S): the save dialog over the field.
         Request::SaveDialog => ScreenKind::SaveDialog,
         // `special GameClear`'s record and credits (Task S); the save waits for the field.
         Request::HallOfFame => ScreenKind::HallOfFame,
         Request::EasyChat { kind } => ScreenKind::EasyChat(kind),
         Request::Credits => ScreenKind::Credits,
+        Request::Pokenav { tutorial } => ScreenKind::Pokenav { tutorial },
         // `play_evolution`: the scene changes the species and answers whether it did.
         Request::Evolve {
             slot,

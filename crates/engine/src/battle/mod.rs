@@ -10,6 +10,7 @@
 //! Wave 0 contract (Milestone 4). Every module below is filled by its Wave 1 task.
 
 pub mod ai;
+pub mod anim;
 pub mod calc;
 pub mod core;
 pub mod effects;

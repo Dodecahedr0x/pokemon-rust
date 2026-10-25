@@ -264,9 +264,10 @@ fn scripted_playback_and_menu_input() {
     assert!(starts[3] > starts[2]);
     let menu_at = menu_at.expect("the action menu opens");
     assert!(menu_at >= starts[3] + 31, "{menu_at}");
+    // Send-out zoom replaces the 4-frame pop: 13 scaled frames plus the settle frame (+10).
     assert_eq!(
         (starts.clone(), menu_at),
-        (alloc::vec![0, 148, 249, 254], 341)
+        (alloc::vec![0, 148, 249, 254], 351)
     );
     // Nothing is chosen without input.
     for _ in 0..10 {
@@ -402,7 +403,7 @@ fn full_wild_battle_golden() {
     // and `last_landed`. G: and `leveled_up` (`gLeveledUpInBattle`); the scene hashes whether
     // its parts exist (built by the first load step).
     // The degraded bag: the scene hashes its ball and throws.
-    assert_eq!((r.frames, r.hash()), (806, 407566406512155080));
+    assert_eq!((r.frames, r.hash()), (814, 407566406512155080));
     // J's path, `BattleScene::step`, plays the same battle frame for frame.
     let mut j = Run::wild(&[starter()], &[foe(11)], 7);
     j.use_step = true;
@@ -436,7 +437,7 @@ fn trainer_battle_second_mon_and_defeat_text() {
     // E2: `Battle::hash` gained fields; the trainer AI draws its score rolls (same frames).
     // G: `leveled_up` and the parts tag are hashed.
     // The degraded bag: the scene hashes its ball and throws.
-    assert_eq!((r.frames, r.hash()), (1020, 12470217771155615926));
+    assert_eq!((r.frames, r.hash()), (1048, 12470217771155615926));
 }
 
 #[test]

@@ -234,12 +234,10 @@ fn sample() -> Checkpoint {
         }),
         rival_name: None,
         box_names: Vec::new(),
-        audio: Some(crate::audio::Audio {
-            current: 405,
-            state: crate::audio::map_state::PLAYING,
-            saved: 431,
-            ..crate::audio::Audio::default()
-        }),
+        frontier: None,
+        enigma_berry: None,
+        secret_bases: None,
+        audio: None,
     };
     Checkpoint {
         header: Header {
@@ -264,7 +262,7 @@ fn hex(bytes: &[u8]) -> String {
 /// `ron` format change) leaves the flash bytes alone and needs no `SCHEMA` bump, but stored RON
 /// files (snapshots, nodes) may need a look.
 const GOLDEN_POSTCARD: &str = concat!(
-    "09ef9bafcdf8acd191012ad20990e4d0b287d3aeeefe01d209effdb6f50d400009bbbcbd",
+    "0cef9bafcdf8acd191012ad20990e4d0b287d3aeeefe01d209effdb6f50d400009bbbcbd",
     "ffffffffff8de0b75d031f400101031e16060801080a81040101031e01030202ff03000a",
     "0c0a0e030000000a0c010201000001000101040007000201010103020301071006100603",
     "0002100601020100000001110000000102011006000320800481800102d0800103848002",
@@ -275,55 +273,51 @@ const GOLDEN_POSTCARD: &str = concat!(
     "000003020080010201000de70701011d8202f8acd191018de0b75dd4d4cec9caffffffff",
     "ffff8701c198c862000000000000212d00002328000000460000018f4e01830201030705",
     "01d00502000501a302010300030003000000000000000000000000000d0100b42408041e",
-    "0f00010000010000000000000000000000000000000000009503000200af0300000000",
+    "0f0001000000000000",
 );
 const GOLDEN_RON: &str = concat!(
-    "(header:(schema:9,build:(engine:81985529216486895,content:42),frame:1234",
-    ",world_hash:18364758544493064720),world:(frame:1234,rng:3735928559,input",
-    ":(held:(64),pressed:(0)),runner_issued:9,player_name:(187,188,189,255,25",
-    "5,255,255,255),player_id:195948557,field:(map:(3),camera:(-16,32),drawn:",
-    "Some((-1,-2,15,11)),ring:(3,4),overrides:[((4,5),513)],stale:Some((x0:-1",
-    ",y0:-2,x1:15,y1:-1))),objects:(map:(3),run_state:Moving,objs:[(local_id:",
-    "255,map:(3),gfx:None,pos:(5,6),prev:(5,7),elevation:3,facing:Down,moveme",
-    "nt:Face(Down),home:(5,6),range:(1,2),visible:true,frozen:false,facing_lo",
-    "cked:false,action:Some((kind:Walk(Normal),dir:Up,t:4,off:(0,-4),jump_y:0",
-    ")),idle:Done,anim:(table:Go(1),cmd:1,timer:3)),(local_id:2,map:(3),gfx:S",
-    "ome((7)),pos:(8,3),prev:(8,3),elevation:3,facing:Down,movement:Wander,ho",
-    "me:(8,3),range:(1,2),visible:true,frozen:false,facing_locked:false,actio",
-    "n:None,idle:Wait(17),anim:(table:Face,cmd:0,timer:0))]),templates:[(loca",
-    "l_id:2,pos:Some((8,3)),movement:None)],vars:(flags:[(32),(512),(16385)],",
-    "vars:[((16464),3),((32772),65535)]),fader:(level:0,target:0),transition:",
-    "(map:(3),x:5,y:7,facing:Up,exit_walk:false,player_hidden:false),selected",
-    ":Some(1),last_mover:0,delay:0,door:0,party:[(species:(258),personality:3",
-    "05419896,ot_id:195948557,nickname:(212,212,206,201,202,255,255,255,255,2",
-    "55,255),level:5,exp:135,ivs:(1,2,3,4,5,6),evs:(0,0,0,0,0,0),moves:(Some(",
-    "(33)),Some((45)),None,None),pp:(35,40,0,0),pp_bonuses:0,friendship:70,ab",
-    "ility_slot:0,status:Sleep(2),hp:19,stats:(20,12,11,10,9,8))],respawn:2,p",
-    "rev_behavior:Ledge(Down),encounter_immunity:0,bag:(slots:[(pocket:Items,",
-    "index:0,item:(13),qty:3),(pocket:KeyItems,index:2,item:(259),qty:1)]),mo",
-    "ney:3000,str_vars:([187,188],[],[161,161,161,161,161,161,161,161,161,161",
-    ",161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161",
-    ",161,161,161,161]),warp_slots:(dynamic:Some((map:(3),warp:None,x:4,y:-1)",
-    "),escape:None),party_held:[Some((139))],options:Some((text_speed:Fast,ba",
-    "ttle_scene:true,battle_style:Shift,sound:Mono,button_mode:Normal,frame:0",
-    ")),pokedex:(seen:[2,0,128],caught:[2]),pc:(items:[(index:0,item:(13),qty",
-    ":999)],mons:[(pc_box:1,slot:29,mon:(species:(258),personality:305419896,",
-    "ot_id:195948557,nickname:(212,212,206,201,202,255,255,255,255,255,255),e",
-    "xp:135,ivs:206703681,evs:(0,0,0,0,0,0),moves:(33,45,0,0),pp:(35,40,0,0),",
-    "pp_bonuses:0,friendship:70,ability_slot:0,held:None))],current_box:1),co",
-    "ins:9999,registered_item:Some((259)),berry_trees:[(id:3,tree:(berry:7,st",
-    "age:5,stop_growth:true,minutes_until_next_stage:720,berry_yield:2,regrow",
-    "th_count:0,watered:5))],map_layout:Some(291),sky:Some((weather:(saved:3,",
-    "cycle_stage:0,current:3,next:0,color_map:3,target:0,step_delay:0,step_co",
-    "unter:0,init:0,finish:0,thunder:(state:0,timer:0,long_bolt:false,short_b",
-    "olts:0,allow_end:false,enqueued:false,se_timer:0),abnormal:None,abnormal",
-    "_current:13),palette:Some((mode:Blend,color:4660,amount:8,current:4,fram",
-    "es:30,t:15,pulse:0,keep:true)))),rival_name:None,box_names:[],audio:Some",
-    "((players:((song:0,left:0,paused:false,priority:0),(song:0,left:0,paused",
-    ":false,priority:0),(song:0,left:0,paused:false,priority:0),(song:0,left:",
-    "0,paused:false,priority:0)),fade:0,fade_temporary:false,current:405,next",
-    ":0,state:2,fade_in:0,saved:431,fanfare:None,duck:None,cry:0,low_hp:false",
-    "))))",
+    "(header:(schema:12,build:(engine:81985529216486895,content:42),frame:123",
+    "4,world_hash:18364758544493064720),world:(frame:1234,rng:3735928559,inpu",
+    "t:(held:(64),pressed:(0)),runner_issued:9,player_name:(187,188,189,255,2",
+    "55,255,255,255),player_id:195948557,field:(map:(3),camera:(-16,32),drawn",
+    ":Some((-1,-2,15,11)),ring:(3,4),overrides:[((4,5),513)],stale:Some((x0:-",
+    "1,y0:-2,x1:15,y1:-1))),objects:(map:(3),run_state:Moving,objs:[(local_id",
+    ":255,map:(3),gfx:None,pos:(5,6),prev:(5,7),elevation:3,facing:Down,movem",
+    "ent:Face(Down),home:(5,6),range:(1,2),visible:true,frozen:false,facing_l",
+    "ocked:false,action:Some((kind:Walk(Normal),dir:Up,t:4,off:(0,-4),jump_y:",
+    "0)),idle:Done,anim:(table:Go(1),cmd:1,timer:3)),(local_id:2,map:(3),gfx:",
+    "Some((7)),pos:(8,3),prev:(8,3),elevation:3,facing:Down,movement:Wander,h",
+    "ome:(8,3),range:(1,2),visible:true,frozen:false,facing_locked:false,acti",
+    "on:None,idle:Wait(17),anim:(table:Face,cmd:0,timer:0))]),templates:[(loc",
+    "al_id:2,pos:Some((8,3)),movement:None)],vars:(flags:[(32),(512),(16385)]",
+    ",vars:[((16464),3),((32772),65535)]),fader:(level:0,target:0),transition",
+    ":(map:(3),x:5,y:7,facing:Up,exit_walk:false,player_hidden:false),selecte",
+    "d:Some(1),last_mover:0,delay:0,door:0,party:[(species:(258),personality:",
+    "305419896,ot_id:195948557,nickname:(212,212,206,201,202,255,255,255,255,",
+    "255,255),level:5,exp:135,ivs:(1,2,3,4,5,6),evs:(0,0,0,0,0,0),moves:(Some",
+    "((33)),Some((45)),None,None),pp:(35,40,0,0),pp_bonuses:0,friendship:70,a",
+    "bility_slot:0,status:Sleep(2),hp:19,stats:(20,12,11,10,9,8))],respawn:2,",
+    "prev_behavior:Ledge(Down),encounter_immunity:0,bag:(slots:[(pocket:Items",
+    ",index:0,item:(13),qty:3),(pocket:KeyItems,index:2,item:(259),qty:1)]),m",
+    "oney:3000,str_vars:([187,188],[],[161,161,161,161,161,161,161,161,161,16",
+    "1,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,16",
+    "1,161,161,161,161]),warp_slots:(dynamic:Some((map:(3),warp:None,x:4,y:-1",
+    ")),escape:None),party_held:[Some((139))],options:Some((text_speed:Fast,b",
+    "attle_scene:true,battle_style:Shift,sound:Mono,button_mode:Normal,frame:",
+    "0)),pokedex:(seen:[2,0,128],caught:[2]),pc:(items:[(index:0,item:(13),qt",
+    "y:999)],mons:[(pc_box:1,slot:29,mon:(species:(258),personality:305419896",
+    ",ot_id:195948557,nickname:(212,212,206,201,202,255,255,255,255,255,255),",
+    "exp:135,ivs:206703681,evs:(0,0,0,0,0,0),moves:(33,45,0,0),pp:(35,40,0,0)",
+    ",pp_bonuses:0,friendship:70,ability_slot:0,held:None))],current_box:1),c",
+    "oins:9999,registered_item:Some((259)),berry_trees:[(id:3,tree:(berry:7,s",
+    "tage:5,stop_growth:true,minutes_until_next_stage:720,berry_yield:2,regro",
+    "wth_count:0,watered:5))],map_layout:Some(291),sky:Some((weather:(saved:3",
+    ",cycle_stage:0,current:3,next:0,color_map:3,target:0,step_delay:0,step_c",
+    "ounter:0,init:0,finish:0,thunder:(state:0,timer:0,long_bolt:false,short_",
+    "bolts:0,allow_end:false,enqueued:false,se_timer:0),abnormal:None,abnorma",
+    "l_current:13),palette:Some((mode:Blend,color:4660,amount:8,current:4,fra",
+    "mes:30,t:15,pulse:0,keep:true)))),rival_name:None,box_names:[],frontier:",
+    "None,enigma_berry:None,secret_bases:None,audio:None))",
 );
 
 #[test]
@@ -332,7 +326,7 @@ fn golden_postcard_bytes() {
     std::println!("synthetic checkpoint: {} postcard bytes", bytes.len());
     assert_eq!(hex(&bytes), GOLDEN_POSTCARD, "DTO change: bump SCHEMA");
     assert_eq!(encoded_len(&sample()), bytes.len());
-    assert_eq!(SCHEMA, 9);
+    assert_eq!(SCHEMA, 12);
 }
 
 /// The CONTINUE window's data: the name, the species caught, the badges among the set flags.
@@ -390,7 +384,7 @@ fn encoding_starts_with_the_schema() {
 #[test]
 fn another_schema_is_refused_before_decoding() {
     let mut cp = sample();
-    for old_or_new in [1, 10] {
+    for old_or_new in [1, 13] {
         cp.header.schema = old_or_new;
         assert_eq!(
             decode(&encode(&cp)),
@@ -398,9 +392,9 @@ fn another_schema_is_refused_before_decoding() {
         );
     }
     // Only the schema is read: a newer layout behind it does not matter.
-    let mut bytes = postcard::to_allocvec(&10u16).unwrap();
+    let mut bytes = postcard::to_allocvec(&13u16).unwrap();
     bytes.extend_from_slice(&[0xFF; 3]);
-    assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 10 }));
+    assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 13 }));
     // A multi-byte varint schema.
     let bytes = postcard::to_allocvec(&300u16).unwrap();
     assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 300 }));
@@ -410,7 +404,6 @@ fn another_schema_is_refused_before_decoding() {
 /// override.
 fn sample_m9_default() -> Checkpoint {
     let mut cp = sample();
-    cp.world.audio = None;
     cp.world.sky = None;
     cp.world.map_layout = None;
     cp.world.berry_trees.clear();
@@ -432,7 +425,7 @@ fn schema_2_reads_as_6_without_held_items() {
     let mut cp = sample_m9_default();
     cp.world.party_held.clear();
     let v5 = encode(&cp);
-    let tail = 1 + M9_DEFAULT_TAIL.len() + 6;
+    let tail = 1 + M9_DEFAULT_TAIL.len() + 9;
     assert!(v5[v5.len() - tail..].iter().all(|&b| b == 0));
     let mut v2 = v5[..v5.len() - tail].to_vec();
     assert_eq!(v2[0], SCHEMA as u8);
@@ -442,8 +435,8 @@ fn schema_2_reads_as_6_without_held_items() {
     let mut h = Fnv64::new();
     h.write(&world[..world.len() - tail]);
     assert_eq!(state_digest(&cp.world), h.finish());
-    assert!((2..=9).all(schema_readable));
-    assert!(!schema_readable(1) && !schema_readable(10));
+    assert!((2..=12).all(schema_readable));
+    assert!(!schema_readable(1) && !schema_readable(13));
 }
 
 /// A schema-3 checkpoint is a schema-6 one minus `M9_DEFAULT_TAIL`, the empty berry trees and the
@@ -453,9 +446,8 @@ fn schema_2_reads_as_6_without_held_items() {
 fn schema_3_reads_as_6_without_m9_state() {
     let cp = sample_m9_default();
     let v5 = encode(&cp);
-    let tail = M9_DEFAULT_TAIL.len() + 6;
-    assert_eq!(&v5[v5.len() - tail..v5.len() - 6], &M9_DEFAULT_TAIL);
-
+    let tail = M9_DEFAULT_TAIL.len() + 9;
+    assert_eq!(&v5[v5.len() - tail..v5.len() - 9], &M9_DEFAULT_TAIL);
     let mut v3 = v5[..v5.len() - tail].to_vec();
     v3[0] = 3;
     assert_eq!(decode(&v3), Ok(cp.clone()));
@@ -470,17 +462,16 @@ fn schema_3_reads_as_6_without_m9_state() {
         w
     }] {
         if w.berry_trees.is_empty() {
-            // Berry trees, the layout, the sky, the unset names and the sound are left out.
+            // Berry trees, the layout, the sky, the unset names and the secret bases.
             let bytes = postcard::to_allocvec(&w).unwrap();
             let mut h = Fnv64::new();
-            h.write(&bytes[..bytes.len() - 6]);
-
+            h.write(&bytes[..bytes.len() - 9]);
             assert_eq!(state_digest(&w), h.finish());
             continue;
         }
         let bytes = postcard::to_allocvec(&w).unwrap();
         let mut h = Fnv64::new();
-        h.write(&bytes);
+        h.write(&bytes[..bytes.len() - 6]);
         assert_eq!(state_digest(&w), h.finish());
     }
 }
@@ -494,22 +485,19 @@ fn schema_4_reads_as_6_without_berry_trees() {
     cp.world.berry_trees.clear();
     cp.world.map_layout = None;
     cp.world.sky = None;
-    cp.world.audio = None;
     let v6 = encode(&cp);
-    assert_eq!(v6[v6.len() - 6..], [0, 0, 0, 0, 0, 0]);
-    let mut v4 = v6[..v6.len() - 6].to_vec();
-
+    assert_eq!(v6[v6.len() - 9..], [0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    let mut v4 = v6[..v6.len() - 9].to_vec();
     v4[0] = 4;
     assert_eq!(decode(&v4), Ok(cp.clone()));
     let world = postcard::to_allocvec(&cp.world).unwrap();
     let mut h = Fnv64::new();
-    h.write(&world[..world.len() - 6]);
-
+    h.write(&world[..world.len() - 9]);
     assert_eq!(state_digest(&cp.world), h.finish());
     let w = sample().world;
     let bytes = postcard::to_allocvec(&w).unwrap();
     let mut h = Fnv64::new();
-    h.write(&bytes);
+    h.write(&bytes[..bytes.len() - 6]);
     assert_eq!(state_digest(&w), h.finish());
 }
 
@@ -521,23 +509,20 @@ fn schema_5_reads_as_6_without_layout() {
     let mut cp = sample();
     cp.world.map_layout = None;
     cp.world.sky = None;
-    cp.world.audio = None;
     let v6 = encode(&cp);
-    assert_eq!(v6[v6.len() - 5..], [0, 0, 0, 0, 0]);
-    let mut v5 = v6[..v6.len() - 5].to_vec();
-
+    assert_eq!(v6[v6.len() - 8..], [0, 0, 0, 0, 0, 0, 0, 0]);
+    let mut v5 = v6[..v6.len() - 8].to_vec();
     v5[0] = 5;
     assert_eq!(decode(&v5), Ok(cp.clone()));
     let world = postcard::to_allocvec(&cp.world).unwrap();
     let mut h = Fnv64::new();
-    h.write(&world[..world.len() - 5]);
-
+    h.write(&world[..world.len() - 8]);
     assert_eq!(state_digest(&cp.world), h.finish());
     let w = sample().world;
     assert!(w.map_layout.is_some());
     let bytes = postcard::to_allocvec(&w).unwrap();
     let mut h = Fnv64::new();
-    h.write(&bytes);
+    h.write(&bytes[..bytes.len() - 6]);
     assert_eq!(state_digest(&w), h.finish());
 }
 
@@ -548,63 +533,36 @@ fn schema_5_reads_as_6_without_layout() {
 fn schema_6_reads_as_7_without_sky() {
     let mut cp = sample();
     cp.world.sky = None;
-    cp.world.audio = None;
     let v7 = encode(&cp);
-    assert_eq!(v7[v7.len() - 4..], [0, 0, 0, 0]);
-    let mut v6 = v7[..v7.len() - 4].to_vec();
-
+    assert_eq!(v7[v7.len() - 7..], [0, 0, 0, 0, 0, 0, 0]);
+    let mut v6 = v7[..v7.len() - 7].to_vec();
     v6[0] = 6;
     assert_eq!(decode(&v6), Ok(cp.clone()));
     let world = postcard::to_allocvec(&cp.world).unwrap();
     let mut h = Fnv64::new();
-    h.write(&world[..world.len() - 4]);
+    h.write(&world[..world.len() - 7]);
     assert_eq!(state_digest(&cp.world), h.finish());
     let w = sample().world;
-    assert!(w.audio.is_some());
+    assert!(w.sky.is_some());
     let bytes = postcard::to_allocvec(&w).unwrap();
     let mut h = Fnv64::new();
-    h.write(&bytes);
+    h.write(&bytes[..bytes.len() - 6]);
     assert_eq!(state_digest(&w), h.finish());
 }
 
-/// A schema-7 checkpoint is a schema-9 one without a rival name, box names, or sound.
+/// A schema-10 checkpoint is a schema-11 one with no secret base, minus that `None`'s 0 byte.
 #[test]
-fn schema_7_reads_as_9_without_names_or_sound() {
-    let mut cp = sample();
-    cp.world.rival_name = None;
-    cp.world.box_names.clear();
-    cp.world.audio = None;
-    let v9 = encode(&cp);
-    assert_eq!(v9[v9.len() - 3..], [0, 0, 0]);
-    let mut v7 = v9[..v9.len() - 3].to_vec();
-    v7[0] = 7;
-    assert_eq!(decode(&v7), Ok(cp.clone()));
+fn schema_10_reads_as_11_without_secret_bases() {
+    let cp = sample();
+    let v11 = encode(&cp);
+    assert_eq!(&v11[v11.len() - 2..], &[0, 0]);
+    let mut v10 = v11[..v11.len() - 2].to_vec();
+    v10[0] = 10;
+    assert_eq!(decode(&v10), Ok(cp.clone()));
     let world = postcard::to_allocvec(&cp.world).unwrap();
     let mut h = Fnv64::new();
-    h.write(&world[..world.len() - 3]);
+    h.write(&world[..world.len() - 6]);
     assert_eq!(state_digest(&cp.world), h.finish());
-}
-
-/// A schema-8 checkpoint is a schema-9 one with the sound a restore rebuilds.
-#[test]
-fn schema_8_reads_as_9_without_sound() {
-    let mut cp = sample();
-    cp.world.audio = None;
-    let v9 = encode(&cp);
-    assert_eq!(v9[v9.len() - 1], 0);
-    let mut v8 = v9[..v9.len() - 1].to_vec();
-    v8[0] = 8;
-    assert_eq!(decode(&v8), Ok(cp.clone()));
-    let w = sample().world;
-    assert!(w.audio.is_some());
-    let bytes = postcard::to_allocvec(&w).unwrap();
-    let mut h = Fnv64::new();
-    h.write(&bytes);
-    assert_eq!(state_digest(&w), h.finish());
-
-    let mut h = Fnv64::new();
-    h.write(&bytes);
-    assert_eq!(state_digest(&w), h.finish());
 }
 
 #[test]
@@ -638,26 +596,14 @@ fn encode_checked_rejects_past_the_flash_budget() {
 fn state_digest_is_stable_and_semantic() {
     let a = sample().world;
     assert_eq!(state_digest(&a), state_digest(&a.clone()));
-    // Sound set: the unset names sit in front of it, so the whole encoding counts.
-    assert!(a.audio.is_some() && a.rival_name.is_none() && a.box_names.is_empty());
+    assert!(a.rival_name.is_none() && a.box_names.is_empty() && a.secret_bases.is_none());
     let bytes = postcard::to_allocvec(&a).unwrap();
     let mut fnv = Fnv64::new();
-    fnv.write(&bytes);
+    fnv.write(&bytes[..bytes.len() - 6]);
     assert_eq!(state_digest(&a), fnv.finish());
-    // No sound, no rival name and no box names are three trailing 0 bytes.
-    let mut quiet = a.clone();
-    quiet.audio = None;
-    let bytes = postcard::to_allocvec(&quiet).unwrap();
-    let mut fnv = Fnv64::new();
-    fnv.write(&bytes[..bytes.len() - 3]);
-    assert_eq!(state_digest(&quiet), fnv.finish());
-    let mut named = quiet.clone();
+    let mut named = a.clone();
     named.rival_name = Some([0xBB, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
-    assert_ne!(state_digest(&quiet), state_digest(&named));
-    let named_bytes = postcard::to_allocvec(&named).unwrap();
-    let mut fnv = Fnv64::new();
-    fnv.write(&named_bytes[..named_bytes.len() - 1]);
-    assert_eq!(state_digest(&named), fnv.finish());
+    assert_ne!(state_digest(&a), state_digest(&named));
     let mut b = a.clone();
     b.vars.flags.push(FlagId(0x4002));
     assert_ne!(state_digest(&a), state_digest(&b));
@@ -665,12 +611,11 @@ fn state_digest_is_stable_and_semantic() {
     let mut cp = sample();
     cp.header.build = BuildHash::default();
     assert_eq!(state_digest(&cp.world), state_digest(&a));
-    // The streaming digest hashes the encoded world. This sample's sound is set, so no
-    // default tail is left out.
+    // The names and the empty secret base are the trailing bytes the digest leaves out.
     let header = postcard::to_allocvec(&cp.header).unwrap();
     let encoded = encode(&cp);
     let mut fnv = Fnv64::new();
-    fnv.write(&encoded[header.len()..]);
+    fnv.write(&encoded[header.len()..encoded.len() - 6]);
     assert_eq!(state_digest(&cp.world), fnv.finish());
 }
 
@@ -765,6 +710,11 @@ fn a_forged_length_cannot_preallocate() {
         w.sky,
         w.rival_name,
         &w.box_names,
+        (
+            &w.frontier,
+            w.enigma_berry.as_ref().map(|raw| raw.as_slice()),
+            w.secret_bases.clone(),
+        ),
         w.audio,
     ))
     .unwrap();
@@ -952,6 +902,7 @@ fn enum_variant_indices_are_pinned() {
             Behavior::Water(crate::data::Water::Ocean),
             Behavior::PadWarp,
             Behavior::PopOutWarp(Dir::Right),
+            Behavior::SecretBase(crate::data::SecretBaseSpot::RedCave),
         ],
         |v| match v {
             Behavior::Normal => 0,
@@ -978,6 +929,7 @@ fn enum_variant_indices_are_pinned() {
             Behavior::Water(_) => 21,
             Behavior::PadWarp => 22,
             Behavior::PopOutWarp(_) => 23,
+            Behavior::SecretBase(_) => 24,
         },
     );
     check(

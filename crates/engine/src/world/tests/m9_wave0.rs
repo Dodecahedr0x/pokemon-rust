@@ -181,13 +181,12 @@ fn a_stub_screen_closes_back_to_the_field() {
     assert_eq!(w.screens_open(), 1);
     let mut closed = false;
     w.step(&Game, Buttons::B);
-    w.step(&Game, Buttons::NONE);
     for _ in 0..80 {
-        w.step(&Game, Buttons::NONE);
         closed |= w.events().contains(&Event::ScreenClosed);
         if w.screens_open() == 0 {
             break;
         }
+        w.step(&Game, Buttons::NONE);
     }
     assert!(w.field_active());
     assert!(closed);

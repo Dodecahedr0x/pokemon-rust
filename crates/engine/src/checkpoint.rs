@@ -25,9 +25,11 @@ use serde::{Deserialize, Serialize};
 /// schema 6 appends the current map's layout override (Wave F, Gen3 `setmaplayoutindex`);
 /// schema 7 appends the weather and the palette override (`crate::weather`, `crate::sky`);
 /// schema 8 appends the rival's name and the PC box names (the naming screen);
-/// schema 9 appends the sound state (Milestone 12, `crate::audio`).
-
-pub const SCHEMA: u16 = 9;
+/// schema 9 appends the Battle Tower challenge record (`None` until one is stored);
+/// schema 10 appends the e-Reader Enigma Berry;
+/// schema 11 appends secret bases (`None` is one 0 byte);
+/// schema 12 appends the sound state (Milestone 12, `crate::audio`).
+pub const SCHEMA: u16 = 12;
 /// The oldest schema [`decode`] still reads (see [`schema_readable`]).
 pub const OLDEST_READABLE: u16 = 2;
 
@@ -35,9 +37,9 @@ pub const OLDEST_READABLE: u16 = 2;
 /// schema 3 without held items, schema 3 is schema 4 without the Milestone 9 state, and schema
 /// 4 is schema 5 without berry trees, schema 5 is schema 6 without a layout override,
 /// schema 6 is schema 7 without a weather or palette override, schema 7 is schema 8
-/// without a rival name or box names, and schema 8 is schema 9 with the sound a restore
-/// rebuilds:
-
+/// without a rival name or box names, schema 8 is schema 9 without a Battle Tower
+/// record, schema 9 is schema 10 without an e-Reader Enigma Berry, schema 10 is schema 11
+/// without secret bases, and schema 11 is schema 12 with the sound a restore rebuilds:
 /// [`decode`] reads the missing fields as empty (a new game's for the M9 state), and
 /// [`state_digest`] of such a snapshot is its older digest, so recorded nodes stay valid.
 pub const fn schema_readable(s: u16) -> bool {
@@ -237,12 +239,61 @@ pub struct WorldSnapshot {
     /// PC box names that are not the unset 0xFF fill, ascending by box.
     #[serde(default, deserialize_with = "seq")]
     pub box_names: Vec<BoxNameSnap>,
-    // Schema 9 (Milestone 12). `None` encodes as one 0 byte, which `decode` adds to an older
+    // Schema 9. `None` encodes as one 0 byte, which `decode` adds to an older checkpoint and
+    // `state_digest` leaves out, so a save with no Tower challenge keeps its schema 8 digest.
+    /// The Battle Tower record, when a challenge has been stored.
+    #[serde(default)]
+    pub frontier: Option<crate::frontier::Frontier>,
+    // Schema 10. `None` encodes as one 0 byte, which `decode` adds to an older checkpoint and
+    // `state_digest` leaves out even when a Tower record is stored, so a save without a berry
+    // keeps its schema 9 digest. Serde's array impl stops at 32 bytes, so a copied berry is a
+    // byte string.
+    /// The e-Reader Enigma Berry (`gSaveBlock1Ptr->enigmaBerry`), `None` when none was copied.
+    #[serde(
+        default,
+        serialize_with = "ser_enigma_berry",
+        deserialize_with = "de_enigma_berry"
+    )]
+    pub enigma_berry: Option<[u8; crate::ereader::ENIGMA_BERRY_LEN]>,
+    // Schema 11. `None` encodes as one 0 byte, which `decode` adds to an older checkpoint and
+    // `state_digest` leaves out.
+    /// Secret bases and the decoration inventory, when any exist.
+    #[serde(default)]
+    pub secret_bases: Option<SecretBasesSnap>,
+    // Schema 12 (Milestone 12). `None` encodes as one 0 byte, which `decode` adds to an older
     // checkpoint and `state_digest` leaves out.
     /// The music players and sound tasks, when they differ from what a restore rebuilds (the
     /// map's music playing, no `savedMusic`, nothing else running).
     #[serde(default)]
     pub audio: Option<crate::audio::Audio>,
+}
+
+fn ser_enigma_berry<S: serde::Serializer>(
+    berry: &Option<[u8; crate::ereader::ENIGMA_BERRY_LEN]>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    match berry {
+        None => serializer.serialize_none(),
+        Some(raw) => serializer.serialize_some(&raw.as_slice()),
+    }
+}
+
+fn de_enigma_berry<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<[u8; crate::ereader::ENIGMA_BERRY_LEN]>, D::Error> {
+    let bytes = Option::<Vec<u8>>::deserialize(deserializer)?;
+    match bytes {
+        None => Ok(None),
+        Some(v) if v.len() == crate::ereader::ENIGMA_BERRY_LEN => {
+            let mut raw = [0; crate::ereader::ENIGMA_BERRY_LEN];
+            raw.copy_from_slice(&v);
+            Ok(Some(raw))
+        }
+        Some(v) => Err(serde::de::Error::invalid_length(
+            v.len(),
+            &"an e-Reader berry of 52 bytes",
+        )),
+    }
 }
 
 /// One PC box's name (Gen3 `boxNames`: `BOX_NAME_LENGTH` + EOS).
@@ -258,6 +309,31 @@ pub struct SkySnap {
     /// The weather (its map default is derived from the map's header on restore).
     pub weather: crate::weather::Weather,
     pub palette: Option<crate::sky::PaletteFx>,
+}
+
+/// Secret bases and the decoration inventory (schema 9). Absent when the player has none.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct SecretBasesSnap {
+    pub cur: u16,
+    #[serde(deserialize_with = "seq")]
+    pub inventory: Vec<u8>,
+    #[serde(deserialize_with = "seq")]
+    pub bases: Vec<SecretBaseSnap>,
+}
+
+/// One registered secret base.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct SecretBaseSnap {
+    pub index: u8,
+    pub id: u16,
+    pub gender: u8,
+    pub trainer_id: u32,
+    pub battled: bool,
+    pub entered: u8,
+    #[serde(deserialize_with = "seq")]
+    pub decorations: Vec<(u8, u16)>,
+    #[serde(deserialize_with = "seq")]
+    pub party: Vec<(u16, u8)>,
 }
 
 /// One non-blank berry tree.
@@ -640,9 +716,10 @@ pub fn decode(bytes: &[u8]) -> Result<Checkpoint, CodecError> {
         // schemas 2 and 3 lack the Milestone 9 fields (a new game's are `M9_DEFAULT_TAIL`).
         // Schema 4 lacks the berry trees (none is a 0 length byte), schema 5 the layout
         // override (`None` is a 0 byte), schema 6 the sky (`None` is a 0 byte), schema 7 the
-        // rival name and the box names (two 0 bytes), schema 8 the sound (`None` is a 0 byte).
-        let mut v = Vec::with_capacity(bytes.len() + 7 + M9_DEFAULT_TAIL.len());
-
+        // rival name and the box names (two 0 bytes), schema 8 the Battle Tower record
+        // (`None` is a 0 byte), schema 9 the e-Reader berry (`None` is a 0 byte), schema 10
+        // the secret bases (`None` is a 0 byte).
+        let mut v = Vec::with_capacity(bytes.len() + 10 + M9_DEFAULT_TAIL.len());
         v.extend_from_slice(bytes);
         if schema < 3 {
             v.push(0);
@@ -666,6 +743,15 @@ pub fn decode(bytes: &[u8]) -> Result<Checkpoint, CodecError> {
         if schema < 9 {
             v.push(0);
         }
+        if schema < 10 {
+            v.push(0);
+        }
+        if schema < 11 {
+            v.push(0);
+        }
+        if schema < 12 {
+            v.push(0);
+        }
         upgraded = v;
         &upgraded[..]
     } else {
@@ -682,29 +768,38 @@ pub fn decode(bytes: &[u8]) -> Result<Checkpoint, CodecError> {
 
 /// Semantic identity of a snapshot: Fnv64 over its postcard bytes (the tree's "content hash").
 /// The header (build, frame, world hash) is not part of it. Trailing fields at their older
-/// schema's defaults are left out: no sound (its single 0 byte), then no rival name and no
-/// box names (two 0 bytes), then no sky (its single 0 byte), then no layout override (its
-/// single 0 byte), then no berry trees
-
-/// (their single 0 byte), then the Milestone 9 fields at a new game's values
-/// ([`M9_DEFAULT_TAIL`]), then an empty `party_held` (its single 0 byte), so such a snapshot
-/// keeps its schema 7, 6, 5, 4, 3 (or 2) digest.
+/// schema's defaults are left out: no sound (its single 0 byte), then no secret bases (its
+/// single 0 byte), then no e-Reader berry
+/// (its single 0 byte), then no Battle Tower record (its single 0 byte), then no rival name and
+/// no box names (two 0 bytes), then no sky (its single 0 byte), then no layout override (its
+/// single 0 byte), then no berry trees (their single 0 byte), then the Milestone 9 fields at a
+/// new game's values ([`M9_DEFAULT_TAIL`]), then an empty `party_held` (its single 0 byte), so
+/// such a snapshot keeps its schema 11, 10, 9, 8, 7, 6, 5, 4, 3 (or 2) digest.
 pub fn state_digest(w: &WorldSnapshot) -> u64 {
     let mut drop = 0;
     if w.audio.is_none() {
         drop = 1;
-        if w.rival_name.is_none() && w.box_names.is_empty() {
-            drop += 2;
-            if w.sky.is_none() {
+        if w.secret_bases.is_none() {
+            drop += 1;
+            if w.enigma_berry.is_none() {
                 drop += 1;
-                if w.map_layout.is_none() {
+                if w.frontier.is_none() {
                     drop += 1;
-                    if w.berry_trees.is_empty() {
-                        drop += 1;
-                        if w.m9_is_default() {
-                            drop += M9_DEFAULT_TAIL.len();
-                            if w.party_held.is_empty() {
+                    if w.rival_name.is_none() && w.box_names.is_empty() {
+                        drop += 2;
+                        if w.sky.is_none() {
+                            drop += 1;
+                            if w.map_layout.is_none() {
                                 drop += 1;
+                                if w.berry_trees.is_empty() {
+                                    drop += 1;
+                                    if w.m9_is_default() {
+                                        drop += M9_DEFAULT_TAIL.len();
+                                        if w.party_held.is_empty() {
+                                            drop += 1;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -721,7 +816,7 @@ pub fn state_digest(w: &WorldSnapshot) -> u64 {
     postcard::serialize_with_flavor(w, flavor).expect("postcard encoding of a snapshot")
 }
 
-const DIGEST_DROP_MAX: usize = M9_DEFAULT_TAIL.len() + 7;
+const DIGEST_DROP_MAX: usize = M9_DEFAULT_TAIL.len() + 10;
 
 /// A postcard output that hashes the bytes instead of storing them, `drop` bytes behind so
 /// that the last `drop` can be left out.

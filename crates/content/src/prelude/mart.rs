@@ -9,3 +9,8 @@ use super::*;
 pub async fn mart(ctx: &Ctx, items: &'static [ItemId]) {
     ctx.mart(items).await;
 }
+
+/// Gen3 `pokemartdecoration` / `pokemartdecoration2`: buy one decoration into the PC.
+pub async fn mart_decor(ctx: &Ctx, shop: DecorShop, items: &'static [DecorId]) {
+    ctx.decoration_mart(shop, items).await;
+}

@@ -6,8 +6,8 @@ use super::m9_k::{HM, TM, TM_MOVE, UiGame};
 use super::*;
 use crate::battle::test_data::{GROWL, HARDEN, NORMAL, QUICK_ATTACK, TACKLE};
 use crate::data::{
-    FieldMove, FieldMoveGate, ItemInfo, ItemUse, KeyUse, MedicineEffect, Pocket, StartAction,
-    StartItem,
+    DecorId, DecorationInfo, FieldMove, FieldMoveGate, ItemInfo, ItemUse, KeyUse, MedicineEffect,
+    Pocket, StartAction, StartItem,
 };
 use crate::item_use::{CURE_ALL, CURE_POISON};
 use crate::mon::{Ivs, Pokemon, Status};
@@ -32,6 +32,13 @@ const BIKE: ItemId = ItemId(259);
 const SUPER_POTION: ItemId = ItemId(22);
 const VAR_REPEL: VarId = VarId(0x4021);
 const REPEL_WORE_OFF: ScriptId = ScriptId(999);
+
+static DESK: DecorationInfo = DecorationInfo {
+    name: b"SMALL DESK\xFF",
+    price: 3000,
+    category: 0,
+    description: b"\xFF",
+};
 
 static START: [StartItem; 3] = [
     StartItem {
@@ -141,6 +148,9 @@ impl GameData for BagGame {
     }
     fn mart_bonus(&self) -> Option<(ItemId, u16, ItemId)> {
         Some((POKE_BALL, 10, PREMIER_BALL))
+    }
+    fn decoration(&self, id: DecorId) -> Option<&'static DecorationInfo> {
+        (id == DecorId(1)).then_some(&DESK)
     }
     fn tm_move(&self, id: ItemId) -> Option<MoveId> {
         UiGame.tm_move(id)

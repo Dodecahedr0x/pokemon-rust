@@ -136,50 +136,297 @@ const FRONTIER_UTIL_FUNC_SAVE_PARTY: u16 = 6;
 const FACILITY_MULTI_OR_EREADER: u16 = 9;
 /// Gen3 `MULTI_PARTY_SIZE` (`PARTY_SIZE / 2`).
 const MULTI_PARTY_SIZE: u8 = 3;
+/// Gen3 `SPECIAL_BATTLE_TOWER` (`DoSpecialTrainerBattle`'s `VAR_0x8004`).
+const SPECIAL_BATTLE_TOWER: u16 = 0;
 /// Gen3 `SPECIAL_BATTLE_STEVEN` (`DoSpecialTrainerBattle`'s `VAR_0x8004`).
 const SPECIAL_BATTLE_STEVEN: u16 = 8;
-/// `GetChallengeStatus` with `frontier.challengeStatus` 0 (no challenge in progress).
-const CHALLENGE_STATUS_NONE: u16 = 0xFF;
 
-/// Gen3 `CallFrontierUtilFunc` (`frontier_util.c`), with no Battle Frontier or Battle Tent save
-/// data yet (Milestone 13): no challenge ever starts, so `frontier.challengeStatus` is 0.
-/// - `GET_STATUS` (`GetChallengeStatus`): `VAR_TEMP_CHALLENGE_STATUS` = 0xFF, exact: a lobby's
-///   `ON_FRAME` table then has no match (it reran `frontier_getstatus` every frame while the
-///   var stayed 0).
-/// - `GET_DATA` (`GetFrontierData`): `VAR_RESULT` = 0, a new save's value (degraded);
-///   `SET_DATA` stores nothing (degraded).
-/// - `SAVE_PARTY` (`SaveSelectedParty`, Wave F): the chosen mons back to their backup slots
-///   (`PartyStash::SaveSelected`: the order the choose-half menu answered stands for
-///   `frontier.selectedPartyMons`, which `frontier_set FRONTIER_DATA_SELECTED_MON_ORDER` copies
-///   from it).
-/// - The others report `Unsupported` with their `FRONTIER_UTIL_FUNC_*` name.
-async fn call_frontier_util_func(ctx: &Ctx, id: u16) {
-    match ctx.var(VAR_0x8004).await {
+/// Gen3 `CallFrontierUtilFunc` (`frontier_util.c`). The Battle Tower record is
+/// [`engine::frontier`]: `GET_STATUS` / `GET_DATA` / `SET_DATA` read and write it.
+/// `SAVE_PARTY` still copies the chosen mons back onto the party backup. Dome, Palace, Arena,
+/// Factory, Pike and Pyramid keep reporting their func name. `RESULTS_WINDOW`, symbols, the
+/// soft reset and the other unused funcs report too.
+async fn call_frontier_util_func(ctx: &Ctx, _id: u16) {
+    use engine::frontier::{Call, FACILITY_TOWER};
+    let func = ctx.var(VAR_0x8004).await;
+    match func {
         FRONTIER_UTIL_FUNC_GET_STATUS => {
-            ctx.set_var(VAR_TEMP_CHALLENGE_STATUS, CHALLENGE_STATUS_NONE)
+            let v = ctx
+                .frontier(Call::Util(util_args(func, 0, 0, 0, 0, 0)))
                 .await;
+            ctx.set_var(VAR_TEMP_CHALLENGE_STATUS, v).await;
         }
         FRONTIER_UTIL_FUNC_GET_DATA => {
-            degraded(ctx, id).await;
-            ctx.set_var(VAR_RESULT, 0).await;
+            let arg = ctx.var(VAR_0x8005).await;
+            let facility = frontier_facility(ctx).await;
+            let mode = frontier_mode(ctx).await;
+            let v = ctx
+                .frontier(Call::Util(util_args(func, arg, 0, facility, mode, 0)))
+                .await;
+            ctx.set_var(VAR_RESULT, v).await;
         }
-        FRONTIER_UTIL_FUNC_SET_DATA => degraded(ctx, id).await,
+        FRONTIER_UTIL_FUNC_SET_DATA => {
+            let arg = ctx.var(VAR_0x8005).await;
+            let value = ctx.var(VAR_0x8006).await;
+            let facility = frontier_facility(ctx).await;
+            let mode = frontier_mode(ctx).await;
+            ctx.frontier(Call::Util(util_args(func, arg, value, facility, mode, 0)))
+                .await;
+        }
+        FRONTIER_UTIL_FUNC_SET_PARTY_ORDER => {
+            let arg = ctx.var(VAR_0x8005).await;
+            ctx.frontier(Call::Util(util_args(func, arg, 0, 0, 0, 0)))
+                .await;
+        }
         FRONTIER_UTIL_FUNC_SAVE_PARTY => ctx.party_stash(PartyStash::SaveSelected).await,
-        f => {
-            let name = FRONTIER_UTIL_FUNCS
-                .get(usize::from(f))
-                .copied()
-                .unwrap_or("FRONTIER_UTIL_FUNC_?");
-            ctx.report(Report::Unsupported(name)).await;
+        FRONTIER_UTIL_FUNC_CHECK_INELIGIBLE => {
+            let mode = frontier_mode(ctx).await;
+            let facility = frontier_facility(ctx).await;
+            let result = ctx.var(VAR_RESULT).await;
+            let v = ctx
+                .frontier(Call::Util(util_args(func, 0, 0, facility, mode, result)))
+                .await;
+            ctx.set_var(VAR_0x8004, v).await;
+        }
+        f if matches!(
+            f,
+            FRONTIER_UTIL_FUNC_INCREMENT_STREAK
+                | FRONTIER_UTIL_FUNC_GIVE_BATTLE_POINTS
+                | FRONTIER_UTIL_FUNC_CHECK_AIR_TV_SHOW
+                | FRONTIER_UTIL_FUNC_GET_BRAIN_STATUS
+        ) =>
+        {
+            let facility = frontier_facility(ctx).await;
+            let mode = frontier_mode(ctx).await;
+            if facility != FACILITY_TOWER {
+                report_util(ctx, f).await;
+                return;
+            }
+            let v = ctx
+                .frontier(Call::Util(util_args(f, 0, 0, facility, mode, 0)))
+                .await;
+            if f == FRONTIER_UTIL_FUNC_GET_BRAIN_STATUS {
+                ctx.set_var(VAR_RESULT, v).await;
+            } else if f == FRONTIER_UTIL_FUNC_GIVE_BATTLE_POINTS {
+                ctx.buffer(0, BufferSrc::Number(u32::from(v))).await;
+            }
+        }
+        FRONTIER_UTIL_FUNC_IS_BRAIN => {
+            let v = ctx
+                .frontier(Call::Util(util_args(func, 0, 0, 0, 0, 0)))
+                .await;
+            ctx.set_var(VAR_RESULT, v).await;
+        }
+        f if f == FRONTIER_UTIL_FUNC_RESTORE_HELD_ITEMS
+            || f == FRONTIER_UTIL_FUNC_RESET_SKETCH_MOVES =>
+        {
+            ctx.frontier(Call::Util(util_args(f, 0, 0, 0, 0, 0))).await;
+        }
+        f => report_util(ctx, f).await,
+    }
+}
+
+fn util_args(
+    func: u16,
+    arg: u16,
+    value: u16,
+    facility: u16,
+    mode: u16,
+    result: u16,
+) -> engine::frontier::Args {
+    engine::frontier::Args {
+        func,
+        arg,
+        value,
+        facility,
+        mode,
+        result,
+    }
+}
+
+async fn frontier_facility(ctx: &Ctx) -> u16 {
+    match story::FRONTIER_FACILITY {
+        Some(v) => ctx.var(v).await,
+        None => 0,
+    }
+}
+
+async fn frontier_mode(ctx: &Ctx) -> u16 {
+    match story::FRONTIER_BATTLE_MODE {
+        Some(v) => ctx.var(v).await,
+        None => 0,
+    }
+}
+
+async fn report_util(ctx: &Ctx, func: u16) {
+    let name = FRONTIER_UTIL_FUNCS
+        .get(usize::from(func))
+        .copied()
+        .unwrap_or("FRONTIER_UTIL_FUNC_?");
+    ctx.report(Report::Unsupported(name)).await;
+}
+
+const FRONTIER_UTIL_FUNC_SET_PARTY_ORDER: u16 = 3;
+const FRONTIER_UTIL_FUNC_CHECK_AIR_TV_SHOW: u16 = 8;
+const FRONTIER_UTIL_FUNC_GET_BRAIN_STATUS: u16 = 9;
+const FRONTIER_UTIL_FUNC_IS_BRAIN: u16 = 10;
+const FRONTIER_UTIL_FUNC_GIVE_BATTLE_POINTS: u16 = 11;
+const FRONTIER_UTIL_FUNC_CHECK_INELIGIBLE: u16 = 15;
+const FRONTIER_UTIL_FUNC_INCREMENT_STREAK: u16 = 18;
+const FRONTIER_UTIL_FUNC_RESTORE_HELD_ITEMS: u16 = 19;
+const FRONTIER_UTIL_FUNC_RESET_SKETCH_MOVES: u16 = 22;
+
+/// Tower funcs the singles challenge runs. Link, partner and gfx funcs stay unsupported.
+const TOWER_FUNCS: [&str; 16] = [
+    "BATTLE_TOWER_FUNC_INIT",
+    "BATTLE_TOWER_FUNC_GET_DATA",
+    "BATTLE_TOWER_FUNC_SET_DATA",
+    "BATTLE_TOWER_FUNC_SET_OPPONENT",
+    "BATTLE_TOWER_FUNC_SET_BATTLE_WON",
+    "BATTLE_TOWER_FUNC_GIVE_RIBBONS",
+    "BATTLE_TOWER_FUNC_SAVE",
+    "BATTLE_TOWER_FUNC_GET_OPPONENT_INTRO",
+    "BATTLE_TOWER_FUNC_NOP",
+    "BATTLE_TOWER_FUNC_NOP2",
+    "BATTLE_TOWER_FUNC_LOAD_PARTNERS",
+    "BATTLE_TOWER_FUNC_PARTNER_MSG",
+    "BATTLE_TOWER_FUNC_LOAD_LINK_OPPONENTS",
+    "BATTLE_TOWER_FUNC_TRY_CLOSE_LINK",
+    "BATTLE_TOWER_FUNC_SET_PARTNER_GFX",
+    "BATTLE_TOWER_FUNC_SET_INTERVIEW_DATA",
+];
+
+fn tower_native(func: u16) -> bool {
+    matches!(func, 0..=9 | 12 | 15)
+}
+
+/// Gen3 `CallBattleTowerFunc`. Singles challenge funcs read and write the tower record.
+/// Doubles and link opponents report; the non-link `LOAD_LINK_OPPONENTS` answers 6 so the
+/// singles lobby's wait loop finishes.
+async fn call_battle_tower_func(ctx: &Ctx) {
+    use engine::frontier::{Call, MODE_LINK, MODE_SINGLES};
+    let func = ctx.var(VAR_0x8004).await;
+    let arg = ctx.var(VAR_0x8005).await;
+    let value = ctx.var(VAR_0x8006).await;
+    let mode = frontier_mode(ctx).await;
+    let link = func == 12 && mode == MODE_LINK;
+    let not_singles = func == 3 && mode != MODE_SINGLES;
+    if !tower_native(func) || link || not_singles {
+        let name = TOWER_FUNCS
+            .get(usize::from(func))
+            .copied()
+            .unwrap_or("BATTLE_TOWER_FUNC_?");
+        ctx.report(Report::Unsupported(name)).await;
+        return;
+    }
+    let result = if func == 12 {
+        ctx.var(VAR_RESULT).await
+    } else {
+        0
+    };
+    let v = ctx
+        .frontier(Call::Tower(util_args(func, arg, value, 0, mode, result)))
+        .await;
+    let writes = matches!(func, 4 | 5 | 12) || (func == 1 && matches!(arg, 1 | 2));
+    if writes {
+        ctx.set_var(VAR_RESULT, v).await;
+    }
+}
+
+/// Gen3 `ChoosePartyForBattleFrontier`: the choose-half menu at the level cap in `VAR_0x8004`
+/// (0 → 50, else 100) for `VAR_0x8005` mons, then `VAR_RESULT` is whether one was chosen.
+async fn choose_party_for_battle_frontier(ctx: &Ctx) {
+    let cap_mode = ctx.var(VAR_0x8004).await;
+    let n = (ctx.var(VAR_0x8005).await as u8).clamp(1, 6);
+    let chosen = ctx
+        .choose_party_mon(PartyMode::ChooseHalf {
+            max: n,
+            min: n,
+            level_cap: if cap_mode == 0 { 50 } else { 100 },
+            frontier: true,
+        })
+        .await;
+    ctx.set_var(VAR_RESULT, chosen).await;
+    ctx.fade(Fade::FromBlack).await;
+}
+
+/// Gen3 `BufferBattleTowerElevatorFloors` (`field_specials.c`).
+async fn buffer_battle_tower_elevator_floors(ctx: &Ctx) {
+    use engine::frontier::{Call, MODE_MULTIS};
+    let mode = frontier_mode(ctx).await;
+    let partner = match story::CHOSEN_MULTI_BATTLE_NPC_PARTNER {
+        Some(f) => ctx.flag(f).await,
+        None => false,
+    };
+    let streak = ctx
+        .frontier(Call::Tower(util_args(1, 1, 0, 0, mode, 0)))
+        .await;
+    let (floor, count) = if mode == MODE_MULTIS && !partner {
+        (5, 4)
+    } else {
+        const THRESHOLDS: [u16; 9] = [7, 14, 21, 28, 35, 49, 63, 77, 91];
+        match THRESHOLDS.iter().position(|&t| t > streak) {
+            Some(i) => (4, i as u16 + 5),
+            None => (4, 12),
+        }
+    };
+    ctx.set_var(VAR_0x8005, floor).await;
+    ctx.set_var(VAR_0x8006, count).await;
+}
+
+/// Gen3 `TryHideBattleTowerReporter`: hide the lobby reporter while a challenge is saving,
+/// or when the battle room was cancelled.
+async fn try_hide_battle_tower_reporter(ctx: &Ctx) {
+    use engine::frontier::Call;
+    let status = ctx.frontier(Call::Util(util_args(1, 0, 0, 0, 0, 0))).await;
+    let cancel = match story::CANCEL_BATTLE_ROOM_CHALLENGE {
+        Some(f) => ctx.flag(f).await,
+        None => false,
+    };
+    if status == u16::from(engine::frontier::STATUS_SAVING) || cancel {
+        if let Some(v) = story::BRAVO_TRAINER_BATTLE_TOWER_ON {
+            ctx.set_var(v, 0).await;
+        }
+        ctx.remove_object(5).await;
+        if let Some(f) = story::HIDE_BATTLE_TOWER_REPORTER {
+            ctx.set_flag(f, true).await;
+        }
+        if cancel && let Some(f) = story::CANCEL_BATTLE_ROOM_CHALLENGE {
+            ctx.set_flag(f, false).await;
         }
     }
 }
 
-/// Gen3 `DoSpecialTrainerBattle` (`battle_tower.c`): `SPECIAL_BATTLE_STEVEN` only (see
-/// [`special`]); the outcome, also in `VAR_RESULT`.
+/// Gen3 `GetBattleTowerSinglesStreak`.
+async fn battle_tower_singles_streak(ctx: &Ctx) -> u16 {
+    ctx.frontier(engine::frontier::Call::SinglesStreak).await
+}
+
+/// Gen3 `DoSpecialTrainerBattle` (`battle_tower.c`): `VAR_0x8004` = 1 fights the secret base
+/// being visited (no whiteout); `SPECIAL_BATTLE_TOWER` (singles) fights the opponent the tower
+/// record picked; `SPECIAL_BATTLE_STEVEN` is Steven's multi battle. The outcome is also in
+/// `VAR_RESULT`. Doubles, multis, link and the tents report.
 async fn do_special_trainer_battle(ctx: &Ctx) -> u16 {
+    let kind = ctx.var(VAR_0x8004).await;
+    if kind == 1 {
+        let idx = ctx.var(VarId(0x4054)).await;
+        let outcome = ctx.secret_base_battle(idx).await;
+        ctx.set_var(VAR_RESULT, outcome).await;
+        return outcome;
+    }
+    if kind == SPECIAL_BATTLE_TOWER {
+        let mode = frontier_mode(ctx).await;
+        if mode != engine::frontier::MODE_SINGLES {
+            ctx.report(Report::Unsupported("SPECIAL_DoSpecialTrainerBattle"))
+                .await;
+            return 0;
+        }
+        let outcome = ctx.frontier(engine::frontier::Call::Battle).await;
+        ctx.set_var(VAR_RESULT, outcome).await;
+        return outcome;
+    }
     let foes = story::STEVEN_MULTI_FOES;
-    let (SPECIAL_BATTLE_STEVEN, Some(foes)) = (ctx.var(VAR_0x8004).await, foes) else {
+    let Some(foes) = (kind == SPECIAL_BATTLE_STEVEN).then_some(foes).flatten() else {
         ctx.report(Report::Unsupported("SPECIAL_DoSpecialTrainerBattle"))
             .await;
         return 0;
@@ -291,6 +538,9 @@ async fn cable_car_destination(ctx: &Ctx) -> MapId {
 pub async fn special(ctx: &Ctx, id: u16) -> u16 {
     ctx.log(name_of(&crate::data::SPECIAL_NAMES, id).unwrap_or("SPECIAL_?"))
         .await;
+    if let Some(v) = super::secret::run(ctx, id).await {
+        return v;
+    }
     // Guards, not patterns: a mistyped constant would silently become a catch-all binding.
     match id {
         id if id == SPECIAL_ChooseStarter => {
@@ -367,6 +617,17 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             }
         }
         id if id == SPECIAL_CallFrontierUtilFunc => call_frontier_util_func(ctx, id).await,
+        id if id == SPECIAL_CallBattleTowerFunc => call_battle_tower_func(ctx).await,
+        id if id == SPECIAL_ChoosePartyForBattleFrontier => {
+            choose_party_for_battle_frontier(ctx).await
+        }
+        id if id == SPECIAL_BufferBattleTowerElevatorFloors => {
+            buffer_battle_tower_elevator_floors(ctx).await
+        }
+        id if id == SPECIAL_TryHideBattleTowerReporter => try_hide_battle_tower_reporter(ctx).await,
+        id if id == SPECIAL_GetBattleTowerSinglesStreak => {
+            return battle_tower_singles_streak(ctx).await;
+        }
         // ---- Wave F: Steven's multi battle ----
         id if id == SPECIAL_SavePlayerParty => ctx.party_stash(PartyStash::Save).await,
         id if id == SPECIAL_LoadPlayerParty => ctx.party_stash(PartyStash::Load).await,
@@ -380,6 +641,8 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             let mode = PartyMode::ChooseHalf {
                 max: MULTI_PARTY_SIZE,
                 min: 1,
+                level_cap: 100,
+                frontier: false,
             };
             let chosen = ctx.choose_party_mon(mode).await;
             ctx.set_var(VAR_RESULT, chosen).await;
@@ -580,15 +843,10 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             ctx.field_whiteout().await;
         }
         id if id == SPECIAL_OpenPokenavForTutorial => {
-            // `OpenPokenavForTutorial` (`pokenav.c`, `POKENAV_MODE_FORCE_CALL_READY`): the
-            // tutorial forces the call to Mr. Stone, whose first text
-            // (`sMrStoneTextScripts[0]`, `pokenav_match_call_data.c`) sets the flavour's
-            // `story::MR_STONE_POKENAV`. No PokéNav screen: the flag only.
-            degraded(ctx, id).await;
-            let Some(flag) = story::MR_STONE_POKENAV else {
-                return not_in_game(ctx, id).await;
-            };
-            ctx.set_flag(flag, true).await;
+            // `OpenPokenavForTutorial` (`pokenav.c`, `POKENAV_MODE_FORCE_CALL_READY`): MATCH
+            // CALL until a call is placed, then SWITCH OFF leaves. Mr. Stone's first line
+            // sets his match-call flag (`story::MR_STONE_POKENAV`) when the call is spoken.
+            ctx.pokenav(true).await;
         }
         // ---- Wave C: specials that read the player's state (`Request::Query`) ----
         id if id == SPECIAL_ScriptGetPokedexInfo => {
@@ -871,6 +1129,50 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             }
             mauville_gym_scan(ctx, mauville_gym::deactivate).await;
         }
+        id if id == SPECIAL_TryBecomeLinkLeader => {
+            return ctx.link(engine::script::LinkCall::BecomeLeader).await;
+        }
+        id if id == SPECIAL_TryBattleLinkup => {
+            return ctx.link(engine::script::LinkCall::Battle).await;
+        }
+        id if id == SPECIAL_RunUnionRoom => {
+            return ctx.link(engine::script::LinkCall::UnionRoom).await;
+        }
+        id if id == SPECIAL_InitUnionRoom => {
+            ctx.link(engine::script::LinkCall::InitUnion).await;
+        }
+        id if id == SPECIAL_CloseLink => {
+            ctx.link(engine::script::LinkCall::Close).await;
+        }
+        id if id == SPECIAL_IsEnigmaBerryValid => {
+            // `IsEnigmaBerryValid`: the saved e-Reader berry's stage, yield and checksum.
+            return ctx.query(Query::EnigmaBerryValid).await;
+        }
+        id if id == SPECIAL_DoesPartyHaveEnigmaBerry => {
+            // `DoesPartyHaveEnigmaBerry` (`script_pokemon_util.c`): a non-empty party mon
+            // holding `ITEM_ENIGMA_BERRY`. The engine has no eggs, so species 0 is an empty
+            // slot. The name goes to `gStringVar1` (`GetBerryNameByBerryType`): the card's
+            // when the saved berry is valid, otherwise the ROM Enigma Berry name.
+            for slot in 0..PARTY_SIZE as u8 {
+                if ctx.query(Query::PartySpecies(slot)).await == 0 {
+                    continue;
+                }
+                if ctx.query(Query::PartyHeldItem(slot)).await != ITEM_ENIGMA_BERRY {
+                    continue;
+                }
+                if ctx.query(Query::EnigmaBerryValid).await != 0 {
+                    ctx.buffer(0, BufferSrc::EnigmaBerry).await;
+                } else if let Some(name) = crate::data::BERRIES
+                    .iter()
+                    .find(|berry| berry.0 == ITEM_ENIGMA_BERRY)
+                    .map(|berry| berry.1)
+                {
+                    ctx.buffer(0, BufferSrc::Bytes(name)).await;
+                }
+                return 1;
+            }
+            return 0;
+        }
         // Not a `Native` special: the lowering never passes one (it reports the `Unsupported`
         // ones itself); a hand-written call is only logged.
         _ => {}
@@ -1065,6 +1367,11 @@ mod story {
     pub const RUSTURF: Option<Rusturf> = None;
     pub const GAME_CLEAR: Option<GameClear> = None;
     pub const FRONTIER_FACILITY: Option<VarId> = None;
+    pub const FRONTIER_BATTLE_MODE: Option<VarId> = None;
+    pub const BRAVO_TRAINER_BATTLE_TOWER_ON: Option<VarId> = None;
+    pub const HIDE_BATTLE_TOWER_REPORTER: Option<FlagId> = None;
+    pub const CANCEL_BATTLE_ROOM_CHALLENGE: Option<FlagId> = None;
+    pub const CHOSEN_MULTI_BATTLE_NPC_PARTNER: Option<FlagId> = None;
     pub const STEVEN_MULTI_FOES: Option<[(TrainerId, &str); 2]> = None;
 }
 

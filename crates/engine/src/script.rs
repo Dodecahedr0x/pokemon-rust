@@ -7,7 +7,8 @@
 use crate::battle::BattleOutcome;
 pub use crate::data::Emote;
 use crate::data::{
-    Dir, FlagId, ItemId, MapId, MoveId, MovementType, ScriptId, SpeciesId, TextId, TrainerId, VarId,
+    DecorId, DecorShop, Dir, FlagId, ItemId, MapId, MoveId, MovementType, ScriptId, SpeciesId,
+    TextId, TrainerId, VarId,
 };
 use crate::hash::Fnv64;
 pub use crate::ui::{PartyMode, PcMode};
@@ -118,6 +119,12 @@ pub enum BufferSrc {
     Text(TextId),
     /// `buffercontestname`: `sContestNames[category]` (`COOLNESS CONTEST` and the other four).
     ContestName(u8),
+    /// `bufferdecorationname`.
+    Decoration(DecorId),
+    /// The saved e-Reader Enigma Berry's name (`GetBerryNameByBerryType` when it is valid).
+    EnigmaBerry,
+    /// Bytes already encoded (the ROM Enigma Berry name when the saved one is not valid).
+    Bytes(&'static [u8]),
 }
 
 /// A contest command (`choosecontestmon`, `startcontest`, `showcontestresults`,
@@ -170,6 +177,74 @@ pub enum PartyStash {
     /// slot (`frontier.selectedPartyMons`, which `frontier_set FRONTIER_DATA_SELECTED_MON_ORDER`
     /// copies from the chosen order).
     SaveSelected,
+}
+
+/// A Gen3 link special. The world answers it from the attached cable partner.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum LinkCall {
+    /// `SPECIAL_TryBecomeLinkLeader`: open the link as master when a partner is attached.
+    BecomeLeader,
+    /// `SPECIAL_TryBattleLinkup`: one single link battle.
+    Battle,
+    /// `SPECIAL_InitUnionRoom`.
+    InitUnion,
+    /// `SPECIAL_RunUnionRoom`: the activity exchange, then the partner's name.
+    UnionRoom,
+    /// `SPECIAL_CloseLink`: `LINKCMD_READY_CLOSE_LINK`, then the link is closed.
+    Close,
+}
+
+/// A secret-base record command ([`Request::SecretBase`]). Answers `Value`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SecretBaseCmd {
+    /// 1 when record 0 has an entrance id (`CheckPlayerHasSecretBase`).
+    HasPlayer,
+    /// The entrance the player is facing (`sCurSecretBaseId`), 0 if none.
+    Cur,
+    /// Record 0 becomes that entrance, copying the player's id (`SetPlayerSecretBase`).
+    Claim,
+    /// Increments `numTimesEntered` of record `index` and answers its entrance id.
+    Entered(u16),
+    /// Clears record 0 (`ClearAndLeaveSecretBase`, `MoveOutOfSecretBase`).
+    ClearPlayer,
+    /// 1 when record 0's entrance is not the one being faced.
+    OwnedByOther,
+    /// Adds decoration `u8` to the inventory. 1 if it fit.
+    GiveDecor(u8),
+    /// Places the first owned decoration on record `index` at the cell in front. The
+    /// decoration id, or 0.
+    PlaceFront(u16),
+    /// `trainerId[0] % 5 + gender * 5` of record `index`.
+    OwnerType(u16),
+    /// `battledOwnerToday` of record `index`. `set == 0xFFFF` reads it; otherwise stores it.
+    Battled { index: u16, set: u16 },
+    /// Copies the player's party species and levels into record 0.
+    SnapshotParty,
+    /// The entrance type in front of the player (1 red .. 6 shrub, else 0).
+    TypeInFront,
+    /// Clears `battledOwnerToday` on every record (the daily reset).
+    ClearBattled,
+}
+
+impl SecretBaseCmd {
+    /// Hash key `(discriminant, a, b)`.
+    pub const fn key(self) -> (u16, u16, u16) {
+        match self {
+            SecretBaseCmd::HasPlayer => (0, 0, 0),
+            SecretBaseCmd::Cur => (1, 0, 0),
+            SecretBaseCmd::Claim => (2, 0, 0),
+            SecretBaseCmd::Entered(i) => (3, i, 0),
+            SecretBaseCmd::ClearPlayer => (4, 0, 0),
+            SecretBaseCmd::OwnedByOther => (5, 0, 0),
+            SecretBaseCmd::GiveDecor(d) => (6, d as u16, 0),
+            SecretBaseCmd::PlaceFront(i) => (7, i, 0),
+            SecretBaseCmd::OwnerType(i) => (8, i, 0),
+            SecretBaseCmd::Battled { index, set } => (9, index, set),
+            SecretBaseCmd::SnapshotParty => (10, 0, 0),
+            SecretBaseCmd::TypeInFront => (11, 0, 0),
+            SecretBaseCmd::ClearBattled => (12, 0, 0),
+        }
+    }
 }
 
 /// Everything a script can ask of the world.
@@ -415,6 +490,11 @@ pub enum Request {
     SlotMachine {
         machine: u8,
     },
+    /// Gen3 `pokemartdecoration` / `pokemartdecoration2`: buy-only, into the decoration PC.
+    DecorationMart {
+        shop: DecorShop,
+        items: &'static [DecorId],
+    },
     /// `special ChoosePartyMon` / `ChooseMonForMoveTutor`: answers `Value` = the slot, or
     /// [`PARTY_NOTHING_CHOSEN`].
     ChoosePartyMon(PartyMode),
@@ -436,6 +516,11 @@ pub enum Request {
     /// (the words were confirmed; false when quit).
     EasyChat {
         kind: u8,
+    },
+    /// `special OpenPokenavForTutorial` (`tutorial`) or the start menu's POKéNAV. Answers
+    /// `Unit` when the screen closes.
+    Pokenav {
+        tutorial: bool,
     },
     /// The evolution scene (Silice `play_evolution`): answers `Bool` (evolved).
     Evolve {
@@ -642,6 +727,8 @@ pub enum Request {
     /// The credits alone (the Hall of Fame screen from its credits, no record, no save):
     /// answers `Unit` once THE END is dismissed.
     Credits,
+    /// Copies an e-Reader Enigma Berry (`SetEnigmaBerry`).
+    SetEnigmaBerry([u8; crate::ereader::ENIGMA_BERRY_LEN]),
     /// Reload the last save as if the game had been reset (Silice's alternate ending): raises
     /// `Event::ReloadLastSave` once; the shells replace the World (GBA: the flash slot, read,
     /// not written; native: the last save it persisted, else a new game). Never answered.
@@ -660,7 +747,8 @@ pub enum Request {
     SetModernFatefulEncounter(u16),
     /// Gen3 `trywondercardscript` / `GetSavedRamScriptIfValid`: the saved Wonder Card's script.
     /// Answers `Value` ([`NO_WONDER_CARD_SCRIPT`] when there is no valid card).
-    WonderCardScript, // ---- Milestone 12: sound (`crate::audio`; Gen3 `sound.c`) ----
+    WonderCardScript,
+    // ---- Milestone 12: sound (`crate::audio`; Gen3 `sound.c`) ----
     /// `playse`: `PlaySE(song)`.
     PlaySe(u16),
     /// `waitse`: answers `Unit` once no sound effect plays (`IsSEPlaying`).
@@ -693,6 +781,19 @@ pub enum Request {
     },
     /// `waitmoncry`: answers `Unit` once the cry and its ducking are over (`IsCryFinished`).
     WaitCry,
+    /// A Gen3 link special ([`LinkCall`]): the cable block protocol, answered at once with
+    /// the special's result (`Value`).
+    Link(LinkCall),
+    /// Battle Tower challenge record (`frontier_util.c` / `battle_tower.c`). Answers `Value`.
+    /// [`crate::frontier::Call::Battle`] waits until the fight ends.
+    Frontier(crate::frontier::Call),
+    /// A secret-base record command. Answers `Value`.
+    SecretBase(SecretBaseCmd),
+    /// Fight the party stored on secret-base record `index` (Gen3 `BATTLE_TYPE_SECRET_BASE`).
+    /// No whiteout: a loss answers `Lost` and the script continues. Answers the outcome.
+    SecretBaseBattle {
+        index: u16,
+    },
 }
 
 /// Answer of [`Request::WonderCardScript`] when no valid Wonder Card is saved.
@@ -738,6 +839,8 @@ pub enum Query {
     /// The item held by party slot `slot` (Gen3 `MON_DATA_HELD_ITEM`), 0 for none or an empty
     /// slot.
     PartyHeldItem(u8),
+    /// 1 when the saved e-Reader Enigma Berry passes `IsEnigmaBerryValid`, else 0.
+    EnigmaBerryValid,
 }
 
 impl Query {
@@ -762,6 +865,7 @@ impl Query {
             Query::Metatile { x, y } => (10, x as u16, y as u16),
             Query::ObjectBerryTree(local_id) => (11, local_id as u16, 0),
             Query::PartyHeldItem(slot) => (12, slot as u16, 0),
+            Query::EnigmaBerryValid => (13, 0, 0),
         }
     }
 }
@@ -869,6 +973,13 @@ impl Request {
                     BufferSrc::LeadSpecies => (6, 0),
                     BufferSrc::Text(t) => (7, t.0 as u32),
                     BufferSrc::ContestName(c) => (8, c as u32),
+                    BufferSrc::Decoration(d) => (9, d.0 as u32),
+                    BufferSrc::EnigmaBerry => (10, 0),
+                    BufferSrc::Bytes(text) => {
+                        let mut d = Fnv64::new();
+                        d.write(text);
+                        (11, d.finish() as u32)
+                    }
                 };
                 (50, slot as u16, kind, v as u16, (v >> 16) as u16)
             }
@@ -950,17 +1061,41 @@ impl Request {
                 )
             }
             Request::SlotMachine { machine } => (233, u16::from(machine), 0, 0, 0),
+            Request::DecorationMart { shop, items } => {
+                let mut dh = Fnv64::new();
+                dh.write(&[shop as u8]);
+                for i in items {
+                    dh.write_u16(i.0);
+                }
+                let d = dh.finish();
+                (
+                    219,
+                    items.len() as u16,
+                    d as u16,
+                    (d >> 16) as u16,
+                    (d >> 32) as u16,
+                )
+            }
             Request::ChoosePartyMon(m) => {
-                let (kind, v) = match m {
-                    PartyMode::Field => (0, 0),
-                    PartyMode::Choose => (1, 0),
-                    PartyMode::MoveTutor(m) => (2, m.0),
-                    PartyMode::UseItem(i) => (3, i.0),
-                    PartyMode::GiveItem(i) => (4, i.0),
-                    PartyMode::Battle { forced } => (5, forced as u16),
-                    PartyMode::ChooseHalf { max, min } => (6, max as u16 | (min as u16) << 8),
+                let (kind, v, extra) = match m {
+                    PartyMode::Field => (0, 0, 0),
+                    PartyMode::Choose => (1, 0, 0),
+                    PartyMode::MoveTutor(m) => (2, m.0, 0),
+                    PartyMode::UseItem(i) => (3, i.0, 0),
+                    PartyMode::GiveItem(i) => (4, i.0, 0),
+                    PartyMode::Battle { forced } => (5, forced as u16, 0),
+                    PartyMode::ChooseHalf {
+                        max,
+                        min,
+                        level_cap,
+                        frontier,
+                    } => (
+                        6,
+                        max as u16 | (min as u16) << 8,
+                        level_cap as u16 | (frontier as u16) << 8,
+                    ),
                 };
-                (57, kind, v, 0, 0)
+                (57, kind, v, extra, 0)
             }
             Request::PlayerPc(m) => (58, m as u16, 0, 0, 0),
             Request::SaveDialog => (59, 0, 0, 0, 0),
@@ -1092,6 +1227,19 @@ impl Request {
             // SIL Ch10–11: tags 210 and up.
             Request::SaveGame => (210, 0, 0, 0, 0),
             Request::Credits => (211, 0, 0, 0, 0),
+            // Tag 220: 213–219 and 225 and up are other requests.
+            Request::SetEnigmaBerry(raw) => {
+                let mut d = Fnv64::new();
+                d.write(&raw);
+                let digest = d.finish();
+                (
+                    220,
+                    digest as u16,
+                    (digest >> 16) as u16,
+                    (digest >> 32) as u16,
+                    (digest >> 48) as u16,
+                )
+            }
             Request::ReloadLastSave => (212, 0, 0, 0, 0),
             // The clock is a host input: the request carries no time (tag 213).
             Request::GetTime => (213, 0, 0, 0, 0),
@@ -1111,6 +1259,26 @@ impl Request {
             Request::SetMysteryEventStatus(status) => (233, status as u16, 0, 0, 0),
             Request::SetModernFatefulEncounter(slot) => (234, slot, 0, 0, 0),
             Request::WonderCardScript => (235, 0, 0, 0, 0),
+            Request::Pokenav { tutorial } => (236, tutorial as u16, 0, 0, 0),
+            Request::Link(call) => {
+                let which = match call {
+                    LinkCall::BecomeLeader => 0,
+                    LinkCall::Battle => 1,
+                    LinkCall::InitUnion => 2,
+                    LinkCall::UnionRoom => 3,
+                    LinkCall::Close => 4,
+                };
+                (237, which, 0, 0, 0)
+            }
+            Request::Frontier(call) => {
+                let (k, a, b, c) = call.parts();
+                (238, k, a, b, c)
+            }
+            Request::SecretBase(cmd) => {
+                let (k, a, b) = cmd.key();
+                (219, k, a, b, 0)
+            }
+            Request::SecretBaseBattle { index } => (220, index, 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -1806,6 +1974,16 @@ impl Ctx {
         )
     }
 
+    /// A secret-base record command. Answers the `Value` the command documents.
+    pub fn secret_base(&self, cmd: SecretBaseCmd) -> Req<u16> {
+        self.req(Request::SecretBase(cmd), Response::value)
+    }
+
+    /// Fight secret-base record `index`. Answers the outcome; a loss does not white out.
+    pub fn secret_base_battle(&self, index: u16) -> Req<u16> {
+        self.req(Request::SecretBaseBattle { index }, Response::value)
+    }
+
     pub fn report(&self, r: Report) -> Req<()> {
         self.req(Request::Report(r), unit)
     }
@@ -1890,9 +2068,19 @@ impl Ctx {
         )
     }
 
+    /// Gen3 `pokemartdecoration` / `pokemartdecoration2`.
+    pub fn decoration_mart(&self, shop: DecorShop, items: &'static [DecorId]) -> Req<()> {
+        self.req(Request::DecorationMart { shop, items }, unit)
+    }
+
     /// The chosen party slot, or [`PARTY_NOTHING_CHOSEN`].
     pub fn choose_party_mon(&self, mode: PartyMode) -> Req<u16> {
         self.req(Request::ChoosePartyMon(mode), Response::value)
+    }
+
+    /// [`Request::Frontier`]: one Battle Tower util or tower func, or the singles fight.
+    pub fn frontier(&self, call: crate::frontier::Call) -> Req<u16> {
+        self.req(Request::Frontier(call), Response::value)
     }
 
     pub fn player_pc(&self, mode: PcMode) -> Req<()> {
@@ -1913,6 +2101,11 @@ impl Ctx {
     /// Gen3 `CableCar`: the ride scene. `down` is the ride toward the lower station.
     pub fn cable_car(&self, down: bool) -> Req<()> {
         self.req(Request::CableCar { down }, unit)
+    }
+
+    /// The PokéNav. `tutorial` is `POKENAV_MODE_FORCE_CALL_READY`.
+    pub fn pokenav(&self, tutorial: bool) -> Req<()> {
+        self.req(Request::Pokenav { tutorial }, unit)
     }
 
     /// The Easy Chat screen of `EASY_CHAT_TYPE_*` `kind`: whether the words were confirmed.
@@ -2046,6 +2239,11 @@ impl Ctx {
         self.req(Request::Query(q), Response::value)
     }
 
+    /// Copies an e-Reader Enigma Berry (`SetEnigmaBerry`).
+    pub fn set_enigma_berry(&self, raw: [u8; crate::ereader::ENIGMA_BERRY_LEN]) -> Req<()> {
+        self.req(Request::SetEnigmaBerry(raw), unit)
+    }
+
     /// The party's backup (see [`PartyStash`]).
     pub fn party_stash(&self, op: PartyStash) -> Req<()> {
         self.req(Request::PartyStash(op), unit)
@@ -2125,6 +2323,11 @@ impl Ctx {
     /// `showcontestpainting`.
     pub fn show_contest_painting(&self, id: u8) -> Req<()> {
         self.req(Request::Contest(ContestOp::Painting(id)), unit)
+    }
+
+    /// A Gen3 link special (see [`Request::Link`]).
+    pub fn link(&self, call: LinkCall) -> Req<u16> {
+        self.req(Request::Link(call), Response::value)
     }
 
     /// Gen3 `RockSmashWildEncounter` (see [`Request::RockSmashEncounter`]): whether a wild

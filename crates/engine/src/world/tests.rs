@@ -1163,6 +1163,7 @@ mod m8_i;
 mod m8_m;
 mod mystery_gift;
 // Milestone 9: one file per task.
+mod decor_mart;
 mod hidden_items;
 mod m9_b;
 mod m9_bm;
@@ -1180,13 +1181,16 @@ mod m9_wave0;
 mod naming;
 mod partners;
 mod pokedex_screen;
+mod pokenav;
 mod pushes;
 mod rtc;
+mod secret_base;
 mod sil6_clock;
 mod sky;
 mod ui_pictures;
 // Wave C: one file per cluster.
 mod field_moves;
+mod frontier;
 mod warp_exits;
 mod water_moves;
 mod wave_c_query;
@@ -1283,4 +1287,56 @@ fn the_comparison_register_is_shared_by_ctx_clones_and_starts_less() {
     assert_eq!(a.cond(), core::cmp::Ordering::Less);
     a.set_cond(core::cmp::Ordering::Greater);
     assert_eq!(b.cond(), core::cmp::Ordering::Greater);
+}
+
+#[test]
+fn a_scripted_partner_finishes_a_link_battle_and_a_union_room_exchange() {
+    use crate::battle::BattleOutcome;
+    use crate::battle::test_data::{self, mon};
+    use crate::link::LinkSide;
+    use crate::mon::Party;
+    use crate::script::LinkCall;
+
+    let mut w = started();
+    w.s.party
+        .push(mon(
+            test_data::FIRE,
+            100,
+            [100, 200, 50, 200, 50, 50],
+            &[test_data::MEGA_HIT],
+        ))
+        .unwrap();
+    let mut foes = Party::default();
+    foes.push(mon(
+        test_data::FIRE,
+        100,
+        [20, 10, 10, 10, 10, 10],
+        &[test_data::TACKLE],
+    ))
+    .unwrap();
+    let mut name = [0xFF; 8];
+    name[..3].copy_from_slice(&[0xC1, 0xC2, 0xC3]);
+    w.attach_link_partner(LinkSide {
+        name,
+        trainer_id: 0x1234_5678,
+        gender: 1,
+        party: foes,
+        move_slot: 0,
+    });
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            assert_eq!(ctx.link(LinkCall::BecomeLeader).await, 1);
+            assert_eq!(ctx.link(LinkCall::Battle).await, BattleOutcome::Won as u16);
+            ctx.link(LinkCall::InitUnion).await;
+            assert_eq!(ctx.link(LinkCall::UnionRoom).await, 1);
+            ctx.link(LinkCall::Close).await;
+        })
+    });
+    until_done(&mut w, 8);
+    assert!(!w.script_running());
+    let stored = w.s.str_vars.get(0);
+    assert_eq!(stored[0], 0xC1);
+    assert_eq!(stored[1], 0xC2);
+    assert_eq!(stored[2], 0xC3);
+    assert_eq!(stored[3], 0xFF);
 }

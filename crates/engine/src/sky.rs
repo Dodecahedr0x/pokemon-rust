@@ -430,6 +430,7 @@ fn draw_particles(
             vflip: false,
             // Gen3's rain: OAM priority 1, over the field's top layer.
             priority: 1,
+            scale: 0,
         });
     }
 }
@@ -470,6 +471,7 @@ fn draw_overlay(
             hflip: false,
             vflip: false,
             priority: 0,
+            scale: 0,
         });
     }
 }

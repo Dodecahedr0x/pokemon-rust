@@ -194,6 +194,9 @@ fn checkpoint(frame: u32, state: u32, build: BuildHash) -> Checkpoint {
         rival_name: None,
         box_names: Vec::new(),
         audio: None,
+        frontier: None,
+        enigma_berry: None,
+        secret_bases: None,
     };
     Checkpoint {
         header: Header {

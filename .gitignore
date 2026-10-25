@@ -1,6 +1,7 @@
 /rom/
 *.zip
 *.gba
+!web/public/rom/*.gba
 *.sav
 *.ppm
 target/

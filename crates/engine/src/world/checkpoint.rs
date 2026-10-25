@@ -146,6 +146,9 @@ impl World {
                 },
             ),
             audio: (s.audio != s.settled_audio_unsaved(game)).then_some(s.audio),
+            frontier: (!s.frontier.is_default()).then_some(s.frontier.clone()),
+            enigma_berry: s.enigma_berry,
+            secret_bases: s.secret_bases.to_snap(),
         }
     }
 
@@ -280,6 +283,7 @@ impl World {
                 coins: w.coins,
                 registered_item: w.registered_item,
                 berry_trees,
+                secret_bases: super::secret::SecretBases::from_snap(w.secret_bases.clone()),
                 fx: ScreenFx::default(),
                 weather: match &w.sky {
                     Some(k) => k.weather,
@@ -293,10 +297,12 @@ impl World {
                 field_move: None,
                 stash: super::host::Stash::default(),
                 pair: super::sight::Pair::default(),
+                decor: crate::decor::DecorPc::new(),
                 events: Vec::with_capacity(super::EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,
                 save: super::save::SaveStatus::continued(),
+                enigma_berry: w.enigma_berry,
                 today: 0,
                 clock_hours: 0,
                 clock_minutes: 0,
@@ -305,6 +311,10 @@ impl World {
                 wonder_card: None,
                 mystery_event_status: 0,
                 audio: crate::audio::Audio::default(),
+                link_partner: None,
+                link_open: false,
+                union_ready: false,
+                frontier: w.frontier.clone().unwrap_or_default(),
             },
             rtc: None,
             sound: w.options.unwrap_or_default().sound,

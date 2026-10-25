@@ -19,9 +19,9 @@ const GOLDEN_CROSSING: u64 = 0xca76_2897_09c5_4a92;
 /// Talking to the NPC through its whole script.
 const GOLDEN_SCRIPT: u64 = 0xd1ab_15a0_9b2c_4205;
 /// A grass encounter on the route, fought to the end (Wave E: `VAR_DAILY_WILDS` counts it).
-const GOLDEN_WILD_BATTLE: u64 = 0xdb07_a794_d5b4_9676;
+const GOLDEN_WILD_BATTLE: u64 = 0xcfb4_eb89_55e9_85a0;
 /// A scripted trainer battle, fought to the end.
-const GOLDEN_TRAINER: u64 = 0x6617_61de_9468_95a7;
+const GOLDEN_TRAINER: u64 = 0xe215_403e_eaaf_bea3;
 /// START and SELECT on the idle field (Milestone 9; Tasks K and SM move it).
 const GOLDEN_SCREEN: u64 = 0xe6d5_465c_0d1a_98b3;
 /// A script's save dialog (Milestone 9; Task S moves it).

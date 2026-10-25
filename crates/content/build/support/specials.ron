@@ -13,7 +13,7 @@
 // The 483 specials named by a `special`/`specialvar` line of the decomp (`data/**/*.inc` and
 // `data/*.s`, `data/specials.inc` excluded) are classified; the other 41 are Unsupported.
 //
-// Counts: 76 Native, 17 Ignore, 82 Default, 349 Unsupported.
+// Counts: 123 Native, 17 Ignore, 80 Default, 304 Unsupported.
 {
     "SPECIAL_AccessHallOfFamePC": Unsupported, // post-game; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_Bag_ChooseBerry": Native, // degraded: no bag screen, nothing chosen; fades back in
@@ -24,7 +24,7 @@
     "SPECIAL_BattleTowerReconnectLink": Unsupported,
     "SPECIAL_BedroomPC": Unsupported, // the PC menus are M9; the script goes on (tested)
     "SPECIAL_BufferBattleFrontierTutorMoveName": Unsupported,
-    "SPECIAL_BufferBattleTowerElevatorFloors": Unsupported,
+    "SPECIAL_BufferBattleTowerElevatorFloors": Native, // floors from the tower win streak (4/5 on a new streak)
     "SPECIAL_BufferContestTrainerAndMonNames": Unsupported,
     "SPECIAL_BufferContestWinnerMonName": Unsupported,
     "SPECIAL_BufferContestWinnerTrainerName": Unsupported,
@@ -56,9 +56,9 @@
     "SPECIAL_CallBattlePalaceFunction": Unsupported,
     "SPECIAL_CallBattlePikeFunction": Unsupported,
     "SPECIAL_CallBattlePyramidFunction": Unsupported,
-    "SPECIAL_CallBattleTowerFunc": Unsupported,
+    "SPECIAL_CallBattleTowerFunc": Native, // singles tower record: init, get/set, opponent, win, ribbons, save, intro, nops, non-link load (result 6), interview; link and partner funcs report
     "SPECIAL_CallFallarborTentFunction": Unsupported,
-    "SPECIAL_CallFrontierUtilFunc": Native, // no frontier data (M13): GET_STATUS answers "no challenge" (0xFF), GET_DATA 0, SET_DATA stores nothing, the others report
+    "SPECIAL_CallFrontierUtilFunc": Native, // tower record: GET_STATUS/GET_DATA/SET_DATA, party order, ineligible, streak, brain, BP, air record, held items, sketch; other facilities and the rest report
     "SPECIAL_CallSlateportTentFunction": Unsupported,
     "SPECIAL_CallTrainerHillFunction": Unsupported,
     "SPECIAL_CallVerdanturfTentFunction": Unsupported,
@@ -78,19 +78,19 @@
     "SPECIAL_CheckLeadMonCute": Default(0), // condition stats stay 0 (no Pokeblocks, M13): below 200
     "SPECIAL_CheckLeadMonSmart": Default(0), // condition stats stay 0 (no Pokeblocks, M13): below 200
     "SPECIAL_CheckLeadMonTough": Default(0), // condition stats stay 0 (no Pokeblocks, M13): below 200
-    "SPECIAL_CheckPlayerHasSecretBase": Unsupported,
+    "SPECIAL_CheckPlayerHasSecretBase": Native, // VAR_RESULT: the player owns a base
     "SPECIAL_CheckRelicanthWailord": Native, // Wave C: Wailord first and Relicanth last in the party
     "SPECIAL_ChooseHalfPartyForBattle": Native, // Wave F: the choose-half party menu (max 3, min 1); VAR_RESULT = a mon was chosen
     "SPECIAL_ChooseItemsToTossFromPyramidBag": Unsupported,
     "SPECIAL_ChooseMonForMoveRelearner": Unsupported,
     "SPECIAL_ChooseMonForMoveTutor": Unsupported,
     "SPECIAL_ChooseMonForWirelessMinigame": Unsupported,
-    "SPECIAL_ChoosePartyForBattleFrontier": Unsupported,
+    "SPECIAL_ChoosePartyForBattleFrontier": Native, // choose-half at the tower level cap; VAR_RESULT = a mon was chosen
     "SPECIAL_ChoosePartyMon": Native, // degraded: no party menu, nothing chosen
     "SPECIAL_ChooseSendDaycareMon": Unsupported,
     "SPECIAL_ChooseStarter": Native, // the starter screen, the starter, the first battle
     "SPECIAL_CleanupLinkRoomState": Unsupported,
-    "SPECIAL_ClearAndLeaveSecretBase": Unsupported,
+    "SPECIAL_ClearAndLeaveSecretBase": Native, // clears the player's base and warps back out
     "SPECIAL_ClearLinkContestFlags": Unsupported,
     "SPECIAL_ClearQuizLadyPlayerAnswer": Unsupported,
     "SPECIAL_ClearQuizLadyQuestionAndAnswer": Unsupported,
@@ -99,7 +99,7 @@
     "SPECIAL_CloseBattlePointsWindow": Unsupported,
     "SPECIAL_CloseDeptStoreElevatorWindow": Unsupported,
     "SPECIAL_CloseFrontierExchangeCornerItemIconWindow": Unsupported,
-    "SPECIAL_CloseLink": Ignore, // no link is ever open: CloseLink only clears link state
+    "SPECIAL_CloseLink": Native, // link.c CloseLink: LINKCMD_READY_CLOSE_LINK, then the link is closed
     "SPECIAL_ColosseumPlayerSpotTriggered": Unsupported,
     "SPECIAL_CompareLotadSize": Unsupported,
     "SPECIAL_CompareSeedotSize": Unsupported,
@@ -113,7 +113,7 @@
     "SPECIAL_CreateAbnormalWeatherEvent": Unsupported,
     "SPECIAL_CreateEnemyEventMon": Unsupported,
     "SPECIAL_CreateInGameTradePokemon": Unsupported, // in-game trades (M9): unreachable, ChoosePartyMon answers "nothing chosen"
-    "SPECIAL_DeclinedSecretBaseBattle": Unsupported,
+    "SPECIAL_DeclinedSecretBaseBattle": Native, // records the declined-battle TV flag
     "SPECIAL_DestroyMewEmergingGrassSprite": Unsupported,
     "SPECIAL_DidFavorLadyLikeItem": Default(0), // the Lilycove ladies are M13
     "SPECIAL_DisplayBerryPowderVendorMenu": Unsupported,
@@ -134,25 +134,25 @@
     "SPECIAL_DoPokeNews": Default(0), // TV shows are not modelled: no news
     "SPECIAL_DoSealedChamberShakingEffect_Long": Unsupported,
     "SPECIAL_DoSealedChamberShakingEffect_Short": Unsupported,
-    "SPECIAL_DoSecretBasePCTurnOffEffect": Unsupported,
+    "SPECIAL_DoSecretBasePCTurnOffEffect": Native, // the PC metatile in front of the player
     "SPECIAL_DoSoftReset": Unsupported,
-    "SPECIAL_DoSpecialTrainerBattle": Native, // Wave G: SPECIAL_BATTLE_STEVEN is the multi battle with Steven (FillPartnerParty) against Maxie and Tabitha; the other battle types report
+    "SPECIAL_DoSpecialTrainerBattle": Native, // SPECIAL_BATTLE_TOWER singles fights the recorded opponent (no whiteout); SPECIAL_BATTLE_STEVEN is Steven's multi battle; doubles, link and the tents report
     "SPECIAL_DoTVShow": Default(1), // TV shows are not modelled: ends the show loop (unreachable: no active show)
     "SPECIAL_DoTVShowInSearchOfTrainers": Default(1), // TV shows are not modelled: ends the show loop (unreachable: Gabby and Ty are off the air)
     "SPECIAL_DoTrainerApproach": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
     "SPECIAL_DoWaldaNamingScreen": Native, // degraded: no naming screen; VAR_0x8004 = 2 (cancelled, no phrase before), so no phrase is saved and Walda's wallpaper is never given
     "SPECIAL_DoWateringBerryTreeAnim": Native, // degraded: no watering animation (prelude::berry)
     "SPECIAL_DoesContestCategoryHaveMuseumPainting": Unsupported,
-    "SPECIAL_DoesPartyHaveEnigmaBerry": Default(0), // no e-Reader Enigma Berry
+    "SPECIAL_DoesPartyHaveEnigmaBerry": Native, // a party mon holding the e-Reader Enigma Berry
     "SPECIAL_DoesPlayerHaveNoDecorations": Unsupported,
     "SPECIAL_DrawWholeMapView": Native, // redraws the map
-    "SPECIAL_DrewSecretBaseBattle": Unsupported,
+    "SPECIAL_DrewSecretBaseBattle": Native, // records the drawn-battle TV flag
     "SPECIAL_EggHatch": Unsupported,
     "SPECIAL_EnableNationalPokedex": Native, // Wave C: VAR_NATIONAL_DEX and FLAG_SYS_NATIONAL_DEX (no Pokedex screen state)
     "SPECIAL_EndLotteryCornerComputerEffect": Unsupported,
-    "SPECIAL_EnterNewlyCreatedSecretBase": Unsupported,
+    "SPECIAL_EnterNewlyCreatedSecretBase": Native, // warps to the base's computer and sets the PC
     "SPECIAL_EnterSafariMode": Unsupported,
-    "SPECIAL_EnterSecretBase": Unsupported,
+    "SPECIAL_EnterSecretBase": Native, // warps into the secret base and records the way out
     "SPECIAL_ExitLinkRoom": Unsupported,
     "SPECIAL_ExitSafariMode": Unsupported,
     "SPECIAL_FadeOutOrbEffect": Unsupported,
@@ -176,7 +176,7 @@
     "SPECIAL_GetBattleFrontierTutorMoveIndex": Unsupported,
     "SPECIAL_GetBattleOutcome": Native, // Wave C: the function's dowildbattle outcome (lowering); else degraded, 0
     "SPECIAL_GetBattlePyramidHint": Unsupported,
-    "SPECIAL_GetBattleTowerSinglesStreak": Unsupported,
+    "SPECIAL_GetBattleTowerSinglesStreak": Native, // the singles streak IncrementWinStreak stores
     "SPECIAL_GetContestLadyCategory": Default(0), // the Lilycove ladies are M13
     "SPECIAL_GetContestLadyMonSpecies": Unsupported,
     "SPECIAL_GetContestMonCondition": Unsupported,
@@ -223,8 +223,8 @@
     "SPECIAL_GetRecordedCyclingRoadResults": Default(0), // no Cycling Road record (bikes are M10): the record vars are 0
     "SPECIAL_GetRivalSonDaughterString": Native, // STR_VAR_1 = gText_Daughter/gText_Son by gender (tables/field_strings.ron)
     "SPECIAL_GetSecretBaseNearbyMapName": Unsupported,
-    "SPECIAL_GetSecretBaseOwnerAndState": Unsupported,
-    "SPECIAL_GetSecretBaseTypeInFrontOfPlayer": Unsupported,
+    "SPECIAL_GetSecretBaseOwnerAndState": Native, // the owner's kind and whether they were battled today
+    "SPECIAL_GetSecretBaseTypeInFrontOfPlayer": Native, // VAR_0x8007: the entrance kind in front of the player
     "SPECIAL_GetSeedotSizeRecordInfo": Unsupported,
     "SPECIAL_GetSelectedMonNicknameAndSpecies": Native, // Wave C: STR_VAR_1 = party slot VAR_0x8004's nickname, its species
     "SPECIAL_GetSelectedTVShow": Default(0), // TV shows are not modelled: no show
@@ -259,18 +259,18 @@
     "SPECIAL_InitBirchState": Native, // VAR_BIRCH_STATE = 0
     "SPECIAL_InitRoamer": Unsupported, // post-game (the roaming Lati)
     "SPECIAL_InitSecretBaseDecorationSprites": Ignore, // cosmetic: the bedroom decoration sprites (decorations are M9)
-    "SPECIAL_InitSecretBaseVars": Unsupported,
-    "SPECIAL_InitUnionRoom": Ignore, // Union Room background state: no link
+    "SPECIAL_InitSecretBaseVars": Native, // clears the secret-base scratch vars
+    "SPECIAL_InitUnionRoom": Native, // union_room.c InitUnionRoom: arms the Union Room exchange
     "SPECIAL_InteractWithShieldOrTVDecoration": Unsupported,
     "SPECIAL_InterviewAfter": Unsupported,
     "SPECIAL_InterviewBefore": Unsupported,
     "SPECIAL_IsBadEggInParty": Default(0), // no eggs
     "SPECIAL_IsContestDebugActive": Default(0), // no debug contest
     "SPECIAL_IsContestWithRSPlayer": Default(0), // no link: gLinkContestFlags is 0
-    "SPECIAL_IsCurSecretBaseOwnedByAnotherPlayer": Unsupported,
+    "SPECIAL_IsCurSecretBaseOwnedByAnotherPlayer": Native, // VAR_RESULT: the entrance is not the player's base
     "SPECIAL_IsDecorationCategoryFull": Unsupported,
     "SPECIAL_IsDodrioInParty": Unsupported,
-    "SPECIAL_IsEnigmaBerryValid": Default(0), // no e-Reader Enigma Berry
+    "SPECIAL_IsEnigmaBerryValid": Native, // the saved e-Reader berry; Petalburg Gym gives the item when this is true
     "SPECIAL_IsEnoughForCostInVar0x8005": Native, // Wave C: money >= VAR_0x8005
     "SPECIAL_IsFanClubMemberFanOfPlayer": Default(0), // the Trainer Fan Club is not modelled (M13): no member is a fan
     "SPECIAL_IsFavorLadyThresholdMet": Default(0), // the Lilycove ladies are M13
@@ -303,7 +303,7 @@
     "SPECIAL_LoadWallyZigzagoon": Ignore, // only feeds Wally's tutorial battle, which is not run
     "SPECIAL_LookThroughPorthole": Unsupported,
     "SPECIAL_LoopWingFlapSE": Unsupported,
-    "SPECIAL_LostSecretBaseBattle": Unsupported,
+    "SPECIAL_LostSecretBaseBattle": Native, // records the lost-battle TV flag
     "SPECIAL_MauvilleGymDeactivatePuzzle": Native, // Wave C: every switch pressed, every beam off
     "SPECIAL_MauvilleGymPressSwitch": Native, // Wave C: switch VAR_0x8004 pressed, the others raised
     "SPECIAL_MauvilleGymSetDefaultBarriers": Native, // Wave C: every beam of the gym toggled (Request::Query Metatile)
@@ -311,7 +311,7 @@
     "SPECIAL_MoveDeleterChooseMoveToForget": Unsupported,
     "SPECIAL_MoveDeleterForgetMove": Unsupported,
     "SPECIAL_MoveElevator": Unsupported,
-    "SPECIAL_MoveOutOfSecretBase": Unsupported,
+    "SPECIAL_MoveOutOfSecretBase": Native, // packs up the base and warps back out
     "SPECIAL_MoveOutOfSecretBaseFromOutside": Unsupported,
     "SPECIAL_ObjectEventInteractionGetBerryCountString": Native, // berry.c over the saved trees; the item name, no plural (prelude::berry)
     "SPECIAL_ObjectEventInteractionGetBerryName": Native, // berry.c; the item name (prelude::berry)
@@ -323,7 +323,7 @@
     "SPECIAL_OffsetCameraForBattle": Unsupported,
     "SPECIAL_OpenPokeblockCaseForContestLady": Unsupported,
     "SPECIAL_OpenPokeblockCaseOnFeeder": Unsupported,
-    "SPECIAL_OpenPokenavForTutorial": Native, // degraded: no PokeNav screen; the forced Mr. Stone call's FLAG_ENABLE_MR_STONE_POKENAV
+    "SPECIAL_OpenPokenavForTutorial": Native, // the tutorial PokéNav (FORCE_CALL_READY); Mr. Stone's first call sets FLAG_ENABLE_MR_STONE_POKENAV
     "SPECIAL_Overworld_PlaySpecialMapMusic": Unsupported,
     "SPECIAL_PetalburgGymSlideOpenRoomDoors": Native, // room VAR_0x8004's doors slide open (5 metatile frames, 2 frames apart)
     "SPECIAL_PetalburgGymUnlockRoomDoors": Native, // room VAR_0x8004's doors show the open frame
@@ -336,7 +336,7 @@
     "SPECIAL_PlayerHasBerries": Native, // Wave C: IsBagPocketNonEmpty(POCKET_BERRIES)
     "SPECIAL_PlayerNotAtTrainerHillEntrance": Default(1), // Act 1 is never at the Trainer Hill entrance
     "SPECIAL_PlayerPC": Unsupported, // the PC menus are M9; unreachable: ScriptMenu_CreatePCMultichoice answers B
-    "SPECIAL_PrepSecretBaseBattleFlags": Unsupported,
+    "SPECIAL_PrepSecretBaseBattleFlags": Native, // snapshots the party the secret-base trainer uses
     "SPECIAL_PrintPlayerBerryPowderAmount": Unsupported,
     "SPECIAL_PutAwayDecorationIteration": Unsupported,
     "SPECIAL_PutFanClubSpecialOnTheAir": Unsupported,
@@ -363,7 +363,7 @@
     "SPECIAL_RockSmashWildEncounter": Native, // Request::RockSmashEncounter (the map's rock smash table, then a field wild battle)
     "SPECIAL_RotatingGate_InitPuzzle": Native, // Wave G: rotating_gate.c, the gates' starting orientations in the temp vars (GameData::rotating_gates)
     "SPECIAL_RotatingGate_InitPuzzleAndGraphics": Ignore, // Wave G: the gate sprites (not drawn); the puzzle comes from GameData::rotating_gates
-    "SPECIAL_RunUnionRoom": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
+    "SPECIAL_RunUnionRoom": Native, // union_room.c RunUnionRoom: activity blocks, then the partner name in gStringVar1
     "SPECIAL_SaveBardSongLyrics": Unsupported,
     "SPECIAL_SaveForBattleTowerLink": Unsupported,
     "SPECIAL_SaveGame": Default(0), // saving is a shell action until M9: "not saved", which every caller treats as a cancel
@@ -397,7 +397,7 @@
     "SPECIAL_ScrollableMultichoice_RedrawPersistentMenu": Unsupported,
     "SPECIAL_ScrollableMultichoice_TryReturnToList": Unsupported,
     "SPECIAL_SetBattleTowerLinkPlayerGfx": Unsupported,
-    "SPECIAL_SetBattledOwnerFromResult": Unsupported,
+    "SPECIAL_SetBattledOwnerFromResult": Native, // stores whether the owner was battled today
     "SPECIAL_SetCB2WhiteOut": Native, // CB2_WhiteOut: Request::FieldWhiteOut (the field poison whiteout)
     "SPECIAL_SetCableClubWarp": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_SetChampionSaveWarp": Ignore, // the CONTINUE warp, which the engine does not keep (GameClear warps as the CONTINUE after its reset would)
@@ -405,7 +405,7 @@
     "SPECIAL_SetContestLadyGivenPokeblock": Unsupported,
     "SPECIAL_SetContestTrainerGfxIds": Unsupported,
     "SPECIAL_SetDaycareCompatibilityString": Unsupported,
-    "SPECIAL_SetDecoration": Unsupported,
+    "SPECIAL_SetDecoration": Native, // places an owned decoration in the base
     "SPECIAL_SetDeoxysRockPalette": Unsupported,
     "SPECIAL_SetDeptStoreFloor": Unsupported,
     "SPECIAL_SetEReaderTrainerGfxId": Unsupported,
@@ -420,13 +420,13 @@
     "SPECIAL_SetMirageTowerVisibility": Native, // Random() & 1 or FLAG_FORCE_MIRAGE_TOWER_VISIBLE; no pulse blend
     "SPECIAL_SetPacifidlogTMReceivedDay": Unsupported,
     "SPECIAL_SetPlayerGotFirstFans": Unsupported,
-    "SPECIAL_SetPlayerSecretBase": Unsupported,
+    "SPECIAL_SetPlayerSecretBase": Native, // the faced entrance becomes the player's base
     "SPECIAL_SetQuizLadyState_Complete": Unsupported,
     "SPECIAL_SetQuizLadyState_GivePrize": Unsupported,
     "SPECIAL_SetRoute119Weather": Unsupported,
     "SPECIAL_SetRoute123Weather": Unsupported,
     "SPECIAL_SetSSTidalFlag": Unsupported,
-    "SPECIAL_SetSecretBaseOwnerGfxId": Unsupported,
+    "SPECIAL_SetSecretBaseOwnerGfxId": Native, // VAR_OBJ_GFX_ID_F: the base owner's graphics
     "SPECIAL_SetSootopolisGymCrackedIceMetatiles": Native, // the cracked ice the row vars remember (prelude::puzzle)
     "SPECIAL_SetTrainerFacingDirection": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
     "SPECIAL_SetTrickHouseNuggetFlag": Unsupported,
@@ -465,7 +465,7 @@
     "SPECIAL_ShowPokemonStorageSystemPC": Unsupported, // the PC menus are M9; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_ShowRankingHallRecordsWindow": Unsupported,
     "SPECIAL_ShowScrollableMultichoice": Unsupported,
-    "SPECIAL_ShowSecretBaseDecorationMenu": Unsupported,
+    "SPECIAL_ShowSecretBaseDecorationMenu": Native, // places an owned decoration in the player's base
     "SPECIAL_ShowSecretBaseRegistryMenu": Unsupported,
     "SPECIAL_ShowTrainerCantBattleSpeech": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
     "SPECIAL_ShowTrainerHillRecords": Unsupported,
@@ -502,8 +502,8 @@
     "SPECIAL_TraderDoDecorationTrade": Unsupported,
     "SPECIAL_TraderMenuGetDecoration": Unsupported,
     "SPECIAL_TraderShowDecorationMenu": Unsupported,
-    "SPECIAL_TryBattleLinkup": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
-    "SPECIAL_TryBecomeLinkLeader": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
+    "SPECIAL_TryBattleLinkup": Native, // battle_main.c: one single link battle over the block protocol
+    "SPECIAL_TryBecomeLinkLeader": Native, // link.c: open the link as master when a partner is attached
     "SPECIAL_TryBerryBlenderLinkup": Unsupported,
     "SPECIAL_TryBufferWaldaPhrase": Default(0), // Walda has no phrase
     "SPECIAL_TryContestEModeLinkup": Unsupported,
@@ -511,7 +511,7 @@
     "SPECIAL_TryEnterContestMon": Unsupported,
     "SPECIAL_TryFieldPoisonWhiteOut": Native, // degraded: FaintFromFieldPoison runs with the step (step_count), no "fainted" message; FLDPSN_WHITEOUT when every mon fainted
     "SPECIAL_TryGetWallpaperWithWaldaPhrase": Default(0), // FALSE, no wallpaper; unreachable: DoWaldaNamingScreen gives no phrase
-    "SPECIAL_TryHideBattleTowerReporter": Unsupported,
+    "SPECIAL_TryHideBattleTowerReporter": Native, // hides the lobby reporter while a challenge is saving or was cancelled
     "SPECIAL_TryInitBattleTowerAwardManObjectEvent": Unsupported,
     "SPECIAL_TryJoinLinkGroup": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_TryLoseFansFromPlayTime": Unsupported,
@@ -537,6 +537,6 @@
     "SPECIAL_ValidateMixingGameLanguage": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_ValidateSavedWonderCard": Default(0), // no Mystery Gift
     "SPECIAL_WaitWeather": Unsupported,
-    "SPECIAL_WonSecretBaseBattle": Unsupported,
+    "SPECIAL_WonSecretBaseBattle": Native, // records the won-battle TV flag
     "SPECIAL_WonderNews_GetRewardInfo": Unsupported,
 }

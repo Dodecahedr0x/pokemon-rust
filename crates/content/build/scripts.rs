@@ -222,7 +222,21 @@ pub fn scripted(w: &World) -> Result<Arc<Scripted>> {
     let build = content_dir().join("build");
     let support = support(&build)?;
     let sources = override_sources(&content_dir().join("src/overrides"))?;
-    let s = Arc::new(lower_ir(w.ir.as_ref(), &support, &sources)?);
+    let ir = w.ir.clone().map(|mut ir| {
+        match super::codegen::decoration_rom() {
+            Some(rom) => {
+                extract::decorations::attach_lists(&mut ir.files, rom);
+            }
+            None if extract::decorations::has_word_lists(&ir.files) => {
+                println!(
+                    "cargo::warning=pokemartdecoration lists were not resolved (set PKR_ROM_FR to the French Emerald ROM)"
+                );
+            }
+            None => {}
+        }
+        ir
+    });
+    let s = Arc::new(lower_ir(ir.as_ref(), &support, &sources)?);
     cache.lock().unwrap().insert(w.dir.clone(), s.clone());
     Ok(s)
 }

@@ -79,6 +79,15 @@ pub const GAME_CLEAR: Option<GameClear> = Some(GameClear {
 
 /// `ChooseHalfPartyForBattle` sets it to `FACILITY_MULTI_OR_EREADER`.
 pub const FRONTIER_FACILITY: Option<VarId> = Some(VAR_FRONTIER_FACILITY);
+/// `VAR_FRONTIER_BATTLE_MODE` (singles is 0).
+pub const FRONTIER_BATTLE_MODE: Option<VarId> = Some(VAR_FRONTIER_BATTLE_MODE);
+/// `HideBattleTowerReporter` clears this var and sets the hide flag.
+pub const BRAVO_TRAINER_BATTLE_TOWER_ON: Option<VarId> = Some(VAR_BRAVO_TRAINER_BATTLE_TOWER_ON);
+pub const HIDE_BATTLE_TOWER_REPORTER: Option<FlagId> = Some(FLAG_HIDE_BATTLE_TOWER_REPORTER);
+pub const CANCEL_BATTLE_ROOM_CHALLENGE: Option<FlagId> = Some(FLAG_CANCEL_BATTLE_ROOM_CHALLENGE);
+/// `BufferBattleTowerElevatorFloors` checks it for a multis partner.
+pub const CHOSEN_MULTI_BATTLE_NPC_PARTNER: Option<FlagId> =
+    Some(FLAG_CHOSEN_MULTI_BATTLE_NPC_PARTNER);
 
 /// `DoSpecialTrainerBattle`'s `SPECIAL_BATTLE_STEVEN` foes (`BattleSetup_ConfigureTrainerBattle`
 /// of `MossdeepCity_SpaceCenter_2F_EventScript_MaxieTrainer` and `_TabithaTrainer`): the

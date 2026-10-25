@@ -78,6 +78,18 @@ pub const MAX_ORDER: usize = 4;
 
 /// The choose-half answer: the order's party slots + 1, a nibble each from the low one (0 past
 /// the last).
+/// Fainted, or (a frontier entry) over the level cap, an egg, or a banned species.
+fn half_blocked(mode: PartyMode, mon: &Pokemon) -> bool {
+    match mode {
+        PartyMode::ChooseHalf {
+            frontier: true,
+            level_cap,
+            ..
+        } => crate::frontier::entry_blocked(mon.species.0, mon.level, mon.hp, level_cap),
+        _ => mon.hp == 0,
+    }
+}
+
 pub fn pack_order(order: &[u8; MAX_ORDER]) -> u16 {
     order
         .iter()
@@ -470,7 +482,7 @@ impl PartyMenu {
         hp.push(EOS);
         let desc = match self.mode {
             // `DisplayPartyPokemonDataForChooseHalf` (`GetBattleEntryEligibility`: HP != 0).
-            PartyMode::ChooseHalf { .. } => Some(if mon.hp == 0 {
+            PartyMode::ChooseHalf { .. } => Some(if half_blocked(self.mode, mon) {
                 UiText::PartyNotAble
             } else {
                 match self.order.iter().position(|&o| o as usize == i + 1) {
@@ -760,7 +772,10 @@ impl PartyMenu {
             }
             PartyMode::ChooseHalf { .. } => {
                 // `GetPartySlotEntryStatus`: not eligible, already entered, eligible.
-                let fainted = cx.party.get(slot as usize).is_none_or(|m| m.hp == 0);
+                let fainted = cx
+                    .party
+                    .get(slot as usize)
+                    .is_none_or(|m| half_blocked(self.mode, m));
                 if fainted {
                 } else if self.order.contains(&(slot + 1)) {
                     a.push(Action::NoEntry);
@@ -1394,7 +1409,9 @@ impl Screen for PartyMenu {
                     // `Task_ValidateChosenHalfParty` (`CheckBattleEntriesAndGetMessage`: the
                     // multi battle checks only the count).
                     let min = (min as usize).clamp(1, MAX_ORDER);
-                    if self.order[min - 1] == 0 {
+                    let dupes = matches!(self.mode, PartyMode::ChooseHalf { frontier: true, .. })
+                        && crate::frontier::duplicate_entry(&self.order, cx.party);
+                    if self.order[min - 1] == 0 || dupes {
                         self.show_msg(cx, UiText::PartyNoMonForBattle, None, true, Next::Slots);
                         ScreenOut::Running
                     } else {

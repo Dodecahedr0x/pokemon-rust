@@ -12,12 +12,13 @@ pub use alloc::boxed::Box;
 pub use core::cmp::Ordering;
 pub use engine::battle::BattleOutcome;
 pub use engine::data::{
-    Dir, FlagId, ItemId, MapId, MoveId, MovementType, PLAYER, ScriptId, SpeciesId, TextId,
-    TrainerId, VarId,
+    DecorId, DecorShop, Dir, FlagId, ItemId, MapId, MoveId, MovementType, PLAYER, ScriptId,
+    SpeciesId, TextId, TrainerId, VarId,
 };
 pub use engine::script::{BufferSrc, Ctx, Emote, Fade, Query, Report, Speed, Step, WarpSlot};
 
 pub mod berry;
+mod ereader;
 mod field;
 mod items;
 mod mart;
@@ -25,12 +26,14 @@ mod menu;
 mod msgbox;
 mod party;
 mod puzzle;
+mod secret;
 mod slot;
 mod special;
 mod std;
 mod text;
 mod trainer;
 
+pub use self::ereader::apply_ereader;
 pub use self::std::*;
 pub use field::*;
 pub use items::*;
@@ -39,6 +42,7 @@ pub use menu::*;
 pub use msgbox::*;
 pub use party::*;
 pub use puzzle::*;
+pub use secret::add_decoration;
 pub use slot::*;
 pub use special::*;
 pub use text::*;

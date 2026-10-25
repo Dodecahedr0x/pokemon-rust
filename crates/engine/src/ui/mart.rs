@@ -39,7 +39,7 @@ use super::kit::widgets::{
 };
 use super::kit::window::{MapBuf, Panel, TileAlloc, colors, frame_kind};
 use super::{BagMode, Screen, ScreenCx, ScreenInput, ScreenKind, ScreenOut, ScreenResult};
-use crate::data::{GameData, ItemId, UiGfx, UiText};
+use crate::data::{DecorId, DecorShop, GameData, ItemId, UiGfx, UiText};
 use crate::hash::Fnv64;
 use crate::input::Buttons;
 use crate::str_vars::StrVars;
@@ -127,6 +127,10 @@ struct Render {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Mart {
     pub items: &'static [ItemId],
+    /// Set for `pokemartdecoration` / `pokemartdecoration2` (buy / quit, no quantity, no sell).
+    shop: Option<DecorShop>,
+    decors: &'static [DecorId],
+    decor_id: DecorId,
     st: St,
     /// In the BUY windows (else the shop menu).
     buying: bool,
@@ -146,6 +150,14 @@ fn price<G: GameData>(game: &G, item: ItemId) -> u32 {
 
 fn item_name<G: GameData>(game: &G, item: ItemId) -> &'static [u8] {
     game.item(item).map_or(&[EOS][..], |i| i.name)
+}
+
+fn decor_name<G: GameData>(game: &G, id: DecorId) -> &'static [u8] {
+    game.decoration(id).map_or(&[EOS][..], |d| d.name)
+}
+
+fn decor_price<G: GameData>(game: &G, id: DecorId) -> u32 {
+    game.decoration(id).map_or(0, |d| u32::from(d.price))
 }
 
 fn number(n: u32, digits: u8) -> Vec<u8> {
@@ -178,6 +190,9 @@ impl Mart {
     pub fn new(items: &'static [ItemId]) -> Self {
         Mart {
             items,
+            shop: None,
+            decors: &[],
+            decor_id: DecorId(0),
             st: St::Menu(0),
             buying: false,
             list: ListMenu::new(items.len() as u16 + 1, MAX_SHOWN, Paging::None),
@@ -187,6 +202,15 @@ impl Mart {
             msg: None,
             gfx: Gfx::none(),
         }
+    }
+
+    /// A decoration shop (`CreateDecorationShop1Menu` / `CreateDecorationShop2Menu`).
+    pub fn decorations(shop: DecorShop, decors: &'static [DecorId]) -> Self {
+        let mut m = Mart::new(&[]);
+        m.shop = Some(shop);
+        m.decors = decors;
+        m.list = ListMenu::new(decors.len() as u16 + 1, MAX_SHOWN, Paging::None);
+        m
     }
 
     /// What the mart waits for.
@@ -227,7 +251,11 @@ impl Mart {
             let (l, t, w, h) = DESC_RECT;
             r.desc = Some(tiles.panel(game, l, t, w, h, false));
         } else {
-            let (l, t, w, h) = MENU_RECT;
+            let (l, t, w, h) = if self.shop.is_some() {
+                (2, 1, 9, 4)
+            } else {
+                MENU_RECT
+            };
             r.menu = Some(tiles.panel(game, l, t, w, h, true));
         }
         r.popup_base = msg_base() + MSG_RECT.2 as u16 * MSG_RECT.3 as u16;
@@ -237,16 +265,24 @@ impl Mart {
     fn draw_menu<G: GameData>(&self, cx: &ScreenCx<'_, G>, r: &mut Render) {
         let game = cx.game;
         if let Some(p) = &mut r.menu {
-            let labels = [
-                game.ui_text(UiText::ShopBuy),
-                game.ui_text(UiText::ShopSell),
-                game.ui_text(UiText::ShopQuit),
-            ];
             let cursor = match self.st {
                 St::Menu(c) => c,
                 _ => u8::MAX,
             };
-            draw_menu(game, p, &labels, cursor);
+            if self.shop.is_some() {
+                let labels = [
+                    game.ui_text(UiText::ShopBuy),
+                    game.ui_text(UiText::ShopQuit),
+                ];
+                draw_menu(game, p, &labels, cursor);
+            } else {
+                let labels = [
+                    game.ui_text(UiText::ShopBuy),
+                    game.ui_text(UiText::ShopSell),
+                    game.ui_text(UiText::ShopQuit),
+                ];
+                draw_menu(game, p, &labels, cursor);
+            }
         }
     }
 
@@ -259,6 +295,16 @@ impl Mart {
         p.clear(game);
         for (row, i) in self.list.shown().enumerate() {
             let y = row as i16 * ROW_H + 1;
+            if self.shop.is_some() {
+                match self.decors.get(i as usize) {
+                    Some(&id) => {
+                        p.text(game, decor_name(game, id), CURSOR_W, y);
+                        p.text(game, &money_text(decor_price(game, id), 5), 80, y);
+                    }
+                    None => p.text(game, game.ui_text(UiText::BagCancel), CURSOR_W, y),
+                }
+                continue;
+            }
             match self.items.get(i as usize) {
                 Some(&item) => {
                     p.text(game, item_name(game, item), CURSOR_W, y);
@@ -293,6 +339,14 @@ impl Mart {
             return;
         };
         p.clear(game);
+        if self.shop.is_some() {
+            if let Some(&id) = self.decors.get(self.list.selected() as usize)
+                && let Some(d) = game.decoration(id)
+            {
+                p.text(game, d.description, 3, 1);
+            }
+            return;
+        }
         if let Some(&item) = self.items.get(self.list.selected() as usize)
             && let Some(d) = game.item_description(item)
         {
@@ -362,7 +416,8 @@ impl Mart {
         };
         r.popup = self.popups(cx, r.popup_base);
         if let (Some(p), St::Menu(c)) = (&mut r.menu, self.st) {
-            draw_cursor(cx.game, p, 3, c);
+            let rows = if self.shop.is_some() { 2 } else { 3 };
+            draw_cursor(cx.game, p, rows, c);
         }
         self.compose(cx, &r);
         self.gfx.0 = Some(r);
@@ -438,17 +493,39 @@ impl Mart {
         self.hide_msg();
         self.st = St::Msg(Next::Menu);
         self.redraw_all(cx);
-        self.show_msg(cx, UiText::ShopAnythingElse, None, Next::Menu);
+        let text = if self.shop == Some(DecorShop::Shop2) {
+            UiText::ShopDecor2AnythingElse
+        } else {
+            UiText::ShopAnythingElse
+        };
+        self.show_msg(cx, text, None, Next::Menu);
+    }
+
+    fn open_list<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>) {
+        self.buying = true;
+        let n = if self.shop.is_some() {
+            self.decors.len()
+        } else {
+            self.items.len()
+        };
+        self.list = ListMenu::new(n as u16 + 1, MAX_SHOWN, Paging::None);
+        self.st = St::List;
+        self.redraw_all(cx);
     }
 
     /// A on the shop menu.
     fn menu_chosen<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>, c: u8) -> ScreenOut {
+        if self.shop.is_some() {
+            return if c == BUY {
+                self.open_list(cx);
+                ScreenOut::Running
+            } else {
+                ScreenOut::Done(ScreenResult::Cancel)
+            };
+        }
         match c {
             BUY => {
-                self.buying = true;
-                self.list = ListMenu::new(self.items.len() as u16 + 1, MAX_SHOWN, Paging::None);
-                self.st = St::List;
-                self.redraw_all(cx);
+                self.open_list(cx);
                 ScreenOut::Running
             }
             SELL => {
@@ -458,6 +535,31 @@ impl Mart {
             }
             _ => ScreenOut::Done(ScreenResult::Cancel),
         }
+    }
+
+    /// A on a decoration (`Task_BuyMenu`, one piece, no quantity box).
+    fn decor_chosen<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>, id: DecorId) {
+        let game = cx.game;
+        let info = game.decoration(id);
+        self.decor_id = id;
+        self.item = ItemId(0);
+        self.qty = 1;
+        self.cost = info.map_or(0, |d| u32::from(d.price));
+        if *cx.money < self.cost {
+            self.show_msg(cx, UiText::ShopNotEnoughMoney, None, Next::List);
+            return;
+        }
+        let name = info.map_or(&[EOS][..], |d| d.name);
+        cx.str_vars.set(0, name);
+        let mut v = StrVars::new();
+        v.set(0, name);
+        v.set(1, &number(self.cost, 6));
+        let text = if self.shop == Some(DecorShop::Shop2) {
+            UiText::ShopDecor2Confirm
+        } else {
+            UiText::ShopDecorConfirm
+        };
+        self.show_msg(cx, text, Some(&v), Next::Confirm);
     }
 
     /// A on an item of the list (`Task_BuyMenu`).
@@ -523,6 +625,26 @@ impl Mart {
 
     /// Yes to the purchase (`BuyMenuTryMakePurchase`).
     fn buy<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>) {
+        if self.shop.is_some() {
+            let added = cx
+                .game
+                .decoration(self.decor_id)
+                .is_some_and(|d| cx.decor.add(self.decor_id, d.category));
+            if added {
+                let text = if self.shop == Some(DecorShop::Shop2) {
+                    UiText::ShopDecor2ThankYou
+                } else {
+                    UiText::ShopDecorThankYou
+                };
+                self.show_msg(cx, text, None, Next::Paid);
+            } else {
+                let name = decor_name(cx.game, self.decor_id);
+                let mut v = StrVars::new();
+                v.set(0, name);
+                self.show_msg(cx, UiText::ShopDecorFull, Some(&v), Next::List);
+            }
+            return;
+        }
         let pocket = cx.game.item(self.item).map(|i| i.pocket);
         let added = pocket.is_some_and(|p| cx.bag.add(p, self.item, self.qty));
         if added {
@@ -534,6 +656,10 @@ impl Mart {
 
     /// A or B after a purchase (`Task_ReturnToItemListAfterItemPurchase`): the bonus item.
     fn after_purchase<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>) {
+        if self.shop.is_some() {
+            self.back_to_list(cx);
+            return;
+        }
         if let Some((item, qty, gift)) = cx.game.mart_bonus()
             && self.item == item
             && self.qty >= qty
@@ -609,7 +735,8 @@ impl Screen for Mart {
                     let to = if pressed.contains(Buttons::UP) {
                         c.saturating_sub(1)
                     } else if pressed.contains(Buttons::DOWN) {
-                        (c + 1).min(QUIT)
+                        let max = if self.shop.is_some() { 1 } else { QUIT };
+                        (c + 1).min(max)
                     } else {
                         c
                     };
@@ -627,10 +754,19 @@ impl Screen for Mart {
                         let full = self.list.scroll != before.scroll;
                         self.redraw_list(cx, full);
                     }
-                    MenuInput::Chosen(i) => match self.items.get(i as usize) {
-                        Some(&item) => self.item_chosen(cx, item),
-                        None => self.anything_else(cx),
-                    },
+                    MenuInput::Chosen(i) => {
+                        if self.shop.is_some() {
+                            match self.decors.get(i as usize) {
+                                Some(&id) => self.decor_chosen(cx, id),
+                                None => self.anything_else(cx),
+                            }
+                        } else {
+                            match self.items.get(i as usize) {
+                                Some(&item) => self.item_chosen(cx, item),
+                                None => self.anything_else(cx),
+                            }
+                        }
+                    }
                     MenuInput::Cancel => self.anything_else(cx),
                     MenuInput::None => {}
                 }
@@ -727,6 +863,11 @@ impl Screen for Mart {
         h.write(&self.cost.to_le_bytes());
         if let Some(m) = &self.msg {
             m.hash(h);
+        }
+        if let Some(shop) = self.shop {
+            h.write(&[0xD0, shop as u8]);
+            h.write_u16(self.decor_id.0);
+            h.write_u16(self.decors.len() as u16);
         }
     }
 }

@@ -174,8 +174,9 @@ pub enum ObjShape {
     Tall,
 }
 
-/// An OAM entry (regular, non-affine sprite). Pixel size is GBA's (shape, size) table, e.g.
-/// Tall/2 = 16x32, Square/2 = 32x32.
+/// An OAM entry. Pixel size is GBA's (shape, size) table, e.g. Tall/2 = 16x32, Square/2 = 32x32.
+/// `scale == 0` is a regular sprite. Any other value is Gen3's displayed affine scale in 8.8
+/// (`0x100` is 1×); the hardware matrix is `0x10000 / scale` and flips are ignored.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct Obj {
     /// Screen position of the top-left corner. Shells keep 9 bits of x and 8 of y, so it wraps
@@ -190,6 +191,8 @@ pub struct Obj {
     pub hflip: bool,
     pub vflip: bool,
     pub priority: u8,
+    /// Gen3 displayed affine scale, 8.8 (`0x100` = 1×). `0` draws a regular sprite.
+    pub scale: u16,
 }
 
 impl Obj {

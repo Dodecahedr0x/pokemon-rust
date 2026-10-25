@@ -28,6 +28,7 @@ pub mod options;
 pub mod party;
 pub mod pc;
 pub mod pokedex;
+pub mod pokenav;
 pub mod save;
 pub mod slot;
 pub mod start_menu;
@@ -36,7 +37,8 @@ pub mod title;
 
 use crate::bag::Bag;
 use crate::checkpoint::PlayerName;
-use crate::data::{GameData, ItemId, MapId, MoveId, ScriptId, SpeciesId};
+use crate::data::{DecorId, DecorShop, GameData, ItemId, MapId, MoveId, ScriptId, SpeciesId};
+use crate::decor::DecorPc;
 use crate::flow::Vars;
 use crate::hash::Fnv64;
 use crate::input::Buttons;
@@ -46,6 +48,7 @@ use crate::pc::PcStorage;
 use crate::pokedex::Pokedex;
 use crate::rng::Rng;
 use crate::script::Report;
+use crate::str_vars::StrVars;
 use crate::video::Frame;
 use alloc::vec::Vec;
 
@@ -64,6 +67,11 @@ pub enum ScreenKind {
     Bag(BagMode),
     Mart {
         items: &'static [ItemId],
+    },
+    /// Gen3 `pokemartdecoration` / `pokemartdecoration2` (buy / quit, into the decoration PC).
+    DecorMart {
+        shop: DecorShop,
+        items: &'static [DecorId],
     },
     Pc(PcMode),
     Options,
@@ -92,6 +100,10 @@ pub enum ScreenKind {
     /// Gen3 `playslotmachine`: machine id `SLOT_MACHINE_*`.
     Slot {
         machine: u8,
+    },
+    /// The PokéNav (Gen3 `CB2_Pokenav`). `tutorial` is `POKENAV_MODE_FORCE_CALL_READY`.
+    Pokenav {
+        tutorial: bool,
     },
 }
 
@@ -128,7 +140,13 @@ pub enum PartyMode {
     /// `special ChooseHalfPartyForBattle` (`PARTY_MENU_TYPE_CHOOSE_HALF`): ENTER up to `max`
     /// mons (at least `min`) in order, then CONFIRM. Answers the order (see
     /// [`party::pack_order`](crate::ui::party::pack_order)), `Cancel` when cancelled.
-    ChooseHalf { max: u8, min: u8 },
+    /// `level_cap` is 50 or 100. `frontier` applies the Tower's bans and duplicate checks.
+    ChooseHalf {
+        max: u8,
+        min: u8,
+        level_cap: u8,
+        frontier: bool,
+    },
 }
 
 /// The bag's modes (Gen3 `ITEMMENULOCATION_*`).
@@ -194,6 +212,8 @@ pub enum ScreenKindTag {
     Contest,
     Pokedex,
     Slot,
+    DecorMart,
+    Pokenav,
 }
 
 impl ScreenKind {
@@ -204,6 +224,7 @@ impl ScreenKind {
             ScreenKind::Summary { .. } => ScreenKindTag::Summary,
             ScreenKind::Bag(_) => ScreenKindTag::Bag,
             ScreenKind::Mart { .. } => ScreenKindTag::Mart,
+            ScreenKind::DecorMart { .. } => ScreenKindTag::DecorMart,
             ScreenKind::Pc(_) => ScreenKindTag::Pc,
             ScreenKind::Options => ScreenKindTag::Options,
             ScreenKind::SaveDialog => ScreenKindTag::SaveDialog,
@@ -218,6 +239,7 @@ impl ScreenKind {
             ScreenKind::Title => ScreenKindTag::Title,
             ScreenKind::Contest(_) => ScreenKindTag::Contest,
             ScreenKind::Slot { .. } => ScreenKindTag::Slot,
+            ScreenKind::Pokenav { .. } => ScreenKindTag::Pokenav,
         }
     }
 
@@ -246,17 +268,29 @@ impl ScreenKind {
                 h.write(&v.place);
             }
             ScreenKind::Party(m) => {
-                let (tag, v) = match m {
-                    PartyMode::Field => (0, 0),
-                    PartyMode::Choose => (1, 0),
-                    PartyMode::MoveTutor(m) => (2, m.0),
-                    PartyMode::UseItem(i) => (3, i.0),
-                    PartyMode::GiveItem(i) => (4, i.0),
-                    PartyMode::Battle { forced } => (5, forced as u16),
-                    PartyMode::ChooseHalf { max, min } => (6, max as u16 | (min as u16) << 8),
+                let (tag, v, extra) = match m {
+                    PartyMode::Field => (0, 0, 0),
+                    PartyMode::Choose => (1, 0, 0),
+                    PartyMode::MoveTutor(m) => (2, m.0, 0),
+                    PartyMode::UseItem(i) => (3, i.0, 0),
+                    PartyMode::GiveItem(i) => (4, i.0, 0),
+                    PartyMode::Battle { forced } => (5, forced as u16, 0),
+                    PartyMode::ChooseHalf {
+                        max,
+                        min,
+                        level_cap,
+                        frontier,
+                    } => (
+                        6,
+                        max as u16 | (min as u16) << 8,
+                        level_cap as u16 | (frontier as u16) << 8,
+                    ),
                 };
                 h.write(&[tag]);
                 h.write_u16(v);
+                if tag == 6 {
+                    h.write_u16(extra);
+                }
             }
             ScreenKind::Summary { slot, mode } => {
                 let (tag, v) = match mode {
@@ -269,7 +303,15 @@ impl ScreenKind {
             ScreenKind::Bag(m) => h.write(&[m as u8]),
             ScreenKind::EasyChat(k) => h.write(&[k]),
             ScreenKind::Slot { machine } => h.write(&[machine]),
+            ScreenKind::Pokenav { tutorial } => h.write(&[tutorial as u8]),
             ScreenKind::Mart { items } => {
+                h.write_u16(items.len() as u16);
+                for i in items {
+                    h.write_u16(i.0);
+                }
+            }
+            ScreenKind::DecorMart { shop, items } => {
+                h.write(&[shop as u8]);
                 h.write_u16(items.len() as u16);
                 for i in items {
                     h.write_u16(i.0);
@@ -351,6 +393,10 @@ pub struct ScreenCx<'a, G: GameData> {
     pub bag: &'a mut Bag,
     pub money: &'a mut u32,
     pub pc: &'a mut PcStorage,
+    /// Decoration PC (`DecorationAdd`).
+    pub decor: &'a mut DecorPc,
+    /// `gStringVar1..3` (a decoration confirm copies the name into the first).
+    pub str_vars: &'a mut StrVars,
     pub options: &'a mut Options,
     pub coins: &'a mut u16,
     pub pokedex: &'a mut Pokedex,
@@ -420,6 +466,7 @@ pub enum ScreenState {
     Contest(contest::ContestScreen),
     Pokedex(pokedex::PokedexScreen),
     Slot(slot::SlotMachine),
+    Pokenav(pokenav::Pokenav),
 }
 
 impl ScreenState {
@@ -432,6 +479,9 @@ impl ScreenState {
             }
             ScreenKind::Bag(m) => ScreenState::Bag(bag::BagMenu::new(m)),
             ScreenKind::Mart { items } => ScreenState::Mart(mart::Mart::new(items)),
+            ScreenKind::DecorMart { shop, items } => {
+                ScreenState::Mart(mart::Mart::decorations(shop, items))
+            }
             ScreenKind::Pc(m) => ScreenState::Pc(pc::PcMenu::new(m)),
             ScreenKind::Options => ScreenState::Options(options::OptionsMenu::new()),
             ScreenKind::SaveDialog => ScreenState::SaveDialog(save::SaveDialog::new()),
@@ -446,6 +496,9 @@ impl ScreenState {
             ScreenKind::HallOfFame => ScreenState::HallOfFame(hall_of_fame::HallOfFame::new()),
             ScreenKind::EasyChat(k) => ScreenState::EasyChat(easy_chat::EasyChat::new(k)),
             ScreenKind::Pokedex => ScreenState::Pokedex(pokedex::PokedexScreen::new()),
+            ScreenKind::Pokenav { tutorial } => {
+                ScreenState::Pokenav(pokenav::Pokenav::new(tutorial))
+            }
             ScreenKind::Credits => ScreenState::HallOfFame(hall_of_fame::HallOfFame::credits()),
             ScreenKind::Title => ScreenState::Title(title::Title::new()),
             ScreenKind::Contest(v) => ScreenState::Contest(contest::ContestScreen::new(v)),
@@ -473,6 +526,7 @@ impl ScreenState {
             ScreenState::Contest(s) => s.step(cx, input),
             ScreenState::Pokedex(s) => s.step(cx, input),
             ScreenState::Slot(s) => s.step(cx, input),
+            ScreenState::Pokenav(s) => s.step(cx, input),
         }
     }
 
@@ -497,6 +551,7 @@ impl ScreenState {
             ScreenState::Contest(s) => s.hash(h),
             ScreenState::Pokedex(s) => s.hash(h),
             ScreenState::Slot(s) => s.hash(h),
+            ScreenState::Pokenav(s) => s.hash(h),
         }
     }
 }
@@ -586,7 +641,8 @@ impl ScreenStack {
 }
 
 /// The body every Wave 0 stub screen runs: `Report::Unsupported(name)` and `Done(Cancel)` on
-/// its first frame.
+/// its first frame. Kept for the next screen that is still a stub.
+#[allow(dead_code)]
 pub(crate) fn stub_step<G: GameData>(cx: &mut ScreenCx<'_, G>, name: &'static str) -> ScreenOut {
     cx.report(Report::Unsupported(name));
     ScreenOut::Done(ScreenResult::Cancel)

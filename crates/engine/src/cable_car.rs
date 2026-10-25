@@ -302,6 +302,7 @@ fn obj(x: i16, y: i16, tile: u16, shape: ObjShape, size: u8, priority: u8) -> Ob
         hflip: false,
         vflip: false,
         priority,
+        scale: 0,
     }
 }
 
