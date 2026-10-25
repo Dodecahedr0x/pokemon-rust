@@ -137,11 +137,9 @@ Verified 2026-10-25. Every `EFFECT_*` used by an Emerald move already dispatches
 
 Verified 2026-10-25. Under Emerald rules every Gen3 `ABILITY_*` (`0x00`–`0x4d`) maps to a named `Ability`. All 76 abilities on Emerald species have a battle or overworld path. Cacophony is the only Gen3 ability no species has, and Gen3 does not implement it either. The content build reports `0 abilities left as Ability::Other`. The early ledger's 36 missing entries are stale. No change merged.
 
-### `battle-timing`
+### `battle-timing` — closed, Emerald checkpoints broken
 
-The opponent party and the wild encounter are rolled when the battle is requested, before the transition (`crates/engine/src/world/battle.rs`, "Deviations from Gen3"). Gen3 rolls them in `CB2_InitBattle`, after the transition.
-
-**Done when:** those draws happen after the transition, in Gen3's order, and a test shows an object that animates during the transition consumes the RNG before the party is built. Re-baseline checkpoints only if this item moves them, in its own commit.
+Merged `a772ee2d`. Trainer parties and the first-battle mon are built on the frame after the transition, after the AI setup draws and before `SetWildMonHeldItem`. Field wilds and `setwildbattle` still create the mon before the transition. Test: `a_wandering_object_consumes_rng_during_the_transition_before_the_party`. The stub checkpoint tree still replays. The Emerald tree is `BROKEN: trace ends while Script` at `route:lab` and `spine:act1:lab`, and later nodes follow their parents. `verify --accept` cannot take broken nodes, so those traces were not re-recorded.
 
 ### `ui-pictures` — closed
 
