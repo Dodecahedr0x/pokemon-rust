@@ -202,6 +202,7 @@ fn main() {
     } else {
         parity::rows(&world).unwrap_or_else(|e| panic!("the parity rows: {e:#}"))
     };
+    let (ui_src, ui_bin) = ui::generate(&world, flavor != "stub");
     for (name, src) in [
         ("parity.tsv", &parity),
         ("consts.rs", &g.consts),
@@ -211,11 +212,12 @@ fn main() {
         ("overrides.rs", &sc.overrides),
         ("report.txt", &format!("{}{}", sc.report, g.report)),
         ("battle.rs", &g.battle),
-        ("ui.rs", &ui::generate(&world, flavor != "stub")),
+        ("ui.rs", &ui_src),
     ] {
         write_if_changed(&out.join(name), src.as_bytes()).unwrap();
     }
     write_if_changed(&out.join("battle.bin"), &g.battle_bin).unwrap();
     write_if_changed(&out.join("data.bin"), &g.data_bin).unwrap();
+    write_if_changed(&out.join("ui.bin"), &ui_bin).unwrap();
     write_if_changed(&out.join("build_id.rs"), format!("{id:#018x}\n").as_bytes()).unwrap();
 }

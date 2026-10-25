@@ -185,6 +185,19 @@ fn writes_current_format_tree() {
         battle_gfx.len()
     );
     want.extend(battle_gfx);
+    // Menu pictures (mon icons, item icons, the bag sprite).
+    const MENU_GFX: [&str; 2] = ["icons/", "ui/BagSprite"];
+    let menu_gfx: Vec<String> = files
+        .iter()
+        .filter(|f| MENU_GFX.iter().any(|p| f.starts_with(p)))
+        .cloned()
+        .collect();
+    assert!(
+        menu_gfx.len() > 400,
+        "{} menu picture files",
+        menu_gfx.len()
+    );
+    want.extend(menu_gfx);
     assert_eq!(files, want);
     assert_eq!(m.files.keys().cloned().collect::<BTreeSet<_>>(), want);
     assert_eq!(

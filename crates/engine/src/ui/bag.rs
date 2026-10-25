@@ -30,8 +30,9 @@
 //!   bought".
 //! - **ChooseBerry**: the BERRIES pocket only; A answers `Value(item id)`.
 //!
-//! Deviations: frames and text only (no bag sprite, item icons, scroll arrows or the pocket
-//! slide); the context menu is one column without Gen3's `ACTION_DUMMY` holes; the cursor and
+//! Deviations: no scroll arrows or pocket slide. The bag sprite
+//! (`GameData::ui_gfx(BagSprite(pocket))`, Gen3 centre (68, 66)) and the selected item's icon
+//! (centre (24, 88)) are drawn when the game has them. The context menu is one column without Gen3's `ACTION_DUMMY` holes; the cursor and
 //! pocket are not kept between openings (Gen3's `gBagPosition` lives in EWRAM, outside the
 //! save: here it would be unhashed World state); no SELECT item swap; the TM/HM pocket prints
 //! the item's name and its move instead of "No01 MOVE"; the description of CLOSE BAG is blank
@@ -39,6 +40,7 @@
 
 use super::kit::Gfx;
 use super::kit::list::{ListMenu, MenuCursor, MenuInput, Paging};
+use super::kit::pictures::{self, Bg, Load};
 use super::kit::widgets::{
     CHAR_CURRENCY, CHAR_CURSOR, CURSOR_W, EOS, Message, Quantity, ROW_H, YesNo, draw_menu,
     menu_step, money_box, push, push_number,
@@ -48,13 +50,14 @@ use super::{
     BagMode, PartyMode, Screen, ScreenCx, ScreenInput, ScreenKind, ScreenOut, ScreenResult,
 };
 use crate::bag::Slot;
-use crate::data::{GameData, ItemId, Pocket, UiText};
+use crate::data::{GameData, ItemId, Pocket, UiGfx, UiText};
 use crate::hash::Fnv64;
 use crate::input::Buttons;
 use crate::item_use::{self, FieldUse};
 use crate::script::Report;
 use crate::str_vars::StrVars;
 use crate::text::Window;
+use crate::video::layout;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
@@ -154,6 +157,9 @@ struct Render {
     money: Option<Panel>,
     popup: Option<Panel>,
     popup_base: u16,
+    item_icon: Load,
+    bag: Load,
+    bg: Bg,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -329,6 +335,9 @@ impl BagMenu {
             money,
             popup: None,
             popup_base,
+            item_icon: Load::new(),
+            bag: Load::new(),
+            bg: Bg::new(),
         }
     }
 
@@ -847,6 +856,59 @@ impl BagMenu {
     }
 }
 
+/// The bag sprite for the open pocket and the selected item's icon.
+fn draw_pictures<G: GameData>(
+    cx: &mut ScreenCx<'_, G>,
+    pocket: u8,
+    selected: u16,
+    r: &mut Render,
+    budget: &mut usize,
+) {
+    let game = cx.game;
+    let pocket_i = pocket as usize % 5;
+    if let Some(pic) = game.ui_gfx(UiGfx::BagSprite(pocket_i as u8)) {
+        r.bag.step(
+            cx.f,
+            budget,
+            &pictures::bytes(
+                pic.tiles,
+                pic.palette,
+                layout::menu::OBJ_BAG,
+                layout::menu::OBJ_PAL_BAG,
+                36,
+                34,
+                64,
+                64,
+                u32::from(pocket_i as u8) + 1,
+            ),
+        );
+    }
+    let items = entries(cx.bag, POCKETS[pocket_i]);
+    if let Some(slot) = items.get(selected as usize)
+        && let Some(icon) = game.item_icon(slot.item)
+    {
+        r.item_icon.step(
+            cx.f,
+            budget,
+            &pictures::icon(
+                icon,
+                layout::menu::OBJ_ITEM_ICON,
+                layout::menu::OBJ_PAL_ITEM_ICON,
+                8,
+                72,
+                u32::from(slot.item.0) + 1,
+            ),
+        );
+    }
+    r.bg.step(
+        cx.f,
+        budget,
+        game.ui_gfx(UiGfx::BagBg),
+        layout::menu::BACKGROUND,
+        8,
+    );
+}
+
 /// Gen3 `ItemId_GetPrice(item) / 2`.
 fn sell_price<G: GameData>(game: &G, item: ItemId) -> u32 {
     game.item(item).map_or(0, |i| i.price as u32 / 2)
@@ -976,6 +1038,8 @@ impl Screen for BagMenu {
         };
         // The message and the popup first: they answer the last press.
         let mut budget = super::kit::frame_budget(cx.f);
+        let pocket = self.pocket;
+        let selected = self.list().selected();
         if let Some(m) = &mut self.msg {
             m.flush_within(cx.f, &mut budget);
         }
@@ -989,6 +1053,7 @@ impl Screen for BagMenu {
             if let Some(p) = &mut r.money {
                 p.flush_within(cx.f, &mut budget);
             }
+            draw_pictures(cx, pocket, selected, r, &mut budget);
         }
         out
     }

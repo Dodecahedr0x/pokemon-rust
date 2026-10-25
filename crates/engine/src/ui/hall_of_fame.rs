@@ -1,6 +1,7 @@
 //! The Hall of Fame record and the credits (Gen3 `hall_of_fame.c` `CB2_DoHallOfFameScreen`,
 //! `credits.c`; Milestone 9 Task S), opened by `special GameClear` (`Request::HallOfFame`).
-//! Degraded visuals: frames and text on a full screen, with Gen3's timings.
+//! Degraded visuals: frames and text on a full screen, with Gen3's timings. Mon pictures and
+//! the trainer picture are drawn when the game has them.
 //!
 //! - "SAVING… DON'T TURN OFF THE POWER." (`Task_Hof_InitTeamSaveData`), then
 //!   [`WAIT_TO_DISPLAY`] frames (`Task_Hof_TrySaveData` → `Task_Hof_WaitToDisplayMon`). The
@@ -9,11 +10,13 @@
 //!   the player).
 //! - Each party mon in turn (`Task_Hof_DisplayMon`, `Task_Hof_PrintMonInfoAfterAnimating`): its
 //!   nickname and level on a new row, then [`MON_FRAMES`] frames (`Task_Hof_TryDisplayAnotherMon`).
-//!   Deviation: no mon pictures, so no slide-in (`SpriteCB_GetOnScreenAndAnimate`).
+//!   The mon picture slides in (`SpriteCB_GetOnScreenAndAnimate`, 15px across and 10px down a
+//!   frame) when the species has a front pic.
 //! - [`WELCOME_FRAMES`] frames of confetti (`Task_Hof_DoConfetti`; the welcome text is not
 //!   extracted, so nothing is added), [`PLAYER_WAIT_FRAMES`] (`Task_Hof_WaitToDisplayPlayer`,
 //!   7 to 16), then [`PLAYER_FRAMES`] and the trainer picture's slide, [`PLAYER_SLIDE_FRAMES`]
-//!   (`Task_Hof_WaitAndPrintPlayerInfo`: x 120 to 192).
+//!   (`Task_Hof_WaitAndPrintPlayerInfo`: the picture is created at (120, 72) and x moves from
+//!   120 to 192). Drawn when `GameData::battle_gfx` has a player back pic.
 //! - The player's name and play time (`HallOfFame_PrintPlayerInfo`), until A is pressed
 //!   (`Task_Hof_ExitOnKeyPressed`).
 //! - The credits ([`super::credits`]: the 57 Gen3 pages, the bike scenes and the Pokémon
@@ -23,6 +26,7 @@
 //! The screen answers `Bool(true)`; the `GameClear` script then warps to the player's room.
 
 use super::credits::Roll;
+use super::kit::pictures::{self, Load};
 use super::kit::widgets::{EOS, EXTRA_SYMBOL, Message, SYMBOL_LV, push, push_number};
 use super::kit::window::{FULL_BASE, MapBuf, Panel, TileAlloc, frame_kind};
 use super::kit::{FADE_FRAMES, Gfx};
@@ -77,6 +81,12 @@ pub enum Stage {
     TheEnd,
 }
 
+struct Drawn {
+    panel: Panel,
+    mon: Load,
+    player: Load,
+}
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct HallOfFame {
     stage: Stage,
@@ -85,7 +95,10 @@ pub struct HallOfFame {
     /// Rows shown on the list.
     shown: u8,
     msg: Option<Box<Message>>,
-    gfx: Gfx<Panel>,
+    gfx: Gfx<Drawn>,
+    /// The credits' panels. Separate from `gfx`: the roll draws a [`Panel`], and the
+    /// mon and trainer pictures keep their own upload state.
+    credits_gfx: Gfx<Panel>,
     /// The credits roll, once [`Stage::Credits`] starts.
     credits: Roll,
 }
@@ -104,6 +117,7 @@ impl HallOfFame {
             shown: 0,
             msg: None,
             gfx: Gfx::none(),
+            credits_gfx: Gfx::none(),
             credits: Roll::new(),
         }
     }
@@ -173,7 +187,11 @@ impl HallOfFame {
             map.put_window(m.window(), true);
         }
         map.flush(cx.f);
-        self.gfx.0 = Some(Box::new(list));
+        self.gfx.0 = Some(Box::new(Drawn {
+            panel: list,
+            mon: Load::new(),
+            player: Load::new(),
+        }));
     }
 
     fn message<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>, text: Option<UiText>) {
@@ -218,6 +236,144 @@ impl HallOfFame {
     }
 }
 
+/// `SPECIES_EGG`: its Hall of Fame destination sits 10px lower.
+const SPECIES_EGG: u16 = 0x19C;
+/// OBJ VRAM for the mon picture (the bag sprite owns 256..512).
+const MON_BASE: u16 = 512;
+const PLAYER_BASE: u16 = 576;
+
+/// Gen3 `sHallOfFame_MonFullTeamPositions` / `sHallOfFame_MonHalfTeamPositions`:
+/// (start x, start y, dest x, dest y), sprite centres.
+const FULL_TEAM: [[i16; 4]; 6] = [
+    [120, 210, 120, 40],
+    [326, 220, 56, 40],
+    [-86, 220, 184, 40],
+    [120, -62, 120, 88],
+    [-70, -92, 200, 88],
+    [310, -92, 40, 88],
+];
+const HALF_TEAM: [[i16; 4]; 3] = [[120, 234, 120, 64], [326, 244, 56, 64], [-86, 244, 184, 64]];
+
+fn approach(mut x: i16, mut y: i16, dx: i16, dy: i16, steps: u16) -> (i16, i16) {
+    for _ in 0..steps {
+        if x < dx {
+            x = (x + 15).min(dx);
+        } else if x > dx {
+            x = (x - 15).max(dx);
+        }
+        if y < dy {
+            y = (y + 10).min(dy);
+        } else if y > dy {
+            y = (y - 10).max(dy);
+        }
+    }
+    (x, y)
+}
+
+/// Top-left of the 64×64 picture after `SpriteCB_GetOnScreenAndAnimate` has run `steps` frames.
+fn mon_corner(party_len: usize, index: usize, left: u16, egg: bool) -> Option<(i16, i16)> {
+    let row = if party_len > 3 {
+        FULL_TEAM.get(index)?
+    } else {
+        HALF_TEAM.get(index)?
+    };
+    let mut dy = row[3];
+    if egg {
+        dy += 10;
+    }
+    let (x, y) = approach(row[0], row[1], row[2], dy, MON_FRAMES.saturating_sub(left));
+    Some((x - 32, y - 32))
+}
+
+/// Top-left of the trainer picture. `left` is the welcome countdown after this frame's tick.
+fn player_corner(left: u16) -> Option<(i16, i16)> {
+    let hold = PLAYER_SLIDE_FRAMES + PLAYER_FRAMES;
+    if left >= hold {
+        return None;
+    }
+    let x = if left >= PLAYER_SLIDE_FRAMES {
+        120
+    } else {
+        120 + (PLAYER_SLIDE_FRAMES - left) as i16
+    };
+    Some((x.min(192) - 32, 72 - 32))
+}
+
+fn draw_pictures<G: GameData>(
+    cx: &mut ScreenCx<'_, G>,
+    stage: Stage,
+    left: u16,
+    d: &mut Drawn,
+    budget: &mut usize,
+) {
+    let game = cx.game;
+    match stage {
+        Stage::Mon(i) => {
+            let Some(mon) = cx.party.get(i as usize) else {
+                return;
+            };
+            let tables = game.battle();
+            if (mon.species.0 as usize) >= tables.species.len() {
+                return;
+            }
+            let Some(gfx) = tables.species_info(mon.species).gfx else {
+                return;
+            };
+            if gfx.front.len() < 64 {
+                return;
+            }
+            let Some((x, y)) = mon_corner(
+                cx.party.len(),
+                i as usize,
+                left,
+                mon.species.0 == SPECIES_EGG,
+            ) else {
+                return;
+            };
+            d.mon.step(
+                cx.f,
+                budget,
+                &pictures::tiles(
+                    &gfx.front[..64],
+                    gfx.palette,
+                    MON_BASE,
+                    8,
+                    x,
+                    y,
+                    64,
+                    64,
+                    u32::from(mon.species.0) + 1,
+                ),
+            );
+        }
+        Stage::Welcome => {
+            let Some((x, y)) = player_corner(left) else {
+                return;
+            };
+            let pic = &game.battle_gfx().player_back;
+            if pic.tiles.len() < 64 {
+                return;
+            }
+            d.player.step(
+                cx.f,
+                budget,
+                &pictures::tiles(
+                    &pic.tiles[..64],
+                    pic.palette,
+                    PLAYER_BASE,
+                    9,
+                    x,
+                    y,
+                    64,
+                    64,
+                    1,
+                ),
+            );
+        }
+        _ => {}
+    }
+}
+
 impl Screen for HallOfFame {
     fn step<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>, input: ScreenInput) -> ScreenOut {
         // The credits and THE END have no "SAVING…" line. The save is the World's, after the warp.
@@ -257,16 +413,17 @@ impl Screen for HallOfFame {
                 self.stage = Stage::Credits;
                 self.credits = Roll::new();
                 self.gfx.0 = None;
+                self.credits_gfx.0 = None;
                 if let Some(m) = &mut self.msg {
                     m.hide();
                 }
-                if self.credits.tick(cx, &mut self.gfx) {
+                if self.credits.tick(cx, &mut self.credits_gfx) {
                     self.to_the_end();
                 }
             }
             Stage::Credits => {
                 // Gen3 cannot skip a page. START is ignored for the whole stage.
-                if self.credits.tick(cx, &mut self.gfx) {
+                if self.credits.tick(cx, &mut self.credits_gfx) {
                     self.to_the_end();
                 }
             }
@@ -283,11 +440,14 @@ impl Screen for HallOfFame {
                 m.update(cx.game, pressed, input.held);
             }
             let mut budget = super::kit::frame_budget(cx.f);
+            let stage = self.stage;
+            let left = self.left;
             if let Some(m) = &mut self.msg {
                 m.flush_within(cx.f, &mut budget);
             }
-            if let Some(p) = self.gfx.0.as_deref_mut() {
-                p.flush_within(cx.f, &mut budget);
+            if let Some(d) = self.gfx.0.as_deref_mut() {
+                d.panel.flush_within(cx.f, &mut budget);
+                draw_pictures(cx, stage, left, d, &mut budget);
             }
         }
         out

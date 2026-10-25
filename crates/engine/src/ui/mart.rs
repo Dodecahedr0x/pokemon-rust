@@ -21,8 +21,9 @@
 //! - **SELL** (`CB2_GoToSellMenu`) opens the bag in sell mode ([`BagMode::Sell`], Task B);
 //!   back from it, "anything else" and the shop menu.
 //!
-//! Deviations: frames and text only (no item icons, no scroll arrows, no shop map view: Gen3
-//! redraws the field behind the BUY windows, `BuyMenuDrawMapGraphics`); the whole mart is one
+//! Deviations: no scroll arrows and no shop map view (Gen3 redraws the field behind the BUY
+//! windows, `BuyMenuDrawMapGraphics`). The selected item's icon (centre (24, 88)) and
+//! `GameData::ui_gfx(ShopBg)` are drawn when the game has them. The whole mart is one
 //! full screen, so the shop menu shows over the window background rather than the field, and
 //! the fades between the shop menu and BUY (`FadeScreen`) are not played; the shop menu's
 //! width is its template's 9 tiles (Gen3 fits it to the widest label); no purchase history
@@ -31,17 +32,19 @@
 
 use super::kit::Gfx;
 use super::kit::list::{ListMenu, MenuInput, Paging};
+use super::kit::pictures::{self, Bg, Load};
 use super::kit::widgets::{
     CHAR_CURRENCY, CHAR_CURSOR, CURSOR_W, EOS, Message, Quantity, ROW_H, YesNo, draw_cursor,
     draw_menu, money_box, push_number,
 };
 use super::kit::window::{MapBuf, Panel, TileAlloc, colors, frame_kind};
 use super::{BagMode, Screen, ScreenCx, ScreenInput, ScreenKind, ScreenOut, ScreenResult};
-use crate::data::{GameData, ItemId, UiText};
+use crate::data::{GameData, ItemId, UiGfx, UiText};
 use crate::hash::Fnv64;
 use crate::input::Buttons;
 use crate::str_vars::StrVars;
 use crate::text::Window;
+use crate::video::layout;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
@@ -117,6 +120,8 @@ struct Render {
     desc: Option<Panel>,
     popup: Vec<Panel>,
     popup_base: u16,
+    item_icon: Load,
+    bg: Bg,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -212,6 +217,8 @@ impl Mart {
             desc: None,
             popup: Vec::new(),
             popup_base: 0,
+            item_icon: Load::new(),
+            bg: Bg::new(),
         };
         if self.buying {
             r.money = Some(money_box(game, &mut tiles, *cx.money, 0, 0));
@@ -540,6 +547,39 @@ impl Mart {
     }
 }
 
+/// The selected item's icon (Gen3 `BuyMenuAddItemIcon`, centre (24, 88)) and the shop picture.
+fn draw_pictures<G: GameData>(
+    cx: &mut ScreenCx<'_, G>,
+    item: Option<ItemId>,
+    r: &mut Render,
+    budget: &mut usize,
+) {
+    let game = cx.game;
+    if let Some(item) = item
+        && let Some(icon) = game.item_icon(item)
+    {
+        r.item_icon.step(
+            cx.f,
+            budget,
+            &pictures::icon(
+                icon,
+                layout::menu::OBJ_ITEM_ICON,
+                layout::menu::OBJ_PAL_ITEM_ICON,
+                8,
+                72,
+                u32::from(item.0) + 1,
+            ),
+        );
+    }
+    r.bg.step(
+        cx.f,
+        budget,
+        game.ui_gfx(UiGfx::ShopBg),
+        layout::menu::BACKGROUND,
+        1,
+    );
+}
+
 /// The message canvas' first tile (after the BUY windows, the larger layout).
 const fn msg_base() -> u16 {
     super::kit::window::FULL_BASE
@@ -645,6 +685,9 @@ impl Screen for Mart {
             St::Child => ScreenOut::Running,
         };
         let mut budget = super::kit::frame_budget(cx.f);
+        let shown = self
+            .buying
+            .then(|| self.items.get(self.list.selected() as usize).copied());
         if let Some(m) = &mut self.msg {
             m.flush_within(cx.f, &mut budget);
         }
@@ -658,6 +701,7 @@ impl Screen for Mart {
             {
                 p.flush_within(cx.f, &mut budget);
             }
+            draw_pictures(cx, shown.flatten(), r, &mut budget);
         }
         out
     }

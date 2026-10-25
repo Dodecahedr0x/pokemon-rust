@@ -15,21 +15,24 @@
 //! `CanReplaceMove` → "HM moves can't be forgotten now", shown until the next press); A on the
 //! new move or B answers 4 (`MAX_MON_MOVES`: don't forget).
 //!
-//! Deviations: no pictures (mon pic, type and status icons, page tabs, the EXP bar): text
-//! only; INFO has no OT name, met location or trainer memo (not kept by the engine); the
+//! Deviations: type and status icons, page tabs and the EXP bar are text (or absent). The mon
+//! picture (`species` front pic, Gen3 centre (40, 64)) and `GameData::ui_gfx(SummaryPages)` are
+//! drawn when the game has them. INFO has no OT name, met location or trainer memo (not kept by the engine); the
 //! move-order swap of `View`'s MOVES page (A) is not there.
 
 use super::kit::Gfx;
+use super::kit::pictures::{self, Bg, Load};
 use super::kit::widgets::{
     CHAR_CURSOR, CHAR_SLASH, EOS, EXTRA_SYMBOL, SYMBOL_LV, push, push_number,
 };
 use super::kit::window::{MapBuf, Panel, TileAlloc, colors, frame_kind};
 use super::{Screen, ScreenCx, ScreenInput, ScreenOut, ScreenResult, SummaryMode};
 use crate::battle::Str;
-use crate::data::{GameData, MoveId, UiText};
+use crate::data::{GameData, MoveId, UiGfx, UiText};
 use crate::hash::Fnv64;
 use crate::input::Buttons;
 use crate::mon::{Pokemon, Stat};
+use crate::video::layout;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
@@ -48,6 +51,8 @@ pub enum Page {
 struct Render {
     header: Panel,
     body: Panel,
+    pic: Load,
+    bg: Bg,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -299,7 +304,12 @@ impl Summary {
                 map.put(&header);
                 map.put(&body);
                 map.flush(cx.f);
-                Box::new(Render { header, body })
+                Box::new(Render {
+                    header,
+                    body,
+                    pic: Load::new(),
+                    bg: Bg::new(),
+                })
             }
         };
         self.draw(cx, &mut r);
@@ -420,13 +430,56 @@ impl Summary {
     }
 }
 
+/// The summary's mon picture (Gen3 `CreateSprite` at centre (40, 64)) and the page background.
+fn draw_pictures<G: GameData>(
+    cx: &mut ScreenCx<'_, G>,
+    slot: u8,
+    r: &mut Render,
+    budget: &mut usize,
+) {
+    let game = cx.game;
+    if let Some(mon) = cx.party.get(slot as usize) {
+        let tables = game.battle();
+        if (mon.species.0 as usize) < tables.species.len()
+            && let Some(gfx) = tables.species_info(mon.species).gfx
+            && gfx.front.len() >= 64
+        {
+            let y = 32 + i16::from(gfx.front_y);
+            r.pic.step(
+                cx.f,
+                budget,
+                &pictures::tiles(
+                    &gfx.front[..64],
+                    gfx.palette,
+                    512,
+                    8,
+                    8,
+                    y,
+                    64,
+                    64,
+                    u32::from(mon.species.0),
+                ),
+            );
+        }
+    }
+    r.bg.step(
+        cx.f,
+        budget,
+        game.ui_gfx(UiGfx::SummaryPages),
+        layout::menu::BACKGROUND,
+        1,
+    );
+}
+
 impl Screen for Summary {
     fn step<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>, input: ScreenInput) -> ScreenOut {
         let out = self.input(cx, input);
+        let slot = self.slot;
         if let Some(r) = self.gfx.0.as_deref_mut() {
             let mut budget = super::kit::frame_budget(cx.f);
             r.body.flush_within(cx.f, &mut budget);
             r.header.flush_within(cx.f, &mut budget);
+            draw_pictures(cx, slot, r, &mut budget);
         }
         out
     }
