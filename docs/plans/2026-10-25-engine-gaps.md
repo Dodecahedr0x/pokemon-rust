@@ -35,11 +35,9 @@ Merged `fc9d30db`. A script can choose a party mon, run five appeal rounds, and 
 
 Merged `3cca9de2`. A level-50 Battle Tower singles challenge can be entered, fought, and saved. `GET_STATUS`, `GET_DATA`, and `SET_DATA` read that record, and the specials that challenge uses are Native. Dome, Palace, Arena, Factory, Pyramid, Pike, and the tents stay unsupported. Schema 9 is the Tower record; the golden postcard was updated in the same commit. Test: `one_singles_challenge_is_fought_and_recorded`.
 
-### `secret-bases`
+### `secret-bases` — closed
 
-Secret-base specials are Unsupported (`SPECIAL_EnterSecretBase`, `SPECIAL_CheckPlayerHasSecretBase`, the PC and battle specials). `MB_SECRET_BASE_BREAKABLE_DOOR` does not break (`crates/content/build/classify/field.rs`).
-
-**Done when:** the player can enter a secret base, decorate it, and fight its trainer. A test covers enter and one decoration. Those specials are Native.
+Merged `8dd26bf0`. The player can enter a secret base, place one decoration, and fight the stored trainer. Those specials are Native. The breakable door is still a wall. Checkpoint schema is 11. Stub checkpoints stayed valid (rehash only). The Emerald tree was not re-verified. Test: `a_secret_base_is_entered_and_one_decoration_is_placed`.
 
 ### `slot-machine` — closed
 
