@@ -6,8 +6,9 @@
 //! (`AddStartMenuWindow`). Up/down move with wrap, A runs the entry, B and START close.
 //! POKéMON opens the party menu and BAG the bag (and the menu shows again when they close,
 //! Gen3 `CB2_ReturnToFieldWithOpenMenu`); EXIT closes; a game-defined `Script` entry closes the
-//! menu and runs its script. Not yet: POKéDEX, the trainer card, and OPTION report
-//! `Unsupported` and keep the menu open. SAVE opens the save dialog (Task S, `ui/save.rs`):
+//! menu and runs its script. OPTION opens the options menu. Not yet: POKéDEX and the trainer
+//! card report `Unsupported` and keep the menu open. SAVE opens the save dialog (Task S,
+//! `ui/save.rs`):
 //! saved or not saved closes the menu, cancelled shows it again (`SaveCallback`).
 //!
 //! Deviations: the cursor starts on the first entry at every opening (Gen3 keeps
@@ -104,6 +105,10 @@ impl Screen for StartMenu {
                         self.gfx.0 = None;
                         self.saving = true;
                         ScreenOut::Push(ScreenKind::SaveDialog)
+                    }
+                    Some(StartAction::Options) => {
+                        self.gfx.0 = None;
+                        ScreenOut::Push(ScreenKind::Options)
                     }
                     Some(StartAction::Exit) | None => ScreenOut::Done(ScreenResult::Cancel),
                     Some(StartAction::Script(id)) => ScreenOut::RunScript(id),

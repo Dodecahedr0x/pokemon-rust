@@ -41,6 +41,26 @@ fn dpad_priority_up_down_left_right() {
 }
 
 #[test]
+fn l_equals_a_makes_l_press_a() {
+    use crate::options::ButtonMode;
+    let mut i = Input::default();
+    i.update_mode(Buttons::L, ButtonMode::Normal);
+    assert!(i.is_pressed(Buttons::L));
+    assert!(!i.is_pressed(Buttons::A));
+    i.update_mode(Buttons::NONE, ButtonMode::LEqualsA);
+    i.update_mode(Buttons::L, ButtonMode::LEqualsA);
+    assert!(i.is_pressed(Buttons::L) && i.is_pressed(Buttons::A));
+    assert!(i.is_held(Buttons::A));
+    i.update_mode(Buttons::L, ButtonMode::LEqualsA);
+    assert!(
+        !i.is_pressed(Buttons::A) && i.is_held(Buttons::A),
+        "held L keeps A held"
+    );
+    i.update_mode(Buttons::L, ButtonMode::Lr);
+    assert!(!i.is_held(Buttons::A), "LR does not map L to A");
+}
+
+#[test]
 fn hash_covers_both_fields() {
     let h = |i: Input| {
         let mut h = Fnv64::new();

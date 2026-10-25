@@ -245,16 +245,33 @@ fn start_opens_the_start_menu_over_the_field_and_b_closes_it() {
 }
 
 #[test]
-fn exit_closes_and_an_unsupported_entry_reports() {
+fn exit_closes_and_options_opens_over_the_start_menu() {
     let mut w = ui_world(&[]);
     ui_tap(&mut w, Buttons::START, 2);
-    // OPTION (the first shown entry): reported, the menu stays.
-    ui_tap(&mut w, Buttons::A, 2);
-    assert_eq!(w.screens_open(), 1);
-    assert!(w.log().lines().any(|l| l.contains("options")));
+    // EXIT is the second shown entry (POKéMON is hidden).
     ui_tap(&mut w, Buttons::DOWN, 2);
     ui_tap(&mut w, Buttons::A, 2);
     assert_eq!(w.screens_open(), 0);
+
+    ui_tap(&mut w, Buttons::START, 2);
+    // OPTION is the first entry: the options menu, not an unsupported report.
+    ui_tap(&mut w, Buttons::A, 2);
+    for _ in 0..48 {
+        ui_run(&mut w, Buttons::NONE, 1);
+    }
+    assert_eq!(w.screens_open(), 2, "options over the start menu");
+    assert!(
+        !w.log().lines().any(|l| l.contains("options")),
+        "the options entry is not a report"
+    );
+    ui_tap(&mut w, Buttons::B, 2);
+    for _ in 0..80 {
+        if w.screens_open() == 1 {
+            break;
+        }
+        ui_run(&mut w, Buttons::NONE, 1);
+    }
+    assert_eq!(w.screens_open(), 1, "back to the start menu");
 }
 
 /// START → POKéMON (fade out, the party menu alone on BG0, fade in) → B (fade out, the field

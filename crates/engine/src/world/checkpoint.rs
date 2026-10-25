@@ -302,6 +302,7 @@ impl World {
                 clock_seconds: 0,
             },
             rtc: None,
+            sound: w.options.unwrap_or_default().sound,
             boot: None,
         };
         world.boot = Some(world.restore_frame(game));

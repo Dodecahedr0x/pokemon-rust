@@ -608,6 +608,12 @@ pub struct Battle {
     pub(crate) x: BattleExt,
     /// Wave C's side and field move-effect state (hashed only when set, see [`FieldFx`]).
     pub(crate) fx: FieldFx,
+    /// Gen3 `optionsBattleStyle`. SHIFT asks before an opponent's replacement; SET does not.
+    /// Hashed only when it is not the default SHIFT, so a battle that never reads it hashes
+    /// as before.
+    battle_style: crate::options::BattleStyle,
+    /// The opponent replacement waiting on [`Need::Shift`]: side and party slot.
+    shift_send: Option<(Side, u8)>,
 }
 
 /// Gen3 `GetTrainerMoneyToGive` (`moneyMultiplier` 1: no Amulet Coin without held items):
@@ -816,6 +822,8 @@ impl Battle {
             leveled_up: 0,
             x,
             fx: FieldFx::default(),
+            battle_style: crate::options::BattleStyle::Shift,
+            shift_send: None,
         };
         rules::setup(&mut b, game);
         b.find_forms(game, Side::Player, |_| false);
@@ -1096,6 +1104,10 @@ impl Battle {
                 self.need = Need::Busy;
                 self.answer_learn(env, party, mov, forget);
             }
+            (Need::Shift, Choice::Stay) => self.finish_shift(env, None),
+            (Need::Shift, Choice::Switch(i)) if self.can_switch_to(Side::Player, i) => {
+                self.finish_shift(env, Some(i));
+            }
             _ => return,
         }
         self.run(env);
@@ -1245,6 +1257,7 @@ impl Battle {
             Need::Busy => h.write(&[0]),
             Need::Action => h.write(&[1]),
             Need::Switch => h.write(&[2]),
+            Need::Shift => h.write(&[5]),
             Need::LearnMove { party, mov } => {
                 h.write(&[3, party]);
                 h.write_u16(mov.0);
@@ -1301,6 +1314,21 @@ impl Battle {
             h.write(&[0xB7]);
             self.setup.rules.hash(h);
         }
+        if self.battle_style != crate::options::BattleStyle::Shift {
+            h.write(&[0xB6, self.battle_style as u8]);
+        }
+        if let Some((side, party)) = self.shift_send {
+            h.write(&[0xB8, side.code(), party]);
+        }
+    }
+
+    /// The battle-style option this battle was started with.
+    pub fn battle_style(&self) -> crate::options::BattleStyle {
+        self.battle_style
+    }
+
+    pub(crate) fn set_battle_style(&mut self, style: crate::options::BattleStyle) {
+        self.battle_style = style;
     }
 
     /// The prize money of a trainer battle (Gen3 `getmoneyreward`), paid on a win; `None` in a
@@ -1730,7 +1758,7 @@ impl Battle {
             }
             Choice::Ball => Some(Action::Ball),
             Choice::Item { item, party } => items::choose(self, env, item, party),
-            Choice::Switch(_) | Choice::LearnMove { .. } | Choice::Cancel => None,
+            Choice::Switch(_) | Choice::LearnMove { .. } | Choice::Cancel | Choice::Stay => None,
         }
     }
 
@@ -2187,6 +2215,19 @@ impl Battle {
             self.ask_switch(side);
             return;
         }
+        // BattleScript_FaintedMonTryChoose: SHIFT asks when the player has another mon that
+        // can fight. SET sends the opponent now. Doubles keep the send (no prompt).
+        if self.battle_style == crate::options::BattleStyle::Shift
+            && !self.is_double()
+            && self
+                .party_range(Side::Player)
+                .any(|i| self.can_switch_to(Side::Player, i))
+        {
+            self.shift_send = Some((side, next));
+            self.choosing = Side::Player;
+            self.need = Need::Shift;
+            return;
+        }
         // Simplified GetMostSuitableMonToSwitchInto: the next usable mon in party order.
         self.switch_in(env, side, next);
         if self.is_double() {
@@ -2196,6 +2237,24 @@ impl Battle {
         } else {
             self.actions = [None; 4];
         }
+    }
+
+    /// Sends the opponent that [`Need::Shift`] was holding, after an optional player switch.
+    fn finish_shift(&mut self, env: &mut Env, switch_to: Option<u8>) {
+        self.need = Need::Busy;
+        if let Some(i) = switch_to {
+            self.switch_out(env, Side::Player);
+            self.switch_in(env, Side::Player, i);
+        }
+        if let Some((side, party)) = self.shift_send.take() {
+            self.switch_in(env, side, party);
+            if self.is_double() {
+                self.actions[side.i()] = None;
+            } else {
+                self.actions = [None; 4];
+            }
+        }
+        self.choosing = Side::Player;
     }
 
     /// Asks the player for `side`'s next mon ([`Need::Switch`], [`Battle::choosing`]).

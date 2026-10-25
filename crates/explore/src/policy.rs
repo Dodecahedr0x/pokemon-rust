@@ -131,6 +131,8 @@ impl Policy {
                     Some(OpenMenu::LearnAsk(_) | OpenMenu::LearnPick(_)) => Buttons::B,
                     Some(OpenMenu::StopAsk(0)) => Buttons::A,
                     Some(OpenMenu::StopAsk(_)) => Buttons::UP,
+                    // SHIFT's "change Pokémon?": stay, the send the old path made on its own.
+                    Some(OpenMenu::Shift(_)) => Buttons::B,
                     None => Buttons::A,
                 }
             }

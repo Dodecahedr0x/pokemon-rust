@@ -336,6 +336,10 @@ pub struct World {
     /// The shell's RTC ([`World::set_rtc`]), or `None`: the deterministic clock
     /// ([`frame_rtc`]). A host input: neither hashed nor snapshotted.
     rtc: Option<Rtc>,
+    /// The sound mode applied for the mixer (Gen3 `SetPokemonCryStereo`). Playback is the
+    /// `audio` gap; this is the mode it reads. Not hashed: it is copied from `options.sound`
+    /// at the end of every step.
+    sound: crate::options::Sound,
     runner: Runner,
     s: State,
     /// The first frame's uploads, built by `new` and taken by `initial_frame` (not state).
@@ -548,6 +552,7 @@ impl World {
                 clock_seconds: 0,
             },
             rtc: None,
+            sound: crate::options::Sound::Mono,
             boot: None,
         };
         let mut f = Frame::default();
@@ -660,6 +665,7 @@ impl World {
         if let Some(crate::script::Request::CableCar { down }) = self.runner.waiting_on() {
             crate::cable_car::paint(&mut f, *down, self.s.delay);
         }
+        self.sound = self.s.options.sound;
         f
     }
 
@@ -1162,6 +1168,11 @@ impl World {
     /// The options (Gen3 `OPTION` menu).
     pub fn options(&self) -> &Options {
         &self.s.options
+    }
+
+    /// The sound mode applied from [`Options::sound`] (playback is the `audio` gap).
+    pub fn sound(&self) -> crate::options::Sound {
+        self.sound
     }
 
     /// The Pokédex seen and caught flags.

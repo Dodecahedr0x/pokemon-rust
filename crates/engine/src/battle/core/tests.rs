@@ -905,3 +905,57 @@ fn move_damage_is_stored_for_bide() {
     assert_eq!(r.b.battler(Side::Opponent).bide_damage, 8);
     assert_eq!(r.b.battler(Side::Player).bide_damage, 2);
 }
+
+/// SHIFT asks before the next opponent and a switch changes who fights. SET sends the next
+/// opponent with the same lead.
+#[test]
+fn battle_style_shift_asks_and_set_sends_the_next_opponent() {
+    use crate::options::BattleStyle;
+
+    let mut ask = Run::new(
+        trainer(),
+        &[water(30), water(5)],
+        &[normal(2), normal(2)],
+        1,
+    );
+    assert_eq!(ask.b.battle_style(), BattleStyle::Shift);
+    ask.choose(Choice::Move(0));
+    assert_eq!(ask.b.need(), Need::Shift);
+    assert_eq!(ask.b.mon(Side::Player).party, 0);
+    assert_eq!(ask.b.mon(Side::Opponent).hp, 0);
+    ask.choose(Choice::Switch(1));
+    assert_eq!(ask.b.mon(Side::Player).party, 1, "yes sends the next mon");
+    assert_eq!(ask.b.mon(Side::Opponent).party, 1);
+    assert!(ask.b.mon(Side::Opponent).hp > 0);
+
+    let mut stay = Run::new(
+        trainer(),
+        &[water(30), water(5)],
+        &[normal(2), normal(2)],
+        1,
+    );
+    stay.choose(Choice::Move(0));
+    stay.choose(Choice::Stay);
+    assert_eq!(stay.b.mon(Side::Player).party, 0);
+    assert_eq!(stay.b.mon(Side::Opponent).party, 1);
+
+    let mut set = Run::new(
+        trainer(),
+        &[water(30), water(5)],
+        &[normal(2), normal(2)],
+        1,
+    );
+    set.b.set_battle_style(BattleStyle::Set);
+    set.choose(Choice::Move(0));
+    assert_ne!(set.b.need(), Need::Shift);
+    assert_eq!(
+        set.b.mon(Side::Player).party,
+        0,
+        "SET does not switch the player"
+    );
+    assert_eq!(
+        set.b.mon(Side::Opponent).party,
+        1,
+        "SET sends the next opponent"
+    );
+}

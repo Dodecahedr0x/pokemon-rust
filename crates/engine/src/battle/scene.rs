@@ -217,6 +217,8 @@ pub enum OpenMenu {
     StopAsk(u8),
     /// The doubles target cursor: the index in `Battle::target_choices`.
     Target(u8),
+    /// SHIFT's "change Pokémon?" yes/no (0 = yes).
+    Shift(u8),
 }
 
 /// The most reports a scene keeps until `take_reports` (the rest are dropped).
@@ -269,6 +271,9 @@ pub struct BattleScene {
     balls: Option<(ItemId, u16)>,
     /// Balls thrown so far ([`BattleScene::balls_thrown`]).
     thrown: u16,
+    /// Gen3 battle scene ON. Off skips the move lunge, hit blink and stat tint (HP and text
+    /// still play). Hashed only when off, so the default hashes as before.
+    animations: bool,
 }
 
 /// What presentation shows of party mon `p` (slot `party`), as `CopyMonToBattleMon`.
@@ -325,7 +330,18 @@ impl BattleScene {
             player,
             balls: None,
             thrown: 0,
+            animations: true,
         }
+    }
+
+    /// Battle scene on or off (`optionsBattleSceneOff`).
+    pub(crate) fn set_animations(&mut self, on: bool) {
+        self.animations = on;
+    }
+
+    /// Whether move animations play.
+    pub fn animations(&self) -> bool {
+        self.animations
     }
 
     /// The ball the degraded BAG throws in a wild battle and how many there are: the first of
@@ -579,6 +595,7 @@ impl BattleScene {
             Menu::LearnPick { .. } => OpenMenu::LearnPick(cursor),
             Menu::StopAsk { .. } => OpenMenu::StopAsk(cursor),
             Menu::Target { .. } => OpenMenu::Target(cursor),
+            Menu::Shift => OpenMenu::Shift(cursor),
             Menu::None | Menu::StopMsg { .. } | Menu::HmMsg { .. } | Menu::Retry { .. } => {
                 return None;
             }
@@ -671,6 +688,9 @@ impl BattleScene {
         h.write_u16(self.queue.len() as u16);
         for e in &self.queue {
             hash_event(e, h);
+        }
+        if !self.animations {
+            h.write(&[0xB5]);
         }
     }
 
@@ -924,13 +944,21 @@ impl BattleScene {
                 Play::Anims
             }
             BattleEvent::MoveAnim { attacker, .. } => {
-                p.mons[attacker.i()].lunge();
-                Play::Anims
+                if self.animations {
+                    p.mons[attacker.i()].lunge();
+                    Play::Anims
+                } else {
+                    Play::Idle
+                }
             }
             BattleEvent::Hit { target, .. } => {
-                p.mons[target.i()].hit();
-                p.boxes[target.i()].shake();
-                Play::Anims
+                if self.animations {
+                    p.mons[target.i()].hit();
+                    p.boxes[target.i()].shake();
+                    Play::Anims
+                } else {
+                    Play::Idle
+                }
             }
             BattleEvent::Hp { side, from, to } => {
                 let s = side.i();
@@ -954,8 +982,12 @@ impl BattleScene {
                 Play::Idle
             }
             BattleEvent::StatAnim { side, up } => {
-                p.mons[side.i()].tint(if up { TINT_STAT_UP } else { TINT_STAT_DOWN });
-                Play::Anims
+                if self.animations {
+                    p.mons[side.i()].tint(if up { TINT_STAT_UP } else { TINT_STAT_DOWN });
+                    Play::Anims
+                } else {
+                    Play::Idle
+                }
             }
             BattleEvent::Faint { side } => Play::Faint(side, Some(FAINT_PAUSE)),
             BattleEvent::Exp { party, from, to } => {

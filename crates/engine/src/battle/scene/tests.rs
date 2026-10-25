@@ -732,3 +732,26 @@ fn reports_are_set_aside_unhashed_and_capped() {
     plain.load();
     assert_eq!(r.hash(), plain.hash());
 }
+
+fn one_move_frames(animations: bool) -> u32 {
+    let mut r = Run::wild(&[starter()], &[foe(20)], 1);
+    r.scene.set_animations(animations);
+    r.use_step = true;
+    r.load();
+    r.mash_until(|s| matches!(s.open_menu(), Some(OpenMenu::Action(_))));
+    let start = r.frames;
+    r.frame(A);
+    r.frame(NONE);
+    r.mash_until(|s| matches!(s.open_menu(), Some(OpenMenu::Move(_))) || s.finished().is_some());
+    r.frame(A);
+    r.frame(NONE);
+    r.mash_until(|s| matches!(s.open_menu(), Some(OpenMenu::Action(_))) || s.finished().is_some());
+    r.frames - start
+}
+
+#[test]
+fn battle_scene_off_skips_move_animations() {
+    let on = one_move_frames(true);
+    let off = one_move_frames(false);
+    assert!(off < on, "scene off took {off} frames, on took {on}");
+}

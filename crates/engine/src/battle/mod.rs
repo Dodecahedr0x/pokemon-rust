@@ -233,6 +233,9 @@ pub enum Choice {
     /// Doubles: B in `PlayerRight`'s action menu (`B_ACTION_CANCEL_PARTNER`): the left
     /// battler's action is asked again.
     Cancel,
+    /// Decline the shift prompt (`OPTIONS_BATTLE_STYLE_SHIFT`): the opponent sends its next
+    /// Pokémon and the player stays in.
+    Stay,
 }
 
 /// What the core waits for.
@@ -242,6 +245,8 @@ pub enum Need {
     Busy,
     Action,
     Switch,
+    /// SHIFT, before the opponent sends its next Pokémon: switch, or [`Choice::Stay`].
+    Shift,
     LearnMove {
         party: u8,
         mov: MoveId,

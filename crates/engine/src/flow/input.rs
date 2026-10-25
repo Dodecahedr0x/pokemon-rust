@@ -26,10 +26,12 @@ impl Input {
     }
 
     /// [`Input::update`] under the button-mode option (Gen3 `ReadKeys`: with L=A, L also
-    /// presses A, in the field and every menu). `World::step` calls it every frame (Milestone 9
-    /// Wave 0); Task SM implements the L=A mapping. Wave 0: [`Input::update`], whatever the mode.
+    /// presses A, in the field and every menu). LR is Gen3's help shortcut and is stored only.
     pub fn update_mode(&mut self, cur: Buttons, mode: crate::options::ButtonMode) {
-        let _ = mode;
+        let cur = match mode {
+            crate::options::ButtonMode::LEqualsA if cur.contains(Buttons::L) => cur | Buttons::A,
+            _ => cur,
+        };
         self.update(cur);
     }
 
