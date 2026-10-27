@@ -4,6 +4,8 @@
 // `cfg(pkr_silice)` (`build.rs`, from `content`'s `links` metadata) is the content's flavour.
 const _: () = assert!(cfg!(pkr_silice) == matches!(content::FLAVOR, content::Flavor::Silice));
 
+pub mod art; // Silice art generation (tilesets and sprites)
+pub mod dotenv; // repo-root `.env` (image-model keys and the rest)
 pub mod build; // Task D
 pub mod data_view; // Task F
 pub mod explorer; // M7 Task S1

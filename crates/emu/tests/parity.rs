@@ -621,7 +621,7 @@ fn rom_save_mid_battle_lands_on_the_first_capturable_frame() {
 fn the_route_matches_the_content_build() {
     if content::STUB {
         println!(
-            "skipping the extracted-data route: content was built without content/extracted \
+            "skipping the extracted-data route: content was built without games/emerald \
              (run `cargo xtask extract`); the stub route is used instead"
         );
     }

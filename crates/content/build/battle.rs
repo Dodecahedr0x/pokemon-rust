@@ -1,5 +1,5 @@
 //! Battle content (Milestone 4): `BattleTables`, trainers, encounters, heal locations, battle
-//! strings and `BattleGfx`, read from `content/extracted/{battle,pokemon,trainers,starter,font}`
+//! strings and `BattleGfx`, read from `games/emerald/{battle,pokemon,trainers,starter,font}`
 //! (`crate::battle_load::load`) or built in ([`crate::stub::battle`]), and generated as
 //! `$OUT_DIR/battle.rs` plus one aligned blob, `$OUT_DIR/battle.bin`, that holds every tile,
 //! palette, tilemap and glyph (`include_bytes!`, sliced by `content::blob::Blob`).

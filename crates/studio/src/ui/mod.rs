@@ -17,6 +17,7 @@
 //! [`Studio`] too ([`Studio::explorer`]), and the shell polls the explorer db
 //! ([`explorer::use_explorer_state`]).
 
+pub mod art;
 pub mod data;
 pub mod explorer;
 pub mod map;
@@ -266,6 +267,9 @@ const SMOKE_PANES: [&str; 2] = ["smoke-a", "smoke-b"];
 /// (`SMOKE pane=<name> fps=<f> …` lines for the test patterns, `INFO …` for the play panes)
 /// and exits ([`start_smoke_deadline`]).
 pub fn launch() {
+    // Before anything reads the environment, including the child `cargo xtask` a Generate
+    // starts: that process inherits these variables.
+    crate::dotenv::load();
     let smoke = std::env::var("STUDIO_SMOKE_SECS")
         .ok()
         .and_then(|s| s.parse::<f64>().ok())
@@ -472,6 +476,8 @@ fn App() -> Element {
     // The Edit tab's map and palette pictures (`/edit/…`, SIL1 Task C).
     let edits = use_context_provider(crate::map_edit::ui::EditImages::default);
     use_asset_handler("edit", crate::map_edit::ui::serve(edits));
+    let art_images = use_context_provider(art::ArtImages::default);
+    use_asset_handler("art", art::serve(art_images));
     // The context never changes, so these hooks run on every render or on none.
     if let Some(smoke) = try_use_context::<Smoke>() {
         let stats = smoke.stats.clone();
@@ -504,15 +510,17 @@ pub enum Tab {
     Data,
     Explorer,
     Edit,
+    Art,
 }
 
-const TABS: [(Tab, &str); 6] = [
+const TABS: [(Tab, &str); 7] = [
     (Tab::Play, "Play"),
     (Tab::Checkpoints, "Checkpoints"),
     (Tab::Map, "Map"),
     (Tab::Data, "Data"),
     (Tab::Explorer, "Explorer"),
     (Tab::Edit, "Edit"),
+    (Tab::Art, "Art"),
 ];
 
 /// Focuses a play pane (its `data-focus` wrapper) once the Play tab is drawn.
@@ -567,6 +575,13 @@ pub fn Shell(#[props(default)] start: Tab) -> Element {
         }
     });
     let mut tab = tab;
+    let games = studio
+        .paths
+        .workspace
+        .join("games")
+        .join(crate::map_edit::games::DEFAULT_GAME);
+    use_context_provider(|| Signal::new(crate::art::ArtState::load(&games)));
+    use_context_provider(|| art::ArtLog(Signal::new(None)));
     let frames = use_context::<Frames>();
     // Panes other than the play panes: a smoke run's transport test patterns.
     let mut extra: Vec<&'static str> = frames
@@ -610,6 +625,7 @@ pub fn Shell(#[props(default)] start: Tab) -> Element {
                         ),
                     }
                 },
+                Tab::Art => rsx! { art::Art {} },
             }
         }
     }
@@ -696,7 +712,15 @@ mod tests {
     fn the_shell_renders_without_a_display() {
         let local = temp_root("shell");
         let html = render(test_studio(&local), Tab::Play);
-        for label in ["Play", "Checkpoints", "Map", "Data", "Explorer", "Edit"] {
+        for label in [
+            "Play",
+            "Checkpoints",
+            "Map",
+            "Data",
+            "Explorer",
+            "Edit",
+            "Art",
+        ] {
             assert!(
                 html.contains(&format!(">{label}<")),
                 "{label} tab in {html}"

@@ -7,7 +7,7 @@
 //! `crates/content/src/silice/scripts/`, empty until then).
 //!
 //! Name tables: the decomp names compiled into `extract::names` and `charmap::SOUNDS` always;
-//! the extract (`content/extracted/`, or `PKR_EXTRACTED_DIR`) when it has a `manifest.ron`
+//! the extract (`games/emerald/`, or `PKR_EXTRACTED_DIR`) when it has a `manifest.ron`
 //! (species, moves, items and heal locations of the ROM, and the FR font widths for the width
 //! rules); every `#define` under `$PKR_DECOMP/include/constants/` when `PKR_DECOMP` is set (the
 //! only source for `WEATHER_*`). A check whose source is missing is skipped with a note.

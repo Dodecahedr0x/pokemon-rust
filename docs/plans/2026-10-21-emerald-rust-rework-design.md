@@ -19,7 +19,7 @@ A Dioxus desktop **studio** previews and edits all content, plays the latest bui
 | Execution | Hybrid: portable `no_std` core; native build for headless/studio, real ROM in embedded mGBA (FFI) |
 | Saves | Semantic checkpoints (serde `World` snapshot) + input traces; survive rebuilds |
 | Scripts | Plain Rust, `async fn` scripts in a `content` crate, polled per frame by a tiny executor |
-| Data | RON + PNG; ROM-derived files under git-ignored `content/extracted/`, compiled to const tables by `build.rs` |
+| Data | RON + PNG; ROM-derived files under git-ignored `games/emerald/`, compiled to const tables by `build.rs` |
 | Explorer goals | Softlocks/crashes, coverage, completability, balance |
 | Explorer evolution | Persistent & incremental (SQLite) + evolutionary search |
 
@@ -32,7 +32,7 @@ crates/
   content/      no_std, the game: Rust scripts per map, typed flags/vars, data/ (RON/PNG) -> build.rs
   game-gba/     bin: agb + engine + content -> game.gba (flash saves, debug region in EWRAM)
   game-native/  lib: engine + content for host (software PPU, headless mode)
-  extract/      French ROM -> git-ignored content/extracted/ (data, graphics, text; generated
+  extract/      French ROM -> git-ignored games/emerald/ (data, graphics, text; generated
                 .rs scripts from Milestone 3)
   emu/          mGBA FFI wrapper (frame step, input, framebuffer, memory read)
   explore/      persistent evolutionary action-tree runner
@@ -51,7 +51,7 @@ by event id, species/moves/items/trainers, text) is the only contract.
 - Data: RON for structured data, PNG for graphics, text tables per language (`fr`).
 - Import: `extract` locates BPEF tables via structure/pattern search guided by the US decomp,
   stores a verified offset map with checksums, and writes everything to the git-ignored
-  `content/extracted/` (Milestone 2). Decompiling Emerald event scripts into generated Rust, so
+  `games/emerald/` (Milestone 2). Decompiling Emerald event scripts into generated Rust, so
   the starting point is a playable copy of the original, is deferred to Milestone 3 (M2 only
   walks scripts to find their texts).
 - Static analysis: `syn` scan of `content/` builds a flag/var read-write graph per script

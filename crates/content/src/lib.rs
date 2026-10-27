@@ -1,7 +1,7 @@
 #![cfg_attr(not(test), no_std)]
 //! The game: all Hoenn-specific data and scripts. Depends on `engine`, never the reverse.
 //!
-//! `build/main.rs` compiles `content/extracted/` into `consts` (Gen3 constants, text ids),
+//! `build/main.rs` compiles `games/emerald/` into `consts` (Gen3 constants, text ids),
 //! `data` (static tables), `battle` (battle tables, strings and graphics, with a byte blob:
 //! [`blob`]) and `scripts` (the generated per-map script modules). Without an extracted dir it
 //! builds a small built-in world and sets `cfg(pkr_stub)`; without battle data (the stub, test
@@ -173,7 +173,7 @@ pub const STALE_EXTRACT: bool = cfg!(pkr_stale_extract);
 const _: () = assert!(!STALE_EXTRACT || STUB);
 
 /// The error for a [`STALE_EXTRACT`] build.
-pub const STALE_EXTRACT_MSG: &str = "content/extracted/ is in an older format, so the content \
+pub const STALE_EXTRACT_MSG: &str = "games/emerald/ is in an older format, so the content \
     built the stub world: run `cargo xtask extract` to refresh it";
 
 /// Identity of this content build (`build/build_id.rs`): the content sources plus the extracted

@@ -698,7 +698,7 @@ mod extracted {
         std::env::var_os("PKR_ROM_FR")?;
         let rom = extract::fixtures::fr();
         if rom.sha1_hex() != data::SOURCE_SHA1 {
-            std::println!("skipped: content/extracted is not from PKR_ROM_FR");
+            std::println!("skipped: games/emerald is not from PKR_ROM_FR");
             return None;
         }
         Some(rom)

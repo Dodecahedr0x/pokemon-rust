@@ -791,7 +791,7 @@ fn first_dir<G: GameData>(
 }
 
 /// The parity route on the extracted maps, from a new game before Birch's rescue.
-/// Coordinates are the maps' own (`content/extracted/maps/*.ron`).
+/// Coordinates are the maps' own (`games/emerald/maps/*.ron`).
 pub const EMERALD_ROUTE: &[Action] = &[
     Action::Wait(24),
     Action::Shot("littleroot_start"),

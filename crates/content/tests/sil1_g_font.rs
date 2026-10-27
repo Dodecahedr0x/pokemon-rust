@@ -156,7 +156,7 @@ fn collapsed(mask: &BTreeSet<(usize, usize)>) -> Vec<Vec<bool>> {
 fn authored_glyphs_are_not_rom_glyphs() {
     let dir = match std::env::var_os("PKR_EXTRACTED_DIR") {
         Some(d) => PathBuf::from(d),
-        None => workspace().join("content/extracted"),
+        None => workspace().join("games/emerald"),
     };
     let fonts: Vec<PathBuf> = ["latin_normal", "latin_small"]
         .iter()

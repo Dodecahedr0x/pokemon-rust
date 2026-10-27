@@ -6,7 +6,7 @@
 //! cargo xtask silice check [--games DIR] [--extracted DIR] [--scripts DIR] [--allow RULE]...
 //! cargo xtask silice tombstone [--games DIR] NAME...
 //! cargo xtask silice move [--games DIR] NAME...
-//! cargo xtask silice gfx (prep|build) …   original tilesets from generated art ([`gfx`])
+//! cargo xtask silice gfx (prep|gen|sprites|build) …   original art ([`gfx`], [`sprites`])
 //! ```
 //!
 //! `tombstone` marks ids as removed in their `ids/*.ron` file (they keep their numbers). `move`
@@ -18,6 +18,7 @@ mod check;
 mod derive;
 pub mod gfx;
 mod ids;
+mod image;
 mod import;
 mod maps;
 mod md;
@@ -67,7 +68,7 @@ pub fn main(args: &[String]) -> Result<()> {
                 games: crate::root().join("games/silice"),
                 extracted: std::env::var_os("PKR_EXTRACTED_DIR")
                     .map(PathBuf::from)
-                    .unwrap_or_else(|| crate::root().join("content/extracted")),
+                    .unwrap_or_else(|| crate::root().join("games/emerald")),
                 decomp: std::env::var_os("PKR_DECOMP").map(PathBuf::from),
                 scripts: crate::root().join("crates/content/src/silice/scripts"),
                 allow: Vec::new(),

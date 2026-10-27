@@ -80,13 +80,13 @@ pub struct Catalog {
     pub songs: BTreeMap<String, bool>,
 }
 
-/// The extracted dir the content build read: `PKR_EXTRACTED_DIR`, else `content/extracted`.
+/// The extracted dir the content build read: `PKR_EXTRACTED_DIR`, else `games/emerald`.
 pub fn extracted_dir() -> PathBuf {
     std::env::var_os("PKR_EXTRACTED_DIR").map_or_else(
         || {
             crate::paths::StudioPaths::detect()
                 .workspace
-                .join("content/extracted")
+                .join("games/emerald")
         },
         PathBuf::from,
     )

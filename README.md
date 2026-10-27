@@ -18,7 +18,7 @@ Design: `docs/plans/2026-10-21-emerald-rust-rework-design.md`.
 - `cargo xtask checkpoints <command>`: list, verify, seed and promote checkpoint nodes (see Checkpoints)
 - `cargo xtask shot`: play the scripted route and write ROM and native PNGs of each named moment to
   `target/shots/<moment>-{rom,native}.png`
-- `cargo xtask extract [--rom <path>]`: export the ROM to `content/extracted/` (see Extract)
+- `cargo xtask extract [--rom <path>]`: export the ROM to `games/emerald/` (see Extract)
 - `cargo xtask studio [--check | --smoke [secs] | map <args>]`: the studio desktop app (see Studio)
 - `cargo xtask explore <command>`: the headless explorer (see Explorer)
 - `cargo xtask sweep [--studio | --repro]`: enter and idle every map natively (see Tests)
@@ -202,7 +202,7 @@ the explorer it starts writes `target/explore/`.
 ## Tests
 `cargo test --workspace` runs unit tests and the ROM-backed tests in `crates/extract/tests/`, which
 read both ROMs and the decomp. The `content` data tests check the real tables when
-`content/extracted/` exists and the stub world otherwise; `crates/content/tests/build_modes.rs`
+`games/emerald/` exists and the stub world otherwise; `crates/content/tests/build_modes.rs`
 also builds `content` in stub mode and against a fixture extracted dir. The ROM-backed tests fail
 if these are missing:
 
@@ -336,11 +336,11 @@ the closing webview never acknowledged).
 `cargo xtask extract` reads your French ROM into editable, git-ignored files.
 
 1. Place the ROM at `rom/emeraude-fr.gba` (or pass `--rom <path>`; BPEE also works).
-2. Run `cargo xtask extract`. It exports into `content/.extracted.tmp/` and, only if that succeeds,
-   replaces `content/extracted/` with it (a failed run keeps the previous output). It prints a
+2. Run `cargo xtask extract`. It exports into `games/.emerald.tmp/` and, only if that succeeds,
+   replaces `games/emerald/` with it (a failed run keeps the previous output). It prints a
    summary (maps, tilesets, sprites, skipped graphics, script and text files, the codegen
    statistics, any undecoded script instructions).
-3. See the output in `content/extracted/` (format v5, described in `crates/extract/src/schema.rs`).
+3. See the output in `games/emerald/` (format v5, described in `crates/extract/src/schema.rs`).
    `--maps all|slice|<Dir,Dir,…>` picks the maps (default `all`, the 518 maps; `slice` is the
    15-map slice the fixtures use) and `--previews` also writes the map renders (off by default:
    they are most of the extracted size and the build never reads them).
@@ -486,7 +486,7 @@ the real decomp.
 Pokémon Silice is a second game on the same engine: authored French content
 (`docs/plans/2026-10-23-silice-content.md`) in `games/silice/` (maps, layouts, texts, ids,
 `game.ron`) and `crates/content/src/silice/` (scripts), built over the extract's base assets
-(tilesets, sprites, battle data). Build it with `PKR_GAME=silice` (needs `content/extracted/`),
+(tilesets, sprites, battle data). Build it with `PKR_GAME=silice` (needs `games/emerald/`),
 or pass `--game silice` to any xtask command, which builds in `target/silice` so the Emerald
 build is kept:
 
@@ -506,13 +506,14 @@ tests that need a capturable start fail (being fixed separately).
 - `crates/engine`: game-agnostic `no_std` core
 - `crates/content`: the game (data and scripts): Emerald from the extract, or Silice
 - `crates/studio`: the desktop studio and the headless map editor
+- `games/emerald`: Emerald's ROM extract (git-ignored; `cargo xtask extract`)
 - `games/silice`: Silice's authored data
 - `crates/game-gba`: GBA shell (separate workspace, thumbv4t target)
 - `crates/game-native`: host shell (software renderer)
 - `crates/emu`: embedded mGBA
 - `crates/explore`: the headless explorer
 - `crates/parity`: the Emerald feature-parity ledger (host-only)
-- `crates/extract`: reads the ROM into `content/extracted/`
+- `crates/extract`: reads the ROM into `games/emerald/`
 - `xtask`: build and verification tasks
 
 Your ROM goes in `rom/` (git-ignored). Original assets are never committed.

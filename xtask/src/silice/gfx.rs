@@ -4,18 +4,23 @@
 //! ```text
 //! cargo xtask silice gfx prep <raw.png> <out.png> --size WxH [--key RRGGBB|none] [--tol N]
 //!                             [--stretch] [--align bottom|center|top]
-//! cargo xtask silice gfx gen <Tileset> [<feature>...] [--prep-only] [--jobs N] [--games DIR]
+//! cargo xtask silice gfx gen <Tileset> [<feature>...] [--model codex|ark|nano]
+//!                             [--ref IMG]... [--prompt TEXT] [--prep-only] [--jobs N] [--games DIR]
 //! cargo xtask silice gfx build [<Tileset>...] [--games DIR] [--extracted DIR]
 //! ```
 //!
-//! **gen** asks Codex's image tool (`codex exec`, `image_gen`) for each named feature's
-//! picture (all features with a `prompt` when none is named; `--jobs` at a time, default 4),
-//! keeps it as `target/silice-gfx/raw/<Tileset>/<feature>.png` (the previous one as
-//! `<feature>.prev.png`; raw pictures are never committed), then preps it into the feature's art
+//! **gen** asks an image model for each named feature's picture (all features with a `prompt`
+//! when none is named; `--jobs` at a time, default 4). `--model` is `codex` (the Codex CLI's
+//! `image_gen`, the default), `ark` (Volcengine Ark Seedream) or `nano` (Gemini Nano Banana);
+//! see [`super::image`]. `--ref` (repeatable) attaches reference images. `--prompt` replaces the
+//! subject of the one named feature for this run (it is not written back to the spec). The
+//! picture is kept as `target/silice-gfx/raw/<Tileset>/<feature>.png` (the previous one as
+//! `<feature>.prev.png`; raw pictures are never committed), then prepped into the feature's art
 //! `gfx/<Tileset>/<feature>.png` at its cells' size, as `prep` does with the feature's `key`
 //! and `align`. `mirror` features are their source's art flipped. `--prep-only` re-preps the
-//! kept raw pictures without calling Codex. Review the art, re-`gen` what is wrong (tune the
-//! prompt), then `build`.
+//! kept raw pictures without calling a model. Review the art, re-`gen` what is wrong (another
+//! model, other references, or a tuned prompt), then `build`. The studio's Art tab runs the
+//! same command.
 //!
 //! **prep** turns a generated picture (an image model's 1024-ish px "pixel art" of one object
 //! on a flat chroma-key background) into art at its real pixel size: the key colour (default
@@ -55,7 +60,8 @@ use std::path::{Path, PathBuf};
 
 pub const USAGE: &str = "usage: cargo xtask silice gfx prep <raw.png> <out.png> --size WxH \
      [--key RRGGBB|none] [--tol N] [--stretch] [--align bottom|center|top]\n       \
-     cargo xtask silice gfx gen <Tileset> [<feature>...] [--prep-only] [--jobs N] [--games DIR]\n       \
+     cargo xtask silice gfx gen <Tileset> [<feature>...] [--model codex|ark|nano] [--ref IMG]... \
+     [--prompt TEXT] [--prep-only] [--jobs N] [--games DIR]\n       \
      cargo xtask silice gfx build [<Tileset>...] [--games DIR] [--extracted DIR]";
 
 /// First BG palette of a secondary tileset, and how many it has.
@@ -175,7 +181,7 @@ pub fn main(args: &[String]) -> Result<()> {
         Some("sprites") => super::sprites::main(&args[1..]),
         Some("build") => {
             let mut games = crate::root().join("games/silice");
-            let mut extracted = crate::root().join("content/extracted");
+            let mut extracted = crate::root().join("games/emerald");
             let mut names = Vec::new();
             let mut it = args[1..].iter();
             while let Some(a) = it.next() {
@@ -269,24 +275,11 @@ pub fn write_rgba(path: &Path, img: &Rgba) -> Result<()> {
 // ---- gen ----
 
 fn gen_cmd(args: &[String]) -> Result<()> {
-    let mut games = crate::root().join("games/silice");
-    let mut prep_only = false;
-    let mut jobs = 4usize;
-    let mut pos = Vec::new();
-    let mut it = args.iter();
-    while let Some(a) = it.next() {
-        match a.as_str() {
-            "--games" => games = PathBuf::from(it.next().context(USAGE)?),
-            "--prep-only" => prep_only = true,
-            "--jobs" => jobs = it.next().context(USAGE)?.parse()?,
-            s if !s.starts_with('-') => pos.push(s.to_string()),
-            _ => bail!(USAGE),
-        }
-    }
-    let name = pos.first().context(USAGE)?.clone();
-    let spec: Spec = read_ron(&games.join(format!("gfx/{name}.ron")))?;
-    let picked: Vec<&Feature> = if pos.len() > 1 {
-        pos[1..]
+    let flags = super::image::parse_flags(args, USAGE, crate::root().join("games/silice"))?;
+    let name = flags.rest.first().context(USAGE)?.clone();
+    let spec: Spec = read_ron(&flags.games.join(format!("gfx/{name}.ron")))?;
+    let picked: Vec<&Feature> = if flags.rest.len() > 1 {
+        flags.rest[1..]
             .iter()
             .map(|n| {
                 spec.features
@@ -298,26 +291,43 @@ fn gen_cmd(args: &[String]) -> Result<()> {
     } else {
         spec.features.iter().collect()
     };
+    if flags.prompt.is_some() {
+        ensure!(
+            picked.len() == 1,
+            "--prompt applies to one feature; name it"
+        );
+        ensure!(
+            picked[0].mirror.is_none(),
+            "feature {} is a mirror",
+            picked[0].name
+        );
+    }
     let raw_dir = crate::root().join(format!("target/silice-gfx/raw/{name}"));
     std::fs::create_dir_all(&raw_dir)?;
-    if !prep_only {
+    if !flags.prep_only {
         let todo: Vec<(&Feature, String)> = picked
             .iter()
+            .copied()
             .filter(|f| f.mirror.is_none())
-            .filter_map(|f| f.prompt.as_ref().map(|p| (*f, full_prompt(&spec, f, p))))
+            .filter_map(|f| {
+                let subject = flags.prompt.as_deref().or(f.prompt.as_deref())?;
+                Some((f, full_prompt(&spec, f, subject)))
+            })
             .collect();
         let queue = std::sync::Mutex::new(todo.into_iter());
         let failed = std::sync::Mutex::new(Vec::new());
+        let refs = &flags.refs;
+        let model = flags.model;
         std::thread::scope(|s| {
-            for _ in 0..jobs.max(1) {
+            for _ in 0..flags.jobs.max(1) {
                 s.spawn(|| {
                     loop {
                         let Some((f, prompt)) = queue.lock().unwrap().next() else {
                             break;
                         };
                         let raw = raw_dir.join(format!("{}.png", f.name));
-                        println!("gen {name}/{}: asking codex", f.name);
-                        match codex_image(&prompt) {
+                        println!("gen {name}/{}: asking {}", f.name, model.detail());
+                        match super::image::generate(model, &prompt, refs) {
                             Ok(img) => {
                                 if raw.exists() {
                                     let _ = std::fs::rename(
@@ -344,6 +354,7 @@ fn gen_cmd(args: &[String]) -> Result<()> {
         }
     }
     // Prep (sources first, then mirrors).
+    let games = &flags.games;
     let art_dir = games.join(format!("gfx/{name}"));
     std::fs::create_dir_all(&art_dir)?;
     let mut missing = Vec::new();
@@ -422,49 +433,6 @@ fn full_prompt(spec: &Spec, f: &Feature, subject: &str) -> String {
         }
     };
     format!("{} Subject: {subject} {bg}", spec.style)
-}
-
-/// One `codex exec` image generation; the picture's path under `~/.codex/generated_images`.
-pub fn codex_image(prompt: &str) -> Result<PathBuf> {
-    let dir = std::env::temp_dir().join(format!(
-        "pkr-gfx-{}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir)?;
-    let out = std::process::Command::new("codex")
-        .args(["exec", "--skip-git-repo-check", "-s", "read-only"])
-        .arg(format!(
-            "Use your built-in image_gen tool exactly once to generate the image described below, \
-             then stop. Do not post-process, resize or save any file. Image: {prompt}"
-        ))
-        .current_dir(&dir)
-        .output()
-        .context("running codex")?;
-    let log = format!(
-        "{}{}",
-        String::from_utf8_lossy(&out.stdout),
-        String::from_utf8_lossy(&out.stderr)
-    );
-    let session = log
-        .lines()
-        .find_map(|l| l.strip_prefix("session id: "))
-        .map(str::trim)
-        .context("no session id in codex's output")?;
-    let home = std::env::var_os("CODEX_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".codex")
-        });
-    let gen_dir = home.join("generated_images").join(session);
-    let mut imgs: Vec<PathBuf> = std::fs::read_dir(&gen_dir)
-        .with_context(|| format!("codex made no image ({})", gen_dir.display()))?
-        .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| p.extension().is_some_and(|x| x == "png"))
-        .collect();
-    imgs.sort_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
-    imgs.pop()
-        .with_context(|| format!("codex made no image ({})", gen_dir.display()))
 }
 
 // ---- prep ----

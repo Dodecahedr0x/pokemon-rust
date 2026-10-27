@@ -1,4 +1,4 @@
-//! Compiles `content/extracted/` (written by `cargo xtask extract`) into `'static` tables in
+//! Compiles `games/emerald/` (written by `cargo xtask extract`) into `'static` tables in
 //! `$OUT_DIR/{consts,data,scripts,battle}.rs` (+ the `data.bin` and `battle.bin` blobs), and `content::BUILD_ID` into
 //! `$OUT_DIR/build_id.rs` (`build_id.rs`). Without an extracted dir it builds a small built-in
 //! world instead and sets `cfg(pkr_stub)`.
@@ -64,7 +64,7 @@ fn main() {
     // A relative override is relative to the workspace root, like every other repo path.
     let dir = match &overridden {
         Some(d) => workspace.join(d),
-        None => workspace.join("content/extracted"),
+        None => workspace.join("games/emerald"),
     };
     let dir = std::path::absolute(&dir).unwrap();
     let manifest = dir.join("manifest.ron");
@@ -151,11 +151,13 @@ fn main() {
                 println!("cargo::rerun-if-changed={}", dir.display());
             }
         } else {
-            // Fresh clone: quietly build the stub. `content/` is tracked (`content/.gitkeep`),
-            // and `cargo xtask extract` creates `content/extracted/` in it, so watching it reruns
-            // this script exactly when an extract appears.
-            let parent = dir.parent().unwrap();
-            println!("cargo::rerun-if-changed={}", parent.display());
+            // Fresh clone: quietly build the stub. `games/emerald/.gitkeep` is tracked, so
+            // the directory exists and watching it reruns this script when an extract appears.
+            // Watching `games/` would also rebuild on every Silice edit. A missing directory
+            // is not watched: cargo treats that path as always dirty.
+            if dir.is_dir() {
+                println!("cargo::rerun-if-changed={}", dir.display());
+            }
         }
         println!("cargo::rustc-cfg=pkr_stub");
         println!("cargo::rustc-env=PKR_EXTRACTED=");

@@ -1,10 +1,11 @@
 //! `cargo xtask silice gfx sprites`: original overworld sprites (objects) from generated art.
 //!
 //! ```text
-//! cargo xtask silice gfx sprites [<NAME>...] [--prep-only] [--jobs N] [--games DIR]
+//! cargo xtask silice gfx sprites [<NAME>...] [--model codex|ark|nano]
+//!                                 [--ref IMG]... [--prompt TEXT] [--prep-only] [--jobs N] [--games DIR]
 //! ```
 //!
-//! `gfx/sprites.ron` ([`Spec`]) lists the sprites. Each is one Codex picture of the character
+//! `gfx/sprites.ron` ([`Spec`]) lists the sprites. Each is one generated picture of the character
 //! seen from the front, the back and the left side (three figures in a row on magenta), kept
 //! as `target/silice-gfx/raw/sprites/<NAME>.png`. The three figures are found by their
 //! columns, scaled together (the same scale for the three) into 16x32 cells, bottom aligned,
@@ -19,8 +20,8 @@
 //! A 4x review sheet goes to `target/silice-gfx/sprites/<NAME>.png`.
 
 use super::gfx::{
-    Align, Rgba, codex_image, from555, kmeans_colours, nearest, opaque_mask, prep_box, read_rgba,
-    rgb555, write_rgba,
+    Align, Rgba, from555, kmeans_colours, nearest, opaque_mask, prep_box, read_rgba, rgb555,
+    write_rgba,
 };
 use anyhow::{Context, Result, bail, ensure};
 use extract::export::{read_ron, to_ron};
@@ -28,10 +29,10 @@ use extract::gfx::{IndexedImage, Palette};
 use extract::schema::SpriteFile;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-const USAGE: &str =
-    "usage: cargo xtask silice gfx sprites [<NAME>...] [--prep-only] [--jobs N] [--games DIR]";
+const USAGE: &str = "usage: cargo xtask silice gfx sprites [<NAME>...] [--model codex|ark|nano] \
+     [--ref IMG]... [--prompt TEXT] [--prep-only] [--jobs N] [--games DIR]";
 const W: u32 = 16;
 const H: u32 = 32;
 
@@ -58,41 +59,35 @@ pub struct Sprite {
 }
 
 pub fn main(args: &[String]) -> Result<()> {
-    let mut games = crate::root().join("games/silice");
-    let mut prep_only = false;
-    let mut jobs = 4usize;
-    let mut picked = Vec::new();
-    let mut it = args.iter();
-    while let Some(a) = it.next() {
-        match a.as_str() {
-            "--games" => games = PathBuf::from(it.next().context(USAGE)?),
-            "--prep-only" => prep_only = true,
-            "--jobs" => jobs = it.next().context(USAGE)?.parse()?,
-            s if !s.starts_with('-') => picked.push(s.to_string()),
-            _ => bail!(USAGE),
-        }
-    }
-    let spec: Spec = read_ron(&games.join("gfx/sprites.ron"))?;
-    for n in &picked {
+    let flags = super::image::parse_flags(args, USAGE, crate::root().join("games/silice"))?;
+    let spec: Spec = read_ron(&flags.games.join("gfx/sprites.ron"))?;
+    for n in &flags.rest {
         ensure!(spec.sprites.iter().any(|s| s.name == *n), "no sprite {n}");
     }
     let todo: Vec<&Sprite> = (spec.sprites.iter())
-        .filter(|s| picked.is_empty() || picked.contains(&s.name))
+        .filter(|s| flags.rest.is_empty() || flags.rest.contains(&s.name))
         .collect();
+    if flags.prompt.is_some() {
+        ensure!(todo.len() == 1, "--prompt applies to one sprite; name it");
+    }
     let raw_dir = crate::root().join("target/silice-gfx/raw/sprites");
     std::fs::create_dir_all(&raw_dir)?;
-    if !prep_only {
+    if !flags.prep_only {
         let queue = std::sync::Mutex::new(todo.iter());
+        let model = flags.model;
+        let refs = &flags.refs;
+        let subject = flags.prompt.as_deref();
         std::thread::scope(|sc| {
-            for _ in 0..jobs.max(1) {
+            for _ in 0..flags.jobs.max(1) {
                 sc.spawn(|| {
                     loop {
                         let Some(s) = queue.lock().unwrap().next().copied() else {
                             break;
                         };
-                        println!("sprite {}: asking codex", s.name);
+                        println!("sprite {}: asking {}", s.name, model.detail());
                         let raw = raw_dir.join(format!("{}.png", s.name));
-                        match codex_image(&prompt(&spec, s)) {
+                        let text = prompt(&spec, subject.unwrap_or(&s.prompt));
+                        match super::image::generate(model, &text, refs) {
                             Ok(img) => {
                                 if raw.exists() {
                                     let _ = std::fs::rename(
@@ -117,20 +112,20 @@ pub fn main(args: &[String]) -> Result<()> {
             println!("sprite {}: no raw picture", s.name);
             continue;
         }
-        build(&games, s, &raw).with_context(|| format!("sprite {}", s.name))?;
+        build(&flags.games, s, &raw).with_context(|| format!("sprite {}", s.name))?;
     }
     Ok(())
 }
 
-fn prompt(spec: &Spec, s: &Sprite) -> String {
+fn prompt(spec: &Spec, subject: &str) -> String {
     format!(
-        "{} Character: {} Draw exactly three full-body figures of this same character side by \
-         side in one row, evenly spaced with wide gaps, all the same size, standing still: facing \
-         the viewer, facing away (seen from the back), facing left (side profile). Each figure is \
-         a tiny Game Boy Advance overworld sprite of 16x32 pixels: big head (about a third of the \
-         height), chibi proportions, each pixel visible as a large square. Background: solid flat \
-         magenta #FF00FF, no shadow, no ground, no text.",
-        spec.style, s.prompt
+        "{} Character: {subject} Draw exactly three full-body figures of this same character side \
+         by side in one row, evenly spaced with wide gaps, all the same size, standing still: \
+         facing the viewer, facing away (seen from the back), facing left (side profile). Each \
+         figure is a tiny Game Boy Advance overworld sprite of 16x32 pixels: big head (about a \
+         third of the height), chibi proportions, each pixel visible as a large square. \
+         Background: solid flat magenta #FF00FF, no shadow, no ground, no text.",
+        spec.style
     )
 }
 

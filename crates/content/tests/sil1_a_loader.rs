@@ -771,7 +771,7 @@ fn the_build_reads_pkr_silice_dir() {
 // ---- the committed games dir ----
 
 fn real_extract() -> Option<PathBuf> {
-    let d = workspace().join("content/extracted");
+    let d = workspace().join("games/emerald");
     let ok = d.join("manifest.ron").exists()
         && input::format_of(&d.join("manifest.ron")) == Some(extract::schema::FORMAT_VERSION);
     if !ok {

@@ -1,4 +1,4 @@
-//! Writes `content/extracted/` in the format of [`crate::schema`]: maps, layouts, tilesets,
+//! Writes `games/emerald/` in the format of [`crate::schema`]: maps, layouts, tilesets,
 //! sprites, field-effect emotes, font, window graphics and (with [`ExportOptions::previews`])
 //! previews, all named by decomp identifiers. Texts and scripts are
 //! written by [`scripts::export_scripts`] (Milestone 3 Task B; M8 Task B owns

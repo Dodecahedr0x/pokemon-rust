@@ -1,4 +1,4 @@
-//! Everything the generator needs, in memory: read from `content/extracted/` ([`load`]) or
+//! Everything the generator needs, in memory: read from `games/emerald/` ([`load`]) or
 //! built in ([`crate::stub`]). [`write`] does the reverse of [`load`] (for test fixtures).
 
 use anyhow::{Context, Result, bail, ensure};

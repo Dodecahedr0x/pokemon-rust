@@ -1,4 +1,4 @@
-//! The built-in world used when `content/extracted/` is absent (fresh clone, CI): one small
+//! The built-in world used when `games/emerald/` is absent (fresh clone, CI): one small
 //! map drawn with the M1 test tiles, a plain player sprite, a 1-glyph font and a plain window.
 //! Needs no ROM.
 

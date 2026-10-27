@@ -1,9 +1,9 @@
-//! On-disk format (v5, see [`FORMAT_VERSION`] and [`FORMAT_MINOR`]) of `content/extracted/`:
+//! On-disk format (v5, see [`FORMAT_VERSION`] and [`FORMAT_MINOR`]) of `games/emerald/`:
 //! written by `export`, read by `content/build.rs` and later the studio. Everything is referenced
 //! by stable decomp-style **names**; ROM offsets only appear in `manifest.ron` as provenance.
 //!
 //! ```text
-//! content/extracted/
+//! games/emerald/
 //!   manifest.ron                 Manifest
 //!   maps/<Map>.ron               MapFile        (<Map> = decomp map dir name, e.g. LittlerootTown)
 //!   tilesets/<Tileset>.ron       TilesetFile    (<Tileset> = decomp name, e.g. General, Petalburg)

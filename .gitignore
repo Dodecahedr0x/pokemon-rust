@@ -8,10 +8,14 @@ target/
 explore.db
 explore.db-*
 .DS_Store
+.env
 .claude/worktrees/
-content/extracted
-content/.extracted.tmp/
-content/.extracted.old/
+# ROM-derived Emerald extract (`cargo xtask extract`). `.gitkeep` stays tracked so a
+# stub build can watch this directory without watching the rest of `games/`.
+games/emerald/**
+!games/emerald/.gitkeep
+games/.emerald.tmp/
+games/.emerald.old/
 checkpoints/*/snapshots/
 checkpoints/*/status.ron
 checkpoints/*/local/

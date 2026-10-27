@@ -8,7 +8,7 @@ default-run = "studio"
 
 [features]
 # The desktop app (`cargo run -p studio --features ui`); the core builds without a webview.
-ui = ["dep:dioxus", "dep:dioxus-ssr", "dep:futures-channel", "dep:tokio"]
+ui = ["dep:dioxus", "dep:dioxus-ssr", "dep:futures-channel", "dep:tokio", "dep:rfd"]
 
 [dependencies]
 engine.workspace = true
@@ -26,6 +26,8 @@ png = "0.18"
 ron = "0.8"
 serde = { version = "1", features = ["derive"] }
 dioxus = { version = "0.7.10", features = ["desktop"], optional = true }
+# The Art tab's reference-image picker (macOS panel; already in the dioxus tree).
+rfd = { version = "0.17.2", optional = true }
 # The smoke timer's oneshot (already in Dioxus's tree).
 futures-channel = { version = "0.3.34", optional = true }
 # The UI's timers, on the runtime dioxus-desktop already runs (already in Dioxus's tree).

@@ -212,7 +212,7 @@ impl Doc {
         })
     }
 
-    /// An extracted map (`content/extracted/maps/<Name>.ron`) as a document: the layout is
+    /// An extracted map (`games/emerald/maps/<Name>.ron`) as a document: the layout is
     /// named after the map; the header's numbers become names. Every warp is kept (indices
     /// matter): `MAP_DYNAMIC` stays, other unexported targets become `UNEXPORTED_<group>_<num>`
     /// (a validation error). Connections to unexported maps are dropped.
